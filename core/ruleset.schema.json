@@ -1,0 +1,1129 @@
+{
+  "$defs": {
+    "Action": {
+      "description": "A single action in a rule's 'then' block.\n\nMust have exactly one action-type key. Available actions:\n  set             \u2014 set a decision output to a value\n  add_reason      \u2014 append a Reason to a list-typed decision\n  add_instruction \u2014 append an Instruction to a list-typed decision\n  add_to_set      \u2014 add a value to a set-typed decision\n  append_to_list  \u2014 append a value to a list-typed decision",
+      "properties": {
+        "add_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AddReasonContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Append a Reason to a list-typed decision (typically 'reasons')."
+        },
+        "set": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set a decision output to a specific value, e.g. {eligible: true}.",
+          "title": "Set"
+        },
+        "add_instruction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AddInstructionContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Append an Instruction to a list-typed decision."
+        },
+        "add_to_set": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Add a value to a set-typed decision.",
+          "title": "Add To Set"
+        },
+        "append_to_list": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Append a value to a list-typed decision.",
+          "title": "Append To List"
+        }
+      },
+      "title": "Action",
+      "type": "object"
+    },
+    "AddInstructionContent": {
+      "description": "Content for an add_instruction action.",
+      "properties": {
+        "step": {
+          "description": "Step identifier or label.",
+          "title": "Step",
+          "type": "string"
+        },
+        "message": {
+          "description": "Instruction text.",
+          "title": "Message",
+          "type": "string"
+        },
+        "citations": {
+          "default": [],
+          "description": "Supporting citations for this instruction.",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "title": "Citations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "step",
+        "message"
+      ],
+      "title": "AddInstructionContent",
+      "type": "object"
+    },
+    "AddReasonContent": {
+      "description": "Content for an add_reason action.",
+      "properties": {
+        "code": {
+          "description": "Machine-readable reason code (UPPER_SNAKE_CASE).",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "description": "Human-readable explanation shown to caseworkers.",
+          "title": "Message",
+          "type": "string"
+        },
+        "citations": {
+          "default": [],
+          "description": "Legal citations supporting this denial reason.",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "title": "Citations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "AddReasonContent",
+      "type": "object"
+    },
+    "Citation": {
+      "description": "A legal or policy citation supporting a rule or reason.",
+      "properties": {
+        "label": {
+          "description": "Citation label, e.g. '42 USC \u00a7 1437a' or '7 CFR \u00a7 273.9'.",
+          "title": "Label",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the cited document (optional).",
+          "title": "Url"
+        },
+        "excerpt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Brief excerpt from the cited text (optional).",
+          "title": "Excerpt"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "ComputedField": {
+      "description": "A derived intermediate value (CIVIL v2+). Supports optional tags (CIVIL v3).\n\nComputed fields are NOT primary decision outputs \u2014 they are intermediate values\navailable to rules (in 'when:' expressions) and to other computed fields.\nDefine in dependency order: no forward references allowed.\n\nEach field must have exactly one of 'expr', 'conditional', 'invoke' (CIVIL v4),\nor 'table_lookup' (CIVIL v7).",
+      "properties": {
+        "type": {
+          "description": "Value type: money, bool, float, int, string, or object (for invoke: fields).",
+          "enum": [
+            "money",
+            "bool",
+            "float",
+            "int",
+            "string",
+            "object"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "module": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sub-module name for invoke: fields (no extension). E.g. 'income_calc'.",
+          "title": "Module"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Currency code for money type, e.g. 'USD'.",
+          "title": "Currency"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable explanation of what this field computes.",
+          "title": "Description"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Policy document location where this computed field is derived from, e.g. '7 CFR \u00a7 273.9(d)(1) \u2014 Earned Income Deduction'.",
+          "title": "Source"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CIVIL expression producing the computed value. Mutually exclusive with 'conditional' and 'invoke'. May reference fact fields, constants, other computed fields, and table lookups. In computed: context, max(a, b) and min(a, b) are also available.",
+          "title": "Expr"
+        },
+        "conditional": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Conditional"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "If/then/else branch for conditional computed values. Mutually exclusive with 'expr' and 'invoke'."
+        },
+        "invoke": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InvokeField"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(CIVIL v4) Invoke an external sub-module as a sub-computation. Mutually exclusive with 'expr' and 'conditional'. Requires 'module:' and 'type: object'."
+        },
+        "table_lookup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TableLookupDef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(CIVIL v7) Declarative table lookup. Resolves key column names from in-scope computed fields or entity fields. Mutually exclusive with 'expr', 'conditional', and 'invoke'."
+        },
+        "review": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewBlock"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Extraction quality scores for this computed field."
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(CIVIL v3) Optional list of string labels. Currently only 'output' has defined behavior: marks the field for exposure as a Catala `output` declaration (and subsequently in the demo API's ComputedBreakdown). Ignored by the Rego transpiler. Example: tags: [output]",
+          "title": "Tags"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ComputedField",
+      "type": "object"
+    },
+    "Conditional": {
+      "description": "An if/then/else expression for computed fields.\n\nUse instead of 'expr' when the computed value depends on a boolean condition.\nAll three branches (if, then, else) are required.",
+      "properties": {
+        "if": {
+          "description": "Boolean CIVIL expression \u2014 condition to test.",
+          "title": "If",
+          "type": "string"
+        },
+        "then": {
+          "description": "CIVIL expression for the true branch.",
+          "title": "Then",
+          "type": "string"
+        },
+        "else": {
+          "description": "CIVIL expression for the false branch.",
+          "title": "Else",
+          "type": "string"
+        }
+      },
+      "required": [
+        "if",
+        "then",
+        "else"
+      ],
+      "title": "Conditional",
+      "type": "object"
+    },
+    "DecisionField": {
+      "description": "An output decision value produced by rule evaluation.",
+      "properties": {
+        "type": {
+          "description": "Output type, e.g. 'bool', 'list', 'money', 'set', 'string'.",
+          "title": "Type",
+          "type": "string"
+        },
+        "default": {
+          "default": null,
+          "description": "Default value when no rules fire, e.g. false for bool or [] for list.",
+          "title": "Default"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of what this decision represents.",
+          "title": "Description"
+        },
+        "item": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Item type for list/set decisions, e.g. 'Reason' or 'string'.",
+          "title": "Item"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Allowed values for enum decisions, e.g. ['approve', 'deny', 'manual_verification'].",
+          "title": "Values"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CIVIL expression computing this decision value directly. For bool decisions, overrides the default count(reasons)==0 logic. Mutually exclusive with 'conditional'.",
+          "title": "Expr"
+        },
+        "conditional": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Conditional"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "If/then/else branch. Mutually exclusive with 'expr'."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DecisionField",
+      "type": "object"
+    },
+    "Effective": {
+      "description": "Effective date range for this ruleset.",
+      "properties": {
+        "start": {
+          "description": "Effective start date (YYYY-MM-DD).",
+          "title": "Start"
+        },
+        "end": {
+          "default": null,
+          "description": "Effective end date (YYYY-MM-DD) \u2014 optional for time-bounded policies.",
+          "title": "End"
+        }
+      },
+      "required": [
+        "start"
+      ],
+      "title": "Effective",
+      "type": "object"
+    },
+    "FactEntity": {
+      "description": "An input entity (e.g., Household, Applicant) with named typed fields.\n\nEntity names use PascalCase. Field names use snake_case.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of this entity.",
+          "title": "Description"
+        },
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FactField"
+          },
+          "description": "Named fields of this entity (snake_case \u2192 field definition).",
+          "title": "Fields",
+          "type": "object"
+        }
+      },
+      "required": [
+        "fields"
+      ],
+      "title": "FactEntity",
+      "type": "object"
+    },
+    "FactField": {
+      "description": "A single typed field within a fact entity.",
+      "properties": {
+        "type": {
+          "description": "Data type. Primitives: int, float, bool, string, date, money. Complex: list, set, enum. Custom: any type defined in the 'types' section.",
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable field description.",
+          "title": "Description"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Policy document location where this field is defined, e.g. '7 CFR \u00a7 273.9(a) \u2014 Income and Deductions'.",
+          "title": "Source"
+        },
+        "optional": {
+          "default": false,
+          "description": "Whether this field may be absent in input (default: false = always required).",
+          "title": "Optional",
+          "type": "boolean"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Currency code for money type, e.g. 'USD'.",
+          "title": "Currency"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Valid values for enum type, e.g. ['single', 'mfj', 'mfs'].",
+          "title": "Values"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "FactField",
+      "type": "object"
+    },
+    "InvokeField": {
+      "description": "Input binding for an invoke: computed field (CIVIL v4).\n\nMaps sub-module entity names to parent entity names.\nKey = sub-module entity name; value = parent entity name.",
+      "properties": {
+        "bind": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Entity binding: sub-module entity name \u2192 parent entity name. E.g., {Household: ClientData} routes the parent's ClientData entity to the sub-module's Household input. At least one entry required.",
+          "minProperties": 1,
+          "title": "Bind",
+          "type": "object"
+        }
+      },
+      "required": [
+        "bind"
+      ],
+      "title": "InvokeField",
+      "type": "object"
+    },
+    "Jurisdiction": {
+      "description": "Jurisdiction metadata for a CIVIL module.",
+      "properties": {
+        "level": {
+          "description": "Jurisdiction level: federal, state, county, or city.",
+          "enum": [
+            "federal",
+            "state",
+            "county",
+            "city"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "country": {
+          "description": "ISO country code, e.g. 'US'.",
+          "title": "Country",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "State/province code (optional).",
+          "title": "State"
+        },
+        "county": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "County name (optional).",
+          "title": "County"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "City name (optional).",
+          "title": "City"
+        }
+      },
+      "required": [
+        "level",
+        "country"
+      ],
+      "title": "Jurisdiction",
+      "type": "object"
+    },
+    "ReviewBlock": {
+      "description": "Inline extraction quality scores. All four score fields are required when present.\n\nScore scale: 1 = very low, 3 = moderate, 5 = very high.\nNotes are required for any score \u2264 2 or \u2265 4. Scores have no effect on\ntranspilation or OPA evaluation \u2014 they exist only for human review.",
+      "properties": {
+        "extraction_fidelity": {
+          "description": "1\u20135: how accurately the AI captured the policy intent. 1 = guessed (source is silent), 3 = reasonable translation, 5 = direct quote or explicit formula.",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Extraction Fidelity",
+          "type": "integer"
+        },
+        "source_clarity": {
+          "description": "1\u20135: how clear and unambiguous the source policy text was. 1 = contradictory or absent, 3 = reasonably clear with minor ambiguity, 5 = exact thresholds or formulas stated verbatim.",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Source Clarity",
+          "type": "integer"
+        },
+        "logic_complexity": {
+          "description": "1\u20135: number of conditions, boolean depth, and table lookups. 1 = single boolean or comparison, 3 = 4\u20136 conditions or 1 table lookup, 5 = 10+ conditions, nested booleans, multiple tables.",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Logic Complexity",
+          "type": "integer"
+        },
+        "policy_complexity": {
+          "description": "1\u20135: density of legalese, cross-references, and exceptions. 1 = plain everyday English, 3 = moderate legalese or defined terms, 5 = dense statutory language, exceptions-to-exceptions, multi-CFR cross-refs.",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Policy Complexity",
+          "type": "integer"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explanation for flagged items. Required for any score \u2264 2 or \u2265 4. May be omitted if all four scores are 3.",
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "extraction_fidelity",
+        "source_clarity",
+        "logic_complexity",
+        "policy_complexity"
+      ],
+      "title": "ReviewBlock",
+      "type": "object"
+    },
+    "Rule": {
+      "description": "A single deny or allow rule.\n\nRules are evaluated according to the rule_set.precedence strategy.\nThe 'when' condition is a boolean CIVIL expression; if it evaluates to true,\nall 'then' actions are executed.\n\nCIVIL v6 annotation fields (group, mutex_group) are maintainability metadata only.\nThey have no effect on transpilation or rule evaluation \u2014 analogous to 'review'.",
+      "properties": {
+        "id": {
+          "description": "Unique rule identifier. Recommended format: '<JURISDICTION>-<TOPIC>-<KIND>-<SEQ>', e.g. 'FED-SNAP-DENY-001'.",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Rule type: 'deny' to deny eligibility, 'allow' to grant it.",
+          "enum": [
+            "deny",
+            "allow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "priority": {
+          "description": "Evaluation priority \u2014 lower number = higher priority. Allow rules typically use priority 100+.",
+          "title": "Priority",
+          "type": "integer"
+        },
+        "when": {
+          "description": "Boolean CIVIL expression \u2014 the condition under which this rule fires. May reference fact fields (Household.field), constants, and computed fields. See module docstring for expression language reference.",
+          "title": "When",
+          "type": "string"
+        },
+        "then": {
+          "description": "Actions to take when the 'when' condition is true. Must be non-empty.",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Then",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional human-readable description of this rule.",
+          "title": "Description"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Policy document location where this rule is defined, e.g. '7 CFR \u00a7 273.9(a)(1) \u2014 Gross Income Test'.",
+          "title": "Source"
+        },
+        "review": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewBlock"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Extraction quality scores for this rule."
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(CIVIL v6) Workflow stage this rule belongs to. Must match a name in rule_set.workflow_stages when that list is non-empty. Transpiler no-op \u2014 annotation only.",
+          "title": "Group"
+        },
+        "mutex_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(CIVIL v6) Mutual-exclusion group name. Rules sharing a mutex_group represent competing alternatives \u2014 only one should fire per evaluation. All rules in the same mutex_group must have unique priority values. Transpiler no-op \u2014 annotation only.",
+          "title": "Mutex Group"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "priority",
+        "when",
+        "then"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "RuleSet": {
+      "description": "Rule set configuration controlling evaluation strategy.",
+      "properties": {
+        "name": {
+          "description": "Rule set identifier.",
+          "title": "Name",
+          "type": "string"
+        },
+        "precedence": {
+          "anyOf": [
+            {
+              "enum": [
+                "deny_overrides_allow",
+                "allow_overrides_deny",
+                "first_match",
+                "priority_order"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Evaluation strategy. deny_overrides_allow: any deny wins; allow_overrides_deny: any allow wins; first_match: first matching rule wins; priority_order: evaluate in priority order.",
+          "title": "Precedence"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of this rule set.",
+          "title": "Description"
+        },
+        "workflow_stages": {
+          "default": [],
+          "description": "(CIVIL v6) Named evaluation phases for this rule set. Defines the controlled vocabulary for rule group: annotations. E.g., income_test, asset_test, household_composition. When present, validate_civil.py checks that every rule group: value matches a stage name defined here.",
+          "items": {
+            "$ref": "#/$defs/WorkflowStage"
+          },
+          "title": "Workflow Stages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RuleSet",
+      "type": "object"
+    },
+    "TableDef": {
+      "description": "A lookup table mapping key values to output values.\n\nTables are referenced in CIVIL expressions as:\n  table('table_name', key_expr).value_column",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of what this table represents.",
+          "title": "Description"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Policy document location where this table is defined, e.g. '7 CFR \u00a7 273.9(a)(1) \u2014 Gross Income Limits Table'.",
+          "title": "Source"
+        },
+        "key": {
+          "description": "Key column name(s) used for lookup.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Key",
+          "type": "array"
+        },
+        "value": {
+          "description": "Value column name(s) returned by lookup.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Value",
+          "type": "array"
+        },
+        "rows": {
+          "description": "Table data rows as a list of dicts.",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "value",
+        "rows"
+      ],
+      "title": "TableDef",
+      "type": "object"
+    },
+    "TableLookupDef": {
+      "description": "Declarative table lookup for a computed field (CIVIL v7).\n\nResolves key column names from in-scope computed fields (bare name) or\nentity fields (Entity.field). Value column is inferred when the table\nhas exactly one value column; otherwise 'value' must be specified.",
+      "properties": {
+        "table": {
+          "description": "Name of the table to look up (must exist in tables:).",
+          "title": "Table",
+          "type": "string"
+        },
+        "key": {
+          "description": "Key column names (positional). Each name is resolved from in-scope computed fields or entity fields.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Key",
+          "type": "array"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Value column to return. Required when the table has multiple value columns; omit for single-value tables.",
+          "title": "Value"
+        }
+      },
+      "required": [
+        "table",
+        "key"
+      ],
+      "title": "TableLookupDef",
+      "type": "object"
+    },
+    "WorkflowStage": {
+      "description": "A named phase of policy evaluation (CIVIL v6).\n\nDefines the controlled vocabulary for rule group: annotations within this module.\nE.g., income_test, asset_test, household_composition.",
+      "properties": {
+        "name": {
+          "description": "Stage identifier (snake_case), e.g. 'income_test'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One-sentence description of this evaluation phase.",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "WorkflowStage",
+      "type": "object"
+    }
+  },
+  "description": "Top-level CIVIL DSL module. One file per program or policy area.\n\nCIVIL (Civic Instructions & Validations Intermediate Language) is designed\nfor government policy/regulation logic with full traceability to source law.\n\nRequired sections: module, description, version, jurisdiction, effective,\n                   facts, decisions, rule_set, rules.\nOptional sections: tables, constants, computed, types.",
+  "properties": {
+    "module": {
+      "description": "Unique module identifier, e.g. 'housing_assistance'.",
+      "title": "Module",
+      "type": "string"
+    },
+    "description": {
+      "description": "Human-readable description of the module.",
+      "title": "Description",
+      "type": "string"
+    },
+    "version": {
+      "description": "Version identifier, e.g. '2026Q1'.",
+      "title": "Version",
+      "type": "string"
+    },
+    "jurisdiction": {
+      "$ref": "#/$defs/Jurisdiction",
+      "description": "Jurisdiction metadata."
+    },
+    "effective": {
+      "$ref": "#/$defs/Effective"
+    },
+    "facts": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FactEntity"
+      },
+      "description": "Input fact types. Keys are entity names (PascalCase), values are entity definitions with typed fields.",
+      "title": "Facts",
+      "type": "object"
+    },
+    "decisions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DecisionField"
+      },
+      "description": "Output decision values produced by rule evaluation. Common pattern: eligible (bool) + reasons (list[Reason]).",
+      "title": "Decisions",
+      "type": "object"
+    },
+    "rule_set": {
+      "$ref": "#/$defs/RuleSet",
+      "description": "Rule set configuration."
+    },
+    "rules": {
+      "description": "Ordered list of allow/deny rules.",
+      "items": {
+        "$ref": "#/$defs/Rule"
+      },
+      "title": "Rules",
+      "type": "array"
+    },
+    "tables": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/TableDef"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Lookup tables for threshold values, e.g. income limits by household size. Reference in expressions as: table('table_name', key_expr).value_column",
+      "title": "Tables"
+    },
+    "constants": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Named constant values (UPPER_SNAKE_CASE). Examples: MIN_AGE, FEDERAL_POVERTY_LEVEL, EARNED_INCOME_RATE.",
+      "title": "Constants"
+    },
+    "computed": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ComputedField"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Derived intermediate values (CIVIL v2). Use for multi-step formulas where each step depends on prior results (e.g., a deduction chain). Define in dependency order \u2014 no forward references. Computed field names are available as bare identifiers in 'when:' clauses.",
+      "title": "Computed"
+    },
+    "types": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Custom type definitions (PascalCase). Built-in types Reason, Citation, and Instruction are available without definition.",
+      "title": "Types"
+    }
+  },
+  "required": [
+    "module",
+    "description",
+    "version",
+    "jurisdiction",
+    "effective",
+    "facts",
+    "decisions",
+    "rule_set",
+    "rules"
+  ],
+  "title": "CivilModule",
+  "type": "object"
+}

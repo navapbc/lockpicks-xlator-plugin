@@ -1,0 +1,16 @@
+{
+  "name": "my-marketplace",
+  "owner": {
+    "name": "My Claude plugin marketplace"
+  },
+  "plugins": [
+    {
+      "name": "xl",
+      "source": {
+        "source": "github",
+        "repo": "navapbc/lockpick-xlator",
+        "ref": "dev"
+      }
+    }
+  ]
+}

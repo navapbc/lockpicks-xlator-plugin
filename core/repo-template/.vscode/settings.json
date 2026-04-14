@@ -1,0 +1,26 @@
+{
+  "yaml.schemas": {
+    "core/ruleset.schema.json": "**/*.civil.yaml"
+  },
+  "chat.useClaudeHooks": true,
+  "github.copilot.chat.claudeAgent.enabled": true,
+  "python.terminal.activateEnvironment": true,
+  "terminal.integrated.shellIntegration.enabled": true,
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "chat.tools.global.autoApprove": true,
+  "chat.tools.terminal.autoApprove": {
+    "/.*/": true,
+    "./*": true
+  },
+  "chat.tools.edits.autoApprove": {
+    "**/*": true,
+    "**/.vscode/*.json": false,
+    "**/.git/**": false,
+    "**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}": false,
+    "**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}": false,
+    "**/*.lock": false,
+    "**/*-lock.{yaml,json}": false
+  },
+  "claudeCode.allowDangerouslySkipPermissions": true,
+  "claudeCode.initialPermissionMode": "bypassPermissions"
+}

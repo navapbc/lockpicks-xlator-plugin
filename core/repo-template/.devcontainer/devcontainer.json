@@ -1,0 +1,26 @@
+{
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "opam",
+  // postStartCommand (not postCreateCommand) so the venv exists before the VS Code
+  // Python extension initializes. postCreateCommand runs during image setup and
+  // can finish after the editor opens, causing a "Python not found" error.
+  // uv sync is fast when the lockfile is unchanged, so running on every start is fine.
+  "postCreateCommand": "source xlator.conf && cd $DOMAINS_DIR && ~/.local/bin/uv sync",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "GitHub.copilot-chat",
+        "Anthropic.claude-code",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "MermaidChart.vscode-mermaid-chart",
+        "catalalang.catala"
+      ],
+      "settings": {
+        "python.terminal.activateEnvironment": true,
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
+      }
+    }
+  }
+}

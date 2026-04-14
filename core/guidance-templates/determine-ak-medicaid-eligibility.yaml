@@ -1,0 +1,138 @@
+template_id: calculate-earned-income-after-exclusions
+display_name: "Determine Medicaid Eligibility based on Reported Income after Exclusions (Alaska)"
+description: "Assess eligibility for Medicaid based on the adjusted monthly earned income amount for a household after applying all relevant exclusions (and computations) as specified in the policy."
+
+role: "You are a policy-to-rules analyst for eligibility determination based on earned income."
+scope: "Convert the provided policy text into explicit, testable earned income calculation rules that produce a dollar amount per month."
+
+constraints:
+  - "Do not interpret beyond the text; do not add requirements that aren't stated."
+  - "Ensure every monetary formula traces directly to a policy citation."
+  - "Create a list of unknowns/gaps (things needed but not defined in the text)."
+  - "List any assumptions made."
+  - "Do not round unless the policy explicitly specifies rounding."
+  - "Do not apply proration for partial months unless the policy states it."
+
+standards:
+  - "Use monthly amounts unless policy specifies otherwise."
+  - "Express monetary values in dollars."
+  - "Express percentages as decimals (0.3, not 30%)."
+
+guidance:
+  - "Apply rounding rules only if stated in the policy."
+  - "Step 1: Unearned income exclusions. Step 2: Compute earned income exclusions. Step 3: Make determination based on the income standard, using Reasonable compatibility (523 B) if needed."
+
+input_variables:
+  categories:
+    - category: unearned_income
+      description: "Total unearned income as reported by the client/applicant, including insurance benefits, annuities, pensions, retirement benefits, and disability benefits, VA compensation and educational payments, needs-based income, workers' compensation payments, death and court benefits, cash gift, prizes, inheritance, alimony payments, rental income, royalties, etc."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/441/441-2 UNEARNED INCOME.md"
+      source_section: "441-2 UNEARNED INCOME"
+
+    - category: earned_income
+      description: "Total earned income as reported by the client/applicant, which may differ from DOL earned income."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/441/441-1 EARNED INCOME.md"
+      source_section: "441-1 EARNED INCOME"
+
+    - category: dol_earned_income
+      description: "Total earned income as reported by the Department of Labor, which may differ from client-reported earned income due to verification processes."
+      source_file: "domains/ak_doh/input/policy_docs/adltc_manual/523 MEDICAID EXCEPTIONS TO APA INCOME POLICY.md"
+      source_section: "Reasonable Compatibility (523 B)"
+
+    - category: household_type
+      description: "Type of household to lookup the corresponding row in the Expanded Refused Cash Income Limits table to use as the 'income standard'."
+      source_file: "domains/ak_doh/input/policy_docs/adltc_manual/Addendum 1 - Expanded Refuse Cash Income Limits.md"
+      source_section: "Expanded Refused Cash Income Limits"
+
+    - category: income_year
+      description: "Income year to lookup the corresponding column in the Expanded Refused Cash Income Limits table to use as the 'income standard'."
+      source_file: "domains/ak_doh/input/policy_docs/adltc_manual/Addendum 1 - Expanded Refuse Cash Income Limits.md"
+      source_section: "Expanded Refuse Cash Income Limits"
+
+    - category: federal_earned_income_exclusions
+      description: "An individual receives infrequent income if he or she receives it no more than once in a calendar quarter from a single source."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 A. EARNED INCOME EXCLUSIONS AUTHORIZED BY FEDERAL LAWS"
+      
+    - category: eitc_child_tax_credit
+      description: "Earned Income Tax Credits (EITC) and child tax credit payments"
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 B. EARNED INCOME TAX CREDIT AND CHILD TAX CREDIT PAYMENTS"
+
+    - category: infrequent_irregular_earnings_exclusion
+      description: "Up to $30 of earned income in a calendar quarter may be excluded if it is infrequent or irregular (if he or she could not reasonably expect to receive it)"
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 C. INFREQUENT/IRREGULAR EARNED INCOME"
+
+    - category: blind_disabled_student_earnings
+      description: "Earned income of a blind or disabled student subject to exclusion. Monthly and yearly maximum limits apply."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 D. STUDENT EARNED INCOME EXCLUSION"
+      exact_phrase: "The earned income of a blind or disabled student is excluded subject to monthly and yearly maximums. Earned income that exceeds the maximum limits is not excluded."
+
+    - category: general_income_20_exclusion
+      description: "Portion of the $20 general income exclusion allowed only once to a couple, even when both members have earned income"
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 E. $20 PER MONTH GENERAL INCOME EXCLUSION"
+      exact_phrase: "Any portion of the $20 general income exclusion which has not been excluded from unearned income in the same month."
+
+    - category: earned_income_65_exclusion
+      description: "$65 earned income exclusion is allowed only once to a couple, even when both members have earned income"
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 F. $65 EARNED INCOME EXCLUSION"
+      exact_phrase: "The $65 earned income exclusion is allowed only once to a couple, even when both members have earned income"
+
+    - category: impairment_work_expenses
+      description: "Impairment-related work expenses are any reasonable expenses for items or services that are necessary for the disabled individual to work."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 G. IMPAIRMENT RELATED WORK EXPENSES FOR DISABLED"
+
+    - category: blind_work_expenses
+      description: "Any earned income that a blind individual uses to meet work expenses is excluded from income. The blind work expense income exclusion is allowed for any work expense, whether or not the expense is directly related to the individual's blindness."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 I. WORK EXPENSES FOR THE BLIND"
+
+    - category: earnings_for_self_support_plan
+      description: "Any earned income used to fulfill an approved plan to achieve self-support is excluded from income."
+      source_file: "domains/ak_doh/input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+      source_section: "442-2 J. AMOUNT TO FULFILL A PLAN FOR ACHIEVING SELF-SUPPORT"
+
+output_variables:
+  primary:
+    name: eligible
+    type: "enum"
+    values: ["approve", "deny", "manual_verification"]
+    description: "Eligibility result indicating if applicant is eligible based on the client's adjusted income and any reasonable compatibility checks."
+  secondary_decisions:
+    - name: denial_reason
+      type: "str"
+      description: "Income-based reason for a 'deny' decision"
+
+intermediate_variables:
+  categories:
+    - category: half_remaining_earned_income
+      description: "One-half of remaining earned income after subtracting exclusions, tax credits, and earnings described in 442-4 steps 1 through 7."
+    - category: client_adjusted_earned_income
+      description: "Dollar amount of income per month reported by client after all exclusions are applied."
+      examples: [client_adjusted_income, client_income_minus_exclusions]
+    - category: dol_adjusted_earned_income
+      description: "Dollar amount of income per month reported by the Department of Labor after all exclusions are applied."
+      examples: [dol_adjusted_income, dol_income_minus_exclusions]
+    - category: income_standard
+      description: "The income limit extracted from the EXPANDED REFUSED CASH INCOME LIMIT table based on the household type and income year used to assess Reasonable compatibility"
+      examples: [expanded_refused_cash_income_limit]
+    - category: is_reasonably_compatible
+      description: "Determination of whether the client's adjusted income is reasonably compatible with the income standard from the Expanded Refused Cash Income Limits table."
+      source_file: "domains/ak_doh/input/policy_docs/adltc_manual/523 MEDICAID EXCEPTIONS TO APA INCOME POLICY.md"
+      source_section: "Reasonable Compatibility (523 B)"
+      exact_phrase: "To be considered reasonably compatible, income electronically reported by Department of Labor (DOL) must be within 10% of the client stated gross monthly income."
+
+constants_and_tables:
+  - name: expanded_refused_cash_income_limits
+    description: "Expanded Refused Cash Income Limits to use as the 'income standard' to assess Reasonable compatibility"
+  - name: student_earned_income_exclusion
+    description: "Student Earned Income Exclusion"
+
+examples:
+  ruleset_snippet: |
+    earned_income_after_exclusions = earned_income - max(0, total_exclusions)

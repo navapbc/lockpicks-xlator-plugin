@@ -1,0 +1,13 @@
+[tools]
+# uv 0.11.3 (45da18ac3 2026-04-01 aarch64-apple-darwin)
+uv = "latest"
+# Run `uv sync` (to install Python specified in .python-version in a venv) instead of:
+# python = "3.14"
+
+# rust is needed for catala-format
+# opam are needed for Catala
+rust = "1.93"
+opam = "2.5"
+
+# This is "NOT recommended. It's definitely better to use opam to manage your environment" https://github.com/mise-plugins/mise-ocaml
+# ocaml = "5.4"

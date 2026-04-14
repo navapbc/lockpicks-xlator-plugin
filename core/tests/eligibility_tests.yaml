@@ -1,0 +1,252 @@
+test_suite:
+  spec: "eligibility.civil.yaml"
+  description: "Alaska Medicaid income eligibility — covers all five 523B action paths plus IRWE and couple-type cases (benefit year 2026 unless noted). Entity prefixes: ClientData.* for client-stated inputs, DOLRecord.* for DOL-verified inputs."
+  version: "1.0"
+
+# =============================================================================
+# Key reference values (2026)
+#
+# Household type A1E / B1E / H1E / NHR:  income_limit = $1,845
+# Household type A2S / B2S / H2S / A2C / B2C / H2C:  income_limit = $2,732
+#
+# Exclusion chain (applied to both client and DOL income):
+#   Step 5: subtract min(non_needs_based_unearned_remainder, 20)
+#   Step 6: subtract min(remaining, 65)
+#   Step 8: multiply remaining by 0.5
+#   (other steps 0 when optional fields omitted)
+#
+# 10% compatibility band (523B action 4):
+#   abs(dol_adjusted - client_adjusted) <= client_adjusted * 0.10
+#
+# DOLRecord.gross_earned_income must be pre-set to dol_quarterly_earnings / 3
+# by the calling system before invocation.
+# =============================================================================
+
+tests:
+
+  # ---------------------------------------------------------------------------
+  # Case: ext_001 — EXTRACTED from 523B example
+  # Action 4 (compatible): client $1,707.50 ≤ A1E 2025 limit $1,795;
+  #   DOL $1,824.17 > $1,795 but within 10% band → approve
+  # client chain: (3500 - 20 - 65) × 0.5 = 1707.50
+  # DOL chain:    (3733.33 - 20 - 65) × 0.5 ≈ 1824.17
+  # 10% of 1707.50 = 170.75; |1824.17 - 1707.50| = 116.67 ≤ 170.75 → compatible
+  # ---------------------------------------------------------------------------
+  - case_id: "ext_001"
+    description: "523B example: client $1,707.50 below A1E 2025 standard ($1,795); DOL $1,824.17 above but within 10% band — approve"
+    source:
+      file: "domains/ak_doh/input/policy_docs/adltc_manual/523 MEDICAID EXCEPTIONS TO APA INCOME POLICY.md"
+      section: "523B — Reasonable Compatibility example"
+    inputs:
+      ClientData.gross_earned_income: 3500
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2025
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 11200
+      DOLRecord.gross_earned_income: 3733.33
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "approve"
+      reasons: []
+    tags: ["extracted", "allow", "action_4", "compatible"]
+
+  # ---------------------------------------------------------------------------
+  # Case: allow_001 — Action 1: both client and DOL at or below standard
+  # client chain: (2000 - 20 - 65) × 0.5 = 957.50  < 1845
+  # DOL chain:    (2000 - 20 - 65) × 0.5 = 957.50  < 1845
+  # ---------------------------------------------------------------------------
+  - case_id: "allow_001"
+    description: "Action 1: both client ($957.50) and DOL ($957.50) adjusted income well below A1E 2026 standard ($1,845) — approve"
+    inputs:
+      ClientData.gross_earned_income: 2000
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 6000
+      DOLRecord.gross_earned_income: 2000
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "approve"
+      reasons: []
+    tags: ["allow", "action_1", "both_below_standard"]
+
+  # ---------------------------------------------------------------------------
+  # Case: deny_both_001 — Action 2: both client and DOL above standard
+  # client chain: (4000 - 20 - 65) × 0.5 = 1957.50  > 1845
+  # DOL chain:    (4000 - 20 - 65) × 0.5 = 1957.50  > 1845
+  # AK-ELIG-DENY-001 fires → INCOME_EXCEEDS_STANDARD_BOTH
+  # ---------------------------------------------------------------------------
+  - case_id: "deny_both_001"
+    description: "Action 2: both client ($1,957.50) and DOL ($1,957.50) adjusted income above A1E 2026 standard ($1,845) — deny"
+    inputs:
+      ClientData.gross_earned_income: 4000
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 12000
+      DOLRecord.gross_earned_income: 4000
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "deny"
+      reasons:
+        - code: "INCOME_EXCEEDS_STANDARD_BOTH"
+    tags: ["deny", "action_2", "both_above_standard"]
+
+  # ---------------------------------------------------------------------------
+  # Case: deny_client_001 — Action 3: client above standard, DOL below
+  # client chain: (5000 - 20 - 65) × 0.5 = 2457.50  > 1845
+  # DOL chain:    (1000 - 20 - 65) × 0.5 = 457.50   ≤ 1845
+  # AK-ELIG-DENY-002 fires → INCOME_EXCEEDS_STANDARD_CLIENT_ONLY
+  # ---------------------------------------------------------------------------
+  - case_id: "deny_client_001"
+    description: "Action 3: client adjusted $2,457.50 above standard; DOL $457.50 below — deny on client statement regardless of DOL"
+    inputs:
+      ClientData.gross_earned_income: 5000
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 3000
+      DOLRecord.gross_earned_income: 1000
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "deny"
+      reasons:
+        - code: "INCOME_EXCEEDS_STANDARD_CLIENT_ONLY"
+    tags: ["deny", "action_3", "client_above_dol_below"]
+
+  # ---------------------------------------------------------------------------
+  # Case: allow_compatible_001 — Action 4 compatible: client below, DOL above but within 10%
+  # client chain: (3685 - 20 - 65) × 0.5 = 1800.00  ≤ 1845
+  # DOL chain:    (3885 - 20 - 65) × 0.5 = 1900.00  > 1845
+  # |1900 - 1800| = 100 ≤ 1800 × 0.10 = 180 → compatible → approve
+  # ---------------------------------------------------------------------------
+  - case_id: "allow_compatible_001"
+    description: "Action 4 compatible: client adjusted $1,800 below standard; DOL $1,900 above but within 10% band — approve"
+    inputs:
+      ClientData.gross_earned_income: 3685
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 11655
+      DOLRecord.gross_earned_income: 3885
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "approve"
+      reasons: []
+    tags: ["allow", "action_4", "compatible", "client_below_dol_above"]
+
+  # ---------------------------------------------------------------------------
+  # Case: manual_incompatible_001 — Action 4 incompatible: client below, DOL above and outside 10%
+  # client chain: (3685 - 20 - 65) × 0.5 = 1800.00  ≤ 1845
+  # DOL chain:    (4200 - 20 - 65) × 0.5 = 2057.50  > 1845
+  # |2057.50 - 1800| = 257.50 > 1800 × 0.10 = 180 → NOT compatible → manual_verification
+  # ---------------------------------------------------------------------------
+  - case_id: "manual_incompatible_001"
+    description: "Action 4 incompatible: client adjusted $1,800 below standard; DOL $2,057.50 above and outside 10% band — manual verification required"
+    inputs:
+      ClientData.gross_earned_income: 3685
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 12600
+      DOLRecord.gross_earned_income: 4200
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "manual_verification"
+      reasons: []
+    tags: ["manual_verification", "action_4", "incompatible", "client_below_dol_above"]
+
+  # ---------------------------------------------------------------------------
+  # Case: manual_no_dol_001 — Action 5: no DOL electronic data available
+  # client chain: (1000 - 20 - 65) × 0.5 = 457.50  ≤ 1845
+  # dol_earned_income_available = false → manual_verification_required = true
+  # No deny rules fire (all require dol_earned_income_available = true)
+  # ---------------------------------------------------------------------------
+  - case_id: "manual_no_dol_001"
+    description: "Action 5: no DOL electronic data — manual verification required regardless of client income ($457.50 below standard)"
+    inputs:
+      ClientData.gross_earned_income: 1000
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: false
+      DOLRecord.gross_earned_income: 0
+    expected:
+      eligible: "manual_verification"
+      reasons: []
+    tags: ["manual_verification", "action_5", "no_dol_history"]
+
+  # ---------------------------------------------------------------------------
+  # Case: allow_boundary_001 — Client adjusted income exactly at the income limit
+  # gross = 3775: (3775 - 20 - 65) × 0.5 = 3690 × 0.5 = 1845 = income_limit
+  # DOL identical → both exactly at limit (≤) → approve
+  # ---------------------------------------------------------------------------
+  - case_id: "allow_boundary_001"
+    description: "Boundary: client adjusted income exactly $1,845 = A1E 2026 income limit — approve (≤ limit passes)"
+    inputs:
+      ClientData.gross_earned_income: 3775
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 11325
+      DOLRecord.gross_earned_income: 3775
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "approve"
+      reasons: []
+    tags: ["allow", "boundary", "at_income_limit"]
+
+  # ---------------------------------------------------------------------------
+  # Case: allow_irwe_001 — IRWE exclusion (step 7) reduces income below standard
+  # Without IRWE: (4000 - 20 - 65) × 0.5 = 1957.50 > 1845 → would deny
+  # With IRWE $300: (4000 - 20 - 65 - 300) × 0.5 = 3615 × 0.5 = 1807.50 ≤ 1845 → approve
+  # DOL income identical (same IRWE applied)
+  # ---------------------------------------------------------------------------
+  - case_id: "allow_irwe_001"
+    description: "IRWE ($300) applied at step 7: income drops from $1,957.50 to $1,807.50, below A1E 2026 standard — approve"
+    inputs:
+      ClientData.gross_earned_income: 4000
+      ClientData.impairment_work_expenses: 300
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A1E"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 12000
+      DOLRecord.gross_earned_income: 4000
+      DOLRecord.impairment_work_expenses: 300
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "approve"
+      reasons: []
+    tags: ["allow", "irwe", "exemption"]
+
+  # ---------------------------------------------------------------------------
+  # Case: deny_couple_001 — A2S couple, both above higher income limit
+  # income_limit for A2S 2026 = $2,732
+  # client chain: (7000 - 20 - 65) × 0.5 = 3457.50  > 2732
+  # DOL chain:    (7000 - 20 - 65) × 0.5 = 3457.50  > 2732
+  # AK-ELIG-DENY-001 fires → INCOME_EXCEEDS_STANDARD_BOTH
+  # ---------------------------------------------------------------------------
+  - case_id: "deny_couple_001"
+    description: "A2S couple: both client ($3,457.50) and DOL ($3,457.50) above higher couple standard ($2,732) — deny"
+    inputs:
+      ClientData.gross_earned_income: 7000
+      ClientData.non_needs_based_unearned_remainder: 20
+      ClientData.household_type: "A2S"
+      ClientData.benefit_year: 2026
+      DOLRecord.dol_earned_income_available: true
+      DOLRecord.dol_quarterly_earnings: 21000
+      DOLRecord.gross_earned_income: 7000
+      DOLRecord.non_needs_based_unearned_remainder: 20
+    expected:
+      eligible: "deny"
+      reasons:
+        - code: "INCOME_EXCEEDS_STANDARD_BOTH"
+    tags: ["deny", "edge", "couple_type", "a2s"]

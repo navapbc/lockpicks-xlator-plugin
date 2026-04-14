@@ -1,0 +1,87 @@
+template_id: assess-eligibility
+display_name: "Assess Program Eligibility"
+description: "Determine whether a household or individual qualifies for a benefits program."
+
+role: "You are a policy-to-rules analyst for eligibility determinations."
+scope: "Convert the provided policy text into an explicit, testable ruleset for a rules engine."
+
+constraints:
+  - "Do not interpret beyond the text; do not add requirements that aren't stated."
+  - "Ensure every rule has citations."
+  - "Create a list of unknowns/gaps (things needed but not defined in the text)."
+  - "List any assumptions made."
+  - "Do not invent verification requirements."
+  - "Ensure no rule introduces concepts not present in the policy."
+
+standards:
+  - "Use monthly income amounts unless policy specifies annual."
+  - "Express monetary values in dollars."
+  - "Normalize citizenship status as boolean or enum (not free text)."
+
+guidance:
+  - "Look for chained deductions: gross → earned deduction → net → shelter deduction → adjusted net income."
+  - "Check for both gross and net income tests as separate computed fields."
+  - "When federal and state policies conflict, prefer the more restrictive rule."
+  - "Deduction amounts typically appear in constants or household-size tables."
+
+input_variables:
+  categories:
+    - category: household_composition
+      description: "Who is in the household — size, relationships, ages."
+      examples: [household_size, member_ages, household_type]
+
+    - category: income
+      description: "All income sources for the benefit unit."
+      examples: [gross_income, earned_income, unearned_income]
+
+    - category: assets
+      description: "Countable resources and property."
+      examples: [liquid_assets, vehicle_value, bank_balance]
+
+    - category: citizenship_and_residency
+      description: "Immigration status and state/program residency requirements."
+      examples: [is_citizen, is_resident, immigration_status]
+
+    - category: program_history
+      description: "Prior program participation, disqualifications, or time limits."
+      examples: [months_on_program, is_disqualified]
+
+output_variables:
+  primary:
+    type: "bool"
+    description: "Binary pass/fail eligibility determination."
+  secondary_decisions:
+    - name: manual_review_required
+      type: "bool"
+      description: "Flag for cases requiring human review before determination."
+
+intermediate_variables:
+  categories:
+    - category: income_deductions
+      description: "Allowable deductions applied to gross income."
+      examples: [standard_deduction, earned_income_deduction, shelter_deduction]
+
+    - category: income_tests
+      description: "Gross and net income values compared against program limits."
+      examples: [adjusted_gross_income, net_income, gross_limit, net_limit]
+
+    - category: eligibility_flags
+      description: "Boolean sub-decisions that feed the primary eligibility determination."
+      examples: [passes_gross_test, passes_net_test, passes_asset_test]
+
+constants_and_tables:
+  - name: income_limits
+    description: "Gross and net income thresholds by household size."
+  - name: standard_deduction
+    description: "Fixed deduction amount by household size or program category."
+  - name: asset_limits
+    description: "Maximum countable resources by eligibility category."
+
+examples:
+  ruleset_snippet: |
+    # passes_gross_test = (gross_income <= gross_limit)
+    # net_income = gross_income - standard_deduction - earned_income_deduction
+    # decision = passes_gross_test AND passes_net_test
+  test_case: |
+    # Given household_size=3, gross_income=$2,100/mo
+    # Expect: passes_gross_test=true, passes_net_test=true, decision=true

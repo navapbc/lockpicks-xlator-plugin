@@ -1,0 +1,122 @@
+# CIVIL v6 annotation validation test fixture.
+# Used to verify validate_civil.py's validate_group_assignments and
+# validate_mutex_group_consistency functions.
+#
+# This file is the VALID baseline (should pass validation).
+# See comments below each variant for expected error/warning behavior.
+#
+# To run: python tools/validate_civil.py core/tests/civil_v6_annotations_test.yaml
+
+module: v6_annotations_test
+description: "Test fixture for CIVIL v6 group/mutex_group annotation validation."
+version: "2026Q1"
+jurisdiction:
+  level: federal
+  country: US
+effective:
+  start: 2026-01-01
+
+facts:
+  Applicant:
+    description: "Test applicant entity"
+    fields:
+      income:
+        type: money
+        currency: USD
+        description: "Monthly income"
+      household_size:
+        type: int
+        description: "Number of people in household"
+
+decisions:
+  eligible:
+    type: bool
+    default: false
+    description: "Whether the applicant is eligible"
+    expr: "count(reasons) == 0"
+  reasons:
+    type: list
+    item: Reason
+    default: []
+    description: "Denial reasons"
+
+rule_set:
+  name: v6_test_rules
+  precedence: deny_overrides_allow
+  # CIVIL v6: workflow_stages defines controlled vocabulary for rule group: annotations
+  workflow_stages:
+    - name: income_test
+      description: Income eligibility tests
+    - name: household_test
+      description: Household size tests
+
+rules:
+  # VALID: group matches a defined workflow stage; mutex_group has 2 members with unique priorities
+  - id: TEST-INCOME-DENY-001
+    kind: deny
+    priority: 10
+    group: income_test        # matches workflow_stages
+    mutex_group: income_rules # two rules in this group with unique priorities (10, 20)
+    when: "Applicant.income > 5000"
+    then:
+      - add_reason:
+          code: INCOME_TOO_HIGH
+          message: "Income exceeds the limit."
+
+  - id: TEST-INCOME-DENY-002
+    kind: deny
+    priority: 20
+    group: income_test        # matches workflow_stages
+    mutex_group: income_rules # same mutex_group, different priority — valid
+    when: "Applicant.income > 3000"
+    then:
+      - add_reason:
+          code: INCOME_MODERATE
+          message: "Income exceeds the moderate limit."
+
+  # VALID: different workflow stage, no mutex_group
+  - id: TEST-HOUSEHOLD-DENY-001
+    kind: deny
+    priority: 30
+    group: household_test     # matches workflow_stages
+    when: "Applicant.household_size > 8"
+    then:
+      - add_reason:
+          code: HOUSEHOLD_TOO_LARGE
+          message: "Household size exceeds maximum."
+
+  # VALID: no group or mutex_group — optional fields are absent
+  - id: TEST-ALLOW-001
+    kind: allow
+    priority: 100
+    when: "true"
+    then:
+      - set:
+          eligible: true
+
+# ============================================================================
+# EXPECTED VALIDATOR BEHAVIOR FOR VARIANT CASES (not in this file — documented
+# here for reference when writing negative tests):
+#
+# VARIANT 1 — group set but workflow_stages empty:
+#   rule: group: income_test, rule_set has no workflow_stages
+#   → validator WARNING: "rules → <id>: group='income_test' is set but
+#     rule_set.workflow_stages is empty"
+#   → exit 0 (warning only, not error)
+#
+# VARIANT 2 — group value not in workflow_stages:
+#   rule: group: nonexistent_stage, workflow_stages has [income_test, household_test]
+#   → validator ERROR: "rules → <id>: group='nonexistent_stage' is not in
+#     rule_set.workflow_stages names: ['household_test', 'income_test']"
+#   → exit 1
+#
+# VARIANT 3 — singleton mutex_group:
+#   only one rule with mutex_group: income_rules
+#   → validator WARNING: "mutex_group 'income_rules' has only one member (rule '<id>')"
+#   → exit 0 (warning only)
+#
+# VARIANT 4 — duplicate priority in mutex_group:
+#   two rules with mutex_group: income_rules and priority: 10, 10
+#   → validator ERROR: "mutex_group 'income_rules' has duplicate priority values [10]"
+#   → exit 1
+# ============================================================================
