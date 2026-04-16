@@ -20,14 +20,18 @@ Supported event types:
 Errors are silently swallowed and the script always exits 0 so that
 observability failures never block the user's workflow.
 """
+import os
+import sys
+
+if os.environ.get("OBSERVE_HOOK_DISABLED", "").lower() in ["1", "true", "yes"]:
+    # Short-circuit the entire script if the env var is set, to minimize overhead when disabled.
+    sys.exit(0)
 
 import fcntl
 import glob as _glob
 import json
-import os
 import re
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 

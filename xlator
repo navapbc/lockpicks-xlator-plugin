@@ -81,7 +81,13 @@ case "$1" in
         exec python3 "$SCRIPT_DIR/tools/civil_schema.py"
         ;;
     observe_hook)
-        exec python3 "$SCRIPT_DIR/tools/observe_hook.py" "${@:2}"
+        case "${OBSERVE_HOOK_DISABLED:-}" in
+            1|true|yes)
+                ;;
+            *)
+                exec python3 "$SCRIPT_DIR/tools/observe_hook.py" "${@:2}"
+                ;;
+        esac
         ;;
     *)
         # PROJECT_ROOT is expected by xlator.py.

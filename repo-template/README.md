@@ -39,10 +39,12 @@ To use the Xlator plugin, Claude Code must be authenticated. For reliable authen
 
 You should now be able to interact with Claude Code. Test by pasting any of the following in the input field:
 - `What is today's date?`
-- `What is the value of $CLAUDE_PLUGIN_ROOT`
+- `What are the values of $CLAUDE_PLUGIN_ROOT and $DOMAINS_DIR`
+- `Which python version is installed?` -- This is relevant for your repo
+- `Which python version is being used by the 'xl' Claude plugin?`
 - `/xl:new-domain`
 
-### Xlator Observability feature creates session.jsonl
+## Xlator Observability feature creates session.jsonl
 
-To capture user interactions, `logs/session.jsonl` files are created under `_global` and `<domain>` subfolders.
-These logs can be useful for user support when needed.
+To capture user interactions, `logs/session.jsonl` files are created under `_global` and `<domain>` subfolders. These logs can be useful for user support when needed.
+To disable these logs, add `export OBSERVE_HOOK_DISABLED=true` to `xlator.conf`.
