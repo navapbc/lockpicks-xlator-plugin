@@ -99,8 +99,6 @@ setup_domains_dir() {
     ln -snf "$CLAUDE_PLUGIN_ROOT/xlator" .
     # Provides easy access to the plugin folder for reference
     ln -snf "$CLAUDE_PLUGIN_ROOT" .plugin
-
-    echo "🤩 Setup complete"
 }
 
 # --- Main ---
@@ -124,3 +122,11 @@ for F in .gitignore pyproject.toml .python-version uv.lock; do
 done
 
 setup_domains_dir
+
+if [ ! -f "$PROJECT_ROOT/.gitignore" ] || ! grep -qxF ".xlator.local.env" "$PROJECT_ROOT/.gitignore"; then
+    echo "Adding .xlator.local.env to $PROJECT_ROOT/.gitignore"
+    echo ".xlator.local.env" >> "$PROJECT_ROOT/.gitignore"
+fi
+
+git add .
+echo "🤩 Setup complete. Remember to commit the files to git."
