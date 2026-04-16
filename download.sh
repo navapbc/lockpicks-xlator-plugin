@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Usage: curl -s https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main/download.sh | bash -s -- [new_repo_folder_name] [domains_subfolder_name]
+# Usage: curl -s https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main/download.sh | bash -s -- [new_repo_path] [domains_subfolder_name]
 #
 # This script downloads the Xlator repo template and sets up a new git repository with it.
-# The new repository will be created in a folder named [new_repo_folder_name] with
-# a subfolder named [domains_subfolder_name] (defaults to 'domains').
+# The new repository will be created at [new_repo_path] with a
+# subfolder named [domains_subfolder_name] (defaults to 'domains').
 # If arguments are not provided, the template will be downloaded and left in a folder named 'xlator-repo-creator' for manual use.
 
 set -euo pipefail
