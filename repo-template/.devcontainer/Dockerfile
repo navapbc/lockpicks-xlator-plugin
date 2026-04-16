@@ -31,4 +31,4 @@ RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 RUN echo 'eval $(opam env)' >> ~/.bashrc \
-    && echo 'export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
