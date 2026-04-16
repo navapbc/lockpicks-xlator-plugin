@@ -102,32 +102,50 @@ setup_domains_dir() {
     ln -snf "$CLAUDE_PLUGIN_ROOT" .plugin
 }
 
+copy_if_changed() {
+    local SRC_FILE="$1"  # relative to $CLAUDE_PLUGIN_ROOT
+    local DST_FILE="$2"  # relative to current folder
+    if [ -f "$DST_FILE" ] && cmp -s "$CLAUDE_PLUGIN_ROOT/$SRC_FILE" "$DST_FILE"; then
+        : echo "  Skipping (unchanged): $DST_FILE"
+    else
+        if [ -f "$DST_FILE" ]; then
+            echo "  Overwriting: $DST_FILE"
+        fi
+        cp -v "$CLAUDE_PLUGIN_ROOT/$SRC_FILE" "$DST_FILE"
+    fi
+}
+
 # --- Main ---
 
 date
 setup_xlator_plugin
 
+echo "😊 2.a Creating files in $PROJECT_ROOT ..."
+cd "$PROJECT_ROOT"
+mkdir -p .vscode
+copy_if_changed "core/ruleset.schema.json" ".vscode/ruleset.schema.json"
+
+if [ ! -f ".gitignore" ] || ! grep -qxF ".xlator.local.env" ".gitignore"; then
+    echo "Adding .xlator.local.env to .gitignore"
+    {
+        echo "# Catala generated files"
+        echo "_build/"
+        echo "_targets/"
+        echo ""
+        echo "# Local environment variables for Xlator plugin (contains CLAUDE_PLUGIN_ROOT)"
+        echo ".xlator.local.env"
+    } >> ".gitignore"
+fi
+
 mkdir -p "$PROJECT_ROOT/$DOMAINS_DIR"
 cd "$PROJECT_ROOT/$DOMAINS_DIR"
 
-echo "😊 2. Copying template files to $PROJECT_ROOT/$DOMAINS_DIR ..."
+echo "😊 2.b Copying files to $PROJECT_ROOT/$DOMAINS_DIR ..."
 for F in .gitignore pyproject.toml .python-version uv.lock; do
-    if [ -f "$F" ] && cmp -s "$CLAUDE_PLUGIN_ROOT/$F" "$F"; then
-        : echo "  Skipping (unchanged): $DOMAINS_DIR/$F"
-    else
-        if [ -f "$F" ]; then
-            echo "  Overwriting: $DOMAINS_DIR/$F"
-        fi
-        cp -v "$CLAUDE_PLUGIN_ROOT/$F" .
-    fi
+    copy_if_changed "$F" "$F"
 done
 
 setup_domains_dir
-
-if [ ! -f "$PROJECT_ROOT/.gitignore" ] || ! grep -qxF ".xlator.local.env" "$PROJECT_ROOT/.gitignore"; then
-    echo "Adding .xlator.local.env to $PROJECT_ROOT/.gitignore"
-    echo ".xlator.local.env" >> "$PROJECT_ROOT/.gitignore"
-fi
 
 git add .
 echo "🤩 Setup complete. Remember to commit the files to git."
