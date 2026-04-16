@@ -6,6 +6,11 @@
   // can finish after the editor opens, causing a "Python not found" error.
   // uv sync is fast when the lockfile is unchanged, so running on every start is fine.
   "postCreateCommand": "cd \"$DOMAINS_DIR\" && ~/.local/bin/uv sync",
+  "postStartCommand": "./xlator_setup.sh",
+  // waitFor causes VS Code to delay connecting until postStartCommand completes,
+  // so the .venv exists before the Python extension initializes.
+  // uv sync is fast when the lockfile is unchanged, so waiting on every start is fine.
+  "waitFor": "postStartCommand",
   "customizations": {
     "vscode": {
       "extensions": [

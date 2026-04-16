@@ -7,16 +7,16 @@ You can merge the files in this repo with your own repo and still be able to use
 
 ## create_git_repo.sh
 
-?Install Xlator plugin?
-
 The script performed the following to create this repo:
 - Create `xlator.conf` based on the specified `DOMAINS_DIR`
-- Copy over and customize the following files:
-    - Copy `.claude/settings.json` to enable the Claude Code plugins
+- Copy over files from the plugin's `repo-template` and customize the following files:
     - Customize `.devcontainer/devcontainer.json` for running as a container in VSCode or on the web in GitHub Codespaces
     - Customize `.vscode/settings.json` to configure CIVIL ruleset schema, enable auto-approve and `bypassPermissions` for Claude Code, and set the Python virtual environment path
     - Customize the root-level `CLAUDE.md` file to provide Xlator-specific instructions
-- Run `$CLAUDE_PLUGIN_ROOT/xlator setup`, which does the following:
+
+## Open repo
+Next, open the repo in VSCode or GitHub Codespaces.
+A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
     - Copy code-setup files (`.gitignore`, `CLAUDE.md`, `mise.toml`, `pyproject.toml`, `.python-version`, `uv.lock`) to the specified `DOMAINS_DIR`
         - TODO: Revisit this to see if mise is needed
         - TODO: Should .venv and other files be set up in $CLAUDE_PLUGIN_DATA?

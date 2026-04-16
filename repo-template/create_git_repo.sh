@@ -14,14 +14,14 @@ if [ -d "$NEW_REPO_PATH" ]; then
     exit 2
 fi
 
-CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CORE_DIR="$CLAUDE_PLUGIN_ROOT/core"
+# CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# CORE_DIR="$CLAUDE_PLUGIN_ROOT/core"
 
 # --- 1. Initialize repo from template ---
 mkdir -p "$NEW_REPO_PATH"
 NEW_REPO_PATH="$(cd "$NEW_REPO_PATH" && pwd)"
+cp -a "." "$NEW_REPO_PATH"
 cd "$NEW_REPO_PATH"
-cp -a "$CORE_DIR/repo-template/." .
 
 export DOMAINS_DIR="$DOMAINS_DIR"
 echo "export DOMAINS_DIR='${DOMAINS_DIR}'" > xlator.conf 
@@ -38,40 +38,17 @@ git add .
 git commit -m "Initial commit from Xlator create_git_repo.sh"
 
 # --- 2. Configure and set up Xlator (just like /xl:setup does) ---
-# CLAUDE_PLUGIN_ROOT and DOMAINS_DIR will be used by the setup script
-export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-"${CLAUDE_PLUGIN_ROOT}/xlator" setup
+# # CLAUDE_PLUGIN_ROOT and DOMAINS_DIR will be used by the setup script
+# export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+# "${CLAUDE_PLUGIN_ROOT}/xlator" setup
 
-git add .
-git commit -m "Set up '$DOMAINS_DIR' folder for Xlator"
-echo "Done setting up '$DOMAINS_DIR' folder for Xlator"
+# git add .
+# git commit -m "Set up '$DOMAINS_DIR' folder for Xlator"
+# echo "Done setting up '$DOMAINS_DIR' folder for Xlator"
 
 # --- 3. Install Xlator plugin ---
 
-# ${CLAUDE_PLUGIN_DATA}
-
 # gh repo create my-x-repo --public --source=. --push
-
-# curl -fsSL https://claude.ai/install.sh | bash
-
-# if ! command -v claude >/dev/null 2>&1; then
-#     echo "Error: 'claude' CLI not found. Install Claude Code and try again." >&2
-#     exit 3
-# fi
-
-# if ! claude auth status >/dev/null 2>&1; then
-#     echo "Error: Not logged in to Claude. Run 'claude auth login' and try again." >&2
-#     exit 4
-# fi
 
 # sudo apt update
 # sudo apt install gh -y
-
-XLATOR_MARKETPLACE_REPO="./"
-# claude plugin marketplace add "./"
-# OR /plugin marketplace add ./
-# OR /plugin marketplace add https://github.com/navapbc/lockpicks-xlator-plugin.git#tagOrBranch
-
-# claude plugin install xl@my-marketplace --scope project
-
-# /reload-plugins

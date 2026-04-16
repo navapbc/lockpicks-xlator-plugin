@@ -1,6 +1,0 @@
-{
-  "plugins": [ "xl@lockpicks-marketplace" ],
-  "enabledPlugins": {
-    "xl@lockpicks-marketplace": true
-  }
-}

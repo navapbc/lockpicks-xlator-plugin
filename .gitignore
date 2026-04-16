@@ -7,7 +7,8 @@ __pycache__/
 dist/
 .venv/
 
-.claude/settings.local.json
+settings.local.json
+.xlator.local.env
 
 # Per-project venv created by /xl:setup in DOMAINS_DIR
 **/.venv/
