@@ -17,8 +17,7 @@ The script performed the following to create this repo:
 ## Open repo
 Next, open the repo in VSCode or GitHub Codespaces.
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
-    - Copy code-setup files (`.gitignore`, `CLAUDE.md`, `mise.toml`, `pyproject.toml`, `.python-version`, `uv.lock`) to the specified `DOMAINS_DIR`
-        - TODO: Revisit this to see if mise is needed
+    - Copy/update code-setup files (`.gitignore`, `CLAUDE.md`, `mise.toml`, `pyproject.toml`, `.python-version`, `uv.lock`) to the specified `DOMAINS_DIR`
         - TODO: Should .venv and other files be set up in $CLAUDE_PLUGIN_DATA?
     - Run `uv sync` to install Python in a virtual environment `.venv` for Xlator scripts
     - Initialize `opam` and install `catala`
