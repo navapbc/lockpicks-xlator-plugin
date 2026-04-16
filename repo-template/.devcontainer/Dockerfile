@@ -26,7 +26,9 @@ RUN opam install -y catala.1.1.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.93
 
 # uv manages the Python version and venv. It is not available in apt.
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 RUN echo 'eval $(opam env)' >> ~/.bashrc \
     && echo 'export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"' >> ~/.bashrc

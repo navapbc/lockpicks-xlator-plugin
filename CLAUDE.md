@@ -1,6 +1,6 @@
 ## Running xlator on the CLI
 
-Whenever `xlator` is desired to be run on the CLI, run `${CLAUDE_PLUGIN_ROOT}/xlator` instead, replacing `${CLAUDE_PLUGIN_ROOT}` with its actual value.
+Whenever `xlator` is desired to be run on the CLI, run `${CLAUDE_PLUGIN_ROOT}/xlator` instead, replacing `${CLAUDE_PLUGIN_ROOT}` with its actual value specified in `.xlator.local.env`.
 
 ## PROJECT_ROOT
 
@@ -12,15 +12,7 @@ PROJECT_ROOT=$("${CLAUDE_PLUGIN_ROOT}/xlator" project_root)
 
 ## DOMAINS_DIR
 
-If `DOMAINS_DIR` is unknown, read it from `$PROJECT_ROOT/xlator.conf`.
-
-## Plugin Setup
-
-Before running any `xl` commands, the user must run `/xl:setup` once per project. This creates `$PROJECT_ROOT/xlator.conf` with variables such as:
-
-- `DOMAINS_DIR` — relative path to the user's domains folder (e.g. `domains/`)
-
-Commands that need these paths (like `xlator.py`) must source `$PROJECT_ROOT/xlator.conf`.
+If `DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root folder.
 
 ## Running Python code
 
@@ -33,10 +25,10 @@ Use the project's exact terminology: 'sub-ruleset' (not 'submodule'), 'CIVIL' fo
 
 ## Slash Commands Next steps
 
-After completion of a slash command, suggest possible next steps based on the following workflows:
+After completion of a `xl` slash command, suggest possible next steps based on the following workflows:
 
 Typical steps:
-  0. `xlator new-domain <domain>` to set up the folder scaffold for a new domain
+  0. `/xl:new-domain <domain>` to set up the folder scaffold for a new domain
   1. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
   2. `/xl:index-inputs <domain>` to build a document index
   3. `/xl:refine-guidance <domain>` to set extraction goals and ruleset guidance
@@ -72,7 +64,7 @@ c. Option three
 (or type in difference response)
 ```
 
-If the user responds with more than 1 character, then use that option as the answer.
+If the user responds with more than 1 character, then use the user's response as the answer.
 
 ## Catala Conventions
 

@@ -10,7 +10,7 @@ dist/
 settings.local.json
 .xlator.local.env
 
-# Per-project venv created by /xl:setup in DOMAINS_DIR
+# Virtual environments set up by demo scripts
 **/.venv/
 
 # Observability logs (local only, never commit)
