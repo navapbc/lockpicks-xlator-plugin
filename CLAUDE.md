@@ -1,15 +1,3 @@
-## CLAUDE_PLUGIN_ROOT variable
-
-If `XLATOR_REPO_PATH` is set, then set `CLAUDE_PLUGIN_ROOT` to the value of `XLATOR_REPO_PATH`.
-
-Otherwise set `${CLAUDE_PLUGIN_ROOT}` to be the user's plugin cached install path for the `xl` (Xlator) plugin, commonly under `~/.claude/plugins/cache/xlator-marketplace/xl/<version>`. Verify `${CLAUDE_PLUGIN_ROOT}`:
-
-```bash
-ls "${CLAUDE_PLUGIN_ROOT}/xlator.py"
-```
-
-If not found → print: "Cannot locate Xlator's plugin root folder. Please reinstall the xlator plugin: `claude plugin install --scope local xl@xlator-marketplace`" and stop.
-
 ## Running xlator on the CLI
 
 Whenever `xlator` is desired to be run on the CLI, run `${CLAUDE_PLUGIN_ROOT}/xlator` instead, replacing `${CLAUDE_PLUGIN_ROOT}` with its actual value.
@@ -24,13 +12,13 @@ PROJECT_ROOT=$("${CLAUDE_PLUGIN_ROOT}/xlator" project_root)
 
 ## DOMAINS_DIR
 
-To get DOMAINS_DIR, read it from `$PROJECT_ROOT/xlator.conf`
+If `DOMAINS_DIR` is unknown, read it from `$PROJECT_ROOT/xlator.conf`.
 
 ## Plugin Setup
 
 Before running any `xl` commands, the user must run `/xl:setup` once per project. This creates `$PROJECT_ROOT/xlator.conf` with variables such as:
 
-- `DOMAINS_DIR` — path to the user's domains folder (e.g. `domains/` or an absolute path)
+- `DOMAINS_DIR` — relative path to the user's domains folder (e.g. `domains/`)
 
 Commands that need these paths (like `xlator.py`) must source `$PROJECT_ROOT/xlator.conf`.
 

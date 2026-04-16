@@ -14,7 +14,6 @@ if [ -d "$NEW_REPO_PATH" ]; then
     exit 2
 fi
 
-XLATOR_MARKETPLACE_REPO="./"
 CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_DIR="$CLAUDE_PLUGIN_ROOT/core"
 
@@ -24,26 +23,35 @@ NEW_REPO_PATH="$(cd "$NEW_REPO_PATH" && pwd)"
 cd "$NEW_REPO_PATH"
 cp -a "$CORE_DIR/repo-template/." .
 
-# Replace "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python" in devcontainer.json
-perl -i -pe "s|\"python.defaultInterpreterPath\": \"[^\"]*\"|\"python.defaultInterpreterPath\": \"\${workspaceFolder}/${DOMAINS_DIR}/.venv/bin/python\"|" .devcontainer/devcontainer.json
+export DOMAINS_DIR="$DOMAINS_DIR"
+echo "export DOMAINS_DIR='${DOMAINS_DIR}'" > xlator.conf 
 
+# Replace only the '$DOMAINS_DIR' variable in these template files
+envsubst '$DOMAINS_DIR' < .devcontainer/devcontainer.tmpl.json > .devcontainer/devcontainer.json
+envsubst '$DOMAINS_DIR' < .vscode/settings.tmpl.json > .vscode/settings.json
+envsubst '$DOMAINS_DIR' < CLAUDE.tmpl.md > CLAUDE.md
+rm -f .devcontainer/devcontainer.tmpl.json .vscode/settings.tmpl.json CLAUDE.tmpl.md
+
+echo "Creating git repository at $NEW_REPO_PATH"
 git init -b main
 git add .
 git commit -m "Initial commit from Xlator create_git_repo.sh"
-echo "Git repository created at $NEW_REPO_PATH"
 
 # --- 2. Configure and set up Xlator (just like /xl:setup does) ---
-cat > xlator.conf << EOF
-export DOMAINS_DIR="${DOMAINS_DIR}"
-EOF
-
+# CLAUDE_PLUGIN_ROOT and DOMAINS_DIR will be used by the setup script
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 "${CLAUDE_PLUGIN_ROOT}/xlator" setup
 
 git add .
-git commit -m "Installed Xlator plugin and set up '$DOMAINS_DIR' folder for Xlator"
-echo "Installed Xlator plugin and set up '$DOMAINS_DIR' folder for Xlator"
+git commit -m "Set up '$DOMAINS_DIR' folder for Xlator"
+echo "Done setting up '$DOMAINS_DIR' folder for Xlator"
 
 # --- 3. Install Xlator plugin ---
+
+# ${CLAUDE_PLUGIN_DATA}
+
+# gh repo create my-x-repo --public --source=. --push
+
 # curl -fsSL https://claude.ai/install.sh | bash
 
 # if ! command -v claude >/dev/null 2>&1; then
@@ -59,6 +67,11 @@ echo "Installed Xlator plugin and set up '$DOMAINS_DIR' folder for Xlator"
 # sudo apt update
 # sudo apt install gh -y
 
-# claude plugin marketplace add "$XLATOR_MARKETPLACE_REPO"
-# claude plugin install --scope local xl@xlator-marketplace
+XLATOR_MARKETPLACE_REPO="./"
+# claude plugin marketplace add "./"
+# OR /plugin marketplace add ./
+# OR /plugin marketplace add https://github.com/navapbc/lockpicks-xlator-plugin.git#tagOrBranch
 
+# claude plugin install xl@my-marketplace --scope project
+
+# /reload-plugins
