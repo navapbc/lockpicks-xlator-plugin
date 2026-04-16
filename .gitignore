@@ -10,7 +10,6 @@ dist/
 settings.local.json
 
 # symlinks to local installs; created by xlator_setup.sh
-xlator
 .plugin
 
 # Virtual environments set up by demo scripts
