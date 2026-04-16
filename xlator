@@ -25,16 +25,16 @@ if [ ! -f "$PROJECT_ROOT/xlator.conf" ]; then
     exit 2
 fi
 
-# Load xlator.conf and auto-export all variables (including relative path DOMAINS_DIR).
+# Load xlator.conf and auto-export all variables (including relative path DOMAINS_DIR and CLAUDE_PLUGIN_ROOT).
 set -o allexport
 source "$PROJECT_ROOT/xlator.conf"
-set +o allexport
+source "$PROJECT_ROOT/.xlator.local.env"
 
 activate_opam() {
     if [ -d "$HOME/.opam" ]; then
         eval "$(opam env)"
     else
-        echo "Warning: opam environment not found. Run 'opam init' to set up OCaml and Catala." >&2
+        echo "Warning: opam environment not found. Run 'xlator_setup.sh' to initialize opam and set up OCaml and Catala." >&2
     fi
 }
 
@@ -42,7 +42,7 @@ activate_venv() {
     if [ -f "$PROJECT_ROOT/$DOMAINS_DIR/.venv/bin/activate" ]; then
         . "$PROJECT_ROOT/$DOMAINS_DIR/.venv/bin/activate"
     else
-        echo "Warning: No virtual environment found at $PROJECT_ROOT/$DOMAINS_DIR/.venv" >&2
+        echo "Warning: No virtual environment found at $PROJECT_ROOT/$DOMAINS_DIR/.venv. Run 'xlator_setup.sh' to create it." >&2
     fi
 }
 

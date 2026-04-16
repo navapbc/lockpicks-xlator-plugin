@@ -6,7 +6,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-CORE_CATALA_DIR="$(cd "$SCRIPT_DIR/../../../../core/catala" && pwd)"
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+source "$PROJECT_ROOT/.xlator.local.env"
+CORE_CATALA_DIR="$(cd "$CLAUDE_PLUGIN_ROOT/core/catala" && pwd)"
 
 if [ ! -f "requirements.txt" ]; then
   cp -v "$CORE_CATALA_DIR/requirements.txt" .
