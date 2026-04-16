@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Resolve SCRIPT_DIR to be the directory containing this script, following symlinks if necessary
+# Resolve SCRIPT_DIR to the directory containing this script, following symlinks.
 SOURCE="${BASH_SOURCE[0]}"
 while [ -L "$SOURCE" ]; do
     DIR="$(cd -P "$(dirname -- "$SOURCE")" >/dev/null 2>&1 && pwd)"
@@ -10,98 +10,83 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname -- "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
-# Resolve the user's project root (where xlator.conf lives)
-if git rev-parse --show-toplevel >/dev/null 2>&1; then
+# Resolve the project root (the directory that contains xlator.conf).
+if [ -f "xlator.conf" ]; then
+    PROJECT_ROOT="$(pwd)"
+elif git rev-parse --show-toplevel >/dev/null 2>&1; then
     PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-elif [ -f "$PWD/xlator.conf" ]; then
-    PROJECT_ROOT="$PWD"
 else
-    echo "Error: Cannot find project root. Run /xl:setup to create xlator.conf." >&2
+    echo "Error: Cannot find project root. Create xlator.conf in the project root." >&2
     exit 1
 fi
 
-if [ "$1" = "project_root" ]; then
-    echo "$PROJECT_ROOT"
-    exit 0
-fi
-
-
-export PROJECT_ROOT
 if [ ! -f "$PROJECT_ROOT/xlator.conf" ]; then
-    echo "Error: xlator.conf not found at $PROJECT_ROOT/xlator.conf" >&2
-    exit 1
+    echo "Error: $PROJECT_ROOT/xlator.conf not found. Create xlator.conf in the project root." >&2
+    exit 2
 fi
 
-# Turn on automatic exporting of variables loaded from xlator.conf
+# Load xlator.conf and auto-export all variables (including relative path DOMAINS_DIR).
 set -o allexport
-# Load DOMAINS_DIR
 source "$PROJECT_ROOT/xlator.conf"
 set +o allexport
 
-# Activate mise if available, setting up uv and opam in PATH
-activate_mise() {
-    if command -v mise >/dev/null; then
-        eval "$(mise activate bash)"
-    elif [ -f "~/.local/bin/mise" ]; then
-        eval "$("~/.local/bin/mise" activate bash)"
-    elif [ -f "~/.asdf/asdf.sh" ]; then
-        # Fallback to asdf for legacy setups
-        . "~/.asdf/asdf.sh"
-    fi
-}
-
-# Activate opam environment if initialized
 activate_opam() {
-    if [ -d "~/.opam" ]; then
+    if [ -d "$HOME/.opam" ]; then
         eval "$(opam env)"
+    else
+        echo "Warning: opam environment not found. Run 'opam init' to set up OCaml and Catala." >&2
     fi
 }
 
-# Activate the per-project venv created by /xl:setup
 activate_venv() {
-    if [ -f "$DOMAINS_DIR/.venv/bin/activate" ]; then
-        . "$DOMAINS_DIR/.venv/bin/activate"
+    if [ -f "$PROJECT_ROOT/$DOMAINS_DIR/.venv/bin/activate" ]; then
+        . "$PROJECT_ROOT/$DOMAINS_DIR/.venv/bin/activate"
+    else
+        echo "Warning: No virtual environment found at $PROJECT_ROOT/$DOMAINS_DIR/.venv" >&2
     fi
 }
 
-# Start a new shell with mise, Python, and opam environments activated.
-# Useful for running python, catala, and clerk commands directly in the terminal.
-if [ "$1" = "" ]; then
-    echo "Starting a new shell with Xlator environments activated (mise, Python venv, opam)..."
-    activate_mise
-    activate_venv
+# Activate Python venv and Catala/clerk (opam) environments.
+# Required because Claude Code does not source shell configuration files.
+activate_venv
+activate_opam
+
+# If no command is given, open an interactive shell with the Xlator environment.
+if [ $# -eq 0 ]; then
+    if command -v python >/dev/null && command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
+        echo "$(which python): $(python --version)"
+        echo "$(which opam) version: $(opam --version)"
+        echo "$(which clerk) version: $(clerk --version)"
+        echo "$(which catala) version: $(catala --version)"
+        exit 0
+    fi
+
+    echo "Starting a new shell with Xlator environment activated (python, catala, and clerk commands available)"
     case "$SHELL" in
         */zsh)
-            zsh --login -i -c 'source ~/.zshrc; source "$DOMAINS_DIR/.venv/bin/activate"; eval "$(opam env)"; exec zsh'
+            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env); cd "$PROJECT_ROOT/$DOMAINS_DIR" && source ./.venv/bin/activate""; exec zsh'
             ;;
         *)
-            bash --rcfile <(
+            exec bash --rcfile <(
                 cat ~/.bashrc 2>/dev/null || true
-                echo ". \"$DOMAINS_DIR/.venv/bin/activate\""
                 echo 'eval "$(opam env)"'
+                echo "cd \"$PROJECT_ROOT/$DOMAINS_DIR\" && source ./.venv/bin/activate"
             )
             ;;
     esac
-    exit 0
 fi
-
-# Activate tools and environments for Python and Catala/clerk.
-# This is needed because Claude Code does not run shell configuration files.
-activate_mise
-activate_venv
-activate_opam
 
 case "$1" in
     generate-schema)
         exec python3 "$SCRIPT_DIR/tools/civil_schema.py"
         ;;
     observe_hook)
-        echo "Running observe_hook with args: ${*:2}"
         exec python3 "$SCRIPT_DIR/tools/observe_hook.py" "${@:2}"
         ;;
     *)
-        # Change to the $DOMAINS_DIR so that relative paths are created
-        # within that folder and not the root of the repository.
+        # PROJECT_ROOT is expected by xlator.py.
+        export PROJECT_ROOT
+        # Change into DOMAINS_DIR so relative paths produced by xlator.py stay within it.
         cd "$PROJECT_ROOT/$DOMAINS_DIR"
         exec python3 "$SCRIPT_DIR/xlator.py" "$@"
         ;;

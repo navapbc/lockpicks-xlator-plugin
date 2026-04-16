@@ -2,14 +2,6 @@
 
 Whenever `xlator` is desired to be run on the CLI, run `${CLAUDE_PLUGIN_ROOT}/xlator` instead, replacing `${CLAUDE_PLUGIN_ROOT}` with its actual value specified in `.xlator.local.env`.
 
-## PROJECT_ROOT
-
-To get PROJECT_ROOT, run
-
-```bash
-PROJECT_ROOT=$("${CLAUDE_PLUGIN_ROOT}/xlator" project_root)
-```
-
 ## DOMAINS_DIR
 
 If `DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root folder.

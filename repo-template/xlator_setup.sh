@@ -9,8 +9,8 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # --- Resolve project root ---
 
-if [ -f "$PWD/xlator.conf" ]; then
-    PROJECT_ROOT="$PWD"
+if [ -f "xlator.conf" ]; then
+    PROJECT_ROOT="$(pwd)"
 elif git rev-parse --show-toplevel >/dev/null 2>&1; then
     PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 else
