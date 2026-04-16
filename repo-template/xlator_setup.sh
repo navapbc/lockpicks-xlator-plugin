@@ -50,7 +50,7 @@ setup_xlator_plugin() {
 
     # CLAUDE_PLUGIN_ROOT is set by Claude Code for hook commands but not other contexts.
     # Persist it so shell scripts and slash commands can use it too.
-    CLAUDE_PLUGIN_ROOT=$(claude plugin list --json | python3 -c '
+    CLAUDE_PLUGIN_ROOT=$(claude plugin list --json | uv run python -c '
 import sys, json
 plugins = json.load(sys.stdin)
 xl = next((p for p in plugins if p["id"].startswith("xl@")), None)
