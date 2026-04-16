@@ -112,7 +112,7 @@ mkdir -p "$PROJECT_ROOT/$DOMAINS_DIR"
 cd "$PROJECT_ROOT/$DOMAINS_DIR"
 
 echo "😊 2. Copying template files to $PROJECT_ROOT/$DOMAINS_DIR ..."
-for F in .gitignore CLAUDE.md mise.toml pyproject.toml .python-version uv.lock; do
+for F in .gitignore pyproject.toml .python-version uv.lock; do
     if [ -f "$F" ] && cmp -s "$CLAUDE_PLUGIN_ROOT/$F" "$F"; then
         : echo "  Skipping (unchanged): $DOMAINS_DIR/$F"
     else
