@@ -12,8 +12,8 @@ dist/
 # Default uv project folder, until CLAUDE_PLUGIN_DATA is set
 .xlator_uv/
 
-# Symlink to local Xlator plugin installation; created by xlator_setup.sh
-.plugin
+# General shared folder used by Xlator; created by xlator_setup.sh
+.shared/
 
 # Virtual environments set up by demo scripts
 **/.venv/

@@ -174,7 +174,7 @@ setup_domains_dir() {
 
     echo "🤓 6. Creating symlinks in $DOMAINS_DIR..."
     # Provides easy access to the plugin folder for reference
-    [ -e "$PROJECT_ROOT/$DOMAINS_DIR/.plugin" ] || ln -snf "$CLAUDE_PLUGIN_ROOT" "$PROJECT_ROOT/$DOMAINS_DIR/.plugin"
+    [ -e "$PROJECT_ROOT/$DOMAINS_DIR/.shared/.plugin" ] || ln -snf "$CLAUDE_PLUGIN_ROOT" "$PROJECT_ROOT/$DOMAINS_DIR/.shared/.plugin"
 }
 
 # --- Main ---
