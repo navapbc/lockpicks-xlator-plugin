@@ -1,60 +1,81 @@
+# Welcome to Xlator
 
 This repo was created using `create_git_repo.sh`.
 
-## Want to add Xlator to an existing repo?
-
-You can copy the files in this repo into your own repo and be able to use the Xlator Claude Code plugin. Remember to merge the root-level CLAUDE.md file with your own.
+> **Want to add Xlator to an existing repo instead?**
+>
+> You can copy the files in this repo into your own repo and be able to use the Xlator Claude Code plugin. Remember to merge the root-level CLAUDE.md file with your own.
+>
+> ```
+> .
+> ├── .devcontainer/
+> ├── .vscode/
+> ├── domains/
+> ├── xlator.conf
+> ├── CLAUDE.md
+> └── xlator_setup.sh
+> ```
+> @Yoom - I think we want to give more detail to the user than "the files". How does this simplified directory file tree work for you?
 
 ## What did `create_git_repo.sh` do?
 
 The `create_git_repo.sh` script performed the following to create this repo:
-- Created `xlator.conf` based on the specified `DOMAINS_DIR`
-- Copied the following files from the plugin's `repo-template`:
-    - `.devcontainer/devcontainer.json` for running as a devcontainer in VS Code or on the web in GitHub Codespaces
-    - `.vscode/settings.json` to configure CIVIL ruleset schema and enable auto-approve and `bypassPermissions` for Claude Code
-    - the root-level `CLAUDE.md` file to provide Xlator-specific instructions
+1. Created `xlator.conf` based on the specified `DOMAINS_DIR`
+2. Copied the following files from the plugin's `repo-template`:
+    1. `.devcontainer/devcontainer.json` for running as a devcontainer in VS Code or on the web in GitHub Codespaces
+    2. `.vscode/settings.json` to configure CIVIL ruleset schema and enable auto-approve and `bypassPermissions` for Claude Code
+    3. the root-level `CLAUDE.md` file to provide Xlator-specific instructions
 
-### How can I create a repo like this one?
+## How can I create a repo like this one?
 
-Use the `download.sh` script as follows:
+### 1. Download Xlator
+
+The `download.sh` script downloads the Xlator repo template and optionally sets up a new git repository.
+
+In a terminal, use the `download.sh` script as follows:
 
 ```bash
 curl -s https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main/download.sh | bash -s -- [new_repo_path] [domains_subfolder_name]
 ```
 
-This script downloads the Xlator repo template and sets up a new git repository by running `create_git_repo.sh` if arguments are provided. The new repository is created at `new_repo_path` with a subfolder named `domains_subfolder_name` (defaults to 'domains').
-If arguments are not provided, the template will be downloaded and left in a folder named `xlator-repo-creator` for manual execution of `create_git_repo.sh`.
+If the arguments [new_repo_path] and [domains_subfolder_name]are provided, `create_git_repo.sh` is run to create a new repository at `new_repo_path` with a subfolder named `domains_subfolder_name` (defaults to 'domains').
 
-After repo creation, follow the instructions in the new repo's `README.md` (same as this file) to open the repo in an IDE and complete the setup.
+If the arguments are not provided, the template will be downloaded and left in a folder named `xlator-repo-creator` for manual execution of `create_git_repo.sh`.
 
-## Open repo in an IDE to complete setup
+### 2. Open repo in an IDE to complete setup
 
-Now that the repo is created, you can open the repo in GitHub Codespaces or in VS Code as a devcontainer.
-- In VS Code, a few toaster notifications will pop up on the lower-right. Click on the "Reopen in Container" button. Alternatively, use the command palette (`Cmd-Shift-p`) to run "Dev Containers: Reopen in Container".
+Now that the repo is created, you can open the repo in GitHub Codespaces (recommended) or in VS Code as a devcontainer.
+
+> In VS Code, a few toaster notifications will pop up on the lower-right. Click on the "Reopen in Container" button. Alternatively, use the command palette (`Cmd-Shift-p`) to run "Dev Containers: Reopen in Container".
 
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
-- Setup `uv` virtual environment under `$XLATOR_UV_BASEDIR` to install Python and dependencies for Xlator scripts
-- Initialize `opam` and install `catala`
-- Create `.xlator.local.env` to set `CLAUDE_PLUGIN_ROOT`, which is used by `xlator` scripts and slash commands
-- Create symlink to the `xlator` plugin installation folder for reference
 
-## Authenticate Claude
+1. Setup `uv` virtual environment under `$XLATOR_UV_BASEDIR` to install Python and dependencies for Xlator scripts
+2. Initialize `opam` and install `catala`
+3. Create `.xlator.local.env` to set `CLAUDE_PLUGIN_ROOT`, which is used by `xlator` scripts and slash commands
+4. Create symlink to the `xlator` plugin installation folder for reference
+
+### 3. Authenticate Claude
 
 To use the Xlator plugin, Claude Code must be authenticated. For reliable authentication, do exactly as follows:
-- Open the Claude Code panel in the IDE
-- Click `Claude.ai Subscription`. A pop-up window will show a URL -- ignore it since it will try to automatically open `http://localhost...` after authorizing, and the authentication code isn't accessible. Instead, close the window (by clicking the 'Copy' button), and in the Claude Code panel, click the copy icon next to the URL to copy *this URL*.
-- Paste the URL into a web browser
-    - Follow the instructions and click `Authorize`
-    - Click `Copy Code` to copy the long authentication code provided
-    - (This browser tab can be closed once you've authenticated Claude Code)
-- Back in the Claude Code panel in the IDE, paste the authentication code and click `Continue`
+
+1. Open the Claude Code panel in the IDE
+2. Click `Claude.ai Subscription`. A pop-up window will show a URL -- ignore it since it will try to automatically open `http://localhost...` after authorizing, and the authentication code isn't accessible. Instead, close the window (by clicking the 'Copy' button), and in the Claude Code panel, click the copy icon next to the URL to copy *this URL*.
+3. Paste the URL into a web browser
+    1. Follow the instructions and click `Authorize`
+    2. Click `Copy Code` to copy the long authentication code provided
+    3. (This browser tab can be closed once you've authenticated Claude Code)
+4. Back in the Claude Code panel in the IDE, paste the authentication code and click `Continue`
 
 You should now be able to interact with Claude Code. Test by pasting any of the following in the input field:
 - `What is today's date?`
 - `What are the values of $CLAUDE_PLUGIN_ROOT and $DOMAINS_DIR`
 - `Which python version is installed?` -- This is relevant for your repo
 - `Which python version is being used by the 'xl' Claude plugin?`
-- `/xl:new-domain`
+
+### 4. Confirm setup by creating a new domain
+
+Run `/xl:new-domain` in Claude Code and follow the instructions.
 
 ## Xlator Observability
 
