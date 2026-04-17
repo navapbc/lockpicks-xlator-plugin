@@ -78,14 +78,14 @@ fi
 
 case "$1" in
     generate-schema)
-        exec python3 "$SCRIPT_DIR/tools/civil_schema.py"
+        exec python3 "$SCRIPT_DIR/../tools/civil_schema.py"
         ;;
     observe_hook)
         case "${OBSERVE_HOOK_DISABLED:-}" in
             1|true|yes)
                 ;;
             *)
-                exec python3 "$SCRIPT_DIR/tools/observe_hook.py" "${@:2}"
+                exec python3 "$SCRIPT_DIR/../tools/observe_hook.py" "${@:2}"
                 ;;
         esac
         ;;
@@ -94,6 +94,6 @@ case "$1" in
         export PROJECT_ROOT
         # Change into DOMAINS_DIR so relative paths produced by xlator.py stay within it.
         cd "$PROJECT_ROOT/$DOMAINS_DIR"
-        exec python3 "$SCRIPT_DIR/tools/xlator.py" "$@"
+        exec python3 "$SCRIPT_DIR/../tools/xlator.py" "$@"
         ;;
 esac

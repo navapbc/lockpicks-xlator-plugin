@@ -1,14 +1,12 @@
-## Running xlator on the CLI
+## Environment variables
 
-Whenever `xlator` is desired to be run on the CLI, run `${CLAUDE_PLUGIN_ROOT}/xlator` instead, replacing `${CLAUDE_PLUGIN_ROOT}` with its actual value specified in `.xlator.local.env`.
+The `.xlator.local.env` file exports the `$CLAUDE_PLUGIN_ROOT` and `$XLATOR_UV_BASEDIR` environment variables.
 
-## DOMAINS_DIR
-
-If `DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root folder.
+If `$DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root folder.
 
 ## Running Python code
 
-Do not use the system Python. Use the virtual environment in the `$DOMAINS_DIR` folder by using `uv run --directory "$XLATOR_UV_BASEDIR" python <args>`.
+Do not use the system Python. Use the virtual environment in the `$XLATOR_UV_BASEDIR` folder by using `uv run --directory "$XLATOR_UV_BASEDIR" python <args>`.
 To avoid having to use `uv run` for each command line, activate the virtual environment (`. "$XLATOR_UV_BASEDIR/.venv/bin/activate"`) before running the Python code.
 
 ## Project Terminology

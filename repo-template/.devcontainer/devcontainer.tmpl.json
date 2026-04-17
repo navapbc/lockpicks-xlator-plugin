@@ -28,7 +28,7 @@
       ],
       "settings": {
         "python.terminal.activateEnvironment": true,
-        "python.defaultInterpreterPath": "${workspaceFolder}/$DOMAINS_DIR/.shared/.venv/bin/python",
+        "python.defaultInterpreterPath": "${workspaceFolder}/$DOMAINS_DIR_VALUE/.shared/.venv/bin/python",
         "catala.lspServerPath": "/home/opam/.opam/5.4/bin/catala-lsp"
       }
     }

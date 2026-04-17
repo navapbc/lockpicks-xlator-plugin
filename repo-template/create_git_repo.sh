@@ -49,9 +49,10 @@ export DOMAINS_DIR="$DOMAINS_DIR"
 echo "export DOMAINS_DIR=\"${DOMAINS_DIR}\"" > xlator.conf
 
 echo "  Expanding variables in template files..."
-# Replace only the '$DOMAINS_DIR' variable in these template files
-envsubst '$DOMAINS_DIR' < .devcontainer/devcontainer.tmpl.json > .devcontainer/devcontainer.json
-envsubst '$DOMAINS_DIR' < CLAUDE.tmpl.md > CLAUDE.md
+# Replace only the '$DOMAINS_DIR_VALUE' variables in these template files
+export DOMAINS_DIR_VALUE="$DOMAINS_DIR"
+envsubst '$DOMAINS_DIR_VALUE' < .devcontainer/devcontainer.tmpl.json > .devcontainer/devcontainer.json
+envsubst '$DOMAINS_DIR_VALUE' < CLAUDE.tmpl.md > CLAUDE.md
 rm -f .devcontainer/devcontainer.tmpl.json CLAUDE.tmpl.md
 
 echo "  Adding files to git..."

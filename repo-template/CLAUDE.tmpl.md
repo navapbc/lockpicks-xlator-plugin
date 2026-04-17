@@ -11,8 +11,8 @@ If `xlator.conf` is not found in the project root → print: "File `xlator.conf`
 
 ## DOMAINS_DIR
 
-Set the `DOMAINS_DIR` variable to `$DOMAINS_DIR`, which is relative the project root.
+Set the `$DOMAINS_DIR` environment variable to `$DOMAINS_DIR_VALUE`, which is relative the project root.
 
 ## Xlator Claude Code Plugin
 
-Read `$DOMAINS_DIR/CLAUDE.md` when a slash command from the `xl` (Xlator) Claude Code plugin runs.
+Read `$DOMAINS_DIR_VALUE/CLAUDE.md` when a slash command from the `xl` (Xlator) Claude Code plugin runs.

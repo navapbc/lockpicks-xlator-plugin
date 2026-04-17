@@ -10,7 +10,7 @@ to $DOMAINS_DIR/<domain>/logs/session.jsonl (resolved from xlator.conf in
 the git project root).
 
 Usage (from hooks.json):
-  python3 "${CLAUDE_PLUGIN_ROOT}/tools/observe_hook.py" <EventType>
+  "${CLAUDE_PLUGIN_ROOT}/xlator" observe_hook <EventType>
 
 Supported event types:
   SessionStart       — create session ID temp file
