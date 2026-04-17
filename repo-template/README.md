@@ -58,5 +58,5 @@ You should now be able to interact with Claude Code. Test by pasting any of the 
 
 ## Xlator Observability
 
-To capture user interactions, `logs/session.jsonl` files are created under `_global` and `<domain>` subfolders. These logs can be useful for debugging and user support.
+To capture user interactions, `logs/session.jsonl` files are created under `.shared` and `<domain>` subfolders. These logs can be useful for debugging and user support.
 To disable these logs, add `export OBSERVE_HOOK_DISABLED=true` to `xlator.conf`.

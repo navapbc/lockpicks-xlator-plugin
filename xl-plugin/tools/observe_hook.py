@@ -121,7 +121,7 @@ _VALID_DOMAIN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 def _is_known_domain(name: str) -> bool:
     """Return True only if the domain directory actually exists under DOMAINS_DIR."""
-    return name == "_global" or (_PROJECT_ROOT / _DOMAINS_DIR / name).is_dir()
+    return name == ".shared" or (_PROJECT_ROOT / _DOMAINS_DIR / name).is_dir()
 
 
 def _infer_domain(text: str) -> str:
@@ -130,7 +130,7 @@ def _infer_domain(text: str) -> str:
     Primary: match against the resolved DOMAINS_DIR path in the text.
     Secondary: match against the DOMAINS_DIR basename (handles relative paths in text).
     Fallback for xlator commands: positional arg 2 is the domain.
-    Default: _global
+    Default: .shared
 
     Candidates are rejected if they contain non-identifier characters or do not
     correspond to an existing domain directory, preventing stray folder creation.
@@ -158,7 +158,7 @@ def _infer_domain(text: str) -> str:
     if m2 and _VALID_DOMAIN.match(m2.group(1)) and _is_known_domain(m2.group(1)):
         return m2.group(1)
 
-    return "_global"
+    return ".shared"
 
 
 # ---------------------------------------------------------------------------
@@ -241,11 +241,11 @@ def handle_stop(payload: dict) -> None:
         return
 
     session_id = _get_session_id()
-    _append_event("_global", {
+    _append_event(".shared", {
         "ts": _ts(),
         "session_id": session_id,
         "type": "assistant_response",
-        "domain": "_global",
+        "domain": ".shared",
         "response": last_response,
     })
 

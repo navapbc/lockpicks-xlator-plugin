@@ -3,7 +3,7 @@
 tidy-log: render session log as a human-readable Markdown conversation.
 
 Reads $DOMAINS_DIR/<domain>/logs/session.jsonl (domain events) and
-$DOMAINS_DIR/_global/logs/session.jsonl (all events, filtered to matching
+$DOMAINS_DIR/.shared/logs/session.jsonl (all events, filtered to matching
 session IDs), merges them, and writes a Markdown conversation view to
 $DOMAINS_DIR/<domain>/logs/session-report.md.
 
@@ -130,10 +130,10 @@ def run(domain: str) -> None:
             session_ids.add(sid)
 
     # Read global log (all event types, filtered to matching session IDs).
-    # Skip when domain IS _global to avoid reading the same file twice.
-    global_log = ROOT / DOMAINS_DIR / "_global" / "logs" / "session.jsonl"
+    # Skip when domain IS .shared to avoid reading the same file twice.
+    global_log = ROOT / DOMAINS_DIR / ".shared" / "logs" / "session.jsonl"
     global_events: list[tuple[int, dict]] = []
-    if domain != "_global" and global_log.exists():
+    if domain != ".shared" and global_log.exists():
         for lineno, event in _read_jsonl(global_log):
             if event.get("session_id") in session_ids:
                 global_events.append((lineno, event))
