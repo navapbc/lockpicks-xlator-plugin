@@ -56,6 +56,7 @@ else
         echo "Using preset XLATOR_UV_BASEDIR from .xlator.local.env: $XLATOR_UV_BASEDIR"
     else
         XLATOR_UV_BASEDIR="$DEFAULT_XLATOR_UV_BASEDIR"
+        mkdir -p "$XLATOR_UV_BASEDIR"
     fi
 fi
 
@@ -149,6 +150,8 @@ print(xl["installPath"] if xl else "", end="")
 
 setup_domains_dir() {
     echo "😀 3. Creating Python virtual environment in $XLATOR_UV_BASEDIR and installing dependencies..."
+    # Remove old .venv symlink if it doesn't exist so that uv can create a new one
+    [ -e "$XLATOR_UV_BASEDIR/.venv" ] || rm -f "$XLATOR_UV_BASEDIR/.venv"
     # 'uv sync' installs the version pinned in .python-version into a local .venv
     uv sync --directory "$XLATOR_UV_BASEDIR"
     . "$XLATOR_UV_BASEDIR/.venv/bin/activate"

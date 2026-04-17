@@ -29,7 +29,9 @@ After repo creation, follow the instructions in the new repo's `README.md` (same
 
 ## Open repo in an IDE to complete setup
 
-Now that the repo is created, you can open the repo in GitHub Codespaces or in VSCode as a devcontainer.
+Now that the repo is created, you can open the repo in GitHub Codespaces or in VS Code as a devcontainer.
+- In VS Code, a few toaster notifications will pop up on the lower-right, ignore any reported problem about "Default interpreter path ... could not be resolved" for now, and click on the "Reopen in Container" link. Alternatively, use the command palette (`Cmd-Shift-p`) to run "Dev Containers: Reopen in Container".
+
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
 - Setup `uv` virtual environment under `$XLATOR_UV_BASEDIR` to install Python and dependencies for Xlator scripts
 - Initialize `opam` and install `catala`

@@ -51,9 +51,8 @@ echo "export DOMAINS_DIR=\"${DOMAINS_DIR}\"" > xlator.conf
 echo "  Expanding variables in template files..."
 # Replace only the '$DOMAINS_DIR' variable in these template files
 envsubst '$DOMAINS_DIR' < .devcontainer/devcontainer.tmpl.json > .devcontainer/devcontainer.json
-envsubst '$DOMAINS_DIR' < .vscode/settings.tmpl.json > .vscode/settings.json
 envsubst '$DOMAINS_DIR' < CLAUDE.tmpl.md > CLAUDE.md
-rm -f .devcontainer/devcontainer.tmpl.json .vscode/settings.tmpl.json CLAUDE.tmpl.md
+rm -f .devcontainer/devcontainer.tmpl.json CLAUDE.tmpl.md
 
 echo "  Adding files to git..."
 git add .

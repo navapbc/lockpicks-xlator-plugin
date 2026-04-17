@@ -6,7 +6,6 @@
   "github.copilot.chat.claudeAgent.enabled": true,
   "python.terminal.activateEnvironment": true,
   "terminal.integrated.shellIntegration.enabled": true,
-  "python.defaultInterpreterPath": "${workspaceFolder}/$DOMAINS_DIR/.xlator_uv/.venv/bin/python",
   "chat.tools.global.autoApprove": true,
   "chat.tools.terminal.autoApprove": {
     "/.*/": true,
