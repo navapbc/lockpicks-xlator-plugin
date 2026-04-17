@@ -46,6 +46,10 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook SessionStart"
+          },
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_DATA=\"${CLAUDE_PLUGIN_DATA}\" ./xlator_setup.sh"
           }
         ]
       }

@@ -9,6 +9,9 @@ dist/
 
 settings.local.json
 
+# Default uv project folder, until CLAUDE_PLUGIN_DATA is set
+.xlator_uv/
+
 # symlinks to local installs; created by xlator_setup.sh
 .plugin
 

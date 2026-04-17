@@ -2,6 +2,8 @@
 """
 Xlator observability hook handler.
 
+# TODO: Replace with Monitors? https://code.claude.com/docs/en/plugins-reference#monitors
+
 Called from Claude Code hooks defined in .claude-plugin/hooks/hooks.json.
 Reads the hook event payload from stdin (JSON) and appends a JSONL entry
 to $DOMAINS_DIR/<domain>/logs/session.jsonl (resolved from xlator.conf in

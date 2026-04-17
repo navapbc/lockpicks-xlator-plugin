@@ -460,7 +460,7 @@ def cmd_list():
         module_rows.append((domain, module))
         domains_with_modules.add(domain)
 
-    exclude_domains = {".venv", "guidance-templates"}
+    exclude_domains = {".plugin", ".xlator_uv", "_global", "guidance-templates"}
     domain_dirs = sorted(p.name for p in (ROOT / DOMAINS_DIR).iterdir() if p.is_dir() and p.name not in exclude_domains)
     initialized_only = [d for d in domain_dirs if d not in domains_with_modules]
 

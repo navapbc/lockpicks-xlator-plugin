@@ -8,8 +8,8 @@ If `DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root fold
 
 ## Running Python code
 
-Do not use the system Python. Use the virtual environment in the `$DOMAINS_DIR` folder by using `uv run --directory "$DOMAINS_DIR" python <args>`.
-To avoid having to use `uv run` for each command line, activate the virtual environment (`. "$DOMAINS_DIR/.venv/bin/activate"`) before running the Python code.
+Do not use the system Python. Use the virtual environment in the `$DOMAINS_DIR` folder by using `uv run --directory "$XLATOR_UV_BASEDIR" python <args>`.
+To avoid having to use `uv run` for each command line, activate the virtual environment (`. "$XLATOR_UV_BASEDIR/.venv/bin/activate"`) before running the Python code.
 
 ## Project Terminology
 

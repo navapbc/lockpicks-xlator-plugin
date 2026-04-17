@@ -39,10 +39,10 @@ activate_opam() {
 }
 
 activate_venv() {
-    if [ -f "$PROJECT_ROOT/$DOMAINS_DIR/.venv/bin/activate" ]; then
-        . "$PROJECT_ROOT/$DOMAINS_DIR/.venv/bin/activate"
+    if [ -f "$XLATOR_UV_BASEDIR/.venv/bin/activate" ]; then
+        . "$XLATOR_UV_BASEDIR/.venv/bin/activate"
     else
-        echo "Warning: No virtual environment found at $PROJECT_ROOT/$DOMAINS_DIR/.venv. Run 'xlator_setup.sh' to create it." >&2
+        echo "Warning: No virtual environment found at $XLATOR_UV_BASEDIR/.venv. Run 'xlator_setup.sh' to create it." >&2
     fi
 }
 
@@ -94,6 +94,6 @@ case "$1" in
         export PROJECT_ROOT
         # Change into DOMAINS_DIR so relative paths produced by xlator.py stay within it.
         cd "$PROJECT_ROOT/$DOMAINS_DIR"
-        exec python3 "$SCRIPT_DIR/xlator.py" "$@"
+        exec python3 "$SCRIPT_DIR/tools/xlator.py" "$@"
         ;;
 esac

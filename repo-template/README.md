@@ -31,9 +31,7 @@ After repo creation, follow the instructions in the new repo's `README.md` (same
 
 Now that the repo is created, you can open the repo in GitHub Codespaces or in VSCode as a devcontainer.
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
-- Copy/update code-setup files (`.gitignore`, `pyproject.toml`, `.python-version`, `uv.lock`) to the `DOMAINS_DIR` (specified in `xlator.conf`)
-    - TODO: Should .venv and other files be set up in $CLAUDE_PLUGIN_DATA?
-- Run `uv sync` to install Python and dependencies in a virtual environment `.venv` for Xlator scripts
+- Setup `uv` virtual environment under `$XLATOR_UV_BASEDIR` to install Python and dependencies for Xlator scripts
 - Initialize `opam` and install `catala`
 - Create `.xlator.local.env` to set `CLAUDE_PLUGIN_ROOT`, which is used by `xlator` scripts and slash commands
 - Create symlink to the `xlator` plugin installation folder for reference
@@ -42,7 +40,7 @@ A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, whic
 
 To use the Xlator plugin, Claude Code must be authenticated. For reliable authentication, do exactly as follows:
 - Open the Claude Code panel in the IDE
-- Click `Claude.ai Subscription`. A pop-up window will show a URL -- ignore it since it will try to automatically open `http://localhost...` after authorizing, and the authentication code isn't accessible. Instead, close the window and click the copy icon next to the URL in the Claude Code panel to copy *this URL*.
+- Click `Claude.ai Subscription`. A pop-up window will show a URL -- ignore it since it will try to automatically open `http://localhost...` after authorizing, and the authentication code isn't accessible. Instead, close the window (by clicking the 'Copy' button), and in the Claude Code panel, click the copy icon next to the URL to copy *this URL*.
 - Paste the URL into a web browser
     - Follow the instructions and click `Authorize`
     - Click `Copy Code` to copy the long authentication code provided
