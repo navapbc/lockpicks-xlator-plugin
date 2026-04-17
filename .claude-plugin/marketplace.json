@@ -6,10 +6,7 @@
   "plugins": [
     {
       "name": "xl",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/navapbc/lockpicks-xlator-plugin.git"
-      }
+      "source": "./xl-plugin"
     }
   ]
 }

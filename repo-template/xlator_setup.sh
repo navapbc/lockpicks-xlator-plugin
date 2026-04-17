@@ -51,7 +51,9 @@ if [ "${CLAUDE_PLUGIN_DATA:-}" ]; then
     ln -snf "$XLATOR_UV_BASEDIR/.venv" "$DEFAULT_XLATOR_UV_BASEDIR/.venv"
 else
     # Source .xlator.local.env to preserve XLATOR_UV_BASEDIR and avoid unnecessary changes to it
-    [ -f "$PROJECT_ROOT/.xlator.local.env" ] && source "$PROJECT_ROOT/.xlator.local.env"
+    if [ -f "$PROJECT_ROOT/.xlator.local.env" ]; then
+        eval $(grep XLATOR_UV_BASEDIR "$PROJECT_ROOT/.xlator.local.env")
+    fi
     if [ "${XLATOR_UV_BASEDIR:-}" ] && [ -d "$XLATOR_UV_BASEDIR/.venv" ]; then
         echo "Using preset XLATOR_UV_BASEDIR from .xlator.local.env: $XLATOR_UV_BASEDIR"
     else
@@ -76,16 +78,16 @@ local_env_written_today() {
     fi
 }
 
-copy_from_plugin_if_diff() {
-    local SRC_FILE="$1"  # relative to $CLAUDE_PLUGIN_ROOT
-    local DST_FILE="$2"  # relative to current folder
-    if [ -f "$DST_FILE" ] && cmp -s "$CLAUDE_PLUGIN_ROOT/$SRC_FILE" "$DST_FILE"; then
+copy_if_diff() {
+    local SRC_FILE="$1"
+    local DST_FILE="$2"
+    if [ -f "$DST_FILE" ] && cmp -s "$SRC_FILE" "$DST_FILE"; then
         : echo "  Skipping (unchanged): $DST_FILE"
     else
         if [ -f "$DST_FILE" ]; then
             echo "  Overwriting: $DST_FILE"
         fi
-        cp -v "$CLAUDE_PLUGIN_ROOT/$SRC_FILE" "$DST_FILE"
+        cp -v "$SRC_FILE" "$DST_FILE"
     fi
 }
 
@@ -120,7 +122,7 @@ setup_xlator_plugin() {
 
     # CLAUDE_PLUGIN_ROOT is set by Claude Code for hook commands but not other contexts.
     # Persist it so shell scripts and slash commands can use it too.
-    CLAUDE_PLUGIN_ROOT=$(claude plugin list --json | uv run python -c '
+    CLAUDE_PLUGIN_ROOT=$(claude plugin list --json | uv run --no-project python -c '
 import sys, json
 plugins = json.load(sys.stdin)
 xl = next((p for p in plugins if p["id"].startswith("xl@")), None)
@@ -172,7 +174,7 @@ setup_domains_dir() {
 
     echo "🤓 6. Creating symlinks in $DOMAINS_DIR..."
     # Provides easy access to the plugin folder for reference
-    ln -snf "$CLAUDE_PLUGIN_ROOT" "$PROJECT_ROOT/$DOMAINS_DIR/.plugin"
+    [ -e "$PROJECT_ROOT/$DOMAINS_DIR/.plugin" ] || ln -snf "$CLAUDE_PLUGIN_ROOT" "$PROJECT_ROOT/$DOMAINS_DIR/.plugin"
 }
 
 # --- Main ---
@@ -183,26 +185,22 @@ setup_xlator_plugin
 echo "😊 2.a Creating files in $PROJECT_ROOT ..."
 cd "$PROJECT_ROOT"
 mkdir -p .vscode
-copy_from_plugin_if_diff "core/ruleset.schema.json" ".vscode/ruleset.schema.json"
-
-if [ ! -f ".gitignore" ] || ! grep -qxF ".xlator.local.env" ".gitignore"; then
-    echo "Adding .xlator.local.env to .gitignore"
-    {
-        echo "# Catala generated files"
-        echo "_build/"
-        echo "_targets/"
-        echo ""
-        echo "# Local environment variables for Xlator plugin (contains CLAUDE_PLUGIN_ROOT)"
-        echo ".xlator.local.env"
-    } >> ".gitignore"
-fi
-
-copy_from_plugin_if_diff .gitignore "$PROJECT_ROOT/$DOMAINS_DIR/.gitignore"
+copy_if_diff "$CLAUDE_PLUGIN_ROOT/core/ruleset.schema.json" ".vscode/ruleset.schema.json"
 
 echo "😊 2.b Copying uv project files to $XLATOR_UV_BASEDIR ..."
+RAW_GIT_REPO=https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main
 for F in $UV_PROJECT_FILES; do
-    copy_from_plugin_if_diff "$F" "$XLATOR_UV_BASEDIR/$F"
+    if [ -f "$XLATOR_UV_BASEDIR/$F" ]; then
+        echo "  Skipping existing file (Delete file to update it): $XLATOR_UV_BASEDIR/$F"
+    else
+        echo "  Downloading $F to $XLATOR_UV_BASEDIR"
+        curl -sSL -o "$XLATOR_UV_BASEDIR/$F" "$RAW_GIT_REPO/$F"
+    fi
 done
+
+# Make the xlator script easily accessible for Claude so it doesn't have to search for it
+# .venv/bin is on the PATH, so create a symlink to the xlator script there
+[ -e "$XLATOR_UV_BASEDIR/.venv/bin/xlator" ] || ln -snf "$CLAUDE_PLUGIN_ROOT/xlator" "$XLATOR_UV_BASEDIR/.venv/bin/xlator"
 
 setup_domains_dir
 

@@ -9,9 +9,9 @@ You can copy the files in this repo into your own repo and be able to use the Xl
 
 The `create_git_repo.sh` script performed the following to create this repo:
 - Created `xlator.conf` based on the specified `DOMAINS_DIR`
-- Copied files from the plugin's `repo-template` and customized the following files:
-    - `.devcontainer/devcontainer.json` for running as a devcontainer in VSCode or on the web in GitHub Codespaces
-    - `.vscode/settings.json` to configure CIVIL ruleset schema, enable auto-approve and `bypassPermissions` for Claude Code, and set the Python virtual environment path
+- Copied the following files from the plugin's `repo-template`:
+    - `.devcontainer/devcontainer.json` for running as a devcontainer in VS Code or on the web in GitHub Codespaces
+    - `.vscode/settings.json` to configure CIVIL ruleset schema and enable auto-approve and `bypassPermissions` for Claude Code
     - the root-level `CLAUDE.md` file to provide Xlator-specific instructions
 
 ### How can I create a repo like this one?
@@ -30,7 +30,7 @@ After repo creation, follow the instructions in the new repo's `README.md` (same
 ## Open repo in an IDE to complete setup
 
 Now that the repo is created, you can open the repo in GitHub Codespaces or in VS Code as a devcontainer.
-- In VS Code, a few toaster notifications will pop up on the lower-right, ignore any reported problem about "Default interpreter path ... could not be resolved" for now, and click on the "Reopen in Container" link. Alternatively, use the command palette (`Cmd-Shift-p`) to run "Dev Containers: Reopen in Container".
+- In VS Code, a few toaster notifications will pop up on the lower-right. Click on the "Reopen in Container" button. Alternatively, use the command palette (`Cmd-Shift-p`) to run "Dev Containers: Reopen in Container".
 
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
 - Setup `uv` virtual environment under `$XLATOR_UV_BASEDIR` to install Python and dependencies for Xlator scripts
