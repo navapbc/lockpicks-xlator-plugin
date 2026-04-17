@@ -9,10 +9,8 @@ dist/
 # Local environment variables for Xlator plugin (contains CLAUDE_PLUGIN_ROOT)
 .xlator.local.env
 
-# Default uv project folder, until CLAUDE_PLUGIN_DATA is set
-.xlator_uv/
-
 # General shared folder used by Xlator; created by xlator_setup.sh
+# Used as the default uv project folder, until CLAUDE_PLUGIN_DATA is set
 .shared/
 
 # Virtual environments set up by demo scripts

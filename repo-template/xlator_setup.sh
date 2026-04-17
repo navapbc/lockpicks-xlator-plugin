@@ -33,7 +33,9 @@ mkdir -p "$PROJECT_ROOT/$DOMAINS_DIR"
 # and then switch to using CLAUDE_PLUGIN_DATA once it's available.
 UV_PROJECT_FILES="pyproject.toml .python-version uv.lock"
 
-DEFAULT_XLATOR_UV_BASEDIR="$PROJECT_ROOT/$DOMAINS_DIR/.xlator_uv"
+# Default uv project folder, until CLAUDE_PLUGIN_DATA is set
+DEFAULT_XLATOR_UV_BASEDIR="$PROJECT_ROOT/$DOMAINS_DIR/.shared"
+
 if [ "${CLAUDE_PLUGIN_DATA:-}" ]; then
     # This is specific to Claude
     # CLAUDE_PLUGIN_DATA is typically a subfolder under ~/.claude/plugins/data/...
