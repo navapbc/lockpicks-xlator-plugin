@@ -13,17 +13,17 @@ Output is always written to a file named <stem>-depgraph.<ext> next to the input
 
 Examples:
     # From source (generates graph.json automatically)
-    python tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en
+    python tools/catala_depgraph.py <path_to>/snap/output/eligibility.catala_en
 
     # From pre-built graph.json
-    python tools/catala_depgraph.py $DOMAINS_DIR/ak_doh/output/earned_income.graph.json
+    python tools/catala_depgraph.py <path_to>/ak_doh/output/earned_income.graph.json
 
     # Mermaid, specific scope
-    python tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en \\
+    python tools/catala_depgraph.py <path_to>/snap/output/eligibility.catala_en \\
         --format mmd --scope EligibilityDecision
 
     # Render directly to PNG (requires Graphviz installed)
-    python tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en --format png
+    python tools/catala_depgraph.py <path_to>/snap/output/eligibility.catala_en --format png
 
 Exit codes:
     0 — success

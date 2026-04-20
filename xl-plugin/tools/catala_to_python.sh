@@ -2,7 +2,7 @@
 # catala_to_python.sh — pre-flight step 3a from /create-demo
 # Usage (via xlator CLI): xlator catala-to-python <domain> <module>
 # Builds the Catala Python package for a domain/module and places it in
-# $DOMAINS_DIR/<domain>/output/demo-catala-<module>/python/.
+# $DOMAINS_FULLPATH/<domain>/output/demo-catala-<module>/python/.
 
 set -euo pipefail
 
@@ -14,12 +14,19 @@ fi
 DOMAIN="$1"
 MODULE="$2"
 
-if [[ -z "$DOMAINS_DIR" ]]; then
-  echo "Error: DOMAINS_DIR environment variable not set." >&2
+if [[ -z "$DOMAINS_FULLPATH" ]]; then
+  echo "Error: DOMAINS_FULLPATH environment variable not set." >&2
   exit 1
 fi
 
-OUTPUT_DIR="$DOMAINS_DIR/${DOMAIN}/output"
+# This script expects to be run from the PROJECT_ROOT directory and
+# that DOMAINS_FULLPATH is set to the path of the domains directory.
+if [[ ! -d "$DOMAINS_FULLPATH" ]]; then
+  echo "Error: DOMAINS_FULLPATH directory not found at ${DOMAINS_FULLPATH}" >&2
+  exit 1
+fi
+
+OUTPUT_DIR="$DOMAINS_FULLPATH/${DOMAIN}/output"
 DEMO_DIR="${OUTPUT_DIR}/demo-catala-${MODULE}"
 PYTHON_DIR="${DEMO_DIR}/python"
 
