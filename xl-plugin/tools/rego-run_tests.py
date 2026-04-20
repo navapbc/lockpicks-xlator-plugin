@@ -8,12 +8,11 @@ OPA REST server, reporting pass/fail per case.
 Requires OPA REST server to be running:
     opa run --server --addr :8181 <path/to/policy.rego>
 
-Usage:
-    python tools/rego-run_tests.py <tests_yaml> [--opa-url URL] [--opa-path PATH]
+Usage (via xlator CLI):
+    xlator rego-test <domain> <module>
 
 Example:
-    python tools/rego-run_tests.py $DOMAINS_DIR/snap/specs/tests/eligibility_tests.yaml \\
-        --opa-path /v1/data/snap/eligibility/decision
+    xlator rego-test snap eligibility
 
 Options:
     --opa-url   OPA REST server base URL (default: http://localhost:8181)

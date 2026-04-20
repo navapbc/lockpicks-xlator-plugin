@@ -5,10 +5,13 @@ CSV / YAML → *_tests.yaml Importer
 Validates and upserts test cases from a CSV (or native YAML) file into the
 target *_tests.yaml file. All validation errors are collected before any write.
 
-Usage:
-    python tools/import_tests.py <civil_yaml> <csv_or_yaml> <tests_yaml> [options]
+Usage (via xlator CLI):
+    xlator import-tests <domain> <module> <csv_or_yaml_file>
+    xlator import-tests <domain> <module> <csv_or_yaml_file> --dry-run
+    xlator import-tests <domain> <module> <csv_or_yaml_file> --format yaml
+    xlator import-tests <domain> <module> - --format yaml  # stdin
 
-Options:
+Options (passed through by xlator):
     --dry-run              Validate and report without writing
     --format {csv,yaml}    Input format (default: csv)
     --no-comment-check     Skip the YAML-comment-loss warning prompt

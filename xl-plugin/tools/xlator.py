@@ -3,7 +3,7 @@
 xlator CLI - replaces the Makefile.
 
 Usage:
-  ./xlator <action> [domain] [module]
+  xlator <action> [domain] [module]
 
 Typical user actions (no domain/module):
   list                                 Show all domain/module pairs
@@ -475,12 +475,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  ./xlator list
-  ./xlator validate snap eligibility
-  ./xlator rego-pipeline snap eligibility
-  ./xlator catala-test snap eligibility
-  ./xlator catala-pipeline snap eligibility
-  ./xlator rego-test ak_doh apa_adltc
+  xlator list
+  xlator validate snap eligibility
+  xlator rego-pipeline snap eligibility
+  xlator catala-test snap eligibility
+  xlator catala-pipeline snap eligibility
+  xlator rego-test ak_doh apa_adltc
         """,
     )
     sub = parser.add_subparsers(dest="action", required=True, metavar="action")

@@ -8,14 +8,11 @@ All domain-specific values (package name, tables, constants, computed fields,
 rules, and the decision object shape) are derived from the CIVIL YAML itself.
 The only external input is the OPA package name, supplied via --package.
 
-Usage:
-    python tools/transpile_to_rego.py <civil_yaml> <output_rego> --package <name>
+Usage (via xlator CLI):
+    xlator rego-transpile <domain> <module>
 
 Example:
-    python tools/transpile_to_rego.py \\
-        $DOMAINS_DIR/snap/specs/eligibility.civil.yaml \\
-        $DOMAINS_DIR/snap/output/eligibility.rego \\
-        --package snap.eligibility
+    xlator rego-transpile snap eligibility
 
 Exit codes:
     0 — success
@@ -516,7 +513,7 @@ def transpile(doc, output_path, package):
         f"# Effective: {doc.get('effective', {}).get('start')} – {doc.get('effective', {}).get('end')}",
         "#",
         "# DO NOT EDIT — regenerate with:",
-        f"#   python tools/transpile_to_rego.py {civil_path} {output_path} --package {package}",
+        "#   xlator rego-transpile <domain> <module>",
         "",
         f"package {package}",
         "",

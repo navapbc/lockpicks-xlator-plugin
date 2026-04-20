@@ -140,7 +140,7 @@ The following subroutines are referenced from the steps above. When a step says 
 ### SP-Validate
 
 ```bash
-python tools/validate_civil.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
+xlator validate <domain> <module>
 ```
 
 **On failure — retry loop (max 3 attempts):**
@@ -154,13 +154,13 @@ After 3 failed attempts, stop and print:
 ```
 Validation failed after 3 attempts. Errors:
   <error list>
-Fix manually, then re-run: python tools/validate_civil.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
+Fix manually, then re-run: xlator validate <domain> <module>
 ```
 
 ### SP-ComputeGraph
 
 ```bash
-python tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
+xlator graph <domain> <module>
 ```
 
 On success the tool prints both output file paths. On failure, print:

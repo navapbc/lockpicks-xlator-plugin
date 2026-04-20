@@ -9,11 +9,11 @@ Reads a CIVIL DSL YAML file and produces two artifacts in the same directory:
 Each node records its kind, type, location (YAML path), depends_on list, and
 used_by list (the reverse index of depends_on).
 
-Usage:
-    python tools/computation_graph.py <civil_yaml>
+Usage (via xlator CLI):
+    xlator graph <domain> <module>
 
     Example:
-        python tools/computation_graph.py $DOMAINS_DIR/snap/specs/eligibility.civil.yaml
+        xlator graph snap eligibility
 
 Exit codes:
     0 — success (both output files written)

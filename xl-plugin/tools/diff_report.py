@@ -9,7 +9,7 @@ file_edited events), finds the most recent commit tagged with
 Read-only — makes no git commits or file modifications.
 
 Usage (via xlator CLI):
-  ./xlator diff-report <domain>
+  xlator diff-report <domain>
 """
 
 import json
@@ -103,6 +103,6 @@ def run(domain: str) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        _err_console.print("Usage: diff_report.py <domain>")
+        _err_console.print("Usage: xlator diff-report <domain>")
         sys.exit(1)
     run(sys.argv[1])

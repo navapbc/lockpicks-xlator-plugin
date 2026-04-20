@@ -4,7 +4,7 @@ CIVIL DSL — Pydantic v2 schema models.
 This file is the single source of truth for the CIVIL DSL structure and
 field-level documentation. Run as a script to regenerate core/ruleset.schema.json:
 
-    python tools/civil_schema.py
+    xlator generate-schema
 
 Expression language reference (for 'when:' conditions and 'expr:' strings):
   Literals:     42, 3.14, "text", true, false, date("2026-01-01")

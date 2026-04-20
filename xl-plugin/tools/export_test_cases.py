@@ -10,8 +10,8 @@ Output: <tests_yaml_basename>.csv
   Row 2: descriptions row (#desc)
   Row 3+: one row per test case
 
-Usage:
-    python tools/export_test_cases.py <civil_yaml> <tests_yaml> --output-dir <dir>
+Usage (via xlator CLI):
+    xlator export-test-cases <domain> <module>
 
 Exit codes:
     0 — success

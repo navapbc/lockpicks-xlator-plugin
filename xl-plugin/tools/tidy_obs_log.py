@@ -8,7 +8,7 @@ session IDs), merges them, and writes a Markdown conversation view to
 $DOMAINS_FULLPATH/<domain>/logs/session-report.md.
 
 Usage (via xlator CLI):
-  ./xlator tidy-log <domain>
+  xlator tidy-log <domain>
 """
 
 import json
@@ -218,6 +218,6 @@ def run(domain: str) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        _err_console.print("Usage: tidy_obs_log.py <domain>")
+        _err_console.print("Usage: xlator tidy-log <domain>")
         sys.exit(1)
     run(sys.argv[1])

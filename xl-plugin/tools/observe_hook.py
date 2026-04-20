@@ -6,7 +6,7 @@ Xlator observability hook handler.
 
 Called from Claude Code hooks defined in .claude-plugin/hooks/hooks.json.
 Reads the hook event payload from stdin (JSON) and appends a JSONL entry
-to $DOMAINS_DIR/<domain>/logs/session.jsonl (resolved from xlator.conf in
+to <domain>/logs/session.jsonl (resolved from xlator.conf in
 the git project root).
 
 Usage (from hooks.json):
@@ -41,7 +41,6 @@ ROOT = Path(__file__).parent.parent  # tools/ -> plugin root
 _SESSION_GLOB = "/tmp/xlator-session-*"
 _SESSION_PREFIX = "/tmp/xlator-session-"
 
-_DOMAINS_DIR = Path(os.environ["DOMAINS_DIR"])
 DOMAINS_FULLPATH = Path(os.environ["DOMAINS_FULLPATH"])
 
 
@@ -90,7 +89,7 @@ _VALID_DOMAIN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _is_known_domain(name: str) -> bool:
-    """Return True only if the domain directory actually exists under DOMAINS_DIR."""
+    """Return True only if the domain directory actually exists under DOMAINS_FULLPATH."""
     return name == ".shared" or (DOMAINS_FULLPATH / name).is_dir()
 
 
@@ -105,6 +104,7 @@ def _infer_domain(text: str) -> str:
     Candidates are rejected if they contain non-identifier characters or do not
     correspond to an existing domain directory, preventing stray folder creation.
     """
+    _DOMAINS_DIR = Path(os.environ["DOMAINS_DIR"])
     domains_str = str(_DOMAINS_DIR)
     if domains_str in text:
         remainder = text[text.index(domains_str) + len(domains_str):].lstrip("/")

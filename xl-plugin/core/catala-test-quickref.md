@@ -5,7 +5,7 @@
 
 Reference for authoring and generating Catala test files.
 For general Catala syntax see [catala-quickref.md](catala-quickref.md).
-For generating tests from YAML: `python tools/transpile_to_catala_tests.py`
+For generating tests from YAML: `xlator catala-test-transpile <domain> <module>`
 
 To run tests: `clerk test`
 

@@ -5,8 +5,8 @@ CIVIL DSL Structure Validator
 Validates that a CIVIL YAML file conforms to the CIVIL DSL specification.
 Schema is defined in tools/civil_schema.py (Pydantic v2 models).
 
-Usage:
-    python tools/validate_civil.py <path_to_civil_yaml>
+Usage (via xlator CLI):
+    xlator validate <domain> <module>
 
 Exit codes:
     0 — valid
@@ -383,7 +383,7 @@ def validate(path: str) -> bool:
 
 def main():
     if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <path_to_civil_yaml>", file=sys.stderr)
+        print("Usage: xlator validate <domain> <module>", file=sys.stderr)
         sys.exit(1)
 
     if validate(sys.argv[1]):

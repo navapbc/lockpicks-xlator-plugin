@@ -10,12 +10,11 @@ Each YAML test case becomes a #[test] scope that calls the main scope via
   output of <Scope> with { -- field: value ... }
 and asserts on the output fields.
 
-Usage:
-    python tools/transpile_to_catala_tests.py \\
-        $DOMAINS_DIR/snap/specs/tests/eligibility_tests.yaml \\
-        $DOMAINS_DIR/snap/output/tests/eligibility_tests.catala_en \\
-        --scope EligibilityDecision \\
-        --civil-spec $DOMAINS_DIR/snap/specs/eligibility.civil.yaml
+Usage (via xlator CLI):
+    xlator catala-test-transpile <domain> <module>
+
+Example:
+    xlator catala-test-transpile snap eligibility
 
 Exit codes:
     0 — success
@@ -484,11 +483,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 example:
-  python tools/transpile_to_catala_tests.py \\
-    $DOMAINS_DIR/snap/specs/tests/eligibility_tests.yaml \\
-    $DOMAINS_DIR/snap/output/tests/eligibility_tests.catala_en \\
-    --scope EligibilityDecision \\
-    --civil-spec $DOMAINS_DIR/snap/specs/eligibility.civil.yaml
+  xlator catala-test-transpile snap eligibility
 """,
     )
     parser.add_argument("tests_yaml", help="Input YAML test file")

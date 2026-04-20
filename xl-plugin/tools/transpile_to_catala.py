@@ -8,14 +8,11 @@ Output is valid Catala 1.1.0 ("bac d'Eloka") targeting the English keyword set.
 Syntax reference: core/catala-quickref.md
 Official examples: https://raw.githubusercontent.com/CatalaLang/catala/refs/heads/master/doc/syntax/syntax_en.catala_en
 
-Usage:
-    python tools/transpile_to_catala.py <civil_yaml> <output_catala> [--scope <name>]
+Usage (via xlator CLI):
+    xlator catala-transpile <domain> <module>
 
 Example:
-    python tools/transpile_to_catala.py \\
-        $DOMAINS_DIR/snap/specs/eligibility.civil.yaml \\
-        $DOMAINS_DIR/snap/output/eligibility.catala_en \\
-        --scope EligibilityDecision
+    xlator catala-transpile snap eligibility
 
 Exit codes:
     0 — success
@@ -1404,7 +1401,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     eff_str = f"{eff_start} – {eff_end}" if eff_end else str(eff_start)
     md_lines.append(f"Module: `{catala_module_name}` | Version: `{version}` | Effective: {eff_str} | Jurisdiction: {j_str}")
     md_lines.append("")
-    md_lines.append(f"DO NOT EDIT — regenerate with: `python tools/transpile_to_catala.py {civil_path} {output_path} --scope {scope_name}`")
+    md_lines.append("DO NOT EDIT — regenerate with: `xlator catala-transpile <domain> <module>`")
     md_lines.append("")
 
     # --- Declarations ---

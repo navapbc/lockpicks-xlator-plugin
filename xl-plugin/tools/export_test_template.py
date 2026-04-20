@@ -11,8 +11,8 @@ Output: <module>_test_template.csv
   Row 3: one approve/allow example row
   Row 4: one deny example row
 
-Usage:
-    python tools/export_test_template.py <civil_yaml> --output-dir <dir>
+Usage (via xlator CLI):
+    xlator export-test-template <domain> <module>
 
 Exit codes:
     0 — success
