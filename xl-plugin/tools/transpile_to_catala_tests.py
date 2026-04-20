@@ -2,8 +2,8 @@
 """
 CIVIL YAML Tests → Catala Test File Transpiler
 
-Converts a YAML test file ($DOMAINS_DIR/<domain>/specs/tests/<module>_*_tests.yaml)
-to a Catala test file ($DOMAINS_DIR/<domain>/output/tests/<module>_*_tests.catala_en)
+Converts a YAML test file (<domain>/specs/tests/<module>_*_tests.yaml)
+to a Catala test file (<domain>/output/tests/<module>_*_tests.catala_en)
 using the Catala #[test] assertion pattern.
 
 Each YAML test case becomes a #[test] scope that calls the main scope via

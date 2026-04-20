@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # catala_to_python.sh — pre-flight step 3a from /create-demo
-# Usage: tools/catala_to_python.sh <domain> <module>
+# Usage (via xlator CLI): xlator catala-to-python <domain> <module>
 # Builds the Catala Python package for a domain/module and places it in
 # $DOMAINS_DIR/<domain>/output/demo-catala-<module>/python/.
 

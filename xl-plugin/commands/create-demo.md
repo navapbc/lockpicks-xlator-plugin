@@ -21,7 +21,7 @@ If no args are provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and 
    - Check `$DOMAINS_DIR/<domain>/output/<module>.catala_en`
    - Not found → Run `${CLAUDE_PLUGIN_ROOT}/xlator catala-transpile <domain> <module>`.
 3a. **Python package built?**
-   - Run `$CLAUDE_PLUGIN_ROOT/tools/catala_to_python.sh <domain> <module>` — this handles everything: builds via `clerk build` if needed, moves compiled files into place, and creates `__init__.py`. If it exits non-zero, print the error and stop.
+   - Run `${CLAUDE_PLUGIN_ROOT}/xlator catala-to-python <domain> <module>` — this handles everything: builds via `clerk build` if needed, moves compiled files into place, and creates `__init__.py`. If it exits non-zero, print the error and stop.
 4. **Test manifest present?**
    - `$DOMAINS_DIR/<domain>/specs/tests/<module>_tests.yaml` missing → note: proceed with placeholder examples; print warning at the end.
 

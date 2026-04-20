@@ -100,6 +100,11 @@ case "$1" in
                 ;;
         esac
         ;;
+    catala-to-python)
+        domain="$2"
+        module="$3"
+        exec bash "$SCRIPT_DIR/../tools/catala_to_python.sh" "$domain" "$module"
+        ;;
     diff-report)
         domain="$2"
         exec python3 "$SCRIPT_DIR/../tools/diff_report.py" "$domain"
@@ -114,6 +119,7 @@ case "$1" in
     # since this script sets up the environment and then delegates to xlator.py.
     *)
         # Change into DOMAINS_DIR so relative paths produced by xlator.py stay within it.
+        # TODO: assume CWD is DOMAINS_FULLPATH if DOMAINS_FULLPATH not set?
         cd "$DOMAINS_FULLPATH"
         exec python3 "$SCRIPT_DIR/../tools/xlator.py" "$@"
         ;;

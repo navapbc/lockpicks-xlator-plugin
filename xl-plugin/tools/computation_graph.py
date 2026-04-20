@@ -154,7 +154,7 @@ def build_graph(civil_path: str) -> tuple[dict, str]:
     # stem is e.g. "eligibility.civil"; remove ".civil" suffix
     stem = p.stem  # "eligibility.civil"
     program = stem[: -len(".civil")] if stem.endswith(".civil") else stem
-    # domain: civil files live in $DOMAINS_DIR/<domain>/specs/
+    # domain: civil files live in <domain>/specs/
     try:
         domain = p.parent.parent.name
     except Exception:
