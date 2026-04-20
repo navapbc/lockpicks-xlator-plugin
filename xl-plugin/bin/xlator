@@ -77,18 +77,32 @@ if [ $# -eq 0 ]; then
 fi
 
 case "$1" in
+    # Intended for internal use by Xlator developers or Claude hooks; not commands for user's direct use
     generate-schema)
         exec python3 "$SCRIPT_DIR/../tools/civil_schema.py"
         ;;
     observe_hook)
+        event_type="$2"
         case "${OBSERVE_HOOK_DISABLED:-}" in
             1|true|yes)
                 ;;
             *)
-                exec python3 "$SCRIPT_DIR/../tools/observe_hook.py" "${@:2}"
+                exec python3 "$SCRIPT_DIR/../tools/observe_hook.py" $event_type
                 ;;
         esac
         ;;
+    diff-report)
+        domain="$2"
+        exec python3 "$SCRIPT_DIR/../tools/diff_report.py" "$domain"
+        ;;
+    tidy-log)
+        domain="$2"
+        exec python3 "$SCRIPT_DIR/../tools/tidy_obs_log.py" "$domain"
+        ;;
+    # For any other command, run xlator.py with the given arguments.
+    # This allows users (and Claude) to run any xlator.py command directly via this script,
+    # without needing to know where xlator.py is or worry about environment variables,
+    # since this script sets up the environment and then delegates to xlator.py.
     *)
         # PROJECT_ROOT is expected by xlator.py.
         export PROJECT_ROOT

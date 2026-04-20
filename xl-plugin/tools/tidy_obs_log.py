@@ -214,3 +214,10 @@ def run(domain: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(output_lines))
     _console.print(f"[green]✓[/green] Written: {output_path.relative_to(ROOT)}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        _err_console.print("Usage: tidy_obs_log.py <domain>")
+        sys.exit(1)
+    run(sys.argv[1])

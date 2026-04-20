@@ -101,3 +101,10 @@ def run(domain: str) -> None:
 
     if not found_any:
         _console.print("No user changes found relative to AI-generated commits.")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        _err_console.print("Usage: diff_report.py <domain>")
+        sys.exit(1)
+    run(sys.argv[1])

@@ -30,10 +30,6 @@ Slash command support actions:
   graph           <domain> <module>    Generate computation graph
   preflight       <domain> <module> [--backend rego|catala]   Validate CIVIL file exists and tool is in PATH
 
-Observability actions:
-  diff-report     <domain>             Show AI-vs-user diffs from session log (read-only)
-  tidy-log        <domain>             Render session log as Markdown conversation
-
 CSV test-case authoring:
   export-test-template  <domain> <module>   Generate CSV template from CIVIL spec
   export-test-cases     <domain> <module>   Export existing _tests.yaml to CSV
@@ -439,15 +435,6 @@ def cmd_detect_changes(domain):
     sys.exit(0)
 
 
-def cmd_diff_report(domain):
-    from tools.diff_report import run as _diff_report
-    _diff_report(domain)
-
-
-def cmd_tidy_log(domain):
-    from tools.tidy_obs_log import run as _tidy_obs_log
-    _tidy_obs_log(domain)
-
 
 def cmd_list():
     pattern = str(ROOT / DOMAINS_DIR / "*" / "specs" / "*.civil.yaml")
@@ -523,8 +510,6 @@ examples:
         ("new-domain",      "Scaffold standard domain directory structure"),
         ("manifest-update", "Refresh git SHAs in extraction-manifest.yaml"),
         ("detect-changes",  "Exit 0 if no source doc changes; exit 1 if changes detected"),
-        ("diff-report",     "Show AI-vs-user diffs from session log (read-only)"),
-        ("tidy-log",        "Render session log as Markdown conversation"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
@@ -606,10 +591,6 @@ examples:
             cmd_manifest_update(args.domain)
         case "detect-changes":
             cmd_detect_changes(args.domain)
-        case "diff-report":
-            cmd_diff_report(args.domain)
-        case "tidy-log":
-            cmd_tidy_log(args.domain)
         case "export-test-template":
             out = args.output_dir or str(ROOT / DOMAINS_DIR / args.domain / "specs" / "tests")
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
