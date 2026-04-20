@@ -4,7 +4,11 @@ The `.xlator.local.env` file exports the `$CLAUDE_PLUGIN_ROOT` and `$XLATOR_UV_B
 
 If `$DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root folder.
 
-## Running Python code
+## Running Python scripts under the tools folder
+
+To run Python scripts under the `tools/` folder, use the `xlator` shell script as a shim so that required environment variables are correctly set.
+
+## Running arbitrary Python code
 
 Do not use the system Python. Use the virtual environment in the `$XLATOR_UV_BASEDIR` folder by using `uv run --directory "$XLATOR_UV_BASEDIR" python <args>`.
 To avoid having to use `uv run` for each command line, activate the virtual environment (`. "$XLATOR_UV_BASEDIR/.venv/bin/activate"`) before running the Python code.

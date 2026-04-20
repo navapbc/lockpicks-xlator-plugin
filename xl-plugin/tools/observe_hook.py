@@ -2,7 +2,7 @@
 """
 Xlator observability hook handler.
 
-# TODO: Replace with Monitors? https://code.claude.com/docs/en/plugins-reference#monitors
+# TODO later: Replace with Monitors? https://code.claude.com/docs/en/plugins-reference#monitors
 
 Called from Claude Code hooks defined in .claude-plugin/hooks/hooks.json.
 Reads the hook event payload from stdin (JSON) and appends a JSONL entry
@@ -96,16 +96,15 @@ def _is_known_domain(name: str) -> bool:
 def _infer_domain(text: str) -> str:
     """Extract domain name from a file path or shell command string.
 
-    Primary: match against the resolved DOMAINS_DIR path in the text.
-    Secondary: match against the DOMAINS_DIR basename (handles relative paths in text).
+    Primary: match against the resolved DOMAINS_FULLPATH path in the text.
+    Secondary: match against the DOMAINS_FULLPATH basename (handles relative paths in text).
     Fallback for xlator commands: positional arg 2 is the domain.
     Default: .shared
 
     Candidates are rejected if they contain non-identifier characters or do not
     correspond to an existing domain directory, preventing stray folder creation.
     """
-    _DOMAINS_DIR = Path(os.environ["DOMAINS_DIR"])
-    domains_str = str(_DOMAINS_DIR)
+    domains_str = str(DOMAINS_FULLPATH)
     if domains_str in text:
         remainder = text[text.index(domains_str) + len(domains_str):].lstrip("/")
         m = re.match(r"([^/\s]+)/", remainder)
@@ -113,7 +112,7 @@ def _infer_domain(text: str) -> str:
             return m.group(1)
 
     # basename fallback — handles relative paths like rules/snap/...
-    basename = re.escape(_DOMAINS_DIR.name)
+    basename = re.escape(DOMAINS_FULLPATH.name)
     m = re.search(rf"{basename}/([^/\s]+)/", text)
     if m and _VALID_DOMAIN.match(m.group(1)) and _is_known_domain(m.group(1)):
         return m.group(1)

@@ -35,9 +35,12 @@ if [ -z "$DOMAINS_DIR" ]; then
     exit 3
 fi
 
-# Not necessarily an absolute path
-# This avoids scripts having to know about PROJECT_ROOT when DOMAINS_FULLPATH is sufficient
+# This avoids scripts having to know about PROJECT_ROOT and DOMAINS_DIR when DOMAINS_FULLPATH is sufficient
 export DOMAINS_FULLPATH="$PROJECT_ROOT/$DOMAINS_DIR"
+if [[ "$DOMAINS_FULLPATH" != /* ]]; then
+    echo "Error: DOMAINS_FULLPATH is not an absolute path: $DOMAINS_FULLPATH" >&2
+    exit 4
+fi
 
 activate_opam() {
     if [ -d "$HOME/.opam" ]; then
