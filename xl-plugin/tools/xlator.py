@@ -115,21 +115,14 @@ def _get_file_sha(repo_relative_path):
     return result.stdout.strip() or None
 
 
-def _parse_source_doc(entry, domain):
-    """Return (domain_relative_path, stored_sha) from either manifest format.
+def _parse_source_doc(entry):
+    """Return (domain_relative_path, stored_sha) from a manifest entry.
 
-    snap format:   {path: "input/...",                git_sha: "abc"}
-    ak_doh format: {file: "domains/ak_doh/input/...", sha:     "abc"}
+    Format: {path: "input/...", git_sha: "abc"}
+    Paths are relative to DOMAINS_FULLPATH/<domain>/.
     """
-    raw = entry.get("path") or entry.get("file", "")
-
-    # TODO: update doc `format:` to be relative to DOMAINS_FULLPATH/domain/ instead of ROOT, and update usages accordingly
-    assert "DOMAINS_DIR" in os.environ, "DOMAINS_DIR relative to ROOT"
-    DOMAINS_DIR = Path(os.environ.get("DOMAINS_DIR", "domains"))
-
-    prefix = f"{DOMAINS_DIR}/{domain}/"
-    domain_rel = raw[len(prefix):] if raw.startswith(prefix) else raw
-    stored_sha = entry.get("git_sha") or entry.get("sha") or ""
+    domain_rel = entry.get("path", "")
+    stored_sha = entry.get("git_sha", "")
     return domain_rel, stored_sha
 
 
@@ -374,7 +367,7 @@ def cmd_manifest_update(domain):
     def refresh(source_docs):
         updated = []
         for entry in source_docs:
-            domain_rel, _ = _parse_source_doc(entry, domain)
+            domain_rel, _ = _parse_source_doc(entry)
             sha = _get_file_sha(f"{DOMAINS_FULLPATH}/{domain}/{domain_rel}")
             if sha is None:
                 _print_info(f"    [dim]dropped[/dim] {domain_rel} (no longer in git)")
@@ -415,7 +408,7 @@ def cmd_detect_changes(domain):
 
     def has_changes(source_docs):
         for entry in source_docs:
-            domain_rel, stored_sha = _parse_source_doc(entry, domain)
+            domain_rel, stored_sha = _parse_source_doc(entry)
             current = _get_file_sha(f"{DOMAINS_FULLPATH}/{domain}/{domain_rel}")
             if current is None or current != stored_sha:
                 return True

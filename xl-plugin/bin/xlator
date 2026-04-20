@@ -121,8 +121,8 @@ case "$1" in
     # without needing to know where xlator.py is or worry about environment variables,
     # since this script sets up the environment and then delegates to xlator.py.
     *)
-        # Change into DOMAINS_DIR so relative paths produced by xlator.py stay within it.
-        # TODO: assume CWD is DOMAINS_FULLPATH if DOMAINS_FULLPATH not set?
+        # Change into DOMAINS_FULLPATH so relative paths produced by xlator.py stay within it.
+        # TODO: Remove reliance on DOMAINS_FULLPATH: assume CWD is DOMAINS_FULLPATH if DOMAINS_FULLPATH not set?
         cd "$DOMAINS_FULLPATH"
         exec python3 "$SCRIPT_DIR/../tools/xlator.py" "$@"
         ;;

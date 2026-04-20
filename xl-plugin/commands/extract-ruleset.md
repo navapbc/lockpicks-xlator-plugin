@@ -368,7 +368,7 @@ programs:
     civil_file: $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
     extracted_at: "YYYY-MM-DD"
     source_docs:
-      - { file: "$DOMAINS_DIR/<domain>/input/policy_docs/<filename>.md", sha: "<sha>" }
+      - { path: "input/policy_docs/<filename>.md", git_sha: "<sha>" }
 ```
 
 **Multi-file (sub_rulesets: non-empty):** write using the multi-file format (see `core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.

@@ -438,13 +438,13 @@ programs:
     civil_file: $DOMAINS_DIR/snap/specs/eligibility.civil.yaml
     extracted_at: "2026-03-18T10:22:00Z"
     source_docs:
-      - { file: "$DOMAINS_DIR/snap/input/snap_policy.md", sha: "abc123" }
+      - { path: "input/snap_policy.md", git_sha: "abc123" }
     sub_modules:
       - name: earned_income
         civil_file: $DOMAINS_DIR/snap/specs/earned_income.civil.yaml
         extracted_at: "2026-03-18T10:18:00Z"
         source_docs:
-          - { file: "$DOMAINS_DIR/snap/input/snap_policy.md", sha: "abc123" }
+          - { path: "input/snap_policy.md", git_sha: "abc123" }
         referenced: false    # true if user chose "reference as-is" on existing file
 ```
 
