@@ -41,38 +41,8 @@ ROOT = Path(__file__).parent.parent  # tools/ -> plugin root
 _SESSION_GLOB = "/tmp/xlator-session-*"
 _SESSION_PREFIX = "/tmp/xlator-session-"
 
-
-# ---------------------------------------------------------------------------
-# Config loading (xlator.conf in git project root)
-# ---------------------------------------------------------------------------
-
-def _load_conf() -> Path:
-    """Locate xlator.conf via git project root and parse it.
-
-    Returns (project_root, conf_dict). Silent on all failures.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=5,
-        )
-        project_root = Path(result.stdout.strip()) if result.returncode == 0 else Path.cwd()
-    except Exception:
-        project_root = Path.cwd()
-
-    return project_root
-
-
-def _resolve_domains_dir(project_root: Path) -> Path:
-    raw = os.environ.get("DOMAINS_DIR", "")
-    if raw:
-        p = Path(raw)
-        return (project_root / p).resolve() if not p.is_absolute() else p.resolve()
-    sys.exit(0)  # xlator.conf absent or DOMAINS_DIR not set — skip logging silently
-
-
-_PROJECT_ROOT = _load_conf()
-_DOMAINS_DIR = _resolve_domains_dir(_PROJECT_ROOT)
+_DOMAINS_DIR = Path(os.environ["DOMAINS_DIR"])
+DOMAINS_FULLPATH = Path(os.environ["DOMAINS_FULLPATH"])
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +91,7 @@ _VALID_DOMAIN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 def _is_known_domain(name: str) -> bool:
     """Return True only if the domain directory actually exists under DOMAINS_DIR."""
-    return name == ".shared" or (_PROJECT_ROOT / _DOMAINS_DIR / name).is_dir()
+    return name == ".shared" or (DOMAINS_FULLPATH / name).is_dir()
 
 
 def _infer_domain(text: str) -> str:
@@ -166,7 +136,7 @@ def _infer_domain(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _log_file(domain: str) -> Path:
-    log_dir = _PROJECT_ROOT / _DOMAINS_DIR / domain / "logs"
+    log_dir = DOMAINS_FULLPATH / domain / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir / "session.jsonl"
 

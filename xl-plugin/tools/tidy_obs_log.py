@@ -2,10 +2,10 @@
 """
 tidy-log: render session log as a human-readable Markdown conversation.
 
-Reads $DOMAINS_DIR/<domain>/logs/session.jsonl (domain events) and
-$DOMAINS_DIR/.shared/logs/session.jsonl (all events, filtered to matching
+Reads $DOMAINS_FULLPATH/<domain>/logs/session.jsonl (domain events) and
+$DOMAINS_FULLPATH/.shared/logs/session.jsonl (all events, filtered to matching
 session IDs), merges them, and writes a Markdown conversation view to
-$DOMAINS_DIR/<domain>/logs/session-report.md.
+$DOMAINS_FULLPATH/<domain>/logs/session-report.md.
 
 Usage (via xlator CLI):
   ./xlator tidy-log <domain>
@@ -17,8 +17,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).parent.parent))
-DOMAINS_DIR = Path(os.environ.get("DOMAINS_DIR", "domains"))
+DOMAINS_FULLPATH = Path(os.environ["DOMAINS_FULLPATH"])
+
 
 from rich.console import Console
 _console = Console()
@@ -112,9 +112,9 @@ def _render_turn(turn_number: int, turn_ts: str, user_events: list, tool_events:
 
 
 def run(domain: str) -> None:
-    domain_log = ROOT / DOMAINS_DIR / domain / "logs" / "session.jsonl"
+    domain_log = DOMAINS_FULLPATH / domain / "logs" / "session.jsonl"
     if not domain_log.exists():
-        _err_console.print(f"[red]ERR[/red] No session log found: {domain_log.relative_to(ROOT)}")
+        _err_console.print(f"[red]ERR[/red] No session log found: {domain_log.relative_to(DOMAINS_FULLPATH)}")
         sys.exit(1)
 
     domain_events = _read_jsonl(domain_log)
@@ -131,7 +131,7 @@ def run(domain: str) -> None:
 
     # Read global log (all event types, filtered to matching session IDs).
     # Skip when domain IS .shared to avoid reading the same file twice.
-    global_log = ROOT / DOMAINS_DIR / ".shared" / "logs" / "session.jsonl"
+    global_log = DOMAINS_FULLPATH / ".shared" / "logs" / "session.jsonl"
     global_events: list[tuple[int, dict]] = []
     if domain != ".shared" and global_log.exists():
         for lineno, event in _read_jsonl(global_log):
@@ -210,10 +210,10 @@ def run(domain: str) -> None:
             last_response = turn["responses"][-1] if turn["responses"] else ""
             output_lines.append(_render_turn(i, turn["ts"], turn["user"], turn["tools"], last_response))
 
-    output_path = ROOT / "domains" / domain / "logs" / "session-report.md"
+    output_path = DOMAINS_FULLPATH / domain / "logs" / "session-report.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(output_lines))
-    _console.print(f"[green]✓[/green] Written: {output_path.relative_to(ROOT)}")
+    _console.print(f"[green]✓[/green] Written: {output_path.relative_to(DOMAINS_FULLPATH)}")
 
 
 if __name__ == "__main__":

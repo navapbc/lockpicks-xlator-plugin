@@ -30,6 +30,15 @@ set -o allexport
 source "$PROJECT_ROOT/xlator.conf"
 source "$PROJECT_ROOT/.xlator.local.env"
 
+if [ -z "$DOMAINS_DIR" ]; then
+    echo "Error: DOMAINS_DIR not set in xlator.conf." >&2
+    exit 3
+fi
+
+# Not necessarily an absolute path
+# This avoids scripts having to know about PROJECT_ROOT when DOMAINS_FULLPATH is sufficient
+export DOMAINS_FULLPATH="$PROJECT_ROOT/$DOMAINS_DIR"
+
 activate_opam() {
     if [ -d "$HOME/.opam" ]; then
         eval "$(opam env)"
@@ -104,10 +113,8 @@ case "$1" in
     # without needing to know where xlator.py is or worry about environment variables,
     # since this script sets up the environment and then delegates to xlator.py.
     *)
-        # PROJECT_ROOT is expected by xlator.py.
-        export PROJECT_ROOT
         # Change into DOMAINS_DIR so relative paths produced by xlator.py stay within it.
-        cd "$PROJECT_ROOT/$DOMAINS_DIR"
+        cd "$DOMAINS_FULLPATH"
         exec python3 "$SCRIPT_DIR/../tools/xlator.py" "$@"
         ;;
 esac

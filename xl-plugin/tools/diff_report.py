@@ -2,7 +2,7 @@
 """
 diff-report: show AI-vs-user diffs from the observability session log.
 
-For each file logged in $DOMAINS_DIR/<domain>/logs/session.jsonl (file_written and
+For each file logged in <domain>/logs/session.jsonl (file_written and
 file_edited events), finds the most recent commit tagged with
 'Co-Authored-By: Claude' and diffs it against the user's next committed change.
 
@@ -18,10 +18,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).parent.parent))
-
-assert "DOMAINS_DIR" in os.environ, "DOMAINS_DIR must be set to the domains directory"
-DOMAINS_DIR = Path(os.environ.get("DOMAINS_DIR", "domains"))
+assert "DOMAINS_FULLPATH" in os.environ, "DOMAINS_FULLPATH must be set to the path of the domains directory"
+DOMAINS_FULLPATH = Path(os.environ["DOMAINS_FULLPATH"])
 
 from rich.console import Console
 _console = Console()
@@ -29,9 +27,9 @@ _err_console = Console(stderr=True)
 
 
 def run(domain: str) -> None:
-    log_path = ROOT / DOMAINS_DIR / domain / "logs" / "session.jsonl"
+    log_path = DOMAINS_FULLPATH / domain / "logs" / "session.jsonl"
     if not log_path.exists():
-        _err_console.print(f"[red]ERR[/red] No session log found: {log_path.relative_to(ROOT)}")
+        _err_console.print(f"[red]ERR[/red] No session log found: {log_path.relative_to(DOMAINS_FULLPATH)}")
         _console.print("Run some slash commands in this domain first to generate log entries.")
         sys.exit(1)
 
@@ -62,7 +60,7 @@ def run(domain: str) -> None:
         # Find most recent AI-generated commit for this file
         ai_result = subprocess.run(
             ["git", "log", "--format=%H", "--grep=Co-Authored-By: Claude", "--", file_path],
-            capture_output=True, text=True, cwd=str(ROOT),
+            capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
         )
         ai_shas = [s.strip() for s in ai_result.stdout.splitlines() if s.strip()]
         if not ai_shas:
@@ -73,7 +71,7 @@ def run(domain: str) -> None:
         # Find the next user commit after the AI commit
         user_result = subprocess.run(
             ["git", "log", "--format=%H", "--ancestry-path", f"{ai_sha}..HEAD", "--", file_path],
-            capture_output=True, text=True, cwd=str(ROOT),
+            capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
         )
         user_shas = [s.strip() for s in user_result.stdout.splitlines() if s.strip()]
 
@@ -81,13 +79,13 @@ def run(domain: str) -> None:
             user_sha = user_shas[-1]  # earliest commit after ai_sha
             diff_result = subprocess.run(
                 ["git", "diff", ai_sha, user_sha, "--", file_path],
-                capture_output=True, text=True, cwd=str(ROOT),
+                capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
             )
         else:
             # No committed user changes — fall back to working-tree diff vs AI commit
             diff_result = subprocess.run(
                 ["git", "diff", ai_sha, "--", file_path],
-                capture_output=True, text=True, cwd=str(ROOT),
+                capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
             )
 
         diff_text = diff_result.stdout.strip()
