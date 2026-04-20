@@ -59,10 +59,9 @@ ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 assert "DOMAINS_DIR" in os.environ, "DOMAINS_DIR must be set to the directory containing domain subfolders (relative to ROOT)"
 DOMAINS_DIR = Path(os.environ.get("DOMAINS_DIR", "domains"))
 
-PLUGIN_DIR = Path(__file__).parent
-SCRIPT_DIR_TOOLS = PLUGIN_DIR / "tools"
+SCRIPT_DIR_TOOLS = Path(__file__).parent
 
-print(f"Using ROOT={ROOT}, DOMAINS_DIR={DOMAINS_DIR}, PLUGIN_DIR={PLUGIN_DIR}, CWD={CWD}")
+print(f"Using ROOT={ROOT}, DOMAINS_DIR={DOMAINS_DIR}, SCRIPT_DIR_TOOLS={SCRIPT_DIR_TOOLS}, CWD={CWD}")
 
 _console = Console()
 _err_console = Console(stderr=True)
@@ -228,7 +227,7 @@ def cmd_catala_transpile(domain, module):
         cmd_catala_transpile(domain, sub_module)
 
     paths["catala"].parent.mkdir(parents=True, exist_ok=True)
-    from tools.transpile_to_catala import derive_scope_name, load_civil
+    from transpile_to_catala import derive_scope_name, load_civil
     doc = load_civil(str(paths["civil"]))
     scope_name = derive_scope_name(doc.get("module", module))
     run([
@@ -281,7 +280,7 @@ def cmd_graph(domain, module):
 def cmd_catala_test_transpile(domain, module):
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
-    from tools.transpile_to_catala import derive_scope_name, load_civil
+    from transpile_to_catala import derive_scope_name, load_civil
     doc = load_civil(str(paths["civil"]))
     scope_name = derive_scope_name(doc.get("module", module))
     domain_base = ROOT / DOMAINS_DIR / domain
