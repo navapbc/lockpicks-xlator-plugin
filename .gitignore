@@ -12,3 +12,6 @@ dist/
 # Save docs to the private repo.
 # docs is a symlink to the private repo's docs directory
 docs
+
+# Local files for compound-engineering plugin that shouldn't be committed.
+compound-engineering.local.md
