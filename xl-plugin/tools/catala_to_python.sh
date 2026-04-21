@@ -14,15 +14,10 @@ fi
 DOMAIN="$1"
 MODULE="$2"
 
-if [[ -z "$DOMAINS_FULLPATH" ]]; then
-  echo "Error: DOMAINS_FULLPATH environment variable not set." >&2
-  exit 1
-fi
+[[ -z "$DOMAINS_FULLPATH" ]] && DOMAINS_FULLPATH=$(pwd)
 
-# This script expects to be run from the PROJECT_ROOT directory and
-# that DOMAINS_FULLPATH is set to the path of the domains directory.
-if [[ ! -d "$DOMAINS_FULLPATH" ]]; then
-  echo "Error: DOMAINS_FULLPATH directory not found at ${DOMAINS_FULLPATH}" >&2
+if [[ ! -d "$DOMAINS_FULLPATH/${DOMAIN}" ]]; then
+  echo "Error: directory not found: ${DOMAINS_FULLPATH}/${DOMAIN}" >&2
   exit 1
 fi
 

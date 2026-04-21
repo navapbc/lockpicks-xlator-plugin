@@ -66,7 +66,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
 ### Step 1: Read Policy Documents
 
-**If `guidance.yaml` was loaded in pre-flight**, internalize the following before reading any policy documents:
+The `guidance.yaml` file was loaded in pre-flight. Internalize the following before reading any policy documents:
 
 ```
 ---

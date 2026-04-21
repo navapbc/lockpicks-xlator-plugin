@@ -10,8 +10,6 @@ The **guidance template** (in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` and
 /refine-guidance <domain>
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/` directories as a numbered menu, prompt the user to choose, await their response, and use it as `<domain>` before continuing.
-
 ## Pre-flight
 
 Run these checks before doing anything else:
@@ -34,11 +32,7 @@ Run these checks before doing anything else:
      ```
      Then stop. Do not scaffold a new domain here — that's `/new-domain`'s job.
 
-3. **Detect mode** — check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
-   - **Present** → **UPDATE mode**
-   - **Absent** → **CREATE mode**
-
-4. **Input index required?**
+3. **Input index required?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - **ABSENT** → Print:
      ```
@@ -46,7 +40,10 @@ Run these checks before doing anything else:
      Run /index-inputs <domain> first, then re-run /refine-guidance <domain>.
      ```
      Stop.
-   - **EXISTS** → Proceed.
+
+4. **Detect mode** — check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
+   - **Present** → **UPDATE mode**
+   - **Absent** → **CREATE mode**
 
 ---
 
@@ -137,7 +134,7 @@ Display the skeleton:
 [repeat for each intermediate_variables category]
 
 ---
-`Confirm` this computation skeleton, or describe what to add, remove, change, or rename.
+[C]onfirm this computation skeleton, or describe what to add, remove, change, or rename.
 ```
 
 Include an ASCII computation flow diagram only when the dependency graph is non-trivial (more than one path from inputs to output). For simple linear chains with less than 3 steps, omit it.
@@ -237,11 +234,11 @@ workflow_stages already defined:
   1. income_test — Income eligibility tests
   2. household_test — Household size and composition tests
 
-Keep / Replace / Merge?  (default: Keep)
+[a]ccept / [r]eplace / [m]erge?  (default: accept)
 ```
-- **Keep**: skip this sub-step, leave file unchanged.
-- **Replace**: overwrite with newly proposed list.
-- **Merge**: combine existing and new entries, deduplicated by name (new descriptions win on conflict).
+- **accept**: skip this sub-step, leave file unchanged.
+- **replace**: overwrite with newly proposed list.
+- **merge**: combine existing and new entries, deduplicated by name (new descriptions win on conflict).
 
 ### Step 6: Output tag selection
 
@@ -266,7 +263,7 @@ Additional computed variables:
 
 Which additional variables should also be tagged `tags: [output]`
 (to be included as part of the ruleset execution output -- appears in the API's ComputedBreakdown response)?
-(Enter variable names, comma-separated, or press Enter to skip):
+(Enter variable names, comma-separated, or press `S` to skip):
 ```
 
 If `auto_tagged` is empty, omit the "Auto-tagged" section.
@@ -275,7 +272,7 @@ If `auto_tagged` is empty, omit the "Auto-tagged" section.
 ```
 Currently tagged: [client_adjusted_income, dol_avg_monthly_adjusted, income_standard]
   (auto-tagged: client_adjusted_income, dol_avg_monthly_adjusted)
-Update additional selection (Enter to keep as-is):
+Update additional selection ('a' to accept as-is):
 ```
 
 **Validation:** after user input, check each entered name against the union of all `examples:` values across all `intermediate_variables` categories. If any names are unrecognized, display them and re-prompt:
@@ -404,7 +401,7 @@ Then proceed to Step 9.
 ```
 Current [<section>]: (N items)
   - ...
-<section key question> (Enter to keep as-is):
+<section key question> ('a' to accept as-is):
 ```
 After the user answers, update `guidance.yaml` immediately, regenerate the preview, and return to this step. Do not continue through the other sections automatically.
 

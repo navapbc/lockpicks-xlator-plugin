@@ -244,10 +244,6 @@ Note: this domain has other policy docs not included in this run:
 To extract from all files as a unified corpus, run without specifying a filename.
 ```
 
-```
-Next step: `/create-tests <domain>`
-```
-
 ---
 
 ### SP-TagOutputs

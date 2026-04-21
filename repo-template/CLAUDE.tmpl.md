@@ -11,7 +11,8 @@ If `xlator.conf` is not found in the project root → print: "File `xlator.conf`
 
 ## DOMAINS_DIR
 
-Set the `$DOMAINS_DIR` environment variable to `$DOMAINS_DIR_VALUE`, which is relative the project root.
+Set the `$DOMAINS_DIR` environment variable to `$DOMAINS_DIR_VALUE`.
+`$DOMAINS_DIR` is relative the project root.
 
 ## Xlator Claude Code Plugin
 
