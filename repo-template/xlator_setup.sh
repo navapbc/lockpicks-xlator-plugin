@@ -54,7 +54,7 @@ if [ "${CLAUDE_PLUGIN_DATA:-}" ]; then
 else
     # Source .xlator.local.env to preserve XLATOR_UV_BASEDIR and avoid unnecessary changes to it
     if [ -f "$PROJECT_ROOT/.xlator.local.env" ]; then
-        eval "$(grep XLATOR_UV_BASEDIR "$PROJECT_ROOT/.xlator.local.env")"
+        eval "$(grep '^export XLATOR_UV_BASEDIR=' "$PROJECT_ROOT/.xlator.local.env")"
     fi
     if [ "${XLATOR_UV_BASEDIR:-}" ] && [ -d "$XLATOR_UV_BASEDIR/.venv" ]; then
         echo "Using preset XLATOR_UV_BASEDIR from .xlator.local.env: $XLATOR_UV_BASEDIR"
@@ -94,6 +94,7 @@ copy_if_diff() {
     local DST_FILE="$2"
     if [ -f "$DST_FILE" ] && cmp -s "$SRC_FILE" "$DST_FILE"; then
         echo "  Skipping (unchanged): $DST_FILE"
+        return 1
     else
         if [ -f "$DST_FILE" ]; then
             echo "  Overwriting: $DST_FILE"
@@ -102,7 +103,19 @@ copy_if_diff() {
     fi
 }
 
-SETUP_TODAY=$(local_env_written_today)
+# To force updating the plugin: SETUP_TODAY=false ./xlator_setup.sh
+: ${SETUP_TODAY:=$(local_env_written_today)}
+
+
+update_this_script(){
+    echo "0. Checking for updates to xlator_setup.sh..."
+    local ref
+    ref=$(mktemp)
+    trap 'rm -f "${ref:-}"' RETURN
+    curl -sSL -o "$ref" "https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main/repo-template/xlator_setup.sh"
+    THIS_SCRIPT="$(realpath "$0")"
+    copy_if_diff "$ref" "$THIS_SCRIPT"
+}
 
 setup_xlator_plugin() {
     echo "🙂 1. Configuring Xlator plugin (writing .xlator.local.env)..."
@@ -186,19 +199,26 @@ setup_tooling() {
 setup_misc() {
     echo "😊 6. Wrapping up: VS Code settings, put xlator in PATH, .plugin symlink, ..."
     mkdir -p "$PROJECT_ROOT/.vscode"
-    copy_if_diff "$CLAUDE_PLUGIN_ROOT/core/ruleset.schema.json" "$PROJECT_ROOT/.vscode/ruleset.schema.json"
+    copy_if_diff "$CLAUDE_PLUGIN_ROOT/core/ruleset.schema.json" "$PROJECT_ROOT/.vscode/ruleset.schema.json" || true
 
-    # Make the xlator script easily accessible for Claude so it doesn't have to search for it
+    # Claude's PATH should have $CLAUDE_PLUGIN_ROOT/bin included, so xlator should be available.
+    # For other contexts (VS Code terminal, user shell), create a symlink to the xlator script in a folder that's on the PATH.
     # .venv/bin is on the PATH, so create a symlink to the xlator script there
     [ -e "$XLATOR_UV_BASEDIR/.venv/bin/xlator" ] || ln -snf "$CLAUDE_PLUGIN_ROOT/bin/xlator" "$XLATOR_UV_BASEDIR/.venv/bin/xlator"
-    # If running in container, also create the symlink in a PATH folder commonly used for the bash terminal
-    [ -e /.dockerenv ] && [ -e "$HOME/.local/bin/xlator" ] || ln -snf "$CLAUDE_PLUGIN_ROOT/bin/xlator" "$HOME/.local/bin/xlator"
+    # Only if running in container, create the symlink in a PATH folder commonly used for the bash terminal (~/.local/bin).
+    # Don't do this for a user's actual $HOME, which is outside a container.
+    [ -e /.dockerenv ] && { [ -e "$HOME/.local/bin/xlator" ] || ln -snf "$CLAUDE_PLUGIN_ROOT/bin/xlator" "$HOME/.local/bin/xlator"; }
 
     # Provides easy access to the plugin folder for reference
     [ -e "$PROJECT_ROOT/$DOMAINS_DIR/.shared/.plugin" ] || ln -snf "$CLAUDE_PLUGIN_ROOT" "$PROJECT_ROOT/$DOMAINS_DIR/.shared/.plugin"
 }
 
 # --- Main ---
+
+if [ "$SETUP_TODAY" = "false" ] && update_this_script; then
+    echo "xlator-setup.sh was updated; aborting current run. Please re-run."
+    exit 10
+fi
 
 date
 setup_xlator_plugin

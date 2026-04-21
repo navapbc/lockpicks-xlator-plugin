@@ -8,3 +8,7 @@ dist/
 .venv/
 
 .claude/settings.local.json
+
+# Save docs to the private repo.
+# docs is a symlink to the private repo's docs directory
+docs
