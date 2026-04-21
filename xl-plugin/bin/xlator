@@ -42,6 +42,31 @@ if [[ "$DOMAINS_FULLPATH" != /* ]]; then
     exit 4
 fi
 
+# If no command is given, open an interactive shell with the Xlator environment.
+if [ $# -eq 0 ]; then
+    if command -v python >/dev/null && command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
+        echo "$(which python): $(python --version)"
+        echo "$(which opam) version: $(opam --version)"
+        echo "$(which clerk) version: $(clerk --version)"
+        echo "$(which catala) version: $(catala --version)"
+        exit 0
+    fi
+
+    echo "Starting a new shell in $DOMAINS_FULLPATH with Xlator environment activated (python, catala, and clerk commands available)"
+    case "$SHELL" in
+        */zsh)
+            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env); cd "$DOMAINS_FULLPATH" && source .shared/.venv/bin/activate""; exec zsh'
+            ;;
+        *)
+            exec bash --rcfile <(
+                cat ~/.bashrc 2>/dev/null || true
+                echo 'eval "$(opam env)"'
+                echo "cd \"$DOMAINS_FULLPATH\" && source .shared/.venv/bin/activate"
+            )
+            ;;
+    esac
+fi
+
 activate_opam() {
     if [ -d "$HOME/.opam" ]; then
         eval "$(opam env)"
@@ -62,31 +87,6 @@ activate_venv() {
 # Required because Claude Code does not source shell configuration files.
 activate_venv
 activate_opam
-
-# If no command is given, open an interactive shell with the Xlator environment.
-if [ $# -eq 0 ]; then
-    if command -v python >/dev/null && command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
-        echo "$(which python): $(python --version)"
-        echo "$(which opam) version: $(opam --version)"
-        echo "$(which clerk) version: $(clerk --version)"
-        echo "$(which catala) version: $(catala --version)"
-        exit 0
-    fi
-
-    echo "Starting a new shell with Xlator environment activated (python, catala, and clerk commands available)"
-    case "$SHELL" in
-        */zsh)
-            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env); cd "$PROJECT_ROOT/$DOMAINS_DIR" && source ./.venv/bin/activate""; exec zsh'
-            ;;
-        *)
-            exec bash --rcfile <(
-                cat ~/.bashrc 2>/dev/null || true
-                echo 'eval "$(opam env)"'
-                echo "cd \"$PROJECT_ROOT/$DOMAINS_DIR\" && source ./.venv/bin/activate"
-            )
-            ;;
-    esac
-fi
 
 case "$1" in
     # Intended for internal use by Xlator developers or Claude hooks; not commands for user's direct use

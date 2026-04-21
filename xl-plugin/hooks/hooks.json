@@ -1,5 +1,5 @@
 {
-  "description": "Xlator observability hooks — log tool events to $DOMAINS_DIR/*/logs/session.jsonl",
+  "description": "Xlator observability hooks — log tool events to */logs/session.jsonl files",
   "hooks": {
     "PostToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook PostToolUse"
+            "command": "xlator observe_hook PostToolUse"
           }
         ]
       },
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook PostToolUse"
+            "command": "xlator observe_hook PostToolUse"
           }
         ]
       },
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook PostToolUse"
+            "command": "xlator observe_hook PostToolUse"
           }
         ]
       },
@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook PostToolUse"
+            "command": "xlator observe_hook PostToolUse"
           }
         ]
       }
@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook SessionStart"
+            "command": "xlator observe_hook SessionStart"
           },
           {
             "type": "command",
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook SessionEnd"
+            "command": "xlator observe_hook SessionEnd"
           }
         ]
       }
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook Stop"
+            "command": "xlator observe_hook Stop"
           }
         ]
       }
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/xlator\" observe_hook UserPromptSubmit"
+            "command": "xlator observe_hook UserPromptSubmit"
           }
         ]
       }
