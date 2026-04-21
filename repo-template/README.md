@@ -10,7 +10,7 @@ This repo was created using `create_git_repo.sh`.
 > .
 > ├── .devcontainer/
 > ├── .vscode/
-> ├── domains/ - This folder name is named by the domains_subfolder_name argument to `download.sh,` default `domains.`
+> ├── domains/ - Named by the domains_subfolder_name argument to `download.sh,` default `domains.`
 > ├── xlator.conf
 > ├── CLAUDE.md
 > └── xlator_setup.sh

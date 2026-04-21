@@ -1,6 +1,6 @@
 # Welcome to Xlator
 
-## How can I create a repo like this one?
+## How can I create a repo like that uses the Xlator plugin?
 
 The `download.sh` script downloads the Xlator repo template (and sets up a new git repository if an argument is provided).
 
