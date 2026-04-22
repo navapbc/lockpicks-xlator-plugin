@@ -10,8 +10,9 @@ dist/
 .claude/settings.local.json
 
 # Save docs to the private repo.
-# docs is a symlink to the private repo's docs directory
+# docs and domains are symlinks to the private repo's docs directory
 docs
+domains
 
 # Local files for compound-engineering plugin that shouldn't be committed.
 compound-engineering.local.md
