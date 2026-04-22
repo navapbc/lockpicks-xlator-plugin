@@ -49,7 +49,7 @@ Run these checks before doing anything else:
 
 ## Process
 
-### Step 1 [CREATE]: Ruleset Guidance template selection
+### Step 1 [CREATE]: Define goal – Ruleset Guidance template selection
 
 Scan `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/*.yaml` and `$DOMAINS_DIR/guidance-templates/*.yaml` for all available guidance template files, reading only the top 5 lines to get the `template_id`, `display_name`, and `description` for each file.
 
@@ -81,7 +81,7 @@ Skeleton: <N> computations across <N> intermediate categories, <N> example rules
 
 ---
 
-### Step 2: Doc analysis
+### Step 2: Customize based on Input Docs
 
 Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`.
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — the index is the sole source of doc signals.
@@ -342,7 +342,7 @@ Run /refine-guidance <domain> to continue refining.
 ```
 Stop.
 
-### Step 8: Preview Gate
+### Step 8: Rule Preview Gate
 
 `guidance.yaml` was written after each Q&A update in Step 7 and is fully current.
 Print: `guidance.yaml is up to date at $DOMAINS_DIR/<domain>/specs/guidance.yaml`

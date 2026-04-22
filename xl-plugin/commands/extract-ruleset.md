@@ -168,6 +168,8 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 
 ### Step 4: Draft the CIVIL Module
 
+**Name binding:** Before writing any CIVIL YAML, re-read the approved Name Inventory table(s) from Step 3b. Use **only** those approved field names for every `facts:`, `computed:`, `decisions:`, `tables:`, and `constants:` entry — do not re-derive names from policy text.
+
 **Multi-file:** Iterate the SP-ResolveSubRulesets work-list in generation order (sub-modules first, main module last). For each `generate` entry, apply the full drafting logic below. For each `reference` entry, skip drafting entirely (the file is already on disk).
 
 **Sub-module files:** Draft as a standard CIVIL module (no `invoke:` fields). Sub-module computed fields that will be accessed by the parent module via dot-access **must** have `tags: [output]`. Remind yourself of the parent's planned `invoke:` fields when choosing which computed fields to mark as output.
@@ -379,7 +381,7 @@ git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/input/policy_docs/<filename>.m
 ```
 If a file is untracked (not yet committed), use `"untracked"` as the SHA.
 
-### Step 6: Validate
+### Step 6: Validate CIVIL files
 
 **Multi-file:** Run **SP-Validate** once per `generate` entry in the work-list, in work-list order. On SP-Validate 3-retry failure for any file, stop and print:
 ```
