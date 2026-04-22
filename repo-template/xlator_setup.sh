@@ -151,6 +151,11 @@ setup_xlator_plugin() {
     if [ "$SETUP_TODAY" = "true" ] && claude plugin list --json | grep -q '"xl@lockpicks-marketplace"'; then
         echo "  (Skipping Xlator plugin update since .xlator.local.env was already written today)"
     else
+        if [ "${CLEAR_MARKETPLACE_CACHE:-}" = "true" ]; then
+            echo "  Clearing lockpicks-marketplace cache"
+            claude plugin marketplace remove lockpicks-marketplace
+            rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace"
+        fi
         # Fortunately, we don't need to authenticate claude to add plugins
         # Append '#tagOrBranch' to the URL to pin a version, e.g. 'main' or 'v1.2.3'
         claude plugin marketplace add https://github.com/navapbc/lockpicks-xlator-plugin.git
