@@ -136,10 +136,10 @@ If the arguments are not provided, the template will be downloaded and left in a
 
 ### 1. Input Collection
 - Add policy documents to `domains/<name>/input/policy_docs/`
-- Use the `/extract-ruleset` slash command (`.claude/commands/extract-ruleset.md`) to extract CIVIL specs with AI assistance
+- Use AI to extract CIVIL specs with AI assistance
 
 ### 2. Spec Creation (AI-Assisted)
-- Work with AI to create `domains/<name>/specs/<module>.civil.yaml`
+- Work with AI to create a CIVIL ruleset `domains/<name>/specs/<module>.civil.yaml`
 - Follow the CIVIL DSL schema at `core/ruleset_schema.yaml`
 - Commit completed specs to version control
 
@@ -148,20 +148,20 @@ If the arguments are not provided, the template will be downloaded and left in a
 - Review and verify test scenarios; add edge cases and boundary conditions
 
 ### 4. Output Generation
-- `./xlator catala-transpile <domain> <module>` generates `domains/<name>/output/<module>.catala_en`
-- `./xlator catala-test-transpile <domain> <module>` generates Catala test file from YAML tests
+- `xlator catala-transpile <domain> <module>` generates `domains/<name>/output/<module>.catala_en`
+- `xlator catala-test-transpile <domain> <module>` generates Catala test file from YAML tests
 
 ### 5. Validation & Iteration
-- `./xlator catala-test <domain> <module>` runs Catala tests via clerk
-- `./xlator catala-demo <domain> <module>` starts the Catala-Python demo
+- `xlator catala-test <domain> <module>` runs Catala tests via clerk
+- `xlator catala-demo <domain> <module>` starts the Catala-Python demo
 - Iterate on specs as needed
 
 ### Example (AK DOH)
 
 ```bash
-./xlator list                                  # show all available domain/module pairs
-./xlator catala-pipeline ak_doh eligibility    # validate + transpile + test
-./xlator catala-demo ak_doh eligibility        # start Catala-Python demo at http://localhost:8000
+xlator list                                  # show all available domain/module pairs
+xlator catala-pipeline ak_doh eligibility    # validate + transpile + test
+xlator catala-demo ak_doh eligibility        # start Catala-Python demo at http://localhost:8000
 ```
 
 See [README-dev.md](README-dev.md) for details.

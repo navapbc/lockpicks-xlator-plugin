@@ -1,4 +1,4 @@
-# Developer Guide — xlator
+# Developer Guide — xlator plugin
 
 Rules-as-Code pipeline: policy documents → CIVIL DSL (YAML) → Catala (or OPA/Rego) → demo apps.
 
@@ -9,59 +9,59 @@ Rules-as-Code pipeline: policy documents → CIVIL DSL (YAML) → Catala (or OPA
 Optional: install [`mise`](https://mise.jdx.dev/) for tool versions (Python 3.14, OPA, Rust, OCaml/opam).
 
 ```bash
-./xlator setup        # Install uv, create .venv, install deps, install OPA
+./xlator_setup.sh        # Install uv, create .venv, install deps, install OPA
 ```
 
-After setup, use `./xlator` directly (the shell shim redirects to other scripts).
+After setup, use `xlator` directly (this shim activates the venv and redirects to other scripts as needed).
 
 ---
 
-## CLI — `./xlator`
+## CLI — `xlator`
 
-All commands follow the pattern `./xlator <action> [domain] [module]`.
+All commands follow the pattern `xlator <action> [domain] [module]`.
 
 ```bash
-./xlator list                              # Show all domain-module pairs
+xlator list                              # Show all domain-module pairs
 ```
 
 ### Pipeline (using Catala)
 
 ```bash
-./xlator validate    <domain> <module>     # Validate CIVIL YAML against schema
-./xlator catala-transpile       <domain> <module>   # CIVIL YAML → Catala (.catala_en)
-./xlator catala-test-transpile  <domain> <module>   # YAML tests → Catala test file
-./xlator catala-test            <domain> <module>   # Run Catala tests via clerk
-./xlator catala-pipeline        <domain> <module>   # validate → catala-transpile → catala-test-transpile → catala-test (full CI)
+xlator validate               <domain> <module>   # Validate CIVIL YAML against schema
+xlator catala-transpile       <domain> <module>   # CIVIL YAML → Catala (.catala_en)
+xlator catala-test-transpile  <domain> <module>   # YAML tests → Catala test file
+xlator catala-test            <domain> <module>   # Run Catala tests via clerk
+xlator catala-pipeline        <domain> <module>   # validate → catala-transpile → catala-test-transpile → catala-test (full CI)
 ```
 
 ### Rego (OPA backend)
 
 ```bash
-./xlator rego-transpile   <domain> <module>     # Generate Rego from CIVIL YAML
-./xlator rego-test        <domain> <module>     # Start OPA, run tests, stop OPA
-./xlator rego-pipeline    <domain> <module>     # validate → rego-transpile → rego-test (full CI)
+xlator rego-transpile   <domain> <module>     # Generate Rego from CIVIL YAML
+xlator rego-test        <domain> <module>     # Start OPA, run tests, stop OPA
+xlator rego-pipeline    <domain> <module>     # validate → rego-transpile → rego-test (full CI)
 ```
 
 ### Demos
 
 ```bash
-./xlator catala-demo  <domain> <module>    # Start Catala-Python demo (foreground)
-./xlator rego-demo    <domain> <module>    # Start OPA + FastAPI demo (foreground)
+xlator catala-demo  <domain> <module>    # Start Catala-Python demo (foreground)
+xlator rego-demo    <domain> <module>    # Start OPA + FastAPI demo (foreground)
 ```
 
 ### Utilities
 
 ```bash
-./xlator graph              <domain> <module>   # Generate computation graph + Mermaid diagram
+xlator graph              <domain> <module>   # Generate computation graph + Mermaid diagram
 
-./xlator generate-schema                        # Regenerate core/ruleset.schema.json to enable VSCode hover tips for civil.yaml files
+xlator generate-schema                        # Regenerate core/ruleset.schema.json to enable VSCode hover tips for civil.yaml files
 ```
 
 **Quick start with the AK DOH domain:**
 
 ```bash
-./xlator catala-pipeline ak_doh eligibility     # Validate + transpile + test
-./xlator catala-demo ak_doh eligibility         # Launch interactive demo at localhost
+xlator catala-pipeline ak_doh eligibility     # Validate + transpile + test
+xlator catala-demo ak_doh eligibility         # Launch interactive demo at localhost
 ```
 
 ---
@@ -71,14 +71,13 @@ All commands follow the pattern `./xlator <action> [domain] [module]`.
 ```
 xlator/
 ├── xlator               # Shell wrapper — run this (handles venv activation)
-├── xlator.py                 # Main CLI implementation (Python)
 ├── core/                # Shared references: CIVIL spec, schemas, quickrefs
-├── domains/             # One folder per policy domain (source of truth)
-│   └── <domain>/
+├── domains/             # Folder containing multiple domains (default is 'domains')
+│   └── <domain>/        # One folder per policy domain (source of truth)
 │       ├── input/       # Raw policy documents (PDFs, Markdown, HTML)
 │       ├── specs/       # CIVIL YAML + test YAML (hand-authored/AI-extracted)
 │       └── output/      # Generated Catala, Rego, demos — DO NOT hand-edit
-├── tools/               # Python pipeline scripts (called by xlator.py)
+├── tools/               # Python pipeline scripts
 ├── docs/                # Brainstorms, plans, solutions
 │   ├── brainstorms/
 │   ├── plans/
@@ -89,6 +88,8 @@ xlator/
 
 ### Active Domains
 
+Pro-tip: To provide a coding assistant for sample data, create a symlink for the `domains` folder to point to a checkout of https://github.com/navapbc/lockpick-xlator/tree/main/domains.
+
 | Domain | Program | Description |
 |--------|---------|-------------|
 | `snap` | `eligibility` | SNAP federal income eligibility (FY2026) |
@@ -97,7 +98,7 @@ xlator/
 ### Adding a domain
 
 ```bash
-/new-domain <domain>     # Creates domains/<domain>/{input/policy_docs,specs,output}
+/xl:new-domain <domain>     # Creates domains/<domain>/{input/policy_docs,specs,output}
 ```
 
 ---
@@ -134,8 +135,8 @@ python tools/transpile_to_rego.py --spec domains/snap/specs/eligibility.civil.ya
 | `civil-quickref.md` | Syntax quick reference for CIVIL YAML fields |
 | `catala-quickref.md` | Catala 1.1.0 syntax patterns |
 | `catala-test-quickref.md` | Catala test annotation patterns |
-| `ruleset.schema.json` | JSON Schema (auto-generated — regenerate via `./xlator generate-schema`) |
-| `goals/` | Goal files used by `/extract-ruleset` |
+| `ruleset.schema.json` | JSON Schema (auto-generated — regenerate via `xlator generate-schema`) |
+| `guidance-templates/` | Template files used to create guidance.yaml for each domain |
 
 ---
 
@@ -145,15 +146,15 @@ Used for AI-assisted domain work. Run from within Claude Code (VS Code extension
 
 | Command | Purpose |
 |---------|---------|
-| `/new-domain` | Scaffold a new domain folder structure |
-| `/index-inputs` | Build a reading index from large policy documents |
-| `/refine-guidance` | Tune AI extraction guidance in `guidance.yaml` |
-| `/extract-ruleset` | Extract a CIVIL ruleset from policy docs in `input/policy_docs/` |
-| `/update-ruleset` | Update an existing ruleset with changed policy rules |
-| `/create-tests` | Generate test cases for a CIVIL module |
-| `/expand-tests` | Add boundary, edge-case, and null-input tests |
-| `/transpile-and-test` | Run transpile + test in one step |
-| `/create-demo` | Create a demo app (Rego/OPA or Catala-Python) |
+| `/xl:new-domain` | Scaffold a new domain folder structure |
+| `/xl:index-inputs` | Build a reading index from large policy documents |
+| `/xl:refine-guidance` | Tune AI extraction guidance in `guidance.yaml` |
+| `/xl:extract-ruleset` | Extract a CIVIL ruleset from policy docs in `input/policy_docs/` |
+| `/xl:update-ruleset` | Update an existing ruleset with changed policy rules |
+| `/xl:create-tests` | Generate test cases for a CIVIL module |
+| `/xl:expand-tests` | Add boundary, edge-case, and null-input tests |
+| `/xl:transpile-and-test` | Run transpile + test in one step |
+| `/xl:create-demo` | Create a demo app (Rego/OPA or Catala-Python) |
 
 ---
 
@@ -166,35 +167,35 @@ Used for AI-assisted domain work. Run from within Claude Code (VS Code extension
 #    domains/<domain>/specs/<module>.civil.yaml
 
 # 2. Validate your changes
-./xlator validate <domain> <module>
+xlator validate <domain> <module>
 
 # 3. Regenerate Rego and re-run tests
-./xlator rego-pipeline <domain> <module>
+xlator rego-pipeline <domain> <module>
 
 # 4. (Optional) Regenerate computation graph
-./xlator graph <domain> <module>
+xlator graph <domain> <module>
 ```
 
 ### Adding a new domain from policy docs
 
 ```bash
 # 1. Scaffold the folder
-/new-domain <domain>
+/xl:new-domain <domain>
 
 # 2. Drop policy documents into:
 #    domains/<domain>/input/policy_docs/
 
 # 3. Index inputs (for large docs)
-/index-inputs <domain>
+/xl:index-inputs <domain>
 
 # 4. Extract ruleset interactively
-/extract-ruleset <domain>
+/xl:extract-ruleset <domain>
 
 # 5. Create test cases
-/create-tests <domain> <module>
+/xl:create-tests <domain> <module>
 
 # 6. Run the full pipeline
-./xlator rego-pipeline <domain> <module>
+xlator rego-pipeline <domain> <module>
 ```
 
 ---
@@ -202,7 +203,7 @@ Used for AI-assisted domain work. Run from within Claude Code (VS Code extension
 ## Architecture Notes
 
 - **Transpilers are fully generic.** Domain-specific logic lives in CIVIL YAML (`computed:` with `conditional:`), never in `tools/*.py`.
-- **`output/` is generated.** Never hand-edit files under `domains/*/output/`. Regenerate via `./xlator rego-transpile`.
+- **`output/` is generated.** Never hand-edit files under `domains/*/output/`. Regenerate via `xlator rego-transpile`.
 - **OPA query path convention:** `/v1/data/<pkg>/<module>/decision` — package maps directly to `<domain>.<module>`.
 - **Rego constraints to know:**
   - `||` is not valid in a Rego rule body — OR logic requires multiple rules with the same head.
@@ -224,10 +225,6 @@ Used for AI-assisted domain work. Run from within Claude Code (VS Code extension
 
 | File | Role |
 |------|------|
-| `xlator` | Entry point — always run this |
-| `xlator.py` | CLI implementation |
-| `tools/civil_schema.py` | CIVIL DSL Pydantic models (schema source of truth) |
-| `core/CIVIL_DSL_spec.md` | DSL reference documentation |
-| `domains/snap/specs/eligibility.civil.yaml` | Reference example of a complete CIVIL spec |
-| `compound-engineering.local.md` | AI code review agent configuration |
-| `project_status.md` | Current TODOs and work in progress |
+| `xl-plugin/bin/xlator` | Entry point — always run this |
+| `xl-plugin/tools/civil_schema.py` | CIVIL DSL Pydantic models (schema source of truth) |
+| `xl-plugin/core/CIVIL_DSL_spec.md` | DSL reference documentation |
