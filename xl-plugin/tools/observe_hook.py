@@ -6,8 +6,7 @@ Xlator observability hook handler.
 
 Called from Claude Code hooks defined in .claude-plugin/hooks/hooks.json.
 Reads the hook event payload from stdin (JSON) and appends a JSONL entry
-to <domain>/logs/session.jsonl (resolved from xlator.conf in
-the git project root).
+to <domain>/logs/session.jsonl.
 
 Usage (from hooks.json):
   xlator observe_hook <EventType>

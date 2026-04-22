@@ -39,14 +39,14 @@ NEW_REPO_PATH="$(cd "$NEW_REPO_PATH" && pwd)"
 cd "$NEW_REPO_PATH"
 git init -b main
 
-echo "  Copying template files..."
-cp -av "$SCRIPT_DIR/." .
+echo "  Copying from $SCRIPT_DIR to $NEW_REPO_PATH ..."
+cp -a "$SCRIPT_DIR/." .
 # Remove this script from the new repo since it's only needed for bootstrapping
 rm -f "$(basename "$0")"
 
-echo "  Writing xlator.conf..."
-export DOMAINS_DIR="$DOMAINS_DIR"
-echo "export DOMAINS_DIR=\"${DOMAINS_DIR}\"" > xlator.conf
+mkdir -p "$NEW_REPO_PATH/$DOMAINS_DIR"
+echo "  Writing $DOMAINS_DIR/.xlator.conf..."
+echo "export DOMAINS_DIR=\"${DOMAINS_DIR}\"" > "$NEW_REPO_PATH/$DOMAINS_DIR/.xlator.conf"
 
 echo "  Expanding variables in template files..."
 # Replace only the '$DOMAINS_DIR_VALUE' variables in these template files

@@ -10,37 +10,25 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname -- "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
-# Resolve the project root (the directory that contains xlator.conf).
-if [ -f "xlator.conf" ]; then
+TOOLS_DIR="$SCRIPT_DIR/../tools"
+if [ ! -d "$TOOLS_DIR" ]; then
+    echo "Error: Tools directory not found at $TOOLS_DIR" >&2
+    exit 5
+fi
+
+# Resolve the project root (the directory that contains .xlator.local.env).
+if [ -f ".xlator.local.env" ]; then
     PROJECT_ROOT="$(pwd)"
 elif git rev-parse --show-toplevel >/dev/null 2>&1; then
     PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 else
-    echo "Error: Cannot find project root. Create xlator.conf in the project root." >&2
+    echo "Error: Cannot find project root. Run ./xlator_setup.sh in the project root." >&2
     exit 1
 fi
 
-if [ ! -f "$PROJECT_ROOT/xlator.conf" ]; then
-    echo "Error: $PROJECT_ROOT/xlator.conf not found. Create xlator.conf in the project root." >&2
-    exit 2
-fi
-
-# Load xlator.conf and auto-export all variables (including relative path DOMAINS_DIR and CLAUDE_PLUGIN_ROOT).
+# Load .xlator.local.env and auto-export all variables (including relative path DOMAINS_DIR and CLAUDE_PLUGIN_ROOT).
 set -o allexport
-source "$PROJECT_ROOT/xlator.conf"
 source "$PROJECT_ROOT/.xlator.local.env"
-
-if [ -z "$DOMAINS_DIR" ]; then
-    echo "Error: DOMAINS_DIR not set in xlator.conf." >&2
-    exit 3
-fi
-
-# This avoids scripts having to know about PROJECT_ROOT and DOMAINS_DIR when DOMAINS_FULLPATH is sufficient
-export DOMAINS_FULLPATH="$PROJECT_ROOT/$DOMAINS_DIR"
-if [[ "$DOMAINS_FULLPATH" != /* ]]; then
-    echo "Error: DOMAINS_FULLPATH is not an absolute path: $DOMAINS_FULLPATH" >&2
-    exit 4
-fi
 
 # If no command is given, open an interactive shell with the Xlator environment.
 if [ $# -eq 0 ]; then
@@ -71,7 +59,7 @@ activate_opam() {
     if [ -d "$HOME/.opam" ]; then
         eval "$(opam env)"
     else
-        echo "Warning: opam environment not found. Run 'xlator_setup.sh' to initialize opam and set up OCaml and Catala." >&2
+        echo "Warning: opam environment not found. Run './xlator_setup.sh' to initialize opam and set up OCaml and Catala." >&2
     fi
 }
 
@@ -79,7 +67,7 @@ activate_venv() {
     if [ -f "$XLATOR_UV_BASEDIR/.venv/bin/activate" ]; then
         . "$XLATOR_UV_BASEDIR/.venv/bin/activate"
     else
-        echo "Warning: No virtual environment found at $XLATOR_UV_BASEDIR/.venv. Run 'xlator_setup.sh' to create it." >&2
+        echo "Warning: No virtual environment found at $XLATOR_UV_BASEDIR/.venv. Run './xlator_setup.sh' to create it." >&2
     fi
 }
 
@@ -91,7 +79,7 @@ activate_opam
 case "$1" in
     # Intended for internal use by Xlator developers or Claude hooks; not commands for user's direct use
     generate-schema)
-        exec python3 "$SCRIPT_DIR/../tools/civil_schema.py"
+        exec python3 "$TOOLS_DIR/civil_schema.py"
         ;;
     observe_hook)
         event_type="$2"
@@ -99,22 +87,22 @@ case "$1" in
             1|true|yes)
                 ;;
             *)
-                exec python3 "$SCRIPT_DIR/../tools/observe_hook.py" $event_type
+                exec python3 "$TOOLS_DIR/observe_hook.py" $event_type
                 ;;
         esac
         ;;
     catala-to-python)
         domain="$2"
         module="$3"
-        exec bash "$SCRIPT_DIR/../tools/catala_to_python.sh" "$domain" "$module"
+        exec bash "$TOOLS_DIR/catala_to_python.sh" "$domain" "$module"
         ;;
     diff-report)
         domain="$2"
-        exec python3 "$SCRIPT_DIR/../tools/diff_report.py" "$domain"
+        exec python3 "$TOOLS_DIR/diff_report.py" "$domain"
         ;;
     tidy-log)
         domain="$2"
-        exec python3 "$SCRIPT_DIR/../tools/tidy_obs_log.py" "$domain"
+        exec python3 "$TOOLS_DIR/tidy_obs_log.py" "$domain"
         ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
@@ -124,6 +112,6 @@ case "$1" in
         # Change into DOMAINS_FULLPATH so relative paths produced by xlator.py stay within it.
         # TODO: Remove reliance on DOMAINS_FULLPATH: assume CWD is DOMAINS_FULLPATH if DOMAINS_FULLPATH not set?
         cd "$DOMAINS_FULLPATH"
-        exec python3 "$SCRIPT_DIR/../tools/xlator.py" "$@"
+        exec python3 "$TOOLS_DIR/xlator.py" "$@"
         ;;
 esac

@@ -11,7 +11,6 @@ This repo was created using `create_git_repo.sh`.
 > ├── .devcontainer/
 > ├── .vscode/
 > ├── domains/ - Named by the domains_subfolder_name argument to `download.sh,` default `domains.`
-> ├── xlator.conf
 > ├── CLAUDE.md
 > └── xlator_setup.sh
 > ```
@@ -19,7 +18,7 @@ This repo was created using `create_git_repo.sh`.
 ## What did `create_git_repo.sh` do?
 
 The `create_git_repo.sh` script performed the following to create this repo:
-1. Created `xlator.conf` based on the specified `DOMAINS_DIR`
+1. Created `.xlator.conf` file in the specified `DOMAINS_DIR`
 2. Copied the following files from the plugin's `repo-template`:
     1. `.devcontainer/devcontainer.json` for running as a devcontainer in VS Code or on the web in GitHub Codespaces
     2. `.vscode/settings.json` to configure CIVIL ruleset schema and enable auto-approve and `bypassPermissions` for Claude Code
@@ -63,4 +62,4 @@ Run `/xl:new-domain` in Claude Code and follow the instructions.
 ## Xlator Observability
 
 To capture user interactions, `logs/session.jsonl` files are created under `.shared` and `<domain>` subfolders. These logs can be useful for debugging and user support.
-To disable these logs, add `export OBSERVE_HOOK_DISABLED=true` to `xlator.conf`.
+To disable these logs, add `export OBSERVE_HOOK_DISABLED=true` to `.xlator.local.env`.

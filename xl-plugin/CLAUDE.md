@@ -1,8 +1,10 @@
 ## Environment variables
 
-The `.xlator.local.env` file exports the `$CLAUDE_PLUGIN_ROOT` and `$XLATOR_UV_BASEDIR` environment variables.
+The `.xlator.local.env` file exports the `$DOMAINS_DIR`, `$CLAUDE_PLUGIN_ROOT`, and `$XLATOR_UV_BASEDIR` environment variables, used by shell scripts and slash commands.
 
-If `$DOMAINS_DIR` is unknown, read it from `xlator.conf` in the project root folder.
+If `$DOMAINS_DIR` is unknown, read it from `.xlator.local.env` in the project root folder.
+
+`$DOMAINS_DIR` is relative the project root. The Xlator Claude Code plugin modifies files only under the `$DOMAINS_DIR` folder.
 
 ## Running Python scripts under the tools folder
 
