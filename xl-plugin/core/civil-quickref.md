@@ -16,13 +16,13 @@ For full specification and design rationale, see [CIVIL_DSL_spec.md](CIVIL_DSL_s
 | `version` | ✅ | e.g. `"2026Q1"` |
 | `jurisdiction` | ✅ | See `Jurisdiction` table |
 | `effective` | ✅ | See `Effective` table |
-| `facts` | ✅ | Dict of entity names → `FactEntity` |
-| `decisions` | ✅ | Dict of decision names → `DecisionField` |
+| `inputs` | ✅ | Dict of entity names → `FactEntity` |
+| `outputs` | ✅ | Dict of decision names → `DecisionField` |
 | `rule_set` | ✅ | See `RuleSet` table |
 | `rules` | ✅ | List of `Rule` objects |
 | `tables` | — | Optional lookup tables |
 | `constants` | — | Optional named constants (UPPER_SNAKE_CASE) |
-| `computed` | — | Optional derived intermediate values (CIVIL v2); supports `tags` (CIVIL v3); supports `invoke:` (CIVIL v4); `decisions:` supports `expr:`/`conditional:` (CIVIL v5); `rule_set.ruleset_groups` + `rule.group`/`rule.mutex_group` (CIVIL v6); supports `table_lookup:` (CIVIL v7) |
+| `computed` | — | Optional derived intermediate values (CIVIL v2); supports `tags` (CIVIL v3); supports `invoke:` (CIVIL v4); `outputs:` supports `expr:`/`conditional:` (CIVIL v5); `rule_set.ruleset_groups` + `rule.group`/`rule.mutex_group` (CIVIL v6); supports `table_lookup:` (CIVIL v7) |
 | `types` | — | Optional custom type definitions |
 
 ---
@@ -69,14 +69,14 @@ Valid `type` values for fact fields:
 | `conditional` | ✅ or `expr`/`invoke` | If/then/else branch (mutually exclusive with the others) |
 | `invoke` | ✅ or `expr`/`conditional` | (CIVIL v4) Sub-ruleset invocation. Requires `module:` and `type: object` |
 | `review` | — | `ReviewBlock` with extraction quality scores |
-| `tags` | — | (CIVIL v3) e.g. `[output]` to expose as Catala `output` declaration in the demo API |
+| `tags` | — | (CIVIL v3) e.g. `[expose]` to expose as Catala `output` declaration in the demo API |
 
 > ⚠️ **`ComputedField.type` for `invoke:` fields must be `object`.** All other fields use `money`, `bool`, `float`, `int`, or `string`.
 
 > ⚠️ **Exactly one of `expr`, `conditional`, or `invoke` must be present.**
 
-> ⚠️ **Sub-module computed fields must have `tags: [output]`** to be accessible from a parent `invoke:` expression.
-> Decision fields (e.g. `eligible`) are always accessible from the parent scope.
+> ⚠️ **Sub-module computed fields must have `tags: [expose]`** to be accessible from a parent `invoke:` expression.
+> Output fields (e.g. `eligible`) are always accessible from the parent scope.
 
 ## `Conditional`
 
@@ -135,13 +135,13 @@ rules:
 - Sub-modules must be in the same domain (`$DOMAINS_DIR/<domain>/specs/`)
 - `bind:` must have at least one entry; empty `bind: {}` is rejected
 - Parent `invoke:` fields have `type: object` and `module:` set
-- Sub-module computed fields need `tags: [output]` to be accessed from the parent
+- Sub-module computed fields need `tags: [expose]` to be accessed from the parent
 - Catala is the primary transpilation target; Rego is secondary (nested `input.<entity_var>` form)
 
-> ⚠️ **`tags: [output]` required for sub-module field access**
+> ⚠️ **`tags: [expose]` required for sub-module field access**
 >
 > When a parent expression references `invoke_field.some_attr`, the sub-module's `some_attr` computed
-> field **must** have `tags: [output]`. Without it the validator will warn and `catala typecheck` will
+> field **must** have `tags: [expose]`. Without it the validator will warn and `catala typecheck` will
 > fail with an opaque "variable not found" error.
 >
 > ```yaml
@@ -149,15 +149,15 @@ rules:
 > computed:
 >   adjusted_income:
 >     type: money
->     tags: [output]        # ✅ required — parent can reference income_calc_result.adjusted_income
+>     tags: [expose]        # ✅ required — parent can reference income_calc_result.adjusted_income
 >     expr: "..."
 >
 >   internal_step:
 >     type: money
->     expr: "..."           # ❌ no tags: [output] — NOT accessible from the parent module
+>     expr: "..."           # ❌ no tags: [expose] — NOT accessible from the parent module
 > ```
 >
-> Decision fields (`decisions:` section) are always accessible from the parent; only `computed:` fields
+> Output fields (`outputs:` section) are always accessible from the parent; only `computed:` fields
 > need the tag. The validator emits a `WARNING:` for each untagged reference it detects.
 
 ---
@@ -202,7 +202,7 @@ computed:
 
 **Canonical template (bool):**
 ```yaml
-decisions:
+outputs:
   eligible:
     type: bool
     default: false
@@ -226,7 +226,7 @@ decisions:
 Use `type: string` with `values:` for enum decisions. For 3-way outcomes, nest the second condition in the `else:` branch as an inline expression.
 
 ```yaml
-decisions:
+outputs:
   eligible:
     type: string
     values: [approve, deny, manual_verification]
@@ -371,9 +371,9 @@ The `transpile_to_catala.py` and `transpile_to_rego.py` transpilers generate Cat
 | `computed:` fields with `conditional:` | `definition field under condition if_expr consequence equals then_expr` + default | Rego: `field := then if { if_expr } else := else_expr` |
 | `rules:` with `kind: deny` | `definition decision under condition when_expr consequence equals Ineligible` | `reasons contains reason if { ... }` |
 | `rules:` with `kind: allow` | **Nothing** — allow rules are not transpiled | **Nothing** — allow rules are not transpiled |
-| `decisions:` with `type: bool` + `expr:` | `definition decision under condition expr consequence equals Eligible` + default `Ineligible` | `default eligible := false` + `eligible if { <expr> }` |
-| `decisions:` with `type: list` | Reason codes emitted as enum variants | `reasons` set comprehension |
-| `computed:` fields | `internal` scope variable (or `output` if tagged) | Included in `decision.computed` object |
+| `outputs:` with `type: bool` + `expr:` | `definition decision under condition expr consequence equals Eligible` + default `Ineligible` | `default eligible := false` + `eligible if { <expr> }` |
+| `outputs:` with `type: list` | Reason codes emitted as enum variants | `reasons` set comprehension |
+| `computed:` fields | `internal` scope variable (or `output` if tagged `expose`) | Included in `decision.computed` object |
 
 The structured output object is always at `decision` (e.g., query `/v1/data/<pkg>/decision`).
 

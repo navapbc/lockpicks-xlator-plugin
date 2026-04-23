@@ -74,7 +74,7 @@ Type conversions: `decimal of 44`, `money of 23.15`, `round of $9.99`
 
 ## Top-Level Declarations
 
-### Structure (maps to CIVIL `facts:` entity)
+### Structure (maps to CIVIL `inputs:` entity)
 
 ```catala
 declaration structure Household:
