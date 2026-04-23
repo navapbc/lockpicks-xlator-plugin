@@ -35,6 +35,10 @@ Typical steps:
         - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
         - `/xl:create-ruleset-groups <domain>` — propose and confirm workflow stages
         - `/xl:create-ruleset-modules <domain>` — detect sub-ruleset candidates
+        - (optional, run before `/extract-ruleset` for pre-extraction scaffolding):
+          - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables
+          - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index
+          - `/xl:create-sample-tests <domain>` — generate sample test scaffolding
   4. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
 
 Once a ruleset exists or whenever the ruleset changes, the user can choose to:
