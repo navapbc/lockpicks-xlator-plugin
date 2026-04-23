@@ -1,8 +1,19 @@
 # Tag Variables to Include with Output
 
-Auto-detect which intermediate variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.
+Identify which intermediate computed variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.
 
-Best run **after `/xl:extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions not yet visible in the skeleton's `computations:` list. Running this command afterward catches those additional variables. Because all writes are merge-safe, it is also safe to run before `extract-sample-rules` and re-run after.
+## Purpose
+
+`include_with_output` variables appear alongside the final decision in the API response. Their purpose is **explainability**: they surface the key intermediate values that led to the output so that callers can understand *why* the ruleset reached its conclusion — not just *what* it decided.
+
+Good candidates are variables that a person would need to see to understand the decision:
+- Sub-ruleset result objects (e.g., `client_result`, `dol_result`) — the intermediate module outputs feeding into the final decision
+- Pivotal computed values referenced in decision conditions (e.g., `is_compatible`, `income_limit`, `after_half`) — the thresholds and comparisons the ruleset used to decide
+- Variables named in denial or adjustment reasons — the quantities that triggered a specific outcome
+
+Poor candidates are purely internal chain steps with no standalone interpretive value (e.g., `after_eitc` as an intermediate step toward `adjusted_earned_income` when `adjusted_earned_income` itself is the meaningful quantity). When in doubt, favor inclusion — callers can filter, but cannot see what is not exposed.
+
+Best run **after `/xl:extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions and decision-condition variables not yet visible in the skeleton's `computations:` list. Because all writes are merge-safe, it is also safe to run earlier and re-run after.
 
 ## Input
 
@@ -42,23 +53,27 @@ Await the user's response and use it as `<domain>`. Then continue.
 
 ### Detection pass 1 — invoke-derived variables (skeleton computations)
 
-Scan all `computations:` entries across every `intermediate_variables.categories[]` entry in `guidance.yaml`. For each entry whose `expr:` value contains dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot — as an auto-tagged variable.
+Scan all `computations:` entries across every `intermediate_variables.categories[]` entry in `guidance.yaml`. For each entry whose `expr:` value contains dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot.
 
-Example: `expr: "client_result.adjusted_earned_income"` → base name is `client_result`.
+Example: `expr: "client_result.adjusted_earned_income"` → base name `client_result`.
+
+These are sub-ruleset result objects whose contents explain how the parent module's inputs were processed. They are high-value explainability variables.
 
 Collect all such base names as `auto_tagged_1`.
 
-### Detection pass 2 — invoke-derived variables (sample rule CIVIL snippets)
+### Detection pass 2 — decision-condition and invoke-derived variables (sample rule CIVIL snippets)
 
-Scan all CIVIL snippets in `sub_rulesets[].sample_rules[].civil:` and `example_rules[].civil:` in `guidance.yaml` for dot-notation access patterns (`<identifier>.<identifier>`). Collect the base name (before the first dot) of each match.
+Scan all CIVIL snippets in `sub_rulesets[].sample_rules[].civil:` and `example_rules[].civil:` in `guidance.yaml`. Collect two categories of variable names:
 
-This pass catches invoke-derived variables that `/extract-sample-rules` discovered in the policy text but that were not yet present in the skeleton's `computations:` list — for example, when `/create-skeleton` was skipped or produced a sparse skeleton.
+**(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
 
-Collect all such base names as `auto_tagged_2`.
+**(b) Decision-condition variables:** variable names that appear in `when:` conditions of `categorical:` rules. These are the pivotal computed values the ruleset evaluated to reach its decision — exactly the values a caller needs to understand the outcome. Scan for YAML keys `when:` and collect the variable name from each condition entry (e.g., `is_compatible: false` → `is_compatible`; `client_result.adjusted_earned_income > income_limit` → `income_limit`).
+
+Collect all such names as `auto_tagged_2`.
 
 ### Detection pass 3 — declared output variables
 
-Collect `output_variables.primary.name` and all `output_variables.secondary_decisions[].name` values from `guidance.yaml`. These are primary decision outputs already declared as the module's outputs.
+Collect `output_variables.primary.name` and all `output_variables.secondary_decisions[].name` values from `guidance.yaml`. These are the primary decision outputs the module is designed to produce.
 
 Collect all such names as `output_declared`.
 
@@ -78,9 +93,11 @@ Print one line per name in the final `include_with_output` list, labeled with it
 include_with_output written to guidance.yaml:
   client_result   (invoke-derived: skeleton computations)
   dol_result      (invoke-derived: sample rule CIVIL snippet)
+  is_compatible   (decision condition: when: clause in categorical rule)
+  income_limit    (decision condition: when: clause in categorical rule)
   eligible        (output variable: output_variables.primary)
   denial_reason   (output variable: output_variables.secondary_decisions)
-  income_limit    (existing)
+  after_half      (existing)
 ```
 
 If no variables were detected and no existing values were present, print:
@@ -101,6 +118,7 @@ No variables auto-detected. include_with_output: [] written to guidance.yaml.
 
 ## Common Mistakes to Avoid
 
+- **Tag for explainability, not completeness** — the goal is to surface variables that help callers understand the decision; not every computed variable needs to be exposed
 - **Do not remove existing entries** from `include_with_output` — this command only adds; removal is a manual edit
 - **Do not modify any section other than `intermediate_variables.include_with_output`** — preserve all other guidance.yaml content verbatim
 - **Base name only for dot-notation** — collect the identifier before the first dot (e.g., `client_result` from `client_result.adjusted_earned_income`), not the full expression
