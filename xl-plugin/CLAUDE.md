@@ -72,17 +72,17 @@ flowchart TD
     GY_RULES(["guidance.yaml\nwith sample_rules"])
     TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
     SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or example_rules present"]
+    GY_SAMPLETESTS(["guidance.yaml\nwith sample_tests:"])
 
     MODS --> GY_MODS --> SAMPLERULES
     IDX --> SAMPLERULES
     SAMPLERULES --> GY_RULES --> TAGVARS
-    GY_RULES --> SAMPLETESTS
+    GY_RULES --> SAMPLETESTS --> GY_SAMPLETESTS
 
     EXTRACT["/xl:extract-ruleset\nenabled: workflow_stages: + sub_rulesets: present"]
 
     GY_MODS --> EXTRACT
     TAGVARS --> EXTRACT
-    SAMPLETESTS -.->|"optional"| EXTRACT
 ```
 
 **`/tag-vars-to-include-with-output` is required before `/extract-ruleset`** in a UI-driven workflow — it populates `include_with_output` so SP-TagOutputs has pre-selections and doesn't block for interactive input. Skipping it causes `/extract-ruleset` to prompt mid-run.
