@@ -1,6 +1,6 @@
 # Detect Sub-Ruleset as Modules for a Domain
 
-Reads `skeleton:` and `workflow_stages:` from `guidance.yaml`, extracts doc signals from `input-index.yaml`, applies four heuristics to detect sub-ruleset modules, and writes modules to `guidance.yaml` as `sub_rulesets:` after `workflow_stages:`.
+Reads `skeleton:` and `workflow_stages:` from `guidance.yaml`, extracts doc signals from `input-index.yaml`, applies six heuristics to detect sub-ruleset modules, and writes modules to `guidance.yaml` as `sub_rulesets:` after `workflow_stages:`.
 
 A "module" is a sub-ruleset — a subset of rules within a ruleset group (workflow stage). Sub-rulesets must not cross workflow stage boundaries.
 
@@ -110,7 +110,9 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | 1 | `reuse_across_entities` | Entity reuse | 2+ entity names in `input_variables.categories` (or `skeleton.inputs`) where a common computation prefix applies to each — e.g., `client_earned_income` and `dol_earned_income` suggest the same `earned_income` sub-ruleset bound to two entities (ClientData, DOLRecord) |
 | 2 | `policy_structure` | Policy section grouping | Named sub-section heading from `input-index.yaml` covers ≥3 intermediate variables in `skeleton.computations` |
 | 3 | `depth_threshold` | Sequential depth | ≥5 variables in `skeleton` whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
-| 4 | `user_hint` | Pre-existing entries | `sub_rulesets:` already populated in `guidance.yaml` — load existing entries as pre-confirmed (UPDATE mode) |
+| 4 | `variable_coupling` | Coupling clique | ≥3 intermediate variables in `skeleton.computations` where each references ≥2 of the others' outputs — forming a mutual dependency clique that signals a self-contained computation cluster worth isolating |
+| 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |
+| 6 | `user_hint` | Pre-existing entries | `sub_rulesets:` already populated in `guidance.yaml` — load existing entries as pre-confirmed (UPDATE mode) |
 
 **R21 stage-boundary constraint:** Every variable in a candidate sub-ruleset must belong to a single workflow stage (no cross-stage sub-rulesets). Infer stage membership by matching variable names and computation categories to stage descriptions and phase heading signals. If a candidate's variables span two stages, either split it into per-stage sub-rulesets or reject it with an explanation to the user.
 
