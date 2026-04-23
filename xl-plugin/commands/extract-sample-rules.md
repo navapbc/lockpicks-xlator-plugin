@@ -2,7 +2,7 @@
 
 Generate a comprehensive set of relevant CIVIL rules from `input-index.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
 
-Unlike `/xl:refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately.
+Unlike `/xl:refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately for user review.
 
 **Recommended run order:** After `/xl:create-ruleset-modules`. The quality of the output depends on how complete `guidance.yaml` is at invocation time:
 
@@ -89,19 +89,7 @@ Steps:
 
 ### Step 2: Load and filter index
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry).
-
-Before filtering, check `guidance.yaml` for missing context and print warnings if applicable:
-
-```
-⚠ skeleton: not found in guidance.yaml — computation ordering and category groupings unavailable.
-  Run /xl:create-skeleton <domain> first for better-structured output.
-
-⚠ ruleset_modules: not found in guidance.yaml — all rules will be written to top-level sample_rules: (no ruleset module grouping).
-  Run /xl:create-ruleset-modules <domain> first for structured rule routing.
-```
-
-Print only the warnings that apply. Proceed regardless.
+Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
 
 **If `<rule_topic>` was provided:** further filter to entries whose `heading:`, `summary:`, or `tags:` contain the topic keywords (case-insensitive). If no entries match the topic, print:
 
@@ -118,7 +106,19 @@ Show updated step checklist.
 
 ### Step 3: Read guidance context and classify entries
 
-Read the following fields from `$DOMAINS_DIR/<domain>/specs/guidance.yaml` and produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with each entry tagged as `in-scope` or `skipped`.
+Read `$DOMAINS_DIR/<domain>/specs/guidance.yaml` to produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with entries clearly unrelated to the ruleset's purpose removed and logged before further processing.
+
+Check for missing context and print warnings if applicable:
+
+```
+⚠ skeleton: not found in guidance.yaml — computation ordering and category groupings unavailable.
+  Run /xl:create-skeleton <domain> first for better-structured output.
+
+⚠ ruleset_modules: not found in guidance.yaml — all rules will be written to top-level sample_rules: (no ruleset module grouping).
+  Run /xl:create-ruleset-modules <domain> first for structured rule routing.
+```
+
+Print only the warnings that apply. Proceed regardless.
 
 **`role:`** — The stated purpose of the ruleset (e.g., `"Determine SNAP eligibility and benefit amount"`). For each qualifying entry, judge whether its `heading:` or `summary:` is plausibly related to that purpose. If an entry is clearly unrelated (e.g., it covers a separate program or administrative procedure with no variable overlap), remove it from the working set and log: `⚠ Skipped (unrelated to role): "<heading>"`. When in doubt, keep the entry — err toward inclusion.
 
@@ -160,7 +160,7 @@ Rules are generated in two passes. Pass 4a processes `computed-only` entries usi
 
 **Pass 4a — Index pass**
 
-For each `computed-only` entry in the working set, processed in priority order (high → normal → low), then within each priority group in the order they appear in `input-index.yaml`:
+For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the order they appear in `input-index.yaml`:
 
 **(a) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, check the canonical names map from Step 1. If a match is found, use the manifest name. If no match, derive a snake_case name from the entry's `computations[].description` text:
 - Extract the noun phrase from the description
@@ -200,9 +200,11 @@ Stop.
 
 Write both files now.
 
+Print Pass 4a Summary (see [Summary](#summary)).
+
 Show updated step checklist.
 
-If `index-only`: print Pass 4a Summary (see [Summary](#summary)) and stop. Do not run Pass 4b.
+If `index-only`: stop. Do not run Pass 4b.
 
 ---
 
@@ -237,6 +239,8 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 - Any low-priority entry from Step 3 for which rules were generated → add to `assumptions`: `"<heading> not in skeleton — rule may be auxiliary or out of scope; confirm before use"`
 
 After processing all Pass 4b entries: merge rules into `guidance.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), overwriting any index-derived `policy_phrase` values with source-text values where available. Write both files.
+
+Print Full Summary (see [Summary](#summary)).
 
 Show updated step checklist (all steps complete — both files written during Pass 4a and updated during Pass 4b).
 
