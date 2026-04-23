@@ -28,19 +28,19 @@ Typical steps:
   1. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
   2. `/xl:index-inputs <domain>` to build a document index
   3. Set extraction goals and ruleset guidance — two options:
-     a. **Monolithic (recommended for new users):** `/xl:refine-guidance <domain>`
+     a. **Monolithic (original):** `/xl:refine-guidance <domain>`
      b. **Step-by-step (for UI-driven or incremental workflows):**
         - `/xl:suggest-ruleset-io <domain>` — analyze the index and suggest candidate rulesets
         - `/xl:declare-ruleset-io <domain>` — bootstrap `guidance.yaml` from a suggestion file
         - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
         - `/xl:create-ruleset-groups <domain>` — propose and confirm workflow stages
         - `/xl:create-ruleset-modules <domain>` — detect sub-ruleset candidates
-        - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables
         - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index
+        - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables (best after extract-sample-rules)
         - `/xl:create-sample-tests <domain>` — generate sample test scaffolding
   4. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
 
-### Step-by-step command dependency diagram
+### Command dependency diagram
 
 Enable/disable each command in the UI based on which file-state prerequisites are satisfied. Dashed edges indicate optional steps — the downstream command is enabled independently, not gated on them.
 
@@ -67,15 +67,15 @@ flowchart TD
 
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
-    TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists"]
     SAMPLERULES["/xl:extract-sample-rules\nenabled: guidance.yaml + input-index.yaml exist"]
     GY_RULES(["guidance.yaml\nwith sample_rules"])
+    TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
     SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or example_rules present"]
 
-    GY --> TAGVARS
     GY --> SAMPLERULES
     IDX --> SAMPLERULES
-    SAMPLERULES --> GY_RULES --> SAMPLETESTS
+    SAMPLERULES --> GY_RULES --> TAGVARS
+    GY_RULES --> SAMPLETESTS
 
     EXTRACT["/xl:extract-ruleset\nenabled: workflow_stages: + sub_rulesets: present"]
 
@@ -85,7 +85,9 @@ flowchart TD
 ```
 
 **Parallel-safe pairs** (no dependency between them — can run concurrently after `guidance.yaml` exists):
-- `/xl:create-skeleton` and `/xl:tag-vars-to-include-with-output` and `/xl:extract-sample-rules`
+- `/xl:create-skeleton` and `/xl:extract-sample-rules`
+
+**Recommended sequence** for the three scaffold commands: `extract-sample-rules` → `tag-vars-to-include-with-output` → `create-sample-tests`. `tag-vars` can technically run earlier but produces better results after `extract-sample-rules` populates CIVIL snippets with invoke-derived variables.
 
 Once a ruleset exists or whenever the ruleset changes, the user can choose to:
   * `/xl:create-demo <domain>` to generate a web-based ruleset demo

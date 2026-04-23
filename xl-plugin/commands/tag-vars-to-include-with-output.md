@@ -2,6 +2,8 @@
 
 Auto-detect which intermediate variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.
 
+Best run **after `/xl:extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions not yet visible in the skeleton's `computations:` list. Running this command afterward catches those additional variables. Because all writes are merge-safe, it is also safe to run before `extract-sample-rules` and re-run after.
+
 ## Input
 
 ```
@@ -38,15 +40,23 @@ Await the user's response and use it as `<domain>`. Then continue.
 
 ## Process
 
-### Detection pass 1 — invoke-derived variables
+### Detection pass 1 — invoke-derived variables (skeleton computations)
 
 Scan all `computations:` entries across every `intermediate_variables.categories[]` entry in `guidance.yaml`. For each entry whose `expr:` value contains dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot — as an auto-tagged variable.
 
 Example: `expr: "client_result.adjusted_earned_income"` → base name is `client_result`.
 
-Collect all such base names as `auto_tagged`.
+Collect all such base names as `auto_tagged_1`.
 
-### Detection pass 2 — declared output variables
+### Detection pass 2 — invoke-derived variables (sample rule CIVIL snippets)
+
+Scan all CIVIL snippets in `sub_rulesets[].sample_rules[].civil:` and `example_rules[].civil:` in `guidance.yaml` for dot-notation access patterns (`<identifier>.<identifier>`). Collect the base name (before the first dot) of each match.
+
+This pass catches invoke-derived variables that `/extract-sample-rules` discovered in the policy text but that were not yet present in the skeleton's `computations:` list — for example, when `/create-skeleton` was skipped or produced a sparse skeleton.
+
+Collect all such base names as `auto_tagged_2`.
+
+### Detection pass 3 — declared output variables
 
 Collect `output_variables.primary.name` and all `output_variables.secondary_decisions[].name` values from `guidance.yaml`. These are primary decision outputs already declared as the module's outputs.
 
@@ -54,7 +64,7 @@ Collect all such names as `output_declared`.
 
 ### Merge and write
 
-Compute: `new_include_with_output` = `auto_tagged` ∪ `output_declared` ∪ existing `intermediate_variables.include_with_output` values (if any).
+Compute: `new_include_with_output` = `auto_tagged_1` ∪ `auto_tagged_2` ∪ `output_declared` ∪ existing `intermediate_variables.include_with_output` values (if any).
 
 Deduplicate. Preserve all existing names — never remove entries.
 
@@ -66,8 +76,8 @@ Print one line per name in the final `include_with_output` list, labeled with it
 
 ```
 include_with_output written to guidance.yaml:
-  client_result   (invoke-derived: client_result.adjusted_earned_income)
-  dol_result      (invoke-derived: dol_result.adjusted_earned_income)
+  client_result   (invoke-derived: skeleton computations)
+  dol_result      (invoke-derived: sample rule CIVIL snippet)
   eligible        (output variable: output_variables.primary)
   denial_reason   (output variable: output_variables.secondary_decisions)
   income_limit    (existing)
