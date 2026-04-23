@@ -28,8 +28,8 @@ Typical steps:
   1. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
   2. `/xl:index-inputs <domain>` to build a document index
   3. Set extraction goals and ruleset guidance — two options:
-     a. **Monolithic (original):** `/xl:refine-guidance <domain>`
-     b. **Step-by-step (for UI-driven or incremental workflows):**
+      * **Monolithic (original):** `/xl:refine-guidance <domain>`
+      * **Step-by-step (for UI-driven or incremental workflows):**
         - `/xl:suggest-ruleset-io <domain>` — analyze the index and suggest candidate rulesets
         - `/xl:declare-ruleset-io <domain>` — bootstrap `guidance.yaml` from a suggestion file
         - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
