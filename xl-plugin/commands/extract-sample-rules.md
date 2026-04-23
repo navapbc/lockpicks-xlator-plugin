@@ -291,13 +291,17 @@ Do not modify or remove any existing entries.
 Create it with all variable names used in the generated rules:
 ```yaml
 version: "1.0"
+inputs:
+  <EntityName>:        # one entry per entity from bound_entities: (if available)
+    # (fields populated by /xl:extract-ruleset Step 7b)
 computed:
   <variable_name>:
     policy_phrase: "<noun phrase from source text>"
     source_doc: "<filename.md>"
     section: "<section heading>"
 ```
-Omit the `entities:` block — entity context is not available at this stage; it is populated by `/xl:extract-ruleset` Step 7b.
+
+Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance.yaml`. If `ruleset_modules:` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /xl:extract-ruleset Step 7b`.
 
 Do not add an auto-generated comment. The file is user-editable.
 

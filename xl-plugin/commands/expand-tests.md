@@ -57,7 +57,7 @@ Coverage map for <program>:
 
 For each category below, emit only cases not already covered by any existing test. Before adding any case, verify no existing test file has an identical `inputs:` map (compare the full input map as written — a case that omits optional fields is distinct from one that includes them).
 
-All tests are **blackbox only**: `inputs:` uses only declared `facts:` fields; `expected:` contains only the domain's declared `decisions:` outputs. No `computed:` field assertions.
+All tests are **blackbox only**: `inputs:` uses only declared `inputs:` fields; `expected:` contains only the domain's declared `outputs:` fields. No `computed:` field assertions.
 
 ### Output file format
 
@@ -126,7 +126,7 @@ For each gap identified in the coverage map, generate three cases per threshold 
 
 **For extended table rows** (size 9+ formulas in `computed:`): calculate the actual limit for at least one size beyond the last table row (e.g., household size = last row + 1) and generate boundary cases for that value.
 
-Determine the expected outcome for each case by applying the rule logic from the CIVIL spec (`when:` conditions and their operators). Set `expected:` to the domain's declared `decisions:` outputs (from the `decisions:` section).
+Determine the expected outcome for each case by applying the rule logic from the CIVIL spec (`when:` conditions and their operators). Set `expected:` to the domain's declared `outputs:` fields (from the `outputs:` section).
 
 ---
 
@@ -134,7 +134,7 @@ Determine the expected outcome for each case by applying the rule logic from the
 
 **Case ID prefix:** `nil_NNN`
 
-Generate one test per scenario below for each **required** fact field in the CIVIL spec. Required fields are those without `required: false` in the `facts:` section; do not generate null tests for optional fields.
+Generate one test per scenario below for each **required** fact field in the CIVIL spec. Required fields are those without `required: false` in the `inputs:` section; do not generate null tests for optional fields.
 
 | Scenario | What to set | Tags |
 |----------|-------------|------|
@@ -143,7 +143,7 @@ Generate one test per scenario below for each **required** fact field in the CIV
 | Wrong type (number field given string) | `field: "not-a-number"` | `["malformed", "deny"]` |
 | Negative value on a non-negative field | `field: -1` | `["malformed", "deny"]` |
 
-All null/malformed tests assert denial. Because the transpiler always emits `default <rule> := false` for every boolean rule, OPA evaluates missing or undefined inputs as `false`, producing the domain's fully denied outcome. Set `expected:` to the denied state (read from the `decisions:` section of the CIVIL spec).
+All null/malformed tests assert denial. Because the transpiler always emits `default <rule> := false` for every boolean rule, OPA evaluates missing or undefined inputs as `false`, producing the domain's fully denied outcome. Set `expected:` to the denied state (read from the `outputs:` section of the CIVIL spec).
 
 ---
 
@@ -151,7 +151,7 @@ All null/malformed tests assert denial. Because the transpiler always emits `def
 
 **Case ID prefix:** `edg_NNN`
 
-Generate tests for extreme values and unusual combinations not already covered by boundary tests. Adapt to the fields declared in the CIVIL `facts:` section — skip any scenario that references a field not present.
+Generate tests for extreme values and unusual combinations not already covered by boundary tests. Adapt to the fields declared in the CIVIL `inputs:` section — skip any scenario that references a field not present.
 
 | Scenario | Description |
 |----------|-------------|
@@ -195,9 +195,9 @@ Run /xl:transpile-and-test <domain> to validate these tests against the rules.
 ## Common Mistakes to Avoid
 
 - **Don't nest inputs by entity name** — `inputs:` is always flat key-value (`household_size: 3`, never `household: {size: 3}`)
-- **Don't assert computed fields** — `expected:` contains only declared `decisions:` outputs, never `computed:` fields like `gross_limit` or `net_income`
+- **Don't assert computed fields** — `expected:` contains only declared `outputs:` fields, never `computed:` fields like `gross_limit` or `net_income`
 - **Don't generate one bnd_* case per threshold** — for table-keyed limits (e.g., limit varies by household size), generate N-1/N/N+1 sets for **each table row**, not just one set overall
 - **Don't duplicate existing tests** — always cross-check the full `inputs:` map against all files in `specs/tests/` before emitting a case
 - **Don't treat derived tests as exhaustive** — the `drv_*` file is best-effort; include the caveat comment in the file header
-- **Don't generate null tests for optional fields** — only required `facts:` fields (those without `required: false`) get null/missing-input tests
-- **Don't hard-code domain-specific field names** — read `facts:` and `decisions:` from the CIVIL spec; do not assume fields like `eligible` or `reasons` exist in every domain
+- **Don't generate null tests for optional fields** — only required `inputs:` fields (those without `required: false`) get null/missing-input tests
+- **Don't hard-code domain-specific field names** — read `inputs:` and `outputs:` from the CIVIL spec; do not assume fields like `eligible` or `reasons` exist in every domain

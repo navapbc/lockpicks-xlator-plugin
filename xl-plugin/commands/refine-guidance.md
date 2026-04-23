@@ -153,7 +153,7 @@ Scan the confirmed skeleton (variable names and category structure) for each heu
 
 | Priority | Heuristic | Rationale value | Test |
 |----------|-----------|-----------------|------|
-| 1 | Reuse across entities | `reuse_across_entities` | 2+ entity names in `facts:` (inferred from skeleton input categories) where a common computation prefix would apply to each — e.g., `yyy_earned_income` and `zzz_earned_income` suggest the same `earned_income` sub-module bound to two entities |
+| 1 | Reuse across entities | `reuse_across_entities` | 2+ entity names in `inputs:` (inferred from skeleton input categories) where a common computation prefix would apply to each — e.g., `yyy_earned_income` and `zzz_earned_income` suggest the same `earned_income` sub-module bound to two entities |
 | 2 | Policy structure | `policy_structure` | Named sub-section in `input-index.yaml` headings (from Step 2 signals) covers ≥3 intermediate variables in the skeleton |
 | 3 | Depth threshold | `depth_threshold` | ≥5 variable names in the skeleton whose names suggest sequential dependence (e.g., `after_*` chain, or `net_*` derived from `gross_*` derived from `total_*`) |
 | 4 | User hint | `user_hint` | `ruleset_modules:` already populated in `guidance.yaml` — load existing entries as pre-confirmed |
@@ -261,7 +261,7 @@ Additional computed variables:
   [exclusion_chain]
     after_student, after_65, after_half, adjusted_earned_income
 
-Which additional variables should also be tagged `tags: [output]`
+Which additional variables should also be tagged `tags: [expose]`
 (to be included as part of the ruleset execution output -- appears in the API's ComputedBreakdown response)?
 (Enter variable names, comma-separated, or press `S` to skip):
 ```
