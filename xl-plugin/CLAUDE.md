@@ -24,21 +24,21 @@ Use the project's exact terminology: 'sub-ruleset' (not 'submodule'), 'CIVIL' fo
 After completion of a `xl` slash command, suggest possible next steps based on the following workflows:
 
 Typical steps:
-  0. `/xl:new-domain <domain>` to set up the folder scaffold for a new domain
-  1. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
-  2. `/xl:index-inputs <domain>` to build a document index
-  3. Set extraction goals and ruleset guidance — two options:
+  1. `/xl:new-domain <domain>` to set up the folder scaffold for a new domain
+  2. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
+  3. `/xl:index-inputs <domain>` to build a document index
+  4. Write an AI prompt to extract a ruleset in the `guidance.yaml` file — two options:
       * **Monolithic (original):** `/xl:refine-guidance <domain>`
       * **Step-by-step (for UI-driven or incremental workflows):**
-        - `/xl:suggest-ruleset-io <domain>` — analyze the index and suggest candidate rulesets
-        - `/xl:declare-ruleset-io <domain>` — bootstrap `guidance.yaml` from a suggestion file
-        - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
-        - `/xl:create-ruleset-groups <domain>` — propose and confirm workflow stages
-        - `/xl:create-ruleset-modules <domain>` — detect sub-ruleset candidates
-        - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules)
-        - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables (best after extract-sample-rules)
-        - `/xl:create-sample-tests <domain>` — generate sample test scaffolding
-  4. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
+        - `/xl:suggest-ruleset-io <domain>` — analyze the document index and write candidate rulesets to files for user selection
+        - `/xl:declare-ruleset-io <domain>` — write `guidance.yaml` from a specified candidate rulesets file (one of the files created by `/xl:suggest-ruleset-io`)
+        - `/xl:create-skeleton <domain>` — extract doc signals from the document index and build the computation skeleton
+        - `/xl:create-ruleset-groups <domain>` — propose workflow stages that group related computations in the skeleton; these groups will help with ruleset visualizations
+        - `/xl:create-ruleset-modules <domain>` — apply heuristics to detect sub-ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
+        - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules) for the user to become familiar, revise, and gain confidence in the anticipated results
+        - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect intermediate computed variables to be exposed along with the final output (best after extract-sample-rules); the selected variables are intended to be useful for explaining the computations used to derive the final output
+        - `/xl:create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
+  5. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
 
 ### Command dependency diagram
 
