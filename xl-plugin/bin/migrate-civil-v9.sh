@@ -70,9 +70,13 @@ manifest_files_modified=0
 # ---------------------------------------------------------------------------
 perl_inplace() {
     local file="$1"
-    local pattern="$2"
+    local raw_pattern="$2"
     local replacement="$3"
-    perl -pi -e "s${pattern}${replacement}" "$file"
+    # Strip the delimiter chars (first and last char of pattern) and use # as delimiter.
+    # This avoids breakage when the pattern contains | for alternation (e.g. (^|\s)),
+    # since Perl treats every | as a delimiter when | is the substitution delimiter.
+    local pattern="${raw_pattern:1:${#raw_pattern}-2}"
+    perl -pi -e "s#${pattern}#${replacement}#" "$file"
 }
 
 # ---------------------------------------------------------------------------
