@@ -127,9 +127,12 @@ After building the component map, run **SP-OrchestrationFilter** (from `core/rul
 
 ### Step 3: Derive Program Name
 
-Use `<program>` argument if given. Otherwise:
-1. Infer from the `module:` name found in the policy text (e.g., "SNAP income eligibility" → `eligibility`)
-2. If ambiguous, prompt: "What should the program file be named? (e.g., `eligibility`, `income_test`)"
+If SP-ResolveRulesetModules resolved a main module name from a `role: main` entry in `guidance.yaml` (Step 1b of SP-ResolveRulesetModules), use that name directly — no inference or prompt needed.
+
+Otherwise (no `role: main` entry exists — backward compat path):
+1. Use `<program>` argument if given.
+2. Infer from the `module:` name found in the policy text (e.g., "SNAP income eligibility" → `eligibility`).
+3. If ambiguous, prompt: "What should the program file be named? (e.g., `eligibility`, `income_test`)"
 
 ### Step 3b: Name Inventory
 

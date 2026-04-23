@@ -174,10 +174,10 @@ Per-item: [a] add missed candidate, [r] remove candidate, [e] edit name/entities
 In UPDATE mode, existing `ruleset_modules:` entries are displayed as pre-confirmed (marked `[confirmed]`). Only newly detected candidates require a user decision. The user may still add, remove, or edit any entry including pre-confirmed ones.
 
 After the user's response:
-- For each confirmed candidate, write it to `$DOMAINS_DIR/<domain>/specs/guidance.yaml` under `ruleset_modules:` (placed after `edge_cases:`, before `sample_rules:`). Each entry has `name:`, `description:`, `bound_entities:`, and `rationale:`.
+- For each confirmed candidate, write it to `$DOMAINS_DIR/<domain>/specs/guidance.yaml` under `ruleset_modules:` (placed after `ruleset_groups:`, before `constraints:`). Each entry has `name:`, `description:`, `bound_entities:`, and `rationale:`.
 - For dismissed candidates, do not write them.
 - For edited entries, write the user-edited values.
-- After all decisions, overwrite the `ruleset_modules:` key in the file with the final confirmed list (replacing any prior content under that key).
+- After all decisions, overwrite the `ruleset_modules:` key in the file with the final confirmed list (replacing any prior content under that key). When overwriting, preserve `role:`, `depends_on:`, and `sample_rules:` verbatim from any existing entries — these fields are owned by `/create-ruleset-modules` and `/extract-sample-rules` and must not be stripped.
 
 **If zero candidates are detected** (all heuristics return no results), emit:
 ```

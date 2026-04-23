@@ -315,13 +315,17 @@ Inserted after `ruleset_groups:`.
 
 ### `ruleset_modules`
 
-Candidate ruleset modules — subsets of rules within a single ruleset group that are factored out for reuse or clarity. These become reusable CIVIL sub-modules invoked via `invoke:` in the extracted ruleset.
+All modules that will be generated as separate `.civil.yaml` files — both sub-modules and the main program file. Each entry is either a sub-module (invoked via `invoke:`) or the main module (the top-level program file).
 
 Each entry has:
-- `name` — snake_case ruleset module identifier
+- `name` — snake_case ruleset module identifier (also the `.civil.yaml` file stem)
 - `description` — what it computes
-- `bound_entities` — CamelCase entity names it operates on
-- `rationale` — the heuristic that detected it: `reuse_across_entities`, `policy_structure`, `depth_threshold`, `variable_coupling`, `shared_gate`, or `user_hint`
+- `bound_entities` — CamelCase entity names it operates on; `[]` (empty) for the main module
+- `rationale` — the heuristic that detected it: `reuse_across_entities`, `policy_structure`, `depth_threshold`, `variable_coupling`, `shared_gate`, `user_hint`, or `main_module` (for the main program entry)
+- `role` _(optional)_ — `main` for the main program module; omit or set to `sub` for all sub-modules. Exactly one entry per ruleset may have `role: main`.
+- `depends_on` _(optional)_ — list of module `name:` values that this module invokes. Defaults to `[]` when absent. Sub-modules with no inter-dependencies use `depends_on: []`. The main module's `depends_on:` lists all sub-modules it invokes.
+
+**Main module entry conventions:** `bound_entities: []` (empty) and `rationale: main_module` are required. The `description:` is set to the `display_name` value from `guidance.yaml`.
 
 Later populated with `sample_rules` by `/extract-sample-rules`.
 
@@ -331,6 +335,13 @@ ruleset_modules:
     description: "10-step sequential earned income exclusion chain (442-4). Takes gross earned income and returns adjusted_earned_income."
     bound_entities: [ClientData, DOLRecord]
     rationale: reuse_across_entities
+    depends_on: []
+  - name: eligibility
+    description: "AK DOH Earned Income Exclusions"
+    bound_entities: []
+    rationale: main_module
+    role: main
+    depends_on: [exclusion_chain]
 ```
 
 ---

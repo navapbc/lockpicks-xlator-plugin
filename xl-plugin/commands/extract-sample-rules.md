@@ -63,18 +63,19 @@ Which domain? Enter a number or domain name:
 
 Check for `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml`.
 
-**If the manifest exists:** Read it. Build a lookup map from every `computed:` entry: `{variable_name → manifest_entry}`. These names are **canonical** — prefer them over freshly inferred names during rule generation in Step 3.
+**If the manifest exists:** Read it. Build a lookup map from every `computed:` entry: `{variable_name → manifest_entry}`. These names are **canonical** — prefer them over freshly inferred names during rule generation in Step 4.
 
-**If absent:** Proceed with an empty lookup map. The manifest will be created in Step 5.
+**If absent:** Proceed with an empty lookup map. The manifest will be created in Step 6.
 
 Show step checklist:
 ```
 Steps:
   [✓] 1. Load canonical names
   [ ] 2. Load and filter index
-  [ ] 3. Generate rules from source text
-  [ ] 4. Merge into guidance.yaml
-  [ ] 5. Write naming-manifest.yaml
+  [ ] 3. Read guidance context
+  [ ] 4. Generate rules from source text
+  [ ] 5. Merge into guidance.yaml
+  [ ] 6. Write naming-manifest.yaml
 ```
 
 ### Step 2: Load and filter index
@@ -106,9 +107,33 @@ Print: `Found N qualifying index entries` (or `Found N qualifying entries matchi
 
 Show updated step checklist.
 
-### Step 3: Generate rules from source text
+### Step 3: Read guidance context
 
-For each qualifying index entry, in the order they appear in `input-index.yaml`:
+Read the following fields from `$DOMAINS_DIR/<domain>/specs/guidance.yaml` and produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with each entry tagged as `in-scope` or `skipped`.
+
+**`role:`** — The stated purpose of the ruleset (e.g., `"Determine SNAP eligibility and benefit amount"`). For each qualifying entry, judge whether its `heading:` or `summary:` is plausibly related to that purpose. If an entry is clearly unrelated (e.g., it covers a separate program or administrative procedure with no variable overlap), remove it from the working set and log: `⚠ Skipped (unrelated to role): "<heading>"`. When in doubt, keep the entry — err toward inclusion.
+
+If `role:` is absent, keep all qualifying entries in the working set.
+
+**`skeleton:`** — The ordered list of computation categories and their members. For each entry remaining in the working set:
+- If the entry's `computations[].variables[]` include one or more variables mentioned in `skeleton:`, mark it **high priority**.
+- If none of the entry's variables appear in `skeleton:`, mark it **low priority** — it may represent auxiliary or supporting policy text.
+
+Use the skeleton category labels (e.g., `income`, `deductions`, `benefit_amount`) in Step 4 to focus `categorical:` and `table-lookup:` rule drafting on the correct domain concepts.
+
+If `skeleton:` is absent, mark all working set entries as normal priority.
+
+Print a summary:
+```
+Working set: N entries (M high priority, K normal, L low priority)
+Skipped: P entries (unrelated to role)
+```
+
+Show updated step checklist.
+
+### Step 4: Generate rules from source text
+
+For each **in-scope entry in the working set from Step 3**, processed in priority order (high → normal → low), then within each priority group in the order they appear in `input-index.yaml`:
 
 **(a) Read source text.** Locate the source file at `path:` and navigate to the section identified by `heading:`. Read that section's text.
 
@@ -130,17 +155,18 @@ For each qualifying index entry, in the order they appear in `input-index.yaml`:
 - **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
 
 **(d) Assign to ruleset module or main.** For each generated rule, determine the best matching `ruleset_modules:` entry in `guidance.yaml`:
-- Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`.
-- If a clear match is found, assign to that ruleset module's `sample_rules:` list.
-- If no ruleset module match is found, assign to `sample_rules:` (the top-level list).
+- Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`. Only match against sub-module entries (entries where `role:` is absent or `sub`) — do not route to the `role: main` entry during this matching step.
+- If a clear match is found, assign to that sub-module's `sample_rules:` list.
+- If no sub-module match is found: check whether `guidance.yaml` has a `ruleset_modules:` entry with `role: main`. If yes, assign the rule to that entry's `sample_rules:` list (locate the entry by its `name:` value). If no `role: main` entry exists, assign to the top-level `sample_rules:` list as a fallback.
 
 **(e) Record notes.** Track:
 - Any referenced value not found in the index or source text → add descriptive string to `missing_info`
 - Any inferential leap or assumption → add descriptive string to `assumptions`
+- Any low-priority entry from Step 3 for which rules were generated → add to `assumptions`: `"<heading> not in skeleton — rule may be auxiliary or out of scope; confirm before use"`
 
 Show updated step checklist after processing all entries.
 
-### Step 4: Merge into guidance.yaml
+### Step 5: Merge into guidance.yaml
 
 Read the current `guidance.yaml`. Apply all merges without clobbering existing content:
 
@@ -170,7 +196,7 @@ Write the updated `guidance.yaml`.
 
 Show updated step checklist.
 
-### Step 5: Write naming-manifest.yaml
+### Step 6: Write naming-manifest.yaml
 
 **If `naming-manifest.yaml` already exists:**
 Read it. For each variable name used in the generated rules that is not already present in the `computed:` block, append a new entry:
@@ -203,13 +229,15 @@ Show updated step checklist (all steps complete).
 
 Print one line per rule written, in the order they were generated:
 
+The `→ <destination>` label uses the module's `name:` value (e.g., `→ eligibility` for the main module, `→ exclusion_chain` for a sub-module, `→ top-level` when no `role: main` entry exists and the rule falls back to the top-level `sample_rules:`).
+
 ```
 Rules written:
   after_federal     (computed)      → exclusion_chain
   after_eitc        (computed)      → exclusion_chain
-  is_compatible     (computed)      → main
-  approve_income    (categorical)   → main
-  income_limit      (table-lookup)  → main
+  is_compatible     (computed)      → eligibility
+  approve_income    (categorical)   → eligibility
+  income_limit      (table-lookup)  → eligibility
 
 Missing info:
   - monthly_limit for student exclusion not defined in index; see Addendum 1
