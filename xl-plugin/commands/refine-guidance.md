@@ -1,6 +1,6 @@
 # Refine Ruleset Guidance for a Domain
 
-Create or update `guidance.yaml` for a domain — an ruleset guidance file that shapes how `/extract-ruleset` uses policy documents and creates rules. On first run (CREATE), guides the user through guidance template selection and optional doc-aware Q&A to produce a new file. On subsequent runs (UPDATE), loads the existing `guidance.yaml` file and refines it based on user input.
+Create or update `guidance.yaml` for a domain — an ruleset guidance file that shapes how `/xl:extract-ruleset` uses policy documents and creates rules. On first run (CREATE), guides the user through guidance template selection and optional doc-aware Q&A to produce a new file. On subsequent runs (UPDATE), loads the existing `guidance.yaml` file and refines it based on user input.
 
 The **guidance template** (in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` and `$DOMAINS_DIR/guidance-templates/`) provides an initial ruleset guidance that is then customized per domain in `$DOMAINS_DIR/<domain>/specs/guidance.yaml`.
 
@@ -28,16 +28,16 @@ Run these checks before doing anything else:
    - NO → Print:
      ```
      Domain not found: $DOMAINS_DIR/<domain>/
-     Run: /new-domain <domain>
+     Run: /xl:new-domain <domain>
      ```
-     Then stop. Do not scaffold a new domain here — that's `/new-domain`'s job.
+     Then stop. Do not scaffold a new domain here — that's `/xl:new-domain`'s job.
 
 3. **Input index required?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - **ABSENT** → Print:
      ```
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /index-inputs <domain> first, then re-run /refine-guidance <domain>.
+     Run /xl:index-inputs <domain> first, then re-run /xl:refine-guidance <domain>.
      ```
      Stop.
 
@@ -338,7 +338,7 @@ The section menu repeats after each update. The loop terminates when the user pr
 **On `[q] Quit`:** Print:
 ```
 Exiting. guidance.yaml saved at $DOMAINS_DIR/<domain>/specs/guidance.yaml
-Run /refine-guidance <domain> to continue refining.
+Run /xl:refine-guidance <domain> to continue refining.
 ```
 Stop.
 
@@ -376,7 +376,7 @@ Rule 2 — [rule name / topic area]
 
 [Rule 3 if a third distinct type is identifiable — otherwise 2 is sufficient]
 
-*(Illustrative samples — run `/extract-ruleset` for the full validated ruleset.)*
+*(Illustrative samples — run `/xl:extract-ruleset` for the full validated ruleset.)*
 ─────────────────────────────────────────────
 Do these look right?
   [a] Accept
@@ -408,7 +408,7 @@ After the user answers, update `guidance.yaml` immediately, regenerate the previ
 **On [q]:** Do not write `sample_rules:` — rules have not been user-approved. Print:
 ```
 Exiting. guidance.yaml saved at $DOMAINS_DIR/<domain>/specs/guidance.yaml
-Run /refine-guidance <domain> to continue refining.
+Run /xl:refine-guidance <domain> to continue refining.
 ```
 Stop.
 
@@ -420,8 +420,8 @@ Print:
 ```
 [CREATE: Created / UPDATE: Updated] $DOMAINS_DIR/<domain>/specs/guidance.yaml
 
-Next: Run /extract-ruleset <domain> to extract the CIVIL ruleset.
-      Re-run /refine-guidance <domain> at any time to update guidance.
+Next: Run /xl:extract-ruleset <domain> to extract the CIVIL ruleset.
+      Re-run /xl:refine-guidance <domain> at any time to update guidance.
 ```
 
 If `ruleset_modules:` in `guidance.yaml` is non-empty, append to the confirmation message:
@@ -443,6 +443,6 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED or UPDATED]
 - Do not add `edge_cases:` to ruleset guidance template files in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` — they are domain-agnostic; `edge_cases:` belongs only in per-domain `guidance.yaml`
 - Do not rewrite sections the user did not change — preserve exact wording of unchanged sections
 - `source_template` is never updated after initial creation — it records which guidance template the file was originally created from
-- Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/new-domain`
+- Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/xl:new-domain`
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-index.yaml` is the sole source of doc signals
 - `guidance.yaml` is created in Step 1 [CREATE], not deferred to Q&A — it always exists before Step 2 begins

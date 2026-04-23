@@ -25,3 +25,11 @@ Never commit to the `main` branch.
 ## CIVIL DSL versioning
 
 When the CIVIL DSL is updated, bump the version number and in `README-dev.md` "Architecture Notes" section, append a bullet describing the new version.
+
+## Xlator plugin versioning
+
+Increment the version number in `xl-plugin/.claude-plugin/plugin.json` when a PR is created using Semantic Versioning guidelines:
+* increment the MAJOR version number for new features that break backwards compatibility
+* increment the MINOR version number for new features that do not break backwards compatibility
+* increment the PATCH version number for all other changes in behavior
+* Do not increment version numbers if documentation or formatting is changed.

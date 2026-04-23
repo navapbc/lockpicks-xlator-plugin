@@ -36,7 +36,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /declare-ruleset-io <domain> first.
+     Run /xl:declare-ruleset-io <domain> first.
      ```
      Then stop.
 
@@ -45,7 +45,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /index-inputs <domain> first.
+     Run /xl:index-inputs <domain> first.
      ```
      Then stop.
 
@@ -53,7 +53,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Skeleton not found in guidance.yaml.
-     Run /create-skeleton <domain> first.
+     Run /xl:create-skeleton <domain> first.
      ```
      Then stop.
 
@@ -61,7 +61,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Ruleset groups not found in guidance.yaml.
-     Run /create-ruleset-groups <domain> first.
+     Run /xl:create-ruleset-groups <domain> first.
      Note: this command requires ruleset groups to be defined before ruleset module detection.
      This is intentional: ruleset modules must stay within a single stage, so stages must be defined first.
      ```
@@ -172,8 +172,8 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
 Then suggest next steps:
 
 ```
-Next: Run /extract-ruleset <domain> to extract the CIVIL ruleset.
-      Re-run /refine-guidance <domain> at any time to further refine guidance.
+Next: Run /xl:extract-ruleset <domain> to extract the CIVIL ruleset.
+      Re-run /xl:refine-guidance <domain> at any time to further refine guidance.
 ```
 
 ---

@@ -65,7 +65,7 @@ Collect all such base names as `auto_tagged_1`.
 
 Scan all CIVIL snippets in `ruleset_modules[].sample_rules[].civil:` and `sample_rules[].civil:` in `guidance.yaml`. Collect two categories of variable names:
 
-**(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
+**(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/xl:extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
 
 **(b) Decision-condition variables:** variable names that appear in `when:` conditions of `categorical:` rules. These are the pivotal computed values the ruleset evaluated to reach its decision — exactly the values a caller needs to understand the outcome. Scan for YAML keys `when:` and collect the variable name from each condition entry (e.g., `is_compatible: false` → `is_compatible`; `client_result.adjusted_earned_income > income_limit` → `income_limit`).
 

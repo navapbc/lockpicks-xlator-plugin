@@ -26,7 +26,7 @@ the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeG
 Run these checks before doing anything else:
 
 1. **Domain folder exists?**
-   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/new-domain <domain>`. Stop.
+   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`. Stop.
 
 2. **CIVIL file already exists?**
    - **If `<program>` was given:** check if `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` exists → if yes, redirect:
@@ -178,7 +178,7 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 
 **Single-file (ruleset_modules: empty):** existing behavior unchanged.
 
-**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `ruleset_groups:` list (written by `/refine-guidance` Sub-step 3b.5):
+**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `ruleset_groups:` list (written by `/xl:refine-guidance` Sub-step 3b.5):
 - **If present:** copy the list directly into `rule_set.ruleset_groups` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
 - **If absent:** omit the `ruleset_groups:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
 
@@ -558,6 +558,6 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 6b) / Refreshed (Step 7c) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 6b) / Refreshed (Step 7c) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) / Updated by SP-GuidanceCapture if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) / Updated by SP-GuidanceCapture if guidance items accepted |
 
-Tests, transpilation, and other output are handled by `/create-tests` and `/transpile-and-test`.
+Tests, transpilation, and other output are handled by `/xl:create-tests` and `/xl:transpile-and-test`.

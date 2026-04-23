@@ -13,9 +13,9 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 ## Pre-flight
 
-1. **Domain folder exists?** — NO → Print: "Domain `<domain>` not found. Run `/extract-ruleset <domain>` first." Stop.
+1. **Domain folder exists?** — NO → Print: "Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first." Stop.
 2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print: "No CIVIL file found. Run `/extract-ruleset <domain>` first." Stop.
+   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print: "No CIVIL file found. Run `/xl:extract-ruleset <domain>` first." Stop.
 3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
 
 ## Step 0: Extract Policy Examples
@@ -171,7 +171,7 @@ Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 
 Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 
-- **If present** (written by `/extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
+- **If present** (written by `/xl:extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
 - **If absent** (standalone run after a manual CIVIL edit): compare each test case's `inputs` values against all current `tables:` rows and `constants:` values in the CIVIL file. Flag any case where an input value exactly matches a value that no longer appears in any table row or constant.
 
   Print: "No `.stale-cases.yaml` found — using table/constant comparison to detect stale cases. Logic-only rule changes (e.g., operator changes, new conditions) will not be detected; review manually."

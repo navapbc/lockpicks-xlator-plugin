@@ -34,7 +34,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /declare-ruleset-io <domain> first.
+     Run /xl:declare-ruleset-io <domain> first.
      ```
      Then stop.
 
@@ -43,7 +43,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /index-inputs <domain> first.
+     Run /xl:index-inputs <domain> first.
      ```
      Then stop.
 
@@ -58,7 +58,7 @@ After pre-flight, check whether the `skeleton:` key already exists in `guidance.
   b. replace — re-run full Step 2+3 flow, overwrite skeleton
   c. revise — show existing skeleton for editing
   ```
-  - `a` → Print the Step 1 state summary (same format as Step 1 below) and exit. Suggest next step: `/create-ruleset-groups <domain>`. Do not write anything.
+  - `a` → Print the Step 1 state summary (same format as Step 1 below) and exit. Suggest next step: `/xl:create-ruleset-groups <domain>`. Do not write anything.
   - `b` → Run the full process below (Steps 1–4).
   - `c` → Skip Steps 1–3. Show the existing skeleton (same display format as Step 3). Enter the confirm/adjust loop at Step 4.
 
@@ -235,7 +235,7 @@ Steps:
 Then suggest the next step:
 
 ```
-Next: Run /create-ruleset-groups <domain> to propose ruleset groups.
+Next: Run /xl:create-ruleset-groups <domain> to propose ruleset groups.
 ```
 
 ---

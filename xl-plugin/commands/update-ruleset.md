@@ -26,10 +26,10 @@ the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeG
 Run these checks before doing anything else:
 
 1. **Domain folder exists?**
-   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/new-domain <domain>`. Stop.
+   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`. Stop.
 
 2. **CIVIL file exists?**
-   - NO → Print: no ruleset found for this domain, suggest `/extract-ruleset <domain>`. Stop.
+   - NO → Print: no ruleset found for this domain, suggest `/xl:extract-ruleset <domain>`. Stop.
 
 Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
@@ -52,7 +52,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
    > a) Editing the CIVIL file to restore the manifest name, or
    > b) Editing `naming-manifest.yaml` to acknowledge the rename
    >
-   > Then re-run `/update-ruleset <domain>`.
+   > Then re-run `/xl:update-ruleset <domain>`.
 
    Do not continue until there are no mismatches.
 
@@ -67,7 +67,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
    ```
    ⚠️  Missing CIVIL files listed in extraction-manifest.yaml:
      - $DOMAINS_DIR/<domain>/specs/<missing_file>.civil.yaml
-   Restore the missing file(s) or re-run /extract-ruleset <domain>.
+   Restore the missing file(s) or re-run /xl:extract-ruleset <domain>.
    ```
 3. Run **SP-ResolveRulesetModules** (from `core/ruleset-shared.md`) with context `update`.
    - If SP-ResolveRulesetModules emits an abort signal (new `ruleset_modules:` entries not in manifest): stop with SP-ResolveRulesetModules's message.
@@ -81,7 +81,7 @@ Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the git SHA f
 
 **Fallback chain (if manifest absent):**
 1. Get the CIVIL file's last commit SHA: `git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
-2. If no git history at all → treat as CREATE mode (full re-extraction); run `/extract-ruleset <domain>` instead.
+2. If no git history at all → treat as CREATE mode (full re-extraction); run `/xl:extract-ruleset <domain>` instead.
 
 ### Step 1b: Reconcile Manifest
 
@@ -285,16 +285,16 @@ Ask: "Does this update look correct? Any changes missing or incorrect?"
 
 ### Step 9b: Update Naming Manifest
 
-If any new fact or computed fields were added: derive canonical names using the 4-step algorithm from `/extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate entity or `computed:` section. Preserve all existing entries unchanged.
+If any new fact or computed fields were added: derive canonical names using the 4-step algorithm from `/xl:extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate entity or `computed:` section. Preserve all existing entries unchanged.
 
 If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after the review gate passes.
 
 ### Step 9c: Write Stale-Cases Hint
 
-After the review gate passes, write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/create-tests`:
+After the review gate passes, write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/xl:create-tests`:
 
 ```yaml
-# Written by /update-ruleset. Consumed and deleted by /create-tests.
+# Written by /xl:update-ruleset. Consumed and deleted by /xl:create-tests.
 stale_cases:
   - case_id: "<case_id>"
     reason: "<what changed — e.g., 'gross_limit for household_size 3 changed from 2888 to 2945'>"
@@ -328,8 +328,8 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (new fields appended) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 8b) / Refreshed (Step 9d) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 8b) / Refreshed (Step 9d) |
-| `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (after Step 9c; consumed by `/create-tests`) |
+| `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (after Step 9c; consumed by `/xl:create-tests`) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) / Updated by SP-GuidanceCapture if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) / Updated by SP-GuidanceCapture if guidance items accepted |
 
-Tests, transpilation, and other output are handled by `/create-tests` and `/transpile-and-test`.
+Tests, transpilation, and other output are handled by `/xl:create-tests` and `/xl:transpile-and-test`.

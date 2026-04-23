@@ -35,6 +35,6 @@ Relay output verbatim. No summary formatting.
 
 **On failure:** Show the failing scope(s) and actual vs. expected output. Ask the user to diagnose:
 
-- **Rule error** — the CIVIL `when:` expression is wrong → fix in the CIVIL file and re-run `/extract-ruleset <domain>`
-- **Test expectation error** — the test case has wrong expected values → fix in the tests file and re-run `/transpile-and-test <domain>`
+- **Rule error** — the CIVIL `when:` expression is wrong → fix in the CIVIL file and re-run `/xl:extract-ruleset <domain>`
+- **Test expectation error** — the test case has wrong expected values → fix in the tests file and re-run `/xl:transpile-and-test <domain>`
 - **Transpiler bug** — the Catala generation is incorrect → file a transpiler issue; do not modify CIVIL or tests

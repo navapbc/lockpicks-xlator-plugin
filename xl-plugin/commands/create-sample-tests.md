@@ -2,7 +2,7 @@
 
 Generate pre-extraction test scaffolding from `guidance.yaml` content alone — before a CIVIL file exists. Writes test cases to a `sample_tests:` field inside `guidance.yaml`. Runs non-interactively — no mid-run prompting.
 
-These tests serve as planning scaffolding to validate coverage intent before running `/extract-ruleset`. They are not a substitute for the validated test suite produced by `/create-tests` after extraction.
+These tests serve as planning scaffolding to validate coverage intent before running `/xl:extract-ruleset`. They are not a substitute for the validated test suite produced by `/xl:create-tests` after extraction.
 
 See `$CLAUDE_PLUGIN_ROOT/core/tests/eligibility_tests.yaml` for a complete working example of test case structure.
 
@@ -85,7 +85,7 @@ Steps:
 
 ### Step 2: Generate test cases
 
-Generate test cases targeting the 6-tag coverage minimum from `/create-tests`. For each tag, generate one case if the tag is applicable given the guidance content. Do not force a tag that has no basis in the guidance.
+Generate test cases targeting the 6-tag coverage minimum from `/xl:create-tests`. For each tag, generate one case if the tag is applicable given the guidance content. Do not force a tag that has no basis in the guidance.
 
 **`inputs:` are always flat key-value** — never nest by entity name. Use only the input field names derived in Step 1.
 
@@ -171,8 +171,8 @@ Next: Run /xl:extract-ruleset <domain> to extract the CIVIL ruleset.
 ## Common Mistakes to Avoid
 
 - **Do not nest inputs by entity name** — `inputs:` must always be flat key-value (e.g., `client_gross_earned: 1800`, never `client: {gross_earned: 1800}`)
-- **Do not require a CIVIL file** — this command runs before `/extract-ruleset`; field names come from `guidance.yaml`, not from a `.civil.yaml` file
+- **Do not require a CIVIL file** — this command runs before `/xl:extract-ruleset`; field names come from `guidance.yaml`, not from a `.civil.yaml` file
 - **Do not overwrite existing `sample_tests:` entries** — merge by `case_id:` only; preserve manually authored test cases
 - **Do not force coverage tags with no basis in guidance** — if `allow + exemption` has no exemption path in the guidance content, omit that case rather than fabricating it
-- **Do not confuse `sample_tests:` with `specs/tests/<program>_tests.yaml`** — these are pre-extraction scaffolding cases in `guidance.yaml`; the validated test suite is produced separately by `/create-tests` after extraction
+- **Do not confuse `sample_tests:` with `specs/tests/<program>_tests.yaml`** — these are pre-extraction scaffolding cases in `guidance.yaml`; the validated test suite is produced separately by `/xl:create-tests` after extraction
 - **`case_id` values must not change on re-run** — merge is keyed by `case_id`; changing a case_id on re-run creates a duplicate

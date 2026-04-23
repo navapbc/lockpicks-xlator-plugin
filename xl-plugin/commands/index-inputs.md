@@ -212,7 +212,7 @@ After writing, print:
   <X> file(s) re-indexed, <Y> skipped (unchanged), <Z> removed.
   <M> section(s) total.
 
-Next step: `/refine-guidance <domain>` to set extraction goals and ruleset guidance
+Next step: `/xl:refine-guidance <domain>` to set extraction goals and ruleset guidance
 ```
 
 ---

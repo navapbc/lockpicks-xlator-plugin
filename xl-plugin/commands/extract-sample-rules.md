@@ -2,16 +2,16 @@
 
 Exhaustively generate CIVIL rules from `input-index.yaml` entries and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
 
-Unlike `/refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately.
+Unlike `/xl:refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately.
 
 **Recommended run order:** After `/xl:create-ruleset-modules`. The quality of the output depends on how complete `guidance.yaml` is at invocation time:
 
 | `guidance.yaml` state | Impact on output |
 |---|---|
-| `ruleset_modules:` populated (after `/create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
-| `ruleset_groups:` present but no `ruleset_modules:` (after `/create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
-| `skeleton:` present but no stages or ruleset modules (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
-| Neither `skeleton:` nor `ruleset_modules:` (after `/declare-ruleset-io` only) | Command runs but produces flat, unstructured output with no ordering context |
+| `ruleset_modules:` populated (after `/xl:create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
+| `ruleset_groups:` present but no `ruleset_modules:` (after `/xl:create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
+| `skeleton:` present but no stages or ruleset modules (after `/xl:create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
+| Neither `skeleton:` nor `ruleset_modules:` (after `/xl:declare-ruleset-io` only) | Command runs but produces flat, unstructured output with no ordering context |
 
 The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (see Step 2). It does not stop — partial output is better than none.
 
@@ -193,7 +193,7 @@ computed:
     source_doc: "<filename.md>"
     section: "<section heading>"
 ```
-Omit the `entities:` block — entity context is not available at this stage; it is populated by `/extract-ruleset` Step 7b.
+Omit the `entities:` block — entity context is not available at this stage; it is populated by `/xl:extract-ruleset` Step 7b.
 
 Do not add an auto-generated comment. The file is user-editable.
 
@@ -240,7 +240,7 @@ Skipped (not related to '<rule_topic>'):
 
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use `path:` and `heading:` from `input-index.yaml` to locate sections. Reading source policy files via those pointers is explicitly permitted for this command.
 - **Do not overwrite existing `sample_rules:` entries** — merge by `id:` only; never remove manually edited rules
-- **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/extract-ruleset` run
+- **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/xl:extract-ruleset` run
 - **Do not clobber other guidance.yaml sections** — this command writes only to `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions`; all other sections must be preserved verbatim
 - **Use canonical names from the manifest** — if a variable name exists in `naming-manifest.yaml`, use it; do not re-derive or rename it
 - **`civil:` is a literal block scalar** — always use the `|` block indicator; never use a quoted string or folded scalar for CIVIL snippets

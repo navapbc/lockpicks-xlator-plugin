@@ -1,13 +1,13 @@
 # Suggest Ruleset I/O for a Domain
 
-Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_rulesets/`. The user will select one of the suggestion file as the input to `/declare-ruleset-io`.
+Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_rulesets/`. The user will select one of the suggestion file as the input to `/xl:declare-ruleset-io`.
 
 The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") narrows what kinds of rulesets to suggest — it prioritizes candidates that match the hint phrase but still reads the whole index. When no hint is provided, all distinct policy scopes found in the index are candidates with a preference for rulesets that cover more topics.
 
 ## Input
 
 ```
-/suggest-ruleset-io <domain> [<hint>]
+/xl:suggest-ruleset-io <domain> [<hint>]
 ```
 
 ## Pre-flight
@@ -28,7 +28,7 @@ Run these checks before doing anything else:
    - NO → Print:
      ```
      Domain not found: $DOMAINS_DIR/<domain>/
-     Run: /new-domain <domain>
+     Run: /xl:new-domain <domain>
      ```
      Then stop.
 
@@ -37,7 +37,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /index-inputs <domain> first, then re-run /suggest-ruleset-io <domain>.
+     Run /xl:index-inputs <domain> first, then re-run /xl:suggest-ruleset-io <domain>.
      ```
      Then stop.
 
@@ -142,7 +142,7 @@ output_variables:
 After all saves, suggest the next step:
 
 ```
-Next: Run /declare-ruleset-io <domain> <ruleset_name> to create guidance.yaml from a suggestion file.
+Next: Run /xl:declare-ruleset-io <domain> <ruleset_name> to create guidance.yaml from a suggestion file.
 ```
 
 ---
@@ -159,7 +159,7 @@ $DOMAINS_DIR/<domain>/specs/suggested_rulesets/<ruleset_name>.yaml    [CREATED]
 
 ## Common Mistakes to Avoid
 
-- **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
+- **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later commands (`/xl:create-skeleton`, `/xl:create-ruleset-groups`, `/xl:create-ruleset-modules`)
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `input-index.yaml` is the sole source of doc signals
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
 - **`secondary_decisions: []` is valid when no secondary outputs are identified** — do not omit the field; an absent `secondary_decisions` key is not the same as an empty list

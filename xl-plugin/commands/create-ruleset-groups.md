@@ -34,7 +34,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /declare-ruleset-io <domain> first.
+     Run /xl:declare-ruleset-io <domain> first.
      ```
      Then stop.
 
@@ -43,7 +43,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /index-inputs <domain> first.
+     Run /xl:index-inputs <domain> first.
      ```
      Then stop.
 
@@ -51,7 +51,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      Skeleton not found in guidance.yaml.
-     Run /create-skeleton <domain> first.
+     Run /xl:create-skeleton <domain> first.
      ```
      Then stop.
 
@@ -69,7 +69,7 @@ After pre-flight, check whether the `ruleset_groups:` key already exists in `gui
   ```
   - `a` → Exit without writing. Suggest next step:
     ```
-    Next: Run /create-ruleset-modules <domain> to detect ruleset module candidates.
+    Next: Run /xl:create-ruleset-modules <domain> to detect ruleset module candidates.
     ```
   - `r` → Run the full process below (Steps 1–3): re-scan, re-propose, accept/edit, write.
   - `m` → Run the full process below to generate a new proposal list, then merge new + existing (deduplicated by `name`; new descriptions win on conflict). Display the merged list for confirmation using the same format as Step 2, then write on acceptance.
@@ -135,7 +135,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
 
 Then suggest the next step:
 ```
-Next: Run /create-ruleset-modules <domain> to detect ruleset module candidates.
+Next: Run /xl:create-ruleset-modules <domain> to detect ruleset module candidates.
 ```
 
 ---
