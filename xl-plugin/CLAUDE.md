@@ -81,11 +81,13 @@ flowchart TD
     EXTRACT["/xl:extract-ruleset\nenabled: workflow_stages: + sub_rulesets: present"]
 
     GY_MODS --> EXTRACT
-    TAGVARS -.->|"optional"| EXTRACT
+    TAGVARS --> EXTRACT
     SAMPLETESTS -.->|"optional"| EXTRACT
 ```
 
-**Recommended sequence** for the three scaffold commands: `extract-sample-rules` (after `create-ruleset-modules`) → `tag-vars-to-include-with-output` → `create-sample-tests`.
+**`/tag-vars-to-include-with-output` is required before `/extract-ruleset`** in a UI-driven workflow — it populates `include_with_output` so SP-TagOutputs has pre-selections and doesn't block for interactive input. Skipping it causes `/extract-ruleset` to prompt mid-run.
+
+**`/create-sample-tests` is optional** — `/extract-ruleset` does not read `sample_tests:`. These are planning scaffolding only.
 
 - `extract-sample-rules` can run earlier (after `create-skeleton` minimum) but produces flat, ungrouped output without `sub_rulesets:`
 - `tag-vars` can run earlier but misses invoke-derived variables only visible in CIVIL snippets
