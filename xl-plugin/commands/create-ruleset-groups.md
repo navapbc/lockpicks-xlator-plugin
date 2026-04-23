@@ -1,6 +1,6 @@
 # Propose and Write Ruleset Groups for a Domain
 
-Read `input-index.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:`. A "Ruleset Group" is synonymous with a "ruleset group".
+Read `input-index.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:` and before `constraints:`. A "Ruleset Group" is synonymous with a "ruleset group".
 
 ## Input
 
@@ -116,7 +116,7 @@ Do not prompt for user input. Proceed directly to Step 3.
 
 Write the confirmed stages to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 
-- Insert `ruleset_groups:` as a top-level key immediately after `skeleton:` — do not append to the end of the file
+- Insert `ruleset_groups:` as a top-level key immediately after `skeleton:` and before `constraints:` — do not append to the end of the file
 - Update `generated_at` to today's date
 
 YAML format:
@@ -149,7 +149,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 ## Common Mistakes to Avoid
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of phase heading signals
-- `ruleset_groups:` is inserted after `skeleton:` in `guidance.yaml`, not at the end of the file
+- `ruleset_groups:` is inserted after `skeleton:` and before `constraints:` in `guidance.yaml`, not at the end of the file
 - In UPDATE mode "accept" (or Enter), exit without writing — do not overwrite existing `ruleset_groups:` content
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`
 - Convert phase headings to `snake_case` — "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`

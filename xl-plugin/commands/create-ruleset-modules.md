@@ -147,7 +147,7 @@ No new ruleset modules identified.
 Write all detected new candidates to `ruleset_modules:`.
 
 Write `ruleset_modules:` to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
-- Insert after `ruleset_groups:`, before `input_variables:` (if present), or at end of file if neither follows
+- Insert after `ruleset_groups:` and before `constraints:` (if present), or at end of file if neither follows
 - In UPDATE mode: overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed)
 - In CREATE mode with zero modules: write `ruleset_modules: []`
 
@@ -187,7 +187,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 ## Common Mistakes to Avoid
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of doc signals
-- `ruleset_modules:` is inserted after `ruleset_groups:` in `guidance.yaml`, not at the end of the file unless no later keys exist
+- `ruleset_modules:` is inserted after `ruleset_groups:` and before `constraints:` in `guidance.yaml`, not at the end of the file unless no later keys exist
 - In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset_modules:`
 - In UPDATE mode with new modules, overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones
 - A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans stages, split it or reject it with an explanation to the user

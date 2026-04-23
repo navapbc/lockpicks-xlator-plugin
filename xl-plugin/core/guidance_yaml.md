@@ -19,12 +19,12 @@ description
 role
 scope
 skeleton          ← /create-skeleton
+ruleset_groups    ← /create-ruleset-groups
+ruleset_modules   ← /create-ruleset-modules
 constraints
 standards
 guidance
 edge_cases
-ruleset_groups   ← /create-ruleset-groups
-ruleset_modules      ← /create-ruleset-modules
 input_variables
 output_variables
 intermediate_variables
