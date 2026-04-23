@@ -265,7 +265,6 @@ Sub-fields:
 
 ```yaml
 skeleton:
-  confirmed_at: 2026-03-20
   inputs: [client_gross_earned, dol_quarterly_earnings, household_type, benefit_year]
   outputs: [eligible, denial_reason]
   computations:

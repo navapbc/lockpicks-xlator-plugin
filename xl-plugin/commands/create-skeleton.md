@@ -196,7 +196,6 @@ Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 1. **Write `skeleton:` key** — insert as a top-level key after `scope:` (before `constraints:`). Schema:
    ```yaml
    skeleton:
-     confirmed_at: YYYY-MM-DD
      inputs: [<flat list of confirmed input variable names>]
      outputs: [<flat list of confirmed output variable names>]
      computations:
