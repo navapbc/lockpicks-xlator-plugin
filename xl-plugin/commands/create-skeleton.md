@@ -235,7 +235,7 @@ Steps:
 Then suggest the next step:
 
 ```
-Next: Run /create-ruleset-groups <domain> to propose workflow stages.
+Next: Run /create-ruleset-groups <domain> to propose ruleset groups.
 ```
 
 ---

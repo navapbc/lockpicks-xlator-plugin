@@ -22,7 +22,7 @@ For full specification and design rationale, see [CIVIL_DSL_spec.md](CIVIL_DSL_s
 | `rules` | ✅ | List of `Rule` objects |
 | `tables` | — | Optional lookup tables |
 | `constants` | — | Optional named constants (UPPER_SNAKE_CASE) |
-| `computed` | — | Optional derived intermediate values (CIVIL v2); supports `tags` (CIVIL v3); supports `invoke:` (CIVIL v4); `decisions:` supports `expr:`/`conditional:` (CIVIL v5); `rule_set.workflow_stages` + `rule.group`/`rule.mutex_group` (CIVIL v6); supports `table_lookup:` (CIVIL v7) |
+| `computed` | — | Optional derived intermediate values (CIVIL v2); supports `tags` (CIVIL v3); supports `invoke:` (CIVIL v4); `decisions:` supports `expr:`/`conditional:` (CIVIL v5); `rule_set.ruleset_groups` + `rule.group`/`rule.mutex_group` (CIVIL v6); supports `table_lookup:` (CIVIL v7) |
 | `types` | — | Optional custom type definitions |
 
 ---
@@ -268,7 +268,7 @@ Table reference in expressions: `table('table_name', key_expr).value_column`
 | `description` | — | Human-readable description |
 | `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a)(1) — Gross Income Test"` |
 | `review` | — | `ReviewBlock` with extraction quality scores |
-| `group` | — | (CIVIL v6) Workflow stage name, e.g. `"income_test"`. Must match a name in `rule_set.workflow_stages` when that list is non-empty. **Transpiler no-op.** |
+| `group` | — | (CIVIL v6) Ruleset group name, e.g. `"income_test"`. Must match a name in `rule_set.ruleset_groups` when that list is non-empty. **Transpiler no-op.** |
 | `mutex_group` | — | (CIVIL v6) Mutual-exclusion group name. Rules sharing a `mutex_group` are competing alternatives; all must have unique `priority` values. **Transpiler no-op.** |
 
 > ⚠️ **`then:` must be non-empty for all rules**, including allow rules.
@@ -277,14 +277,14 @@ Table reference in expressions: `table('table_name', key_expr).value_column`
 
 > ⚠️ **Rule `id` values must be unique** across the entire `rules:` list.
 
-> ℹ️ **`group:` and `mutex_group:` are maintainability annotations only** — analogous to `review:`. They have no effect on transpilation or rule evaluation. The validator checks group name consistency (when `workflow_stages:` is defined) and priority uniqueness within a `mutex_group`.
+> ℹ️ **`group:` and `mutex_group:` are maintainability annotations only** — analogous to `review:`. They have no effect on transpilation or rule evaluation. The validator checks group name consistency (when `ruleset_groups:` is defined) and priority uniqueness within a `mutex_group`.
 
 **CIVIL v6 example:**
 ```yaml
 rule_set:
   name: snap_eligibility
   precedence: deny_overrides_allow
-  workflow_stages:
+  ruleset_groups:
     - name: income_test
       description: Gross and net income eligibility tests
     - name: asset_test
@@ -294,7 +294,7 @@ rules:
   - id: SNAP-INCOME-DENY-001
     kind: deny
     priority: 10
-    group: income_test          # must match a workflow_stages name
+    group: income_test          # must match a ruleset_groups name
     mutex_group: gross_test     # only one rule in this group should fire
     when: gross_income > gross_limit
     then:
@@ -312,9 +312,9 @@ rules:
 | `name` | ✅ | Rule set identifier |
 | `precedence` | — | `deny_overrides_allow`, `allow_overrides_deny`, `first_match`, or `priority_order` |
 | `description` | — | Human-readable description |
-| `workflow_stages` | — | (CIVIL v6) List of `WorkflowStage` objects defining named evaluation phases. When non-empty, `rule.group:` values are validated against these names. |
+| `ruleset_groups` | — | (CIVIL v6) List of `RulesetGroup` objects defining named evaluation phases. When non-empty, `rule.group:` values are validated against these names. |
 
-## `WorkflowStage` (CIVIL v6)
+## `RulesetGroup` (CIVIL v6)
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -395,9 +395,9 @@ The structured output object is always at `decision` (e.g., query `/v1/data/<pkg
 
 The following YAML schemas are used by `/refine-guidance`, `/extract-ruleset`, and `/update-ruleset`. They are not part of the CIVIL DSL itself.
 
-### `guidance.yaml` — `sub_rulesets:` key
+### `guidance.yaml` — `ruleset_modules:` key
 
-Place after `edge_cases:`, before `example_rules:`. Populated by `/refine-guidance` Step 3 sub-ruleset-candidate detection. A sub-ruleset becomes a CIVIL sub-module.
+Place after `edge_cases:`, before `sample_rules:`. Populated by `/refine-guidance` Step 3 ruleset module-candidate detection. A ruleset module becomes a CIVIL sub-module.
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -407,7 +407,7 @@ Place after `edge_cases:`, before `example_rules:`. Populated by `/refine-guidan
 | `rationale` | ✅ | One of: `reuse_across_entities`, `depth_threshold`, `policy_structure`, `user_hint` |
 
 ```yaml
-sub_rulesets:
+ruleset_modules:
   - name: earned_income               # resolves to $DOMAINS_DIR/<domain>/specs/earned_income.civil.yaml
     description: "Compute net earned income after deductions"
     bound_entities:                   # parent entity names that will bind to this sub-module
@@ -423,13 +423,13 @@ sub_rulesets:
 | `reuse_across_entities` | 2+ `bound_entities` candidates with same computed-variable naming prefix |
 | `policy_structure` | Named sub-section in `input-index.yaml` headings or policy text covers ≥3 intermediate variables |
 | `depth_threshold` | ≥5 variable names in skeleton whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
-| `user_hint` | `sub_rulesets:` already populated in `guidance.yaml` (UPDATE mode only) |
+| `user_hint` | `ruleset_modules:` already populated in `guidance.yaml` (UPDATE mode only) |
 
 ---
 
 ### `extraction-manifest.yaml` — multi-file format
 
-When `sub_rulesets:` is non-empty, the manifest includes a `sub_modules:` list nested under the program block. The `programs:` key structure is unchanged — existing single-file consumers are unaffected.
+When `ruleset_modules:` is non-empty, the manifest includes a `sub_modules:` list nested under the program block. The `programs:` key structure is unchanged — existing single-file consumers are unaffected.
 
 ```yaml
 # Auto-generated by /extract-ruleset — do not edit manually

@@ -8,12 +8,12 @@ Unlike `/refine-guidance` Step 8, which produces 2–3 illustrative rules gated 
 
 | `guidance.yaml` state | Impact on output |
 |---|---|
-| `sub_rulesets:` populated (after `/create-ruleset-modules`) | Rules routed to the correct sub-ruleset's `sample_rules:` — full structural grouping |
-| `workflow_stages:` present but no `sub_rulesets:` (after `/create-ruleset-groups`) | Stage context available but all rules fall into `example_rules:` |
-| `skeleton:` present but no stages or sub-rulesets (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into `example_rules:` |
-| Neither `skeleton:` nor `sub_rulesets:` (after `/declare-ruleset-io` only) | Command runs but produces flat, unstructured output with no ordering context |
+| `ruleset_modules:` populated (after `/create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
+| `ruleset_groups:` present but no `ruleset_modules:` (after `/create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
+| `skeleton:` present but no stages or ruleset modules (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
+| Neither `skeleton:` nor `ruleset_modules:` (after `/declare-ruleset-io` only) | Command runs but produces flat, unstructured output with no ordering context |
 
-The command prints a warning when `skeleton:` or `sub_rulesets:` is absent (see Step 2). It does not stop — partial output is better than none.
+The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (see Step 2). It does not stop — partial output is better than none.
 
 ## Input
 
@@ -87,7 +87,7 @@ Before filtering, check `guidance.yaml` for missing context and print warnings i
 ⚠ skeleton: not found in guidance.yaml — computation ordering and category groupings unavailable.
   Run /xl:create-skeleton <domain> first for better-structured output.
 
-⚠ sub_rulesets: not found in guidance.yaml — all rules will be written to example_rules: (no sub-ruleset grouping).
+⚠ ruleset_modules: not found in guidance.yaml — all rules will be written to top-level sample_rules: (no ruleset module grouping).
   Run /xl:create-ruleset-modules <domain> first for structured rule routing.
 ```
 
@@ -127,12 +127,12 @@ For each qualifying index entry, in the order they appear in `input-index.yaml`:
 - **`computed:` rule (no expr_hint)** — if no `expr_hint:` is given, produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No expr_hint available for `<name>` — expr must be confirmed manually").
 - **`categorical:` rules** — scan the source text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names.
 - **`table-lookup:` rule** — if the source text references a table or schedule of thresholds, draft a `computed:` entry using `table_lookup:` syntax with `table:` and `key:` fields.
-- **`invoke:` rule** — if the source text's computation calls for running a sub-ruleset, and `sub_rulesets:` in `guidance.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the sub-ruleset's `name:` and canonical variable bindings.
+- **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
 
-**(d) Assign to sub-ruleset or main.** For each generated rule, determine the best matching `sub_rulesets:` entry in `guidance.yaml`:
-- Match by variable name overlap (variables in the rule appear in the sub-ruleset's description) or section heading keyword overlap with the sub-ruleset's `description:`.
-- If a clear match is found, assign to that sub-ruleset's `sample_rules:` list.
-- If no sub-ruleset match is found, assign to `example_rules:` (the top-level list).
+**(d) Assign to ruleset module or main.** For each generated rule, determine the best matching `ruleset_modules:` entry in `guidance.yaml`:
+- Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`.
+- If a clear match is found, assign to that ruleset module's `sample_rules:` list.
+- If no ruleset module match is found, assign to `sample_rules:` (the top-level list).
 
 **(e) Record notes.** Track:
 - Any referenced value not found in the index or source text → add descriptive string to `missing_info`
@@ -144,8 +144,8 @@ Show updated step checklist after processing all entries.
 
 Read the current `guidance.yaml`. Apply all merges without clobbering existing content:
 
-**`sub_rulesets[].sample_rules:` (merge by `id:`):**
-For each sub-ruleset entry that has assigned rules, add a `sample_rules:` sub-key if absent, then append rules whose `id:` is not already present. Do not overwrite or remove existing entries.
+**`ruleset_modules[].sample_rules:` (merge by `id:`):**
+For each ruleset module entry that has assigned rules, add a `sample_rules:` sub-key if absent, then append rules whose `id:` is not already present. Do not overwrite or remove existing entries.
 
 Rule entry schema:
 ```yaml
@@ -157,8 +157,8 @@ sample_rules:
       <full CIVIL YAML snippet>
 ```
 
-**`example_rules:` (merge by `id:`):**
-Append unmatched rules to the top-level `example_rules:` list. Place after `edge_cases:` if `example_rules:` does not yet exist. Deduplicate by `id:`.
+**`sample_rules:` (merge by `id:`):**
+Append unmatched rules to the top-level `sample_rules:` list. Place after `edge_cases:` if `sample_rules:` does not yet exist. Deduplicate by `id:`.
 
 **`missing_info:` (merge — append unique strings):**
 Add new unique strings to the top-level `missing_info:` list. Place after `edge_cases:` (or after `assumptions:` if that key already exists). Do not remove or overwrite existing entries.
@@ -231,7 +231,7 @@ Skipped (not related to '<rule_topic>'):
 
 | File | Action |
 |------|--------|
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Updated — `sub_rulesets[].sample_rules`, `example_rules`, `missing_info`, `assumptions` merged |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Updated — `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions` merged |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created or updated — `computed:` entries merged |
 
 ---
@@ -241,7 +241,7 @@ Skipped (not related to '<rule_topic>'):
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use `path:` and `heading:` from `input-index.yaml` to locate sections. Reading source policy files via those pointers is explicitly permitted for this command.
 - **Do not overwrite existing `sample_rules:` entries** — merge by `id:` only; never remove manually edited rules
 - **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/extract-ruleset` run
-- **Do not clobber other guidance.yaml sections** — this command writes only to `sub_rulesets[].sample_rules`, `example_rules`, `missing_info`, `assumptions`; all other sections must be preserved verbatim
+- **Do not clobber other guidance.yaml sections** — this command writes only to `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions`; all other sections must be preserved verbatim
 - **Use canonical names from the manifest** — if a variable name exists in `naming-manifest.yaml`, use it; do not re-derive or rename it
 - **`civil:` is a literal block scalar** — always use the `|` block indicator; never use a quoted string or folded scalar for CIVIL snippets
 - **`source:` must be a quoted sentence from the index** — copy from `input-index.yaml` section `summary:` or `computations[].description:`; do not paraphrase

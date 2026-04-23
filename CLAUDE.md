@@ -16,7 +16,7 @@ When fixing transpiler bugs, always run the full test suite (all domains/program
 
 ## Project Terminology
 
-For brainstorm and plan documents, use the project's exact terminology: 'sub-ruleset' (not 'submodule'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
+For brainstorm and plan documents, use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 'submodule'), 'ruleset group' (not 'workflow stage'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
 
 ## Git
 

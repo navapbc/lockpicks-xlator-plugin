@@ -37,7 +37,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
 ## Process
 
-### Step 0: Load Naming Manifest, Check for Divergence, and Sub-Ruleset Resolution
+### Step 0: Load Naming Manifest, Check for Divergence, and Ruleset Module Resolution
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:**
 
@@ -69,8 +69,8 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
      - $DOMAINS_DIR/<domain>/specs/<missing_file>.civil.yaml
    Restore the missing file(s) or re-run /extract-ruleset <domain>.
    ```
-3. Run **SP-ResolveSubRulesets** (from `core/ruleset-shared.md`) with context `update`.
-   - If SP-ResolveSubRulesets emits an abort signal (new `sub_rulesets:` entries not in manifest): stop with SP-ResolveSubRulesets's message.
+3. Run **SP-ResolveRulesetModules** (from `core/ruleset-shared.md`) with context `update`.
+   - If SP-ResolveRulesetModules emits an abort signal (new `ruleset_modules:` entries not in manifest): stop with SP-ResolveRulesetModules's message.
    - Otherwise, store the returned work-list for use in Steps 2 and 9.
 
 Proceed to Step 1.
@@ -89,9 +89,9 @@ Before change detection, remove stale entries from `extraction-manifest.yaml` fo
 
 ### Step 2: Detect Changes
 
-**Multi-file (SP-ResolveSubRulesets work-list has more than one entry):**
+**Multi-file (SP-ResolveRulesetModules work-list has more than one entry):**
 
-For each entry in the SP-ResolveSubRulesets work-list, run change detection against that entry's `source_docs:` from the manifest:
+For each entry in the SP-ResolveRulesetModules work-list, run change detection against that entry's `source_docs:` from the manifest:
 
 ```bash
 # Per work-list entry:
@@ -104,7 +104,7 @@ git status <entry_source_doc_path>
 
 The main module is re-extracted if its own source docs changed. If only sub-module source docs changed, the main module is not re-extracted (its `invoke:` fields reference sub-module names, which don't change).
 
-**Single-file (SP-ResolveSubRulesets work-list has one entry):**
+**Single-file (SP-ResolveRulesetModules work-list has one entry):**
 
 If `<filename>` is given, scope change detection to that file only:
 

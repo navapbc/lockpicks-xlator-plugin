@@ -500,8 +500,8 @@ class Rule(BaseModel):
     group: str | None = Field(
         default=None,
         description=(
-            "(CIVIL v6) Workflow stage this rule belongs to. "
-            "Must match a name in rule_set.workflow_stages when that list is non-empty. "
+            "(CIVIL v6) Ruleset group this rule belongs to. "
+            "Must match a name in rule_set.ruleset_groups when that list is non-empty. "
             "Transpiler no-op — annotation only."
         ),
     )
@@ -543,7 +543,7 @@ class Effective(BaseModel):
     )
 
 
-class WorkflowStage(BaseModel):
+class RulesetGroup(BaseModel):
     """A named phase of policy evaluation (CIVIL v6).
 
     Defines the controlled vocabulary for rule group: annotations within this module.
@@ -576,7 +576,7 @@ class RuleSet(BaseModel):
     description: str | None = Field(
         default=None, description="Description of this rule set."
     )
-    workflow_stages: list[WorkflowStage] = Field(
+    ruleset_groups: list[RulesetGroup] = Field(
         default=[],
         description=(
             "(CIVIL v6) Named evaluation phases for this rule set. "

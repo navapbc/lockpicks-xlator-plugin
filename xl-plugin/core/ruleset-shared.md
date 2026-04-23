@@ -274,7 +274,7 @@ To extract from all files as a unified corpus, run without specifying a filename
 
 ---
 
-### SP-ResolveSubRulesets
+### SP-ResolveRulesetModules
 
 **When to call:**
 - `/extract-ruleset`: immediately after pre-flight Check 5 (load `guidance.yaml`)
@@ -287,29 +287,29 @@ To extract from all files as a unified corpus, run without specifying a filename
 **Logic:**
 
 ```
-SP-ResolveSubRulesets
+SP-ResolveRulesetModules
 
-1. If sub_rulesets: absent or empty in guidance.yaml:
+1. If ruleset_modules: absent or empty in guidance.yaml:
    → Output: [{file: $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml,
                name: <program>, action: generate, bind_map: {}, is_new: <bool>}]
    → Return immediately (single-file path; caller proceeds as today — no changes to existing behavior)
 
-2. For each entry in sub_rulesets:
+2. For each entry in ruleset_modules:
    a. Resolve expected civil_file path: $DOMAINS_DIR/<domain>/specs/<name>.civil.yaml
    b. Check if file exists on disk
    c. Check if file is listed in extraction-manifest.yaml sub_modules:
 
 3. If context == 'update':
-   For each sub_rulesets: entry whose name does NOT appear in extraction-manifest.yaml sub_modules::
+   For each ruleset_modules: entry whose name does NOT appear in extraction-manifest.yaml sub_modules::
      → Emit:
-       "⚠️  New sub-ruleset candidates found in guidance.yaml that were not in the initial extraction:
+       "⚠️  New ruleset module candidates found in guidance.yaml that were not in the initial extraction:
              <names>.
         Run /extract-ruleset <domain> to generate them before running /update-ruleset."
-     → Abort SP-ResolveSubRulesets (caller must stop — do not proceed with partial work-list)
+     → Abort SP-ResolveRulesetModules (caller must stop — do not proceed with partial work-list)
 
 4. Build binding confirmation table (extract context only):
    Skip entirely when context == 'update' — bindings are already resolved in the existing manifest.
-   For each sub_rulesets: entry, derive bind: dict from bound_entities::
+   For each ruleset_modules: entry, derive bind: dict from bound_entities::
    - If sub-module has exactly one entity in its facts: section, derive {SubEntity: BoundEntity} for each entry in bound_entities:
    - If the mapping is ambiguous (sub-module entity count unknown): prompt "Map <SubModuleEntity> to which parent entity? <bound_entities>" for each ambiguous pair
    Show the full binding table before any prompts:
@@ -324,7 +324,7 @@ SP-ResolveSubRulesets
 
    On [e N]: prompt "Row N — Sub entity: <current> → Parent entity: <current>. Enter new parent entity name:". Update and re-display the table. Loop until [y].
 
-5. For each sub-module in sub_rulesets: order where file exists on disk:
+5. For each sub-module in ruleset_modules: order where file exists on disk:
    Show first 10 lines of existing file + "Last modified: <date>"
    Prompt:
      File exists: $DOMAINS_DIR/<domain>/specs/<name>.civil.yaml
@@ -336,7 +336,7 @@ SP-ResolveSubRulesets
    For new files (not on disk): action: generate automatically.
 
 6. Output work-list in dependency order:
-   [sub-modules in sub_rulesets: order] → [main module last]
+   [sub-modules in ruleset_modules: order] → [main module last]
    For 'reference' entries: included in work-list with action: reference; caller skips generation and SP-Validate for this entry; caller still writes manifest entry with referenced: true.
 ```
 
@@ -352,7 +352,7 @@ SP-ResolveSubRulesets
 }
 ```
 
-**Callers must treat a single-entry work-list (empty sub_rulesets:) identically to today's single-file path.** SP-ResolveSubRulesets's step 1 fast-return guarantees the output is compatible with existing single-file logic.
+**Callers must treat a single-entry work-list (empty ruleset_modules:) identically to today's single-file path.** SP-ResolveRulesetModules's step 1 fast-return guarantees the output is compatible with existing single-file logic.
 
 ---
 
@@ -381,7 +381,7 @@ For each candidate rule component C in the component list:
        (e.g., "if DOL record not found, fall back to client-reported data";
         "use the most recently submitted form")
 
-  [O3] Call routing between modules beyond invoke: sub-ruleset binding
+  [O3] Call routing between modules beyond invoke: ruleset module binding
        (e.g., "route to the AK DOH income calculator";
         "select which calculation module to invoke based on application state")
 
@@ -432,7 +432,7 @@ After processing all components:
 
 **In `/update-ruleset` context:** SP-MaintainabilityReview checks only rules and computed fields that were added or modified in the current update (identified in Step 4: Identify Affected CIVIL Sections). It does not re-check unchanged rules.
 
-**Input:** The drafted/merged CIVIL module file (path). Also available: the `workflow_stages:` defined in `guidance.yaml` for the domain (for context on expected stage names).
+**Input:** The drafted/merged CIVIL module file (path). Also available: the `ruleset_groups:` defined in `guidance.yaml` for the domain (for context on expected stage names).
 
 **Procedure:**
 
@@ -442,8 +442,8 @@ Run the following checklist against the CIVIL file:
 CHECKLIST:
 
 [M1] group: coverage (non-blocking)
-     PASS: Every rule entry has group: set to a defined workflow stage name
-           (or workflow_stages is empty, in which case this check is advisory only)
+     PASS: Every rule entry has group: set to a defined ruleset group name
+           (or ruleset_groups is empty, in which case this check is advisory only)
      FAIL: List rules with missing or invalid group:
 
 [M2] computed: vs rules: separation (non-blocking)

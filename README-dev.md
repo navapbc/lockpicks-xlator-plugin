@@ -214,10 +214,11 @@ xlator rego-pipeline <domain> <module>
   - v1: Baseline version with minimal features
   - v2: Enable computed/intermediate variables to decompose long formulas into multi-step computations via the `computed:` field
   - v3: Add `tags` to computed variables so they can be included as part of the output for explaining ruleset results
-  - v4: Enable running sub-ruleset on different input data and using the results in other rules via `invoke:` sub-ruleset computed fields
+  - v4: Enable running ruleset module on different input data and using the results in other rules via `invoke:` ruleset module computed fields
   - v5: Allow `decisions:` fields to support any CIVIL type (money, int, string, enum, etc.) with an optional `expr:` or `conditional:`, not just `bool` eligibility and `list` reasons.
   - v6: Improve rulesets maintainability using CIVIL DSL annotations and self-review gate to modularize rulesets, separate orchestration concerns out of CIVIL rules, and minimize rule interactions.
   - v7: Add `table_lookup` as a 4th computed field variant — declarative table lookup with implicit key resolution by name match; desugars to `expr:` at transpile time via `civil_expr.normalize_computed_doc()`.
+  - v8: Rename `rule_set.workflow_stages` to `rule_set.ruleset_groups` and `WorkflowStage` model to `RulesetGroup` for vocabulary consistency with the `/create-ruleset-groups` command.
 
 ---
 

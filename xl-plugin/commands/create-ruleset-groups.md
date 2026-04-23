@@ -1,6 +1,6 @@
-# Propose and Write Workflow Stages for a Domain
+# Propose and Write Ruleset Groups for a Domain
 
-Read `input-index.yaml` for phase headings and logical groupings, propose `workflow_stages`, and write them to `guidance.yaml` after `skeleton:`. A "Workflow Stage" is synonymous with a "ruleset group".
+Read `input-index.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:` and before `constraints:`. A "Ruleset Group" is synonymous with a "ruleset group".
 
 ## Input
 
@@ -57,11 +57,11 @@ Run these checks before doing anything else:
 
 ## Mode Detection
 
-After pre-flight, check whether the `workflow_stages:` key already exists in `guidance.yaml`:
+After pre-flight, check whether the `ruleset_groups:` key already exists in `guidance.yaml`:
 
 - **Present** → **UPDATE mode**. Display the existing list and prompt:
   ```
-  workflow_stages already defined:
+  ruleset_groups already defined:
     1. <name> — <description>
     2. <name> — <description>
 
@@ -69,7 +69,7 @@ After pre-flight, check whether the `workflow_stages:` key already exists in `gu
   ```
   - `a` → Exit without writing. Suggest next step:
     ```
-    Next: Run /create-ruleset-modules <domain> to detect sub-ruleset candidates.
+    Next: Run /create-ruleset-modules <domain> to detect ruleset module candidates.
     ```
   - `r` → Run the full process below (Steps 1–3): re-scan, re-propose, accept/edit, write.
   - `m` → Run the full process below to generate a new proposal list, then merge new + existing (deduplicated by `name`; new descriptions win on conflict). Display the merged list for confirmation using the same format as Step 2, then write on acceptance.
@@ -90,9 +90,9 @@ Look for:
 
 Convert detected headings to `snake_case` names and prepare a proposed list. Examples: "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`.
 
-**If no phase headings are found:** propose a single catch-all stage derived from `display_name` in `guidance.yaml` (e.g., if `display_name` is "Determine Eligibility", propose `eligibility`), and note it can be refined later. Never leave `workflow_stages:` empty.
+**If no phase headings are found:** propose a single catch-all stage derived from `display_name` in `guidance.yaml` (e.g., if `display_name` is "Determine Eligibility", propose `eligibility`), and note it can be refined later. Never leave `ruleset_groups:` empty.
 
-In UPDATE mode with `m` (merge): after generating the new proposal list, combine it with the existing `workflow_stages:` entries. Deduplicate by `name` — when the same stage name appears in both lists, keep the new `description`. Hold the merged list in memory for Step 2.
+In UPDATE mode with `m` (merge): after generating the new proposal list, combine it with the existing `ruleset_groups:` entries. Deduplicate by `name` — when the same stage name appears in both lists, keep the new `description`. Hold the merged list in memory for Step 2.
 
 ---
 
@@ -101,7 +101,7 @@ In UPDATE mode with `m` (merge): after generating the new proposal list, combine
 Display the proposed list (or merged list in UPDATE `m` mode) in exactly this format:
 
 ```
-Proposed workflow stages
+Proposed ruleset groups
 ────────────────────────────────────────────────
   1. income_test          — Income eligibility tests
   2. household_test       — Household size and composition tests
@@ -112,16 +112,16 @@ Do not prompt for user input. Proceed directly to Step 3.
 
 ---
 
-### Step 3: Write `workflow_stages:`
+### Step 3: Write `ruleset_groups:`
 
 Write the confirmed stages to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 
-- Insert `workflow_stages:` as a top-level key immediately after `skeleton:` — do not append to the end of the file
+- Insert `ruleset_groups:` as a top-level key immediately after `skeleton:` and before `constraints:` — do not append to the end of the file
 - Update `generated_at` to today's date
 
 YAML format:
 ```yaml
-workflow_stages:
+ruleset_groups:
   - name: income_test
     description: Income eligibility tests
   - name: household_test
@@ -135,7 +135,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
 
 Then suggest the next step:
 ```
-Next: Run /create-ruleset-modules <domain> to detect sub-ruleset candidates.
+Next: Run /create-ruleset-modules <domain> to detect ruleset module candidates.
 ```
 
 ---
@@ -149,10 +149,10 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 ## Common Mistakes to Avoid
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of phase heading signals
-- `workflow_stages:` is inserted after `skeleton:` in `guidance.yaml`, not at the end of the file
-- In UPDATE mode "accept" (or Enter), exit without writing — do not overwrite existing `workflow_stages:` content
+- `ruleset_groups:` is inserted after `skeleton:` and before `constraints:` in `guidance.yaml`, not at the end of the file
+- In UPDATE mode "accept" (or Enter), exit without writing — do not overwrite existing `ruleset_groups:` content
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`
 - Convert phase headings to `snake_case` — "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`
-- When no phase headings are found, propose a single catch-all stage from `display_name` — never leave `workflow_stages:` empty or omit the key
-- Note: requiring `workflow_stages:` before sub-ruleset detection reverses the monolith's Step 4 → Step 5 order. This is intentional: sub-rulesets must stay within a single stage, so stages must be defined first.
+- When no phase headings are found, propose a single catch-all stage from `display_name` — never leave `ruleset_groups:` empty or omit the key
+- Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage, so stages must be defined first.
 - This command has 3 steps — the step checklist rule (>3 steps) does NOT apply; do not show a step checklist

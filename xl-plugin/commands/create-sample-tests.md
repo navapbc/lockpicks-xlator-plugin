@@ -37,8 +37,8 @@ Which domain? Enter a number or domain name:
      Stop.
 
 4. **Sample rules available?** Check whether any of the following is present and non-empty in `guidance.yaml`:
-   - Any `sub_rulesets[]` entry has a non-empty `sample_rules:` sub-key, **or**
-   - `example_rules:` is a non-empty top-level list
+   - Any `ruleset_modules[]` entry has a non-empty `sample_rules:` sub-key, **or**
+   - `sample_rules:` is a non-empty top-level list
 
    If neither is present:
    ```
@@ -47,10 +47,10 @@ Which domain? Enter a number or domain name:
    ```
    Stop.
 
-**Degraded mode:** If pre-flight step 4 passes but only `example_rules:` is present (no `sub_rulesets[].sample_rules`), print:
+**Degraded mode:** If pre-flight step 4 passes but only `sample_rules:` is present (no `ruleset_modules[].sample_rules`), print:
 
 ```
-⚠ No sample_rules found in sub_rulesets — test inputs derived from input_variables only.
+⚠ No sample_rules found in ruleset_modules — test inputs derived from input_variables only.
   Run /xl:extract-sample-rules <domain> for richer test data.
 ```
 
@@ -66,7 +66,7 @@ Read from `guidance.yaml`:
 
 **Input field names** — collect from two sources:
 1. All names in `input_variables.categories[].examples` lists (flat variable names)
-2. (Non-degraded mode only) Variable names used as input bindings in `sub_rulesets[].sample_rules[].civil` CIVIL snippets — parse `facts:` field names and `with:` binding keys
+2. (Non-degraded mode only) Variable names used as input bindings in `ruleset_modules[].sample_rules[].civil` CIVIL snippets — parse `facts:` field names and `with:` binding keys
 
 **Expected field names and value sets** — collect from:
 - `output_variables.primary`: name, type, and (if enum) allowed values list
@@ -137,7 +137,7 @@ Show updated step checklist.
 ### Step 3: Merge into guidance.yaml
 
 Read the current `guidance.yaml`. Merge the generated test cases into the top-level `sample_tests:` list:
-- If `sample_tests:` does not exist, add it after `example_rules:` (or after `edge_cases:` if `example_rules:` is absent)
+- If `sample_tests:` does not exist, add it after `sample_rules:` (or after `edge_cases:` if `sample_rules:` is absent)
 - Append only entries whose `case_id:` is not already present in the existing `sample_tests:` list
 - Do not overwrite or remove existing entries
 

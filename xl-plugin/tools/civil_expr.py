@@ -136,7 +136,7 @@ def extract_refs_from_computed(
     """Extract refs from a computed field definition.
 
     Handles 'expr' (single expression), 'conditional' (if/then/else), and
-    'invoke:' (CIVIL v4 sub-ruleset call). invoke: fields have no inline
+    'invoke:' (CIVIL v4 ruleset module call). invoke: fields have no inline
     expression — they reference a sub-module; return empty refs.
     """
     # CIVIL v4: invoke: fields have no inline expression to parse

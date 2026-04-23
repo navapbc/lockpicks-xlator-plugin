@@ -247,23 +247,23 @@ def validate_table_lookup_references(doc: dict) -> tuple[list[str], list[str]]:
 
 
 def validate_group_assignments(module_path: str, module: "CivilModule") -> tuple[list[str], list[str]]:
-    """Validate rule group: values against rule_set.workflow_stages (CIVIL v6).
+    """Validate rule group: values against rule_set.ruleset_groups (CIVIL v6).
 
     Returns (errors, warnings).
-    - If workflow_stages is empty: emit a warning for each rule with group set (not an error).
-    - If workflow_stages is non-empty: error for each rule whose group is not in stage names.
+    - If ruleset_groups is empty: emit a warning for each rule with group set (not an error).
+    - If ruleset_groups is non-empty: error for each rule whose group is not in stage names.
     """
     errors = []
     warnings = []
 
-    stage_names = {s.name for s in module.rule_set.workflow_stages}
+    stage_names = {s.name for s in module.rule_set.ruleset_groups}
 
     if not stage_names:
         for rule in module.rules:
             if rule.group is not None:
                 warnings.append(
                     f"rules → {rule.id}: group='{rule.group}' is set but "
-                    f"rule_set.workflow_stages is empty — define workflow_stages "
+                    f"rule_set.ruleset_groups is empty — define ruleset_groups "
                     f"to enable group validation"
                 )
         return errors, warnings
@@ -272,7 +272,7 @@ def validate_group_assignments(module_path: str, module: "CivilModule") -> tuple
         if rule.group is not None and rule.group not in stage_names:
             errors.append(
                 f"rules → {rule.id}: group='{rule.group}' is not in "
-                f"rule_set.workflow_stages names: {sorted(stage_names)}"
+                f"rule_set.ruleset_groups names: {sorted(stage_names)}"
             )
 
     return errors, warnings
