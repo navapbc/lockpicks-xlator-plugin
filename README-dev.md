@@ -219,6 +219,7 @@ xlator rego-pipeline <domain> <module>
   - v6: Improve rulesets maintainability using CIVIL DSL annotations and self-review gate to modularize rulesets, separate orchestration concerns out of CIVIL rules, and minimize rule interactions.
   - v7: Add `table_lookup` as a 4th computed field variant — declarative table lookup with implicit key resolution by name match; desugars to `expr:` at transpile time via `civil_expr.normalize_computed_doc()`.
   - v8: Rename `rule_set.workflow_stages` to `rule_set.ruleset_groups` and `WorkflowStage` model to `RulesetGroup` for vocabulary consistency with the `/create-ruleset-groups` command.
+  - v9: Rename top-level keys `facts:` → `inputs:` and `decisions:` → `outputs:` for plain-language clarity. Rename computed field tag `"output"` → `"expose"` to eliminate naming overlap between the new `outputs:` section and the tag used to expose computed fields to parent modules.
 
 ---
 
