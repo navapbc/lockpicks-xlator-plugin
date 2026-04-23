@@ -35,7 +35,7 @@ Typical steps:
         - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
         - `/xl:create-ruleset-groups <domain>` — propose and confirm workflow stages
         - `/xl:create-ruleset-modules <domain>` — detect sub-ruleset candidates
-        - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index
+        - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules)
         - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables (best after extract-sample-rules)
         - `/xl:create-sample-tests <domain>` — generate sample test scaffolding
   4. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
@@ -67,27 +67,29 @@ flowchart TD
 
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
-    SAMPLERULES["/xl:extract-sample-rules\nenabled: guidance.yaml + input-index.yaml exist"]
+    GY_MODS(["guidance.yaml\nwith sub_rulesets:"])
+    SAMPLERULES["/xl:extract-sample-rules\nbest: sub_rulesets: present\nmin: skeleton: present\nenabled: guidance.yaml + input-index.yaml exist"]
     GY_RULES(["guidance.yaml\nwith sample_rules"])
     TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
     SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or example_rules present"]
 
-    GY --> SAMPLERULES
+    MODS --> GY_MODS --> SAMPLERULES
     IDX --> SAMPLERULES
     SAMPLERULES --> GY_RULES --> TAGVARS
     GY_RULES --> SAMPLETESTS
 
     EXTRACT["/xl:extract-ruleset\nenabled: workflow_stages: + sub_rulesets: present"]
 
-    MODS --> EXTRACT
+    GY_MODS --> EXTRACT
     TAGVARS -.->|"optional"| EXTRACT
     SAMPLETESTS -.->|"optional"| EXTRACT
 ```
 
-**Parallel-safe pairs** (no dependency between them — can run concurrently after `guidance.yaml` exists):
-- `/xl:create-skeleton` and `/xl:extract-sample-rules`
+**Recommended sequence** for the three scaffold commands: `extract-sample-rules` (after `create-ruleset-modules`) → `tag-vars-to-include-with-output` → `create-sample-tests`.
 
-**Recommended sequence** for the three scaffold commands: `extract-sample-rules` → `tag-vars-to-include-with-output` → `create-sample-tests`. `tag-vars` can technically run earlier but produces better results after `extract-sample-rules` populates CIVIL snippets with invoke-derived variables.
+- `extract-sample-rules` can run earlier (after `create-skeleton` minimum) but produces flat, ungrouped output without `sub_rulesets:`
+- `tag-vars` can run earlier but misses invoke-derived variables only visible in CIVIL snippets
+- `create-sample-tests` always follows `extract-sample-rules`
 
 Once a ruleset exists or whenever the ruleset changes, the user can choose to:
   * `/xl:create-demo <domain>` to generate a web-based ruleset demo

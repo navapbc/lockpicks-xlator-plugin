@@ -4,6 +4,17 @@ Exhaustively generate CIVIL rules from `input-index.yaml` entries and write them
 
 Unlike `/refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately.
 
+**Recommended run order:** After `/xl:create-ruleset-modules`. The quality of the output depends on how complete `guidance.yaml` is at invocation time:
+
+| `guidance.yaml` state | Impact on output |
+|---|---|
+| `sub_rulesets:` populated (after `/create-ruleset-modules`) | Rules routed to the correct sub-ruleset's `sample_rules:` — full structural grouping |
+| `workflow_stages:` present but no `sub_rulesets:` (after `/create-ruleset-groups`) | Stage context available but all rules fall into `example_rules:` |
+| `skeleton:` present but no stages or sub-rulesets (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into `example_rules:` |
+| Neither `skeleton:` nor `sub_rulesets:` (after `/declare-ruleset-io` only) | Command runs but produces flat, unstructured output with no ordering context |
+
+The command prints a warning when `skeleton:` or `sub_rulesets:` is absent (see Step 2). It does not stop — partial output is better than none.
+
 ## Input
 
 ```
@@ -69,6 +80,18 @@ Steps:
 ### Step 2: Load and filter index
 
 Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry).
+
+Before filtering, check `guidance.yaml` for missing context and print warnings if applicable:
+
+```
+⚠ skeleton: not found in guidance.yaml — computation ordering and category groupings unavailable.
+  Run /xl:create-skeleton <domain> first for better-structured output.
+
+⚠ sub_rulesets: not found in guidance.yaml — all rules will be written to example_rules: (no sub-ruleset grouping).
+  Run /xl:create-ruleset-modules <domain> first for structured rule routing.
+```
+
+Print only the warnings that apply. Proceed regardless.
 
 **If `<rule_topic>` was provided:** further filter to entries whose `heading:`, `summary:`, or `tags:` contain the topic keywords (case-insensitive). If no entries match the topic, print:
 
