@@ -106,6 +106,12 @@ If no variables were detected and no existing values were present, print:
 No variables auto-detected. include_with_output: [] written to guidance.yaml.
 ```
 
+Then suggest next steps:
+
+```
+Next: Run /xl:create-sample-tests <domain> to generate sample test cases to measure the accuracy of the generated ruleset
+```
+
 ---
 
 ## Output

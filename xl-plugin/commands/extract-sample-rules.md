@@ -1,6 +1,6 @@
 # Extract Sample Rules
 
-Exhaustively generate CIVIL rules from `input-index.yaml` entries and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
+Generate a comprehensive set of relevant CIVIL rules from `input-index.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
 
 Unlike `/xl:refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately.
 
@@ -223,6 +223,12 @@ If `<rule_topic>` was provided and entries were skipped, list them:
 Skipped (not related to '<rule_topic>'):
   - 441-2 UNEARNED INCOME
   - 523 MEDICAID EXCEPTIONS
+```
+
+Then suggest next steps:
+
+```
+Next: Run /xl:tag-vars-to-include-with-output <domain> to auto-detect intermediate computed variables to be exposed along with the final output
 ```
 
 ---

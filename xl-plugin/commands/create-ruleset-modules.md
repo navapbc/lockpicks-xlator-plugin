@@ -172,8 +172,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
 Then suggest next steps:
 
 ```
-Next: Run /xl:extract-ruleset <domain> to extract the CIVIL ruleset.
-      Re-run /xl:refine-guidance <domain> at any time to further refine guidance.
+Next: Run /xl:extract-sample-rules <domain> to extract sample rules.
 ```
 
 ---
