@@ -504,9 +504,9 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
     expressions by translate_expr_to_catala.
     """
     lines = []
-    facts = doc.get("facts", {})
+    facts = doc.get("inputs", {})
     computed = doc.get("computed", {})
-    decisions = doc.get("decisions", {})
+    decisions = doc.get("outputs", {})
     deny_rules = [r for r in doc.get("rules", []) if r.get("kind") == "deny"]
     sub_module_docs = sub_module_docs or {}
 
@@ -607,15 +607,15 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                 lines.append(f"  input {field_name} content {catala_type}{optional_note}")
 
     # Pass 1: internal computed fields (non-invoke, non-output-tagged)
-    # CIVIL v3: fields with tags: [output] are promoted to output — handled in pass 2.
+    # CIVIL v3: fields with tags: [expose] are promoted to output — handled in pass 2.
     # bool fields with `expr:` use Catala `condition` syntax (rule/fulfilled) which cannot
-    # be `output` unless tags: [output], in which case `output content boolean` + definition/equals.
+    # be `output` unless tags: [expose], in which case `output content boolean` + definition/equals.
     # CIVIL v4: invoke: fields are subscope references — handled in pass 2.
     for field_name, field_def in computed.items():
         if isinstance(field_def, dict) and field_def.get("invoke"):
             continue  # subscope output — pass 2
         ftype = field_def.get("type", "money")
-        is_output = "output" in (field_def.get("tags") or [])
+        is_output = "expose" in (field_def.get("tags") or [])
         if is_output:
             continue  # tagged output — pass 2
         if ftype == "bool" and "expr" in field_def:
@@ -645,12 +645,12 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         sub_doc = sub_module_docs.get(sub_module_name, {})
         scope_decision = snake_to_pascal(sub_doc.get("module", sub_module_name).split(".")[0]) + "Decision"
         lines.append(f"  output {field_name} scope {catala_mod_name}.{scope_decision}")
-    # 2b: tags: [output] fields (in CIVIL order)
+    # 2b: tags: [expose] fields (in CIVIL order)
     for field_name, field_def in computed.items():
         if isinstance(field_def, dict) and field_def.get("invoke"):
             continue  # already emitted in 2a
         ftype = field_def.get("type", "money")
-        is_output = "output" in (field_def.get("tags") or [])
+        is_output = "expose" in (field_def.get("tags") or [])
         if not is_output:
             continue
         if ftype == "bool" and "expr" in field_def:
@@ -701,7 +701,7 @@ def emit_subscope_wiring(
         definitions = []
         for sub_entity, parent_entity in bind.items():
             sub_entity_fields = (
-                sub_doc.get("facts", {}).get(sub_entity, {}).get("fields", {})
+                sub_doc.get("inputs", {}).get(sub_entity, {}).get("fields", {})
             )
             parent_var = re.sub(r"(?<!^)(?=[A-Z])", "_", parent_entity).lower()
             for field in sub_entity_fields:
@@ -981,7 +981,7 @@ def emit_table_section(doc: dict, scope_name: str, constants: dict, table_style:
     """
     tables = doc.get("tables", {})
     computed = doc.get("computed", {})
-    fact_entities = set(doc.get("facts", {}).keys())
+    fact_entities = set(doc.get("inputs", {}).keys())
     chunks = []
 
     # Compute invoke-bound entities (fields wired via invoke: bind:)
@@ -1097,7 +1097,7 @@ def emit_computed_section_catala(
             lines.append(f"    else {else_expr}")
         elif "expr" in field_def:
             raw_expr = field_def["expr"]
-            is_output = "output" in (field_def.get("tags") or [])
+            is_output = "expose" in (field_def.get("tags") or [])
             if ftype == "bool" and is_output:
                 # Output boolean with expr: emit definition/equals (content boolean, not condition)
                 catala_expr = translate_condition_to_catala(
@@ -1151,7 +1151,7 @@ def find_eligible_field_name(doc: dict) -> str:
 
     Falls back to 'eligible' if no boolean decision field is found.
     """
-    for field_name, field_def in doc.get("decisions", {}).items():
+    for field_name, field_def in doc.get("outputs", {}).items():
         if field_def.get("type") == "bool":
             return field_name
     return "eligible"
@@ -1223,7 +1223,7 @@ def emit_decision_section_catala(
     constants = constants or {}
     tables = tables or {}
     deny_rules = [r for r in doc.get("rules", []) if r.get("kind") == "deny"]
-    decisions = doc.get("decisions", {})
+    decisions = doc.get("outputs", {})
 
     # --- Per-decision chunks ---
     decision_chunks = []
@@ -1347,7 +1347,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     target_name_base = re.sub(r"\.catala_en(\.md)?$", "", output_basename)
     catala_module_name = target_name_base[0].upper() + target_name_base[1:] if target_name_base else "Module"
 
-    fact_entities = set(doc.get("facts", {}).keys())
+    fact_entities = set(doc.get("inputs", {}).keys())
 
     # --- Load sub-module docs for invoke: fields (3f) ---
     sub_module_docs: dict = {}
@@ -1409,7 +1409,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     # The catala-metadata fence cannot be split (Catala requires one declaration scope block).
     md_lines.append("## Declarations")
     md_lines.append("")
-    for entity_name, entity_def in doc.get("facts", {}).items():
+    for entity_name, entity_def in doc.get("inputs", {}).items():
         for field_name, field_def in entity_def.get("fields", {}).items():
             _emit_prose_heading(
                 md_lines, field_name,
@@ -1552,7 +1552,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     # from computed intermediates without reading the CIVIL source.
     meta_path = os.path.join(out_dir, f"{target_name}_meta.py")
     computed_doc = doc.get("computed", {})
-    decisions_doc = doc.get("decisions", {})
+    decisions_doc = doc.get("outputs", {})
 
     subscope_fields = [
         k for k, v in computed_doc.items()
@@ -1561,14 +1561,14 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     computed_out_fields = [
         k for k, v in computed_doc.items()
         if not (isinstance(v, dict) and v.get("invoke"))
-        and "output" in (v.get("tags") or [])
+        and "expose" in (v.get("tags") or [])
     ]
     decision_field_names = list(decisions_doc.keys())
 
     meta_lines = [
         f"# {target_name}_meta.py  (transpiler-generated — do not edit)",
         f"# Field categories for {scope_name} scope.",
-        '# "decision"        — primary outcome fields (decisions: section)',
+        '# "decision"        — primary outcome fields (outputs: section)',
         '# "computed_output" — intermediate values tagged output: (computed: section)',
         '# "subscope_output" — invoke: computed fields that are subscope references',
         "",

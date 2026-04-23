@@ -110,7 +110,7 @@ def build_field_type_map(civil_doc: dict) -> dict:
     optional_flags = {}
     enum_variants = {}
     entity_fields = {}
-    for entity_name, entity_def in civil_doc.get("facts", {}).items():
+    for entity_name, entity_def in civil_doc.get("inputs", {}).items():
         fields = []
         for field_name, field_def in entity_def.get("fields", {}).items():
             civil_type = field_def.get("type", "int")
@@ -391,26 +391,26 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
 
     # All bool decision fields (e.g. manual_verification_required) — asserted in order
     bool_decision_fields = [
-        fname for fname, fdef in civil_doc.get("decisions", {}).items()
+        fname for fname, fdef in civil_doc.get("outputs", {}).items()
         if fdef.get("type") == "bool"
     ]
 
     # String-enum decision fields (e.g. eligible with values: [approve, deny, ...]) — asserted in order
     string_decision_fields = [
-        fname for fname, fdef in civil_doc.get("decisions", {}).items()
+        fname for fname, fdef in civil_doc.get("outputs", {}).items()
         if fdef.get("type") == "string" and fdef.get("values")
     ]
 
     # Numeric decision fields (money, int, float) — asserted in order
     numeric_decision_fields = [
         (fname, fdef.get("type"))
-        for fname, fdef in civil_doc.get("decisions", {}).items()
+        for fname, fdef in civil_doc.get("outputs", {}).items()
         if fdef.get("type") in ("money", "int", "float")
     ]
 
     # Denial reasons field
     denial_field = "reasons"
-    for fname, fdef in civil_doc.get("decisions", {}).items():
+    for fname, fdef in civil_doc.get("outputs", {}).items():
         if fdef.get("type") == "list":
             denial_field = fname
             break

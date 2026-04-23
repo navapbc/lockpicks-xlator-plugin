@@ -226,7 +226,7 @@ def normalize_computed_doc(doc: dict) -> dict:
         return doc
 
     tables = doc.get("tables", {})
-    entities = doc.get("facts", {})
+    entities = doc.get("inputs", {})
     computed_names = list(computed.keys())
 
     normalized = {}

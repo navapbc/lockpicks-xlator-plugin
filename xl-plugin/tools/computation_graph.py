@@ -167,13 +167,13 @@ def build_graph(civil_path: str) -> tuple[dict, str]:
     nodes: dict[str, dict] = {}
 
     # --- INPUT nodes: fact fields ---
-    for entity_name, entity_def in (doc.get("facts") or {}).items():
+    for entity_name, entity_def in (doc.get("inputs") or {}).items():
         for field_name, field_def in (entity_def.get("fields") or {}).items():
             key = f"{entity_name}.{field_name}"
             nodes[key] = {
                 "kind": "input",
                 "type": field_def.get("type", "unknown"),
-                "location": f"facts.{entity_name}.{field_name}",
+                "location": f"inputs.{entity_name}.{field_name}",
                 "depends_on": [],
                 "used_by": [],
             }

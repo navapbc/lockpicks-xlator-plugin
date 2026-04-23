@@ -68,8 +68,8 @@ def build_csv_field_specs(civil_doc: dict) -> list[FieldSpec]:
     - computed: fields are excluded
     - Decision fields: named expected_<decision_name>, in decisions: declaration order
     """
-    facts: dict = civil_doc.get("facts", {})
-    decisions: dict = civil_doc.get("decisions", {})
+    facts: dict = civil_doc.get("inputs", {})
+    decisions: dict = civil_doc.get("outputs", {})
 
     multi_entity = len(facts) > 1
     specs: list[FieldSpec] = []
