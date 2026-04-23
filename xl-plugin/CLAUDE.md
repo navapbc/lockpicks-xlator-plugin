@@ -35,11 +35,57 @@ Typical steps:
         - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
         - `/xl:create-ruleset-groups <domain>` — propose and confirm workflow stages
         - `/xl:create-ruleset-modules <domain>` — detect sub-ruleset candidates
-        - (optional, run before `/extract-ruleset` for pre-extraction scaffolding):
-          - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables
-          - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index
-          - `/xl:create-sample-tests <domain>` — generate sample test scaffolding
+        - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect output-exposed variables
+        - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index
+        - `/xl:create-sample-tests <domain>` — generate sample test scaffolding
   4. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
+
+### Step-by-step command dependency diagram
+
+Enable/disable each command in the UI based on which file-state prerequisites are satisfied. Dashed edges indicate optional steps — the downstream command is enabled independently, not gated on them.
+
+```mermaid
+flowchart TD
+    DOCS["policy docs in input/policy_docs/"]
+    IDX_CMD["/xl:index-inputs"]
+    IDX(["input-index.yaml"])
+
+    DOCS --> IDX_CMD --> IDX
+
+    SUG["/xl:suggest-ruleset-io\nenabled: input-index.yaml exists"]
+    SUG_F(["suggested_rulesets/*.yaml"])
+    DECL["/xl:declare-ruleset-io\nenabled: suggested_rulesets/ has ≥1 file"]
+    GY(["guidance.yaml"])
+
+    IDX --> SUG --> SUG_F --> DECL --> GY
+
+    SKEL["/xl:create-skeleton\nenabled: guidance.yaml exists"]
+    GY_SKEL(["guidance.yaml\nwith skeleton:"])
+    GROUPS["/xl:create-ruleset-groups\nenabled: skeleton: present"]
+    GY_GROUPS(["guidance.yaml\nwith workflow_stages:"])
+    MODS["/xl:create-ruleset-modules\nenabled: workflow_stages: present"]
+
+    GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
+
+    TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists"]
+    SAMPLERULES["/xl:extract-sample-rules\nenabled: guidance.yaml + input-index.yaml exist"]
+    GY_RULES(["guidance.yaml\nwith sample_rules"])
+    SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or example_rules present"]
+
+    GY --> TAGVARS
+    GY --> SAMPLERULES
+    IDX --> SAMPLERULES
+    SAMPLERULES --> GY_RULES --> SAMPLETESTS
+
+    EXTRACT["/xl:extract-ruleset\nenabled: workflow_stages: + sub_rulesets: present"]
+
+    MODS --> EXTRACT
+    TAGVARS -.->|"optional"| EXTRACT
+    SAMPLETESTS -.->|"optional"| EXTRACT
+```
+
+**Parallel-safe pairs** (no dependency between them — can run concurrently after `guidance.yaml` exists):
+- `/xl:create-skeleton` and `/xl:tag-vars-to-include-with-output` and `/xl:extract-sample-rules`
 
 Once a ruleset exists or whenever the ruleset changes, the user can choose to:
   * `/xl:create-demo <domain>` to generate a web-based ruleset demo
