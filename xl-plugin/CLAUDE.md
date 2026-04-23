@@ -27,7 +27,14 @@ Typical steps:
   0. `/xl:new-domain <domain>` to set up the folder scaffold for a new domain
   1. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
   2. `/xl:index-inputs <domain>` to build a document index
-  3. `/xl:refine-guidance <domain>` to set extraction goals and ruleset guidance
+  3. Set extraction goals and ruleset guidance — two options:
+     a. **Monolithic (recommended for new users):** `/xl:refine-guidance <domain>`
+     b. **Step-by-step (for UI-driven or incremental workflows):**
+        - `/xl:suggest-ruleset-io <domain>` — analyze the index and suggest candidate rulesets
+        - `/xl:declare-ruleset-io <domain>` — bootstrap `guidance.yaml` from a suggestion file
+        - `/xl:create-skeleton <domain>` — extract doc signals and build the computation skeleton
+        - `/xl:create-ruleset-groups <domain>` — propose and confirm workflow stages
+        - `/xl:create-ruleset-modules <domain>` — detect sub-ruleset candidates
   4. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
 
 Once a ruleset exists or whenever the ruleset changes, the user can choose to:
