@@ -37,7 +37,7 @@ def _collect_expressions(doc: dict) -> list[str]:
             for key in ("if", "then", "else"):
                 if key in field_def["conditional"]:
                     exprs.append(str(field_def["conditional"][key]))
-    for field_def in (doc.get("decisions") or {}).values():
+    for field_def in (doc.get("outputs") or {}).values():
         if not isinstance(field_def, dict):
             continue
         if "expr" in field_def:
@@ -69,7 +69,7 @@ def validate_enum_decisions(path: str, data: dict) -> tuple[list[str], list[str]
     declared_type = primary.get("type")
     if not declared_name or not declared_type:
         return [], []
-    decisions = data.get("decisions") or {}
+    decisions = data.get("outputs") or {}
     if declared_name not in decisions:
         return [], []
     actual_type = (decisions[declared_name] or {}).get("type", "")
@@ -124,7 +124,7 @@ def validate_invoke_references(module_path: str, doc: dict) -> tuple[list[str], 
                 _check_module(sub_path)
         stack.pop()
 
-    parent_entities = set((doc.get("facts") or {}).keys())
+    parent_entities = set((doc.get("inputs") or {}).keys())
     for field_name, field_def in (doc.get("computed") or {}).items():
         if not isinstance(field_def, dict):
             continue
@@ -140,7 +140,7 @@ def validate_invoke_references(module_path: str, doc: dict) -> tuple[list[str], 
         try:
             with open(sub_path) as f:
                 sub_doc = yaml.safe_load(f)
-            sub_entities = set((sub_doc.get("facts") or {}).keys())
+            sub_entities = set((sub_doc.get("inputs") or {}).keys())
             bind = field_def.get("invoke") or {}
             if isinstance(bind, dict):
                 bind_dict = bind.get("bind", {})
@@ -175,11 +175,11 @@ def validate_invoke_references(module_path: str, doc: dict) -> tuple[list[str], 
                 continue  # decisions fields are always accessible; let transpiler catch unknowns
             sub_field = sub_computed[attr]
             tags = sub_field.get("tags", []) if isinstance(sub_field, dict) else []
-            if "output" not in tags:
+            if "expose" not in tags:
                 warnings.append(
                     f"computed → {field_name}: references '{attr}' on sub-module "
-                    f"'{sub_module_name}' but '{attr}' lacks tags: [output] — "
-                    f"add tags: [output] to the sub-module field or it will fail at transpile time"
+                    f"'{sub_module_name}' but '{attr}' lacks tags: [expose] — "
+                    f"add tags: [expose] to the sub-module field or it will fail at transpile time"
                 )
 
     return errors, warnings

@@ -354,10 +354,10 @@ class ComputedField(BaseModel):
     tags: list[str] | None = Field(
         default=None,
         description=(
-            "(CIVIL v3) Optional list of string labels. Currently only 'output' has "
+            "(CIVIL v3) Optional list of string labels. Currently only 'expose' has "
             "defined behavior: marks the field for exposure as a Catala `output` "
             "declaration (and subsequently in the demo API's ComputedBreakdown). "
-            "Ignored by the Rego transpiler. Example: tags: [output]"
+            "Ignored by the Rego transpiler. Example: tags: [expose]"
         ),
     )
 
@@ -595,7 +595,7 @@ class CivilModule(BaseModel):
     for government policy/regulation logic with full traceability to source law.
 
     Required sections: module, description, version, jurisdiction, effective,
-                       facts, decisions, rule_set, rules.
+                       inputs, outputs, rule_set, rules.
     Optional sections: tables, constants, computed, types.
     """
 
@@ -606,13 +606,13 @@ class CivilModule(BaseModel):
     version: str = Field(description="Version identifier, e.g. '2026Q1'.")
     jurisdiction: Jurisdiction = Field(description="Jurisdiction metadata.")
     effective: Effective = Field(description="Effective date range for this ruleset.")
-    facts: dict[str, FactEntity] = Field(
+    inputs: dict[str, FactEntity] = Field(
         description=(
             "Input fact types. Keys are entity names (PascalCase), "
             "values are entity definitions with typed fields."
         )
     )
-    decisions: dict[str, DecisionField] = Field(
+    outputs: dict[str, DecisionField] = Field(
         description=(
             "Output decision values produced by rule evaluation. "
             "Common pattern: eligible (bool) + reasons (list[Reason])."

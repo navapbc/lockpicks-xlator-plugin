@@ -43,9 +43,9 @@ ls $DOMAINS_DIR/<domain>/output/demo-rego-<module>/ 2>/dev/null
 ### Step 1: Read Inputs
 
 - Load `$DOMAINS_DIR/<domain>/specs/<module>.civil.yaml` — extract:
-  - `facts.<Entity>.fields` — input field names, types, optionality, descriptions
+  - `inputs.<Entity>.fields` — input field names, types, optionality, descriptions
   - `computed:` — output computed field names (keys only; ignore `expr:`/`conditional:` values)
-  - `decisions:` — decision field names and types
+  - `outputs:` — decision field names and types
   - `metadata` — domain name, description, any policy citation
 - Load `$DOMAINS_DIR/<domain>/specs/tests/<module>_tests.yaml` if present — pick up to 3 test cases with distinct outcomes (prefer one `allow_*`, one `deny_*`, one edge case).
 
@@ -132,7 +132,7 @@ class DenialReason(BaseModel):
     citation: str = ""
 ```
 
-**Response model** — derive from `decisions:`:
+**Response model** — derive from `outputs:`:
 - `eligible: bool` field → `eligible: bool`
 - `list` type field (e.g., `reasons`) → `list[DenialReason]`
 - Always include `computed: ComputedBreakdown`
@@ -254,9 +254,9 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 
 | CIVIL field | Rego mode artifact |
 |-------------|-------------------|
-| `facts.<Entity>.fields[type=int/money/bool/string]` | `InputFacts` Pydantic fields; `<input>` elements; `payload` fields in submit handler |
+| `inputs.<Entity>.fields[type=int/money/bool/string]` | `InputFacts` Pydantic fields; `<input>` elements; `payload` fields in submit handler |
 | `computed:` keys | `ComputedBreakdown` Pydantic fields; breakdown table rows + test-result divs in `renderResults()` |
-| `decisions:` keys | Response model fields; badge + denial list in `renderResults()` |
+| `outputs:` keys | Response model fields; badge + denial list in `renderResults()` |
 | `metadata.domain` + module name | `OPA_DECISION_PATH`, FastAPI route, app title, page title |
 | Test cases (up to 3) | `EXAMPLES` dict + button labels in `index.html` |
 
@@ -267,9 +267,9 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 - **Do NOT hardcode `snap` or `eligibility`** — derive all names from `<domain>` and `<module>` args
 - **Do NOT copy SNAP-specific field names** — read the CIVIL spec and derive field names from it
 - **Do NOT include Rego generation logic** — Rego is a pre-existing prerequisite
-- **Use `facts.<Entity>.fields` keys verbatim** as Python attribute names and HTML `id`/`name` values — they are already snake_case
+- **Use `inputs.<Entity>.fields` keys verbatim** as Python attribute names and HTML `id`/`name` values — they are already snake_case
 - **The `computed:` block may have `conditional:` entries** — extract the key name only; ignore the expression
-- **The `decisions:` block may have a `list` type field** (e.g., `reasons`) — map to `list[DenialReason]` in Python
+- **The `outputs:` block may have a `list` type field** (e.g., `reasons`) — map to `list[DenialReason]` in Python
 - **`start.sh` REPO_ROOT is always 4 levels up** from the script — `$(cd "$SCRIPT_DIR/../../../.." && pwd)` — do not change this
 
 **Reference files (read these before generating):**

@@ -35,7 +35,7 @@ Core concepts
 
 Facts are the only input; the engine is a pure function:
 
-`evaluate(policy_bundle, facts, as_of_date, jurisdiction) -> decisions + reasons`
+`evaluate(policy_bundle, facts, as_of_date, jurisdiction) -> outputs + reasons`
 
 ### 2) Outputs are “decisions”
 
@@ -98,7 +98,7 @@ module: "housing_assistance"
 description: "Housing Assistance eligibility rules"
 jurisdiction: { level: federal, country: US }
 
-facts:
+inputs:
   Applicant:
     fields:
       age: { type: int }
@@ -108,7 +108,7 @@ facts:
       city: { type: string }
       state: { type: string }
 
-decisions:
+outputs:
   eligible: { type: bool, default: false }
   reasons:  { type: list, item: Reason, default: [] }
 
@@ -145,7 +145,7 @@ tables:
 
 ### 2b) Computed values (CIVIL v2)
 
-The `computed:` section defines intermediate derived values using CIVIL expressions. Unlike `decisions:`, computed values are not primary outputs — they are results available to `rules:` (in `when:` expressions) and to other `computed:` fields.
+The `computed:` section defines intermediate derived values using CIVIL expressions. Unlike `outputs:`, computed values are not primary outputs — they are results available to `rules:` (in `when:` expressions) and to other `computed:` fields.
 
 ```yaml
 computed:
@@ -176,7 +176,7 @@ Each field uses either `expr:` (a single expression) or `conditional:` (if/then/
 - `min(a, b)` — maps to Catala `min integer of [a, b]` (or `min money of [a, b]` for money types)
 - Other computed field names referenced by bare identifier (e.g., `shelter_excess`); maps to Rego `min([a, b])`; 
 
-**`tags:` (CIVIL v3, optional)** — A list of string labels on a computed field. Currently only `"output"` has defined behavior:
+**`tags:` (CIVIL v3, optional)** — A list of string labels on a computed field. Currently only `"expose"` has defined behavior:
 
 - Marks the field for exposure as an `output` declaration (instead of `internal`) when the Catala transpiler is run.
 - The tagged field then appears in the demo API's `ComputedBreakdown` response model, enabling policy transparency.
@@ -188,7 +188,7 @@ computed:
   countable_earned_income:
     type: money
     expr: "after_blind_work"
-    tags: [output]   # CIVIL v3: expose in Catala output + ComputedBreakdown
+    tags: [expose]   # CIVIL v3: expose in Catala output + ComputedBreakdown
 ```
 
 ---
@@ -240,7 +240,7 @@ source: "7 CFR § 273.9(a)(1) — Gross Income Test"
 
 **Where it applies:** `FactField`, `ComputedField`, `TableDef`, `Rule`.
 
-**Where it does not apply:** `FactEntity` (container, not a leaf definition), `DecisionField` (output), `constants` (untyped dict).
+**Where it does not apply:** `FactEntity` (container, not a leaf definition), `OutputField` (output), `constants` (untyped dict).
 
 **`source:` vs `citations:` distinction:**
 
@@ -254,7 +254,7 @@ A deny rule will often have the same CFR section in both. That is expected — t
 Example on a fact field, computed field, table, and rule:
 
 ```yaml
-facts:
+inputs:
   Household:
     fields:
       gross_monthly_income:
@@ -293,18 +293,18 @@ rules:
 
 ---
 
-### 2e) decisions: with expr: or conditional: (CIVIL v5)
+### 2e) outputs: with expr: or conditional: (CIVIL v5)
 
-**CIVIL v5** extends `decisions:` fields to support any CIVIL type (`money`, `int`, `string`, `enum`, etc.) with an optional `expr:` or `conditional:` for direct expression-driven assignment.
+**CIVIL v5** extends `outputs:` fields to support any CIVIL type (`money`, `int`, `string`, `enum`, etc.) with an optional `expr:` or `conditional:` for direct expression-driven assignment.
 
-- `bool` decision fields now require an explicit `expr:` (the implicit `count(reasons)==0` is gone).
-- `list`/`set` decision fields remain rule-driven (no `expr:` needed).
-- Non-list/non-set decision fields without `expr:` or `conditional:` are a validation error.
+- `bool` output fields now require an explicit `expr:` (the implicit `count(reasons)==0` is gone).
+- `list`/`set` output fields remain rule-driven (no `expr:` needed).
+- Non-list/non-set output fields without `expr:` or `conditional:` are a validation error.
 
-**Use case:** Computation-only sub-modules (e.g., income calculators) have their primary numeric output as a `decisions:` field with `expr:` rather than a `computed:` field with `tags: [output]`. This makes the value top-level in the `decision` object instead of nested under `decision.computed`.
+**Use case:** Computation-only sub-modules (e.g., income calculators) have their primary numeric output as an `outputs:` field with `expr:` rather than a `computed:` field with `tags: [expose]`. This makes the value top-level in the `decision` object instead of nested under `decision.computed`.
 
 ```yaml
-decisions:
+outputs:
   eligible:
     type: bool
     default: false
@@ -317,7 +317,7 @@ decisions:
     default: []
     description: "Denial reasons (empty if eligible)"
 
-  # For computation-output modules — primary numeric output as a decision:
+  # For computation-output modules — primary numeric output as an output:
   adjusted_income:
     type: money
     currency: USD
@@ -335,7 +335,7 @@ decisions:
       else: "determination_non_denial"
 ```
 
-**Transpilation (Rego):** Expression-driven decisions emit as top-level rules:
+**Transpilation (Rego):** Expression-driven outputs emit as top-level rules:
 ```rego
 adjusted_income := half_remaining - blind_work_expenses - plan_earnings
 decision := {
@@ -345,7 +345,7 @@ decision := {
 }
 ```
 
-**Transpilation (Catala):** Decision fields emit as `definition field equals <expr>` — no label/exception chaining needed since `eligible` is now a pure expression.
+**Transpilation (Catala):** Output fields emit as `definition field equals <expr>` — no label/exception chaining needed since `eligible` is now a pure expression.
 
 ---
 
@@ -392,7 +392,7 @@ rules:
 ```
 
 **Result field access** is flat: `client_result.net_income` resolves a computed field;
-`client_result.eligible` resolves a decision field. Decision fields win if names collide.
+`client_result.eligible` resolves an output field. Output fields win if names collide.
 
 **Constraints:**
 
@@ -402,7 +402,7 @@ rules:
 | `type: object` | `invoke:` fields must use `type: object` |
 | `module:` required | Must name the sub-module file (without `.civil.yaml` extension) |
 | Non-empty `bind:` | At least one entity binding is required |
-| `tags: [output]` required | Sub-module computed fields must have `tags: [output]` to be accessible from a parent `invoke:` expression. Decision fields (e.g. `eligible`) are always accessible. |
+| `tags: [expose]` required | Sub-module computed fields must have `tags: [expose]` to be accessible from a parent `invoke:` expression. Output fields (e.g. `eligible`) are always accessible. |
 | No circular invocation | A→B→A cycles are detected and rejected at validation time |
 
 **Transpilation:**
@@ -572,11 +572,11 @@ rules:
 
 | Action | Effect |
 |--------|--------|
-| `set: { decision: value }` | Set a decision output to a value |
-| `add_reason: { code, message, citations }` | Append a Reason to a list-typed decision |
-| `add_instruction: { step, message, citations }` | Append an Instruction to a list-typed decision |
-| `add_to_set: { decision: value }` | Add a value to a set-typed decision |
-| `append_to_list: { decision: value }` | Append a value to a list-typed decision |
+| `set: { output: value }` | Set an output to a value |
+| `add_reason: { code, message, citations }` | Append a Reason to a list-typed output |
+| `add_instruction: { step, message, citations }` | Append an Instruction to a list-typed output |
+| `add_to_set: { output: value }` | Add a value to a set-typed output |
+| `append_to_list: { output: value }` | Append a value to a list-typed output |
 
 Each `then:` entry must have exactly one action type.
 
@@ -659,7 +659,7 @@ Taxes often need:
 module: "tax.filing_basics"
 jurisdiction: { level: federal, country: US }
 
-facts:
+inputs:
   Taxpayer:
     fields:
       filing_status: { type: enum, values: [single, mfj, mfs, hoh] }
@@ -670,7 +670,7 @@ facts:
       gross_income: { type: money, currency: USD }
       withholding: { type: money, currency: USD }
 
-decisions:
+outputs:
   must_file: { type: bool, default: false }
   forms:     { type: set, item: string, default: [] }
   instructions: { type: list, item: Instruction, default: [] }
@@ -758,7 +758,7 @@ This DSL is basically an **intermediate representation**:
 -   **Catala**: inputs/computed fields become scope variables; rules become stacked `under condition` definitions; tables expand to one `under condition` block per row; constants are inlined as literals.
 -   **OPA/Rego**: rules become derived booleans/sets; tables become data; reasons become structured outputs.
 -   **DMN**: tables map directly; precedence maps to hit policies; reason codes become outputs.
--   **Drools**: facts are working memory; rules map to LHS/RHS; reasons are inserted.
+-   **Drools**: inputs are working memory; rules map to LHS/RHS; reasons are inserted.
 
 Because you’ve separated:
 -   metadata

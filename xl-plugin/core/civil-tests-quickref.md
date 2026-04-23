@@ -74,7 +74,7 @@ inputs:
   has_elderly_member: false
 ```
 
-### Multi-entity modules (two or more `facts:` entities)
+### Multi-entity modules (two or more `inputs:` entities)
 
 Inputs are keyed as `EntityName.field_name` (dot notation):
 
@@ -88,7 +88,7 @@ inputs:
   DOLIncome.remaining_general_exclusion: 20
 ```
 
-> ⚠️ **Entity prefix must exactly match the entity name in `facts:`.** Mismatches silently omit the field.
+> ⚠️ **Entity prefix must exactly match the entity name in `inputs:`.** Mismatches silently omit the field.
 
 ### Sparse inputs
 

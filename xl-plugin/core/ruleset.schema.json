@@ -316,7 +316,7 @@
             }
           ],
           "default": null,
-          "description": "(CIVIL v3) Optional list of string labels. Currently only 'output' has defined behavior: marks the field for exposure as a Catala `output` declaration (and subsequently in the demo API's ComputedBreakdown). Ignored by the Rego transpiler. Example: tags: [output]",
+          "description": "(CIVIL v3) Optional list of string labels. Currently only 'expose' has defined behavior: marks the field for exposure as a Catala `output` declaration (and subsequently in the demo API's ComputedBreakdown). Ignored by the Rego transpiler. Example: tags: [expose]",
           "title": "Tags"
         }
       },
@@ -861,7 +861,7 @@
           "items": {
             "$ref": "#/$defs/RulesetGroup"
           },
-          "title": "Workflow Stages",
+          "title": "Ruleset Groups",
           "type": "array"
         }
       },
@@ -869,6 +869,34 @@
         "name"
       ],
       "title": "RuleSet",
+      "type": "object"
+    },
+    "RulesetGroup": {
+      "description": "A named phase of policy evaluation (CIVIL v6).\n\nDefines the controlled vocabulary for rule group: annotations within this module.\nE.g., income_test, asset_test, household_composition.",
+      "properties": {
+        "name": {
+          "description": "Stage identifier (snake_case), e.g. 'income_test'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One-sentence description of this evaluation phase.",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RulesetGroup",
       "type": "object"
     },
     "TableDef": {
@@ -970,37 +998,9 @@
       ],
       "title": "TableLookupDef",
       "type": "object"
-    },
-    "RulesetGroup": {
-      "description": "A named phase of policy evaluation (CIVIL v6).\n\nDefines the controlled vocabulary for rule group: annotations within this module.\nE.g., income_test, asset_test, household_composition.",
-      "properties": {
-        "name": {
-          "description": "Stage identifier (snake_case), e.g. 'income_test'.",
-          "title": "Name",
-          "type": "string"
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "One-sentence description of this evaluation phase.",
-          "title": "Description"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "title": "RulesetGroup",
-      "type": "object"
     }
   },
-  "description": "Top-level CIVIL DSL module. One file per program or policy area.\n\nCIVIL (Civic Instructions & Validations Intermediate Language) is designed\nfor government policy/regulation logic with full traceability to source law.\n\nRequired sections: module, description, version, jurisdiction, effective,\n                   facts, decisions, rule_set, rules.\nOptional sections: tables, constants, computed, types.",
+  "description": "Top-level CIVIL DSL module. One file per program or policy area.\n\nCIVIL (Civic Instructions & Validations Intermediate Language) is designed\nfor government policy/regulation logic with full traceability to source law.\n\nRequired sections: module, description, version, jurisdiction, effective,\n                   inputs, outputs, rule_set, rules.\nOptional sections: tables, constants, computed, types.",
   "properties": {
     "module": {
       "description": "Unique module identifier, e.g. 'housing_assistance'.",
@@ -1024,20 +1024,20 @@
     "effective": {
       "$ref": "#/$defs/Effective"
     },
-    "facts": {
+    "inputs": {
       "additionalProperties": {
         "$ref": "#/$defs/FactEntity"
       },
       "description": "Input fact types. Keys are entity names (PascalCase), values are entity definitions with typed fields.",
-      "title": "Facts",
+      "title": "Inputs",
       "type": "object"
     },
-    "decisions": {
+    "outputs": {
       "additionalProperties": {
         "$ref": "#/$defs/DecisionField"
       },
       "description": "Output decision values produced by rule evaluation. Common pattern: eligible (bool) + reasons (list[Reason]).",
-      "title": "Decisions",
+      "title": "Outputs",
       "type": "object"
     },
     "rule_set": {
@@ -1119,8 +1119,8 @@
     "version",
     "jurisdiction",
     "effective",
-    "facts",
-    "decisions",
+    "inputs",
+    "outputs",
     "rule_set",
     "rules"
   ],

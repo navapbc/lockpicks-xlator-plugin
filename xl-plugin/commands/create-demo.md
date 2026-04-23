@@ -45,9 +45,9 @@ ls $DOMAINS_DIR/<domain>/output/demo-catala-<module>/ 2>/dev/null
 ### Step 1: Read Inputs
 
 - Load `$DOMAINS_DIR/<domain>/specs/<module>.civil.yaml` — extract:
-  - `facts.<Entity>.fields` — input field names, types, optionality, descriptions
+  - `inputs.<Entity>.fields` — input field names, types, optionality, descriptions
   - `computed:` — output computed field names (keys only; ignore `expr:`/`conditional:` values)
-  - `decisions:` — decision field names and types
+  - `outputs:` — decision field names and types
   - `metadata` — domain name, description, any policy citation
 - Load `$DOMAINS_DIR/<domain>/specs/tests/<module>_tests.yaml` if present — pick up to 3 test cases with distinct outcomes (prefer one `allow_*`, one `deny_*`, one edge case).
 
@@ -284,10 +284,10 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 
 | CIVIL field | Catala-Python mode artifact |
 |-------------|---------------------|
-| `facts.<Entity>.fields[type=int/money/bool/string]` | `InputFacts` Pydantic fields; `<input>` elements; `payload` fields in submit handler |
-| `facts.<Entity>.fields[type=enum]` | `str` Pydantic field; `<select>` element; `<EnumClass>(<EnumClass_Code>[v], Unit())` conversion |
+| `inputs.<Entity>.fields[type=int/money/bool/string]` | `InputFacts` Pydantic fields; `<input>` elements; `payload` fields in submit handler |
+| `inputs.<Entity>.fields[type=enum]` | `str` Pydantic field; `<select>` element; `<EnumClass>(<EnumClass_Code>[v], Unit())` conversion |
 | `computed:` keys | `ComputedBreakdown` Pydantic fields (Money→`money_to_float`, Integer→`int`, bool→`bool`); rendered as `.breakdown-table` in UI |
-| `decisions:` keys | Response model fields; badge + denial list in `renderResults()` |
+| `outputs:` keys | Response model fields; badge + denial list in `renderResults()` |
 | `metadata.domain` + module name | FastAPI route, app title, page title |
 | Test cases (up to 3) | `EXAMPLES` dict + button labels in `index.html` |
 
@@ -297,9 +297,9 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 
 - **Do NOT hardcode domain or module names** — derive all names from `<domain>` and `<module>` args
 - **Do NOT copy field names from another domain** — read the CIVIL spec and derive field names from it
-- **Use `facts.<Entity>.fields` keys verbatim** as Python attribute names and HTML `id`/`name` values — they are already snake_case
+- **Use `inputs.<Entity>.fields` keys verbatim** as Python attribute names and HTML `id`/`name` values — they are already snake_case
 - **The `computed:` block may have `conditional:` entries** — extract the key name only; ignore the expression
-- **The `decisions:` block may have a `list` type field** (e.g., `reasons`) — map to `list[DenialReason]` in Python
+- **The `outputs:` block may have a `list` type field** (e.g., `reasons`) — map to `list[DenialReason]` in Python
 
 **Catala-Python mode — additional mistakes to avoid:**
 - **Do NOT use `money_of_cents_int`** — it does not exist. Use `money_of_units_int(int(round(value)))` for dollar amounts.

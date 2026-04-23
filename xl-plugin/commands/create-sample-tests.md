@@ -66,7 +66,7 @@ Read from `guidance.yaml`:
 
 **Input field names** — collect from two sources:
 1. All names in `input_variables.categories[].examples` lists (flat variable names)
-2. (Non-degraded mode only) Variable names used as input bindings in `ruleset_modules[].sample_rules[].civil` CIVIL snippets — parse `facts:` field names and `with:` binding keys
+2. (Non-degraded mode only) Variable names used as input bindings in `ruleset_modules[].sample_rules[].civil` CIVIL snippets — parse `inputs:` field names and `with:` binding keys
 
 **Expected field names and value sets** — collect from:
 - `output_variables.primary`: name, type, and (if enum) allowed values list

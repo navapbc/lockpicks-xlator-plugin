@@ -470,7 +470,7 @@ def transpile(doc, output_path, package):
     constants = doc.get("constants", {})
     computed = doc.get("computed", {})
     rules = doc.get("rules", [])
-    decisions = doc.get("decisions", {})
+    decisions = doc.get("outputs", {})
 
     # Build optional_fields map: field_name → Rego default value for absent inputs.
     # Optional money/int/float fields default to 0; bool fields default to False.
@@ -478,7 +478,7 @@ def transpile(doc, output_path, package):
     _type_defaults = {"money": 0, "int": 0, "float": 0, "bool": False, "string": ""}
     optional_fields = {}
     all_input_fields = set()
-    for entity_def in doc.get("facts", {}).values():
+    for entity_def in doc.get("inputs", {}).values():
         for field_name, field_def in entity_def.get("fields", {}).items():
             all_input_fields.add(field_name)
             if field_def.get("optional"):
@@ -602,7 +602,7 @@ def transpile(doc, output_path, package):
     if expr_decisions:
         lines += [
             "# =============================================================================",
-            "# DECISION RULES (from CIVIL decisions: section)",
+            "# DECISION RULES (from CIVIL outputs: section)",
             "# =============================================================================",
             "",
         ]

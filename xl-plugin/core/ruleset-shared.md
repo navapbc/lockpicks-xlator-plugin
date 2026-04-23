@@ -266,10 +266,10 @@ To extract from all files as a unified corpus, run without specifying a filename
    - **`[REQUIRED]`** — fields whose names appear in the main module's `invoke:` dot-access expressions (sub-module files only); locked, cannot be deselected.
    - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (from `intermediate_variables.include_with_output` in `guidance.yaml`); pre-checked, user may uncheck.
    - *(unlabeled)* — the top 5–8 remaining eligible fields by rank; pre-checked, user may uncheck.
-   - Fields already tagged `output` in the CIVIL YAML are always pre-selected regardless of rank.
+   - Fields already tagged `expose` in the CIVIL YAML are always pre-selected regardless of rank.
    - `[REQUIRED]` fields appear first, then `[GUIDANCE]` fields, then unlabeled fields in rank order.
 6. Ask: "These are the computed fields recommended to include to help explain the rule engine's output in the demo breakdown. Confirm, adjust, or add more?"
-7. For each confirmed field, use a targeted Edit tool call to insert `  tags: [output]` immediately after the field's `  type:` line in the CIVIL YAML. Never remove or overwrite existing content.
+7. For each confirmed field, use a targeted Edit tool call to insert `  tags: [expose]` immediately after the field's `  type:` line in the CIVIL YAML. Never remove or overwrite existing content.
 8. **This procedure is append-only.** Tags are added, never removed. To remove a tag, edit the CIVIL YAML directly.
 
 ---
@@ -325,7 +325,7 @@ SP-ResolveRulesetModules
    Skip entirely when context == 'update' — bindings are already resolved in the existing manifest.
    For each sub-module entry in ruleset_modules: (skip the role: main entry — it has no binding),
    derive bind: dict from bound_entities::
-   - If sub-module has exactly one entity in its facts: section, derive {SubEntity: BoundEntity} for each entry in bound_entities:
+   - If sub-module has exactly one entity in its inputs: section, derive {SubEntity: BoundEntity} for each entry in bound_entities:
    - If the mapping is ambiguous (sub-module entity count unknown): prompt "Map <SubModuleEntity> to which parent entity? <bound_entities>" for each ambiguous pair
    Show the full binding table before any prompts:
 
@@ -533,7 +533,7 @@ Do not advance to SP-Validate until M5 passes.
 
 ## Common Mistakes to Avoid
 
-- **Don't forget `default eligible := false`** — OPA boolean rules are undefined (not false) when conditions don't match; the transpiler handles this automatically for all `bool` fields in `decisions:` and `computed:`
+- **Don't forget `default eligible := false`** — OPA boolean rules are undefined (not false) when conditions don't match; the transpiler handles this automatically for all `bool` fields in `outputs:` and `computed:`
 - **Cite the actual CFR/USC section** for each rule, not just "Program Policy Manual"
 - **Use `optional: true`** for fact fields that may not always be provided (e.g., `earned_income`, `shelter_costs`)
 - **Distinguish earned vs. unearned income** if any deduction applies only to earned income

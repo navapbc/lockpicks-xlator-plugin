@@ -110,10 +110,10 @@ Map policy elements to CIVIL DSL constructs:
 
 | Policy Element | CIVIL Construct |
 |---|---|
-| Household/applicant inputs | `facts:` entity with typed fields |
-| Eligibility outcome | `decisions:` (usually `eligible: bool` with `expr:`) |
-| Denial/approval explanations | `decisions: reasons: list[Reason]` |
-| Computed output value (e.g., adjusted_income) | `decisions:` field with `type: money` and `expr:` |
+| Household/applicant inputs | `inputs:` entity with typed fields |
+| Eligibility outcome | `outputs:` (usually `eligible: bool` with `expr:`) |
+| Denial/approval explanations | `outputs: reasons: list[Reason]` |
+| Computed output value (e.g., adjusted_income) | `outputs:` field with `type: money` and `expr:` |
 | Dollar thresholds by size | `tables:` with key/value rows |
 | Fixed rates/amounts | `constants:` |
 | **Intermediate derived values** | **`computed:` fields (CIVIL v2)** |
@@ -171,11 +171,11 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 
 ### Step 4: Draft the CIVIL Module
 
-**Name binding:** Before writing any CIVIL YAML, re-read the approved Name Inventory table(s) from Step 3b. Use **only** those approved field names for every `facts:`, `computed:`, `decisions:`, `tables:`, and `constants:` entry — do not re-derive names from policy text.
+**Name binding:** Before writing any CIVIL YAML, re-read the approved Name Inventory table(s) from Step 3b. Use **only** those approved field names for every `inputs:`, `computed:`, `outputs:`, `tables:`, and `constants:` entry — do not re-derive names from policy text.
 
 **Multi-file:** Iterate the SP-ResolveRulesetModules work-list in generation order (sub-modules first, main module last). For each `generate` entry, apply the full drafting logic below. For each `reference` entry, skip drafting entirely (the file is already on disk).
 
-**Sub-module files:** Draft as a standard CIVIL module (no `invoke:` fields). Sub-module computed fields that will be accessed by the parent module via dot-access **must** have `tags: [output]`. Remind yourself of the parent's planned `invoke:` fields when choosing which computed fields to mark as output.
+**Sub-module files:** Draft as a standard CIVIL module (no `invoke:` fields). Sub-module computed fields that will be accessed by the parent module via dot-access **must** have `tags: [expose]`. Remind yourself of the parent's planned `invoke:` fields when choosing which computed fields to mark as expose.
 
 **Main module with sub-modules:** Draft with `invoke:` computed fields using the confirmed `bind:` maps from SP-ResolveRulesetModules's work-list. Use confirmed field names from the sub-module Name Inventory tables (or actual field names from `reference` files) in dot-access expressions (e.g., `client_result.net_income`). Each `invoke:` field has `type: object` and a `module:` matching the sub-module name.
 
@@ -199,7 +199,7 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 - If the variable name appears in the map, use its `expr:` value directly and add the YAML comment `# expr confirmed in /refine-guidance` on the same line or immediately above the `expr:` field.
 - For variables not in the map, infer `expr:` from policy text as normal.
 
-Additionally, check the guidance output set (from Step 1): if the variable name is in the set, add `tags: [output]` immediately after the `type:` line in the emitted CIVIL YAML for that field.
+Additionally, check the guidance output set (from Step 1): if the variable name is in the set, add `tags: [expose]` immediately after the `type:` line in the emitted CIVIL YAML for that field.
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
@@ -215,7 +215,7 @@ effective:
   start: YYYY-MM-DD
   end: YYYY-MM-DD  # optional
 
-facts:
+inputs:
   <EntityName>:
     description: "..."
     fields:
@@ -226,7 +226,7 @@ facts:
         currency: USD  # for money type
         optional: true  # if not required
 
-decisions:
+outputs:
   eligible:
     type: bool
     default: false
@@ -237,7 +237,7 @@ decisions:
     item: Reason
     default: []
     description: "..."
-  # For computation-output modules, use a typed decision with expr: instead of computed: + tags: [output]:
+  # For computation-output modules, use a typed decision with expr: instead of computed: + tags: [expose]:
   # adjusted_income:
   #   type: money
   #   currency: USD
@@ -503,11 +503,11 @@ Ask: "Does this translation correctly capture the policy intent? Any rules missi
 
 ### Step 7b: Write Naming Manifest
 
-Now that the user has approved the rule-by-rule review, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b):
+Now that the user has approved the rule-by-rule review, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
 
 ```yaml
 version: "1.0"
-entities:
+inputs:
   <EntityName>:
     <field_name>:
       policy_phrase: "<exact policy phrase from Name Inventory>"
@@ -519,6 +519,12 @@ computed:
     policy_phrase: "<exact policy phrase>"
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
+outputs:
+  <field_name>:
+    policy_phrase: "<exact policy phrase from Name Inventory>"
+    source_doc: "<source filename>"
+    section: "<source title, heading, and paragraph>"
+  # repeat for each outputs: field
 ```
 
 **If `naming-manifest.yaml` already exists** (CREATE re-run): merge — preserve all existing entries unchanged and append only new entries.

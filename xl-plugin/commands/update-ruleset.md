@@ -41,7 +41,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:**
 
-1. Read all field names from the manifest (`entities.<EntityName>.<field>` keys and `computed.<field>` keys)
+1. Read all field names from the manifest (`inputs.<EntityName>.<field>` keys and `computed.<field>` keys)
 2. Read all fact and computed field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
 3. Compare the two sets. If any field name exists in the CIVIL file but not the manifest, or exists in both but with a different spelling, **halt** and list every mismatch:
 
@@ -137,7 +137,7 @@ For each changed doc, read the diff and determine which CIVIL sections need upda
 |---|---|
 | Dollar thresholds by household size | `tables:`, possibly `computed:` (size 9+ formulas) |
 | Fixed rates or percentages | `constants:` |
-| New applicant fields added | `facts:`, possibly `rules:` |
+| New applicant fields added | `inputs:`, possibly `rules:` |
 | New eligibility test or condition | `rules:`, possibly `computed:` |
 | Effective date change | `effective:` |
 | Jurisdiction change | `jurisdiction:` |
@@ -157,7 +157,7 @@ Apply these constraints and standards when re-extracting the affected CIVIL sect
 
 For each affected section, re-read the relevant parts of the changed policy doc and re-extract only that section. Do not touch sections not identified in Step 4.
 
-When re-extracting any section that contains `facts:` or `computed:` fields, inject the frozen names from `naming-manifest.yaml` into your extraction reasoning: "These fields must keep their exact current names: [list all names from manifest]. Only introduce new field names for policy concepts not in this list, using the 4-step algorithm: (1) exact noun phrase, (2) strip entity-name words, (3) snake_case, (4) disambiguate if needed." **Never rename an existing field.**
+When re-extracting any section that contains `inputs:` or `computed:` fields, inject the frozen names from `naming-manifest.yaml` into your extraction reasoning: "These fields must keep their exact current names: [list all names from manifest]. Only introduce new field names for policy concepts not in this list, using the 4-step algorithm: (1) exact noun phrase, (2) strip entity-name words, (3) snake_case, (4) disambiguate if needed." **Never rename an existing field.**
 
 After re-extracting, run **SP-OrchestrationFilter** (from `core/ruleset-shared.md`) on the newly extracted rule components (not the full existing CIVIL file — only rules and computed fields identified in Step 4):
 - Remove flagged components; display the SP-OrchestrationFilter summary table if any were flagged.
@@ -285,7 +285,7 @@ Ask: "Does this update look correct? Any changes missing or incorrect?"
 
 ### Step 9b: Update Naming Manifest
 
-If any new fact or computed fields were added: derive canonical names using the 4-step algorithm from `/xl:extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate entity or `computed:` section. Preserve all existing entries unchanged.
+If any new fact, computed, or outputs fields were added: derive canonical names using the 4-step algorithm from `/xl:extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate `inputs:` entity, `computed:`, or `outputs:` section. Preserve all existing entries unchanged.
 
 If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after the review gate passes.
 

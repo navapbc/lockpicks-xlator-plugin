@@ -16,7 +16,7 @@ jurisdiction:
 effective:
   start: 2026-01-01
 
-facts:
+inputs:
   Applicant:
     description: "Test applicant entity"
     fields:
@@ -28,7 +28,7 @@ facts:
         type: int
         description: "Number of people in household"
 
-decisions:
+outputs:
   eligible:
     type: bool
     default: false
