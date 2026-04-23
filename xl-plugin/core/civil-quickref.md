@@ -397,14 +397,16 @@ The following YAML schemas are used by `/refine-guidance`, `/extract-ruleset`, a
 
 ### `guidance.yaml` — `ruleset_modules:` key
 
-Place after `edge_cases:`, before `sample_rules:`. Populated by `/refine-guidance` Step 3 ruleset module-candidate detection. A ruleset module becomes a CIVIL sub-module.
+Place after `ruleset_groups:`, before `constraints:`. Populated by `/create-ruleset-modules` (and `/refine-guidance` Step 3 in the monolithic workflow). Lists all modules — sub-modules and the main program file — that will be generated as separate `.civil.yaml` files.
 
 | Field | Required | Notes |
 |-------|----------|-------|
 | `name` | ✅ | Resolves to `$DOMAINS_DIR/<domain>/specs/<name>.civil.yaml` |
-| `description` | ✅ | Human-readable purpose of the sub-module |
-| `bound_entities` | ✅ | List of parent entity names (from the main module's `facts:`) that map to the sub-module's primary entity |
-| `rationale` | ✅ | One of: `reuse_across_entities`, `depth_threshold`, `policy_structure`, `user_hint` |
+| `description` | ✅ | Human-readable purpose of the module |
+| `bound_entities` | ✅ | CamelCase parent entity names; `[]` (empty) for the main module entry |
+| `rationale` | ✅ | One of: `reuse_across_entities`, `depth_threshold`, `policy_structure`, `variable_coupling`, `shared_gate`, `user_hint`, `main_module` |
+| `role` | — | `main` for the main program module; omit or `sub` for sub-modules. Exactly one per ruleset may be `main`. |
+| `depends_on` | — | List of module `name:` values this module invokes. Defaults to `[]` when absent. |
 
 ```yaml
 ruleset_modules:
@@ -413,7 +415,14 @@ ruleset_modules:
     bound_entities:                   # parent entity names that will bind to this sub-module
       - ClientData
       - DOLRecord
-    rationale: "reuse_across_entities"  # one of: reuse_across_entities | depth_threshold | policy_structure | user_hint
+    rationale: reuse_across_entities
+    depends_on: []
+  - name: eligibility                 # main program module
+    description: "Program eligibility determination"
+    bound_entities: []
+    rationale: main_module
+    role: main
+    depends_on: [earned_income]
 ```
 
 **Heuristics that populate `rationale:`:**
@@ -423,7 +432,10 @@ ruleset_modules:
 | `reuse_across_entities` | 2+ `bound_entities` candidates with same computed-variable naming prefix |
 | `policy_structure` | Named sub-section in `input-index.yaml` headings or policy text covers ≥3 intermediate variables |
 | `depth_threshold` | ≥5 variable names in skeleton whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
+| `variable_coupling` | ≥3 intermediate variables each referencing ≥2 others' outputs, forming a mutual dependency clique |
+| `shared_gate` | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`) |
 | `user_hint` | `ruleset_modules:` already populated in `guidance.yaml` (UPDATE mode only) |
+| `main_module` | Main program entry — written by `/create-ruleset-modules` after sub-module detection |
 
 ---
 

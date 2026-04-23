@@ -294,13 +294,27 @@ SP-ResolveRulesetModules
                name: <program>, action: generate, bind_map: {}, is_new: <bool>}]
    → Return immediately (single-file path; caller proceeds as today — no changes to existing behavior)
 
+1b. Resolve main module name:
+    Find the entry in ruleset_modules: where role: == 'main' (if any).
+    If a role: main entry exists:
+      main_name = that entry's name
+      If <program> CLI arg was given AND differs from main_name:
+        Print: "Note: Using declared main module name '<main_name>' from
+                guidance.yaml (ignoring '<program>' argument)."
+    Else:
+      main_name = <program> CLI arg if given (backward compat path — R11).
+      If no <program> arg, main_name is resolved later by the caller's Step 3
+      (Derive Program Name) from policy text.
+
 2. For each entry in ruleset_modules:
    a. Resolve expected civil_file path: $DOMAINS_DIR/<domain>/specs/<name>.civil.yaml
    b. Check if file exists on disk
-   c. Check if file is listed in extraction-manifest.yaml sub_modules:
+   c. Check if file is listed in extraction-manifest.yaml sub_modules: (sub-module entries only;
+      the role: main entry is not expected in sub_modules: — skip this check for it)
 
 3. If context == 'update':
-   For each ruleset_modules: entry whose name does NOT appear in extraction-manifest.yaml sub_modules::
+   For each ruleset_modules: entry WHERE role != 'main' (or role absent)
+     whose name does NOT appear in extraction-manifest.yaml sub_modules::
      → Emit:
        "⚠️  New ruleset module candidates found in guidance.yaml that were not in the initial extraction:
              <names>.
@@ -309,7 +323,8 @@ SP-ResolveRulesetModules
 
 4. Build binding confirmation table (extract context only):
    Skip entirely when context == 'update' — bindings are already resolved in the existing manifest.
-   For each ruleset_modules: entry, derive bind: dict from bound_entities::
+   For each sub-module entry in ruleset_modules: (skip the role: main entry — it has no binding),
+   derive bind: dict from bound_entities::
    - If sub-module has exactly one entity in its facts: section, derive {SubEntity: BoundEntity} for each entry in bound_entities:
    - If the mapping is ambiguous (sub-module entity count unknown): prompt "Map <SubModuleEntity> to which parent entity? <bound_entities>" for each ambiguous pair
    Show the full binding table before any prompts:
@@ -324,7 +339,7 @@ SP-ResolveRulesetModules
 
    On [e N]: prompt "Row N — Sub entity: <current> → Parent entity: <current>. Enter new parent entity name:". Update and re-display the table. Loop until [y].
 
-5. For each sub-module in ruleset_modules: order where file exists on disk:
+5. For each module in ruleset_modules: (including role: main) where file exists on disk:
    Show first 10 lines of existing file + "Last modified: <date>"
    Prompt:
      File exists: $DOMAINS_DIR/<domain>/specs/<name>.civil.yaml
@@ -335,9 +350,23 @@ SP-ResolveRulesetModules
 
    For new files (not on disk): action: generate automatically.
 
-6. Output work-list in dependency order:
-   [sub-modules in ruleset_modules: order] → [main module last]
-   For 'reference' entries: included in work-list with action: reference; caller skips generation and SP-Validate for this entry; caller still writes manifest entry with referenced: true.
+6. Output work-list in topological order derived from depends_on: declarations:
+   a. Build an in-degree map: for each module M, in_degree[M] = count of modules that list M in their depends_on:.
+      Equivalently: for each entry E and each name D in E.depends_on:, increment in_degree[E] by the number
+      of modules that D depends on indirectly — simpler: in_degree[M] = number of M's appears in other entries' depends_on:.
+   b. Initialize queue with all modules whose in_degree == 0 (no modules depend on them).
+   c. While queue is non-empty: emit the front module, remove it from the queue; for each module that listed
+      the emitted module in its depends_on:, decrement their in_degree; enqueue any that reach 0.
+   d. If any modules remain after the queue drains (cycle detected):
+      → Abort with: "Cycle detected in depends_on: references among ruleset modules: <list of cycle node names>.
+        Fix guidance.yaml depends_on: entries before running /extract-ruleset."
+
+   Fallback (no depends_on: declared on any entry, or all depends_on: are empty lists):
+   Output work-list in current convention order — sub-module entries in ruleset_modules: declaration order,
+   then the role: main entry last.
+
+   For 'reference' entries: included in work-list with action: reference; caller skips generation and
+   SP-Validate for this entry; caller still writes manifest entry with referenced: true.
 ```
 
 **Work-list entry format:**
@@ -347,10 +376,12 @@ SP-ResolveRulesetModules
   name:      "<name>",                   # module name (e.g., "earned_income")
   action:    "generate" | "reference",
   bind_map:  { "<SubEntity>": "<ParentEntity>", ... },   # empty {} for main module
-  is_sub:    true | false,               # false for the main module entry
+  is_sub:    true | false,               # true for sub-module entries; false for the role: main entry
   is_new:    true | false                # false if file already exists
 }
 ```
+
+`is_sub` is consumed by SP-TagOutputs to determine `[REQUIRED]` field locking — it must be `false` for the main module entry and `true` for all sub-module entries.
 
 **Callers must treat a single-entry work-list (empty ruleset_modules:) identically to today's single-file path.** SP-ResolveRulesetModules's step 1 fast-return guarantees the output is compatible with existing single-file logic.
 

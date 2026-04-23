@@ -155,9 +155,9 @@ For each **in-scope entry in the working set from Step 3**, processed in priorit
 - **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
 
 **(d) Assign to ruleset module or main.** For each generated rule, determine the best matching `ruleset_modules:` entry in `guidance.yaml`:
-- Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`.
-- If a clear match is found, assign to that ruleset module's `sample_rules:` list.
-- If no ruleset module match is found, assign to `sample_rules:` (the top-level list).
+- Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`. Only match against sub-module entries (entries where `role:` is absent or `sub`) — do not route to the `role: main` entry during this matching step.
+- If a clear match is found, assign to that sub-module's `sample_rules:` list.
+- If no sub-module match is found: check whether `guidance.yaml` has a `ruleset_modules:` entry with `role: main`. If yes, assign the rule to that entry's `sample_rules:` list (locate the entry by its `name:` value). If no `role: main` entry exists, assign to the top-level `sample_rules:` list as a fallback.
 
 **(e) Record notes.** Track:
 - Any referenced value not found in the index or source text → add descriptive string to `missing_info`
@@ -229,13 +229,15 @@ Show updated step checklist (all steps complete).
 
 Print one line per rule written, in the order they were generated:
 
+The `→ <destination>` label uses the module's `name:` value (e.g., `→ eligibility` for the main module, `→ exclusion_chain` for a sub-module, `→ top-level` when no `role: main` entry exists and the rule falls back to the top-level `sample_rules:`).
+
 ```
 Rules written:
   after_federal     (computed)      → exclusion_chain
   after_eitc        (computed)      → exclusion_chain
-  is_compatible     (computed)      → main
-  approve_income    (categorical)   → main
-  income_limit      (table-lookup)  → main
+  is_compatible     (computed)      → eligibility
+  approve_income    (categorical)   → eligibility
+  income_limit      (table-lookup)  → eligibility
 
 Missing info:
   - monthly_limit for student exclusion not defined in index; see Addendum 1

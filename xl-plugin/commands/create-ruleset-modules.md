@@ -90,12 +90,13 @@ Read:
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of doc signals.
 
-In UPDATE mode: display a summary of existing `ruleset_modules:` as pre-confirmed before scanning for new modules:
+In UPDATE mode: display a summary of existing `ruleset_modules:` as pre-confirmed before scanning for new modules. Include the `role: main` entry (if present) in the pre-confirmed block — it will not be re-prompted in Step 3:
 
 ```
 Existing ruleset modules (pre-confirmed):
-  [confirmed] earned_income      — Shared earned income computation (reuse_across_entities)
-  [confirmed] deduction_chain    — Sequential deduction chain (depth_threshold)
+  [confirmed] earned_income      (sub)   — Shared earned income computation (reuse_across_entities)
+  [confirmed] deduction_chain    (sub)   — Sequential deduction chain (depth_threshold)
+  [confirmed] eligibility        (main)  — AK DOH Earned Income Exclusions
 Scanning for new modules...
 ```
 
@@ -116,16 +117,16 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 
 **R21 stage-boundary constraint:** Every variable in a candidate ruleset module must belong to a single ruleset group (no cross-stage ruleset modules). Infer stage membership by matching variable names and computation categories to stage descriptions and phase heading signals. If a candidate's variables span two stages, either split it into per-stage ruleset modules or reject it with an explanation to the user.
 
-In UPDATE mode: pre-confirmed entries are shown above the table with `[confirmed]` labels (not in the table). Only newly detected modules are shown in the table.
+In UPDATE mode: pre-confirmed entries (existing sub-modules and any existing `role: main` entry) are shown above the table with `[confirmed]` labels as in Step 1. Only newly detected modules are shown in the table below.
 
 **If one or more new modules are detected**, display the results table in exactly this format:
 
 ```
 Ruleset Modules
 ─────────────────────────────────────────────────────────────────────────
-  # │ Sub-Module Name   │ Bound Entities          │ Heuristic
-  1 │ earned_income     │ ClientData, DOLRecord   │ reuse_across_entities
-  2 │ deduction_chain   │ Household               │ depth_threshold
+  # │ Name              │ Role │ Bound Entities          │ Heuristic
+  1 │ earned_income     │ sub  │ ClientData, DOLRecord   │ reuse_across_entities
+  2 │ deduction_chain   │ sub  │ Household               │ depth_threshold
 ─────────────────────────────────────────────────────────────────────────
 ```
 
@@ -142,23 +143,59 @@ No new ruleset modules identified.
 
 ---
 
-### Step 3: Write `ruleset_modules:`
+### Step 3: Prompt for main module name
+
+**Skip this step if:**
+- CREATE mode and zero sub-modules were detected (the single-file extraction path is unchanged)
+- UPDATE mode and a `role: main` entry already exists (already shown as `[confirmed]` above)
+
+Otherwise, prompt:
+
+```
+What should the main program file be named? (e.g., `eligibility`)
+Default: <derived_default> [Enter to accept or type a name]:
+```
+
+**Derive `<derived_default>`:**
+1. Check `output_variables.primary.name` in `guidance.yaml`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the value and use the result.
+2. If no primary output variable is declared, take the last hyphen-segment of `template_id` and strip leading generic prefixes (`calculate-`, `determine-`, `check-`, `compute-`).
+
+Examples:
+- `primary.name: eligibility_determination` → default `eligibility`
+- `template_id: calculate-earned-income-after-exclusions`, no primary name → default `exclusions`
+
+Accept any non-empty snake_case name from the user. If the user presses Enter without input, use the derived default.
+
+---
+
+### Step 4: Write `ruleset_modules:`
 
 Write all detected new candidates to `ruleset_modules:`.
 
 Write `ruleset_modules:` to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 - Insert after `ruleset_groups:` and before `constraints:` (if present), or at end of file if neither follows
-- In UPDATE mode: overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed)
+- In UPDATE mode: overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed); preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries verbatim
 - In CREATE mode with zero modules: write `ruleset_modules: []`
 
-Each confirmed entry must use this exact YAML format:
+Each confirmed sub-module entry must use this exact YAML format:
 
 ```yaml
-ruleset_modules:
   - name: <snake_case>
     description: "<what this ruleset module computes>"
     bound_entities: [<EntityName1>, <EntityName2>]
     rationale: <heuristic value, e.g. reuse_across_entities>
+    depends_on: []
+```
+
+When a main module name was confirmed in Step 3, append the main module entry at the end of the list:
+
+```yaml
+  - name: <program_name>
+    description: "<display_name value from guidance.yaml>"
+    bound_entities: []
+    rationale: main_module
+    role: main
+    depends_on: [<all sub-module names from this run, comma-separated>]
 ```
 
 `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case.
@@ -190,8 +227,11 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 - In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset_modules:`
 - In UPDATE mode with new modules, overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones
 - A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans stages, split it or reject it with an explanation to the user
-- Each `ruleset_modules:` entry must have `name`, `description`, `bound_entities`, and `rationale` — never omit any field
+- Each sub-module `ruleset_modules:` entry must have `name`, `description`, `bound_entities`, `rationale`, and `depends_on` — never omit any field; `role:` defaults to `sub` when absent
+- The main module entry additionally requires `role: main`, `bound_entities: []`, `rationale: main_module`, and `depends_on:` listing all sub-module names
+- Do not write the `role: main` entry when zero sub-modules were detected — the main module prompt (Step 3) only runs when at least one sub-module is present
 - In CREATE mode with zero modules, write `ruleset_modules: []` — never omit the key entirely
-- `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case
-- This command has 3 steps — the step checklist rule (>3 steps) does NOT apply; do not show a step checklist
+- `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case; main module always uses `bound_entities: []`
+- In UPDATE mode, when overwriting `ruleset_modules:`, preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries — never strip fields added by a prior run
+- This command has 4 steps — the step checklist rule (>3 steps) applies; show a step checklist
 - Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage.
