@@ -1,6 +1,6 @@
 # Propose and Write Workflow Stages for a Domain
 
-Read `input-index.yaml` for phase headings and logical groupings, propose `workflow_stages`, and on confirmation write them to `guidance.yaml` after `skeleton:`. This command runs Step 5 (Workflow Stage Elicitation) from `/refine-guidance` as a standalone command. A "Workflow Stage" is synonymous with a "ruleset group".
+Read `input-index.yaml` for phase headings and logical groupings, propose `workflow_stages`, and write them to `guidance.yaml` after `skeleton:`. A "Workflow Stage" is synonymous with a "ruleset group".
 
 ## Input
 
@@ -67,7 +67,7 @@ After pre-flight, check whether the `workflow_stages:` key already exists in `gu
 
   [a]ccept / [r]eplace / [m]erge?  (default: accept)
   ```
-  - `a` (or Enter) → Exit without writing. Suggest next step:
+  - `a` → Exit without writing. Suggest next step:
     ```
     Next: Run /create-ruleset-modules <domain> to detect sub-ruleset candidates.
     ```
@@ -96,7 +96,7 @@ In UPDATE mode with `m` (merge): after generating the new proposal list, combine
 
 ---
 
-### Step 2: Display and confirm stages
+### Step 2: Display stages
 
 Display the proposed list (or merged list in UPDATE `m` mode) in exactly this format:
 
@@ -106,14 +106,9 @@ Proposed workflow stages
   1. income_test          — Income eligibility tests
   2. household_test       — Household size and composition tests
   3. categorical_test     — Categorical eligibility checks
-
-[A] accept all or describe what to edit
-(e.g. "add asset_test — Asset limit checks", "remove 2", "rename 1 to gross_income_test"):
 ```
 
-Accept the list as-is, or apply edits. Re-display the full list in the same format after each edit. Accept when the user types "a", "A", or provides no edit text (empty response meaning acceptance).
-
-**On unrecognized input:** Re-display the list and re-prompt.
+Do not prompt for user input. Proceed directly to Step 3.
 
 ---
 

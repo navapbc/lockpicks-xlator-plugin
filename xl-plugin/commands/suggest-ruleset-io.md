@@ -1,8 +1,8 @@
 # Suggest Ruleset I/O for a Domain
 
-Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate rulesets based on its topic tags, section headings, and computation hints. Displays candidates to the user and saves selected ones as suggestion files to `specs/suggested_rulesets/`. These suggestion files are the input to `/declare-ruleset-io`.
+Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_rulesets/`. The user will select one of the suggestion file as the input to `/declare-ruleset-io`.
 
-The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") narrows what kinds of rulesets to suggest — it prioritizes candidates that match the hint phrase but still reads the whole index. When no hint is provided, all distinct policy scopes found in the index are candidates.
+The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") narrows what kinds of rulesets to suggest — it prioritizes candidates that match the hint phrase but still reads the whole index. When no hint is provided, all distinct policy scopes found in the index are candidates with a preference for rulesets that cover more topics.
 
 ## Input
 
@@ -51,7 +51,7 @@ Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`.
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of doc signals.
 
-Cluster the index signals to identify 1–3 distinct policy scopes. For each scope, derive a candidate ruleset:
+Cluster the index signals to identify 1–5 distinct policy scopes. For each scope, derive a candidate ruleset:
 
 **Signals to extract:**
 - **Topic tags** across all sections → cluster to find prominent domain areas (e.g., "income", "eligibility", "household")
@@ -96,19 +96,9 @@ Suggestions focused on: <hint>            ← omit this line if no hint was prov
      ...
 ```
 
-Then prompt:
-
-```
-Which of these would you like to save? (comma-separated numbers, or 'a' for all):
-```
-
-Await the user's response. Accept:
-- A comma-separated list of numbers (e.g., `1`, `1,3`, `2,3`)
-- `a` — save all candidates
-
 ### Step 2: Save
 
-For each selected candidate:
+Save each candidate:
 
 1. Ensure `$DOMAINS_DIR/<domain>/specs/suggested_rulesets/` directory exists. Create it if absent.
 

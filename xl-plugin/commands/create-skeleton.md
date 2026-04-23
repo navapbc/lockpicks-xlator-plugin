@@ -1,6 +1,6 @@
 # Build Computation Skeleton for a Domain
 
-Extract doc signals from `input-index.yaml` and merge proposals into the four guidance sections of `guidance.yaml`, then build and confirm the computation skeleton. On confirmation, writes the `skeleton:` key and updates the variable sections. This command runs Step 2 (doc-signal extraction) and Step 3 (skeleton building) from `/refine-guidance` as a single independently-callable unit.
+Extract doc signals from `input-index.yaml` and merge proposals into the four guidance sections of `guidance.yaml`, then build and confirm the computation skeleton. Then, writes the `skeleton:` key and updates the variable sections.
 
 ## Input
 
@@ -76,7 +76,7 @@ Steps:
   [✓] Step 1: Load current state
   [ ] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
-  [ ] Step 4: Confirm and write
+  [ ] Step 4: Write computation skeleton
 ```
 
 ---
@@ -105,7 +105,7 @@ Steps:
   [✓] Step 1: Load current state
   [ ] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
-  [ ] Step 4: Confirm and write
+  [ ] Step 4: Write computation skeleton
 ```
 
 ---
@@ -141,7 +141,7 @@ Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
-  [ ] Step 4: Confirm and write
+  [ ] Step 4: Write computation skeleton
 ```
 
 ---
@@ -173,12 +173,9 @@ Display format:
 - ...
 
 [repeat for each intermediate_variables category]
-
----
-[C]onfirm this computation skeleton, or describe what to add, remove, change, or rename.
 ```
 
-Include an ASCII computation flow diagram only when the dependency graph is non-trivial (more than one path from inputs to output, 3+ steps). For simple linear chains, omit it.
+Include an ASCII computation flow diagram.
 
 Then show the step checklist with Steps 1–3 checked off:
 
@@ -187,24 +184,12 @@ Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [✓] Step 3: Build computation skeleton
-  [ ] Step 4: Confirm and write
+  [ ] Step 4: Write computation skeleton
 ```
 
 ---
 
-### Step 4: Confirm and write
-
-**On adjustment response** (user adds, removes, renames, or otherwise changes items): Update the skeleton in memory, re-display the full updated skeleton using the same format as Step 3, and re-ask:
-
-```
-[C]onfirm this computation skeleton, or describe what to add, remove, change, or rename.
-```
-
-Repeat until the user confirms.
-
-**On unrecognized input:** Re-display the skeleton and re-prompt.
-
-**On confirm** (user types "confirm", "yes", "looks good", "c", or presses Enter):
+### Step 4: Write computation skeleton
 
 Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 
@@ -220,6 +205,8 @@ Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
          exprs:
            <variable>: "<expr_hint>"
            # (only variables with non-null expr_hints; = ? variables are omitted)
+     flow_diagram: |
+       # (ASCII computation flow diagram)
    ```
 
 2. **Update `input_variables`** — for each `input_variables` category, rewrite `examples:` with the confirmed variable names from the skeleton display, in display order. Replace any generic placeholder names.
@@ -242,7 +229,7 @@ Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [✓] Step 3: Build computation skeleton
-  [✓] Step 4: Confirm and write
+  [✓] Step 4: Write computation skeleton
 ```
 
 Then suggest the next step:
