@@ -74,11 +74,3 @@ constants_and_tables:
     description: "Minimum monthly benefit floor (if applicable)."
   - name: income_reduction_rate
     description: "Percentage of net income used to reduce the maximum allotment."
-
-examples:
-  ruleset_snippet: |
-    # benefit_amount = max(maximum_allotment - (net_income * 0.30), minimum_benefit)
-    # maximum_allotment is from a table keyed by household_size
-  test_case: |
-    # Given household_size=3, net_income=$500/mo, maximum_allotment=$658
-    # Expect: benefit_amount = max(658 - 150, 23) = $508

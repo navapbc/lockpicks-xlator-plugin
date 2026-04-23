@@ -150,7 +150,7 @@ intermediate_variables:
 - `intermediate_variables.include_with_output: []`: always initialized empty — never omit this key
 - `intermediate_variables.categories: []`: always initialized empty
 
-**Fields to omit entirely:** `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, `examples:`, `sample_rules:` — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`).
+**Fields to omit entirely:** `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, `sample_rules:` — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`).
 
 After writing, print:
 

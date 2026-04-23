@@ -132,7 +132,3 @@ constants_and_tables:
     description: "Expanded Refused Cash Income Limits to use as the 'income standard' to assess Reasonable compatibility"
   - name: student_earned_income_exclusion
     description: "Student Earned Income Exclusion"
-
-examples:
-  ruleset_snippet: |
-    earned_income_after_exclusions = earned_income - max(0, total_exclusions)

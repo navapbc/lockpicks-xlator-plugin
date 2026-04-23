@@ -76,12 +76,3 @@ constants_and_tables:
     description: "Fixed deduction amount by household size or program category."
   - name: asset_limits
     description: "Maximum countable resources by eligibility category."
-
-examples:
-  ruleset_snippet: |
-    # passes_gross_test = (gross_income <= gross_limit)
-    # net_income = gross_income - standard_deduction - earned_income_deduction
-    # decision = passes_gross_test AND passes_net_test
-  test_case: |
-    # Given household_size=3, gross_income=$2,100/mo
-    # Expect: passes_gross_test=true, passes_net_test=true, decision=true

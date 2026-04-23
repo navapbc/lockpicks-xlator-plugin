@@ -29,7 +29,6 @@ input_variables
 output_variables
 intermediate_variables
 constants_and_tables
-examples
 sample_rules     ← /extract-sample-rules or /refine-guidance
 missing_info      ← /extract-sample-rules
 assumptions       ← /extract-sample-rules
@@ -245,19 +244,6 @@ constants_and_tables:
     description: "Expanded Refused Cash Income Limits table keyed by household_type and benefit_year."
   - name: student_earned_income_exclusion
     description: "Monthly and annual maximum limits for the student earned income exclusion."
-```
-
-### `examples`
-
-Illustrative computation snippets included in the original guidance template. Not used by `/extract-ruleset` directly; serves as human-readable documentation.
-
-```yaml
-examples:
-  ruleset_snippet: |
-    earned_income_after_exclusions = earned_income - max(0, total_exclusions)
-  test_case: |
-    # Given household_size=3, gross_income=$2,100/mo
-    # Expect: passes_gross_test=true, decision=true
 ```
 
 ---
