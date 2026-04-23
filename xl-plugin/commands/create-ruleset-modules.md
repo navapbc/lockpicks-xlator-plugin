@@ -143,28 +143,26 @@ No new ruleset modules identified.
 
 ---
 
-### Step 3: Prompt for main module name
+### Step 3: Derive main module name
 
 **Skip this step if:**
 - CREATE mode and zero sub-modules were detected (the single-file extraction path is unchanged)
 - UPDATE mode and a `role: main` entry already exists (already shown as `[confirmed]` above)
 
-Otherwise, prompt:
+Otherwise, derive the main module name automatically — no prompt:
 
-```
-What should the main program file be named? (e.g., `eligibility`)
-Default: <derived_default> [Enter to accept or type a name]:
-```
-
-**Derive `<derived_default>`:**
 1. Check `output_variables.primary.name` in `guidance.yaml`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the value and use the result.
 2. If no primary output variable is declared, take the last hyphen-segment of `template_id` and strip leading generic prefixes (`calculate-`, `determine-`, `check-`, `compute-`).
 
 Examples:
-- `primary.name: eligibility_determination` → default `eligibility`
-- `template_id: calculate-earned-income-after-exclusions`, no primary name → default `exclusions`
+- `primary.name: eligibility_determination` → `eligibility`
+- `template_id: calculate-earned-income-after-exclusions`, no primary name → `exclusions`
 
-Accept any non-empty snake_case name from the user. If the user presses Enter without input, use the derived default.
+Print the derived name so the user can see what was chosen:
+
+```
+Main module: eligibility  (edit guidance.yaml to rename)
+```
 
 ---
 
@@ -229,7 +227,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 - A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans stages, split it or reject it with an explanation to the user
 - Each sub-module `ruleset_modules:` entry must have `name`, `description`, `bound_entities`, `rationale`, and `depends_on` — never omit any field; `role:` defaults to `sub` when absent
 - The main module entry additionally requires `role: main`, `bound_entities: []`, `rationale: main_module`, and `depends_on:` listing all sub-module names
-- Do not write the `role: main` entry when zero sub-modules were detected — the main module prompt (Step 3) only runs when at least one sub-module is present
+- Do not write the `role: main` entry when zero sub-modules were detected — Step 3 only runs when at least one sub-module is present
 - In CREATE mode with zero modules, write `ruleset_modules: []` — never omit the key entirely
 - `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case; main module always uses `bound_entities: []`
 - In UPDATE mode, when overwriting `ruleset_modules:`, preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries — never strip fields added by a prior run
