@@ -150,7 +150,7 @@ intermediate_variables:
 - `intermediate_variables.include_with_output: []`: always initialized empty — never omit this key
 - `intermediate_variables.categories: []`: always initialized empty
 
-**Fields to omit entirely:** `workflow_stages:`, `sub_rulesets:`, `skeleton:`, `constants_and_tables:`, `examples:`, `example_rules:` — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`).
+**Fields to omit entirely:** `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, `examples:`, `sample_rules:` — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`).
 
 After writing, print:
 
@@ -175,7 +175,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED]
 - `source_template` must be `suggestion--<ruleset_name>` — never a template filename (e.g., not `assess-eligibility`), never just `suggestion-`
 - `source_template` is never updated after creation — do not modify it on re-runs or updates
 - Do not omit `intermediate_variables.include_with_output: []` — downstream commands (`/create-skeleton`, `/extract-ruleset`) expect this key to exist
-- Do not include `workflow_stages:`, `sub_rulesets:`, `skeleton:`, `constants_and_tables:`, or `example_rules:` — those are written by later commands
+- Do not include `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, or `sample_rules:` — those are written by later commands
 - Do not add `edge_cases:` content here — `edge_cases: []` is always empty at creation; `/create-skeleton` populates it
 - `secondary_decisions: []` must be present even when the ruleset had no secondary decisions — never omit the key
 - `examples: []` in each `input_variables` category is intentional — it is a placeholder that `/create-skeleton` will fill in with domain-specific variable names

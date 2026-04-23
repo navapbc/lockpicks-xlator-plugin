@@ -57,13 +57,13 @@ Scan all `computations:` entries across every `intermediate_variables.categories
 
 Example: `expr: "client_result.adjusted_earned_income"` → base name `client_result`.
 
-These are sub-ruleset result objects whose contents explain how the parent module's inputs were processed. They are high-value explainability variables.
+These are ruleset module result objects whose contents explain how the parent module's inputs were processed. They are high-value explainability variables.
 
 Collect all such base names as `auto_tagged_1`.
 
 ### Detection pass 2 — decision-condition and invoke-derived variables (sample rule CIVIL snippets)
 
-Scan all CIVIL snippets in `sub_rulesets[].sample_rules[].civil:` and `example_rules[].civil:` in `guidance.yaml`. Collect two categories of variable names:
+Scan all CIVIL snippets in `ruleset_modules[].sample_rules[].civil:` and `sample_rules[].civil:` in `guidance.yaml`. Collect two categories of variable names:
 
 **(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
 

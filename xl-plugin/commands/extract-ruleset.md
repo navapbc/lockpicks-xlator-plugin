@@ -56,9 +56,9 @@ Run these checks before doing anything else:
 
 Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
-**After Check 5 (guidance.yaml loaded):** Run **SP-ResolveSubRulesets** (from `core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
-- If SP-ResolveSubRulesets emits an abort signal → stop with the message SP-ResolveSubRulesets printed.
-- If the work-list has exactly one entry (sub_rulesets: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
+**After Check 5 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** (from `core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
+- If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
+- If the work-list has exactly one entry (ruleset_modules: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
 
 ---
 
@@ -84,7 +84,7 @@ Additionally, build three in-memory structures from the loaded `guidance.yaml`:
 
 1. **Confirmed exprs map** `{variable_name → expr}`: For each category in `intermediate_variables`, read its `computations:` list (if present). For each entry, add `name → expr` to the map. If a category has no `computations:`, no entries are added. This map is used in Step 4.
 
-2. **Example rules list**: Read the top-level `example_rules:` section (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4.
+2. **Example rules list**: Read the top-level `sample_rules:` section (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4.
 
 3. **Guidance output set** `{variable_name}`: Read `intermediate_variables.include_with_output` (if present). If the key is absent or `intermediate_variables` does not exist, use an empty set. This set is used in Step 4 and SP-TagOutputs.
 
@@ -133,9 +133,9 @@ Use `<program>` argument if given. Otherwise:
 
 ### Step 3b: Name Inventory
 
-**Multi-file:** Build one Name Inventory table per `generate` entry in the SP-ResolveSubRulesets work-list (sub-modules first, main module last). Label each table `Name Inventory: <module_name>`. Display all tables together in a single presentation so the user can review cross-file naming at once, then confirm or adjust as a batch. For `reference` entries: skip (names are already set in the existing file).
+**Multi-file:** Build one Name Inventory table per `generate` entry in the SP-ResolveRulesetModules work-list (sub-modules first, main module last). Label each table `Name Inventory: <module_name>`. Display all tables together in a single presentation so the user can review cross-file naming at once, then confirm or adjust as a batch. For `reference` entries: skip (names are already set in the existing file).
 
-**Single-file (sub_rulesets: empty):** produce one Name Inventory table as described below (existing behavior).
+**Single-file (ruleset_modules: empty):** produce one Name Inventory table as described below (existing behavior).
 
 Before drafting any CIVIL YAML, produce the canonical field name for every fact and computed concept in the policy. For each measurable quantity, flag, or derived value found in the policy documents, apply this algorithm:
 
@@ -170,17 +170,17 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 
 **Name binding:** Before writing any CIVIL YAML, re-read the approved Name Inventory table(s) from Step 3b. Use **only** those approved field names for every `facts:`, `computed:`, `decisions:`, `tables:`, and `constants:` entry — do not re-derive names from policy text.
 
-**Multi-file:** Iterate the SP-ResolveSubRulesets work-list in generation order (sub-modules first, main module last). For each `generate` entry, apply the full drafting logic below. For each `reference` entry, skip drafting entirely (the file is already on disk).
+**Multi-file:** Iterate the SP-ResolveRulesetModules work-list in generation order (sub-modules first, main module last). For each `generate` entry, apply the full drafting logic below. For each `reference` entry, skip drafting entirely (the file is already on disk).
 
 **Sub-module files:** Draft as a standard CIVIL module (no `invoke:` fields). Sub-module computed fields that will be accessed by the parent module via dot-access **must** have `tags: [output]`. Remind yourself of the parent's planned `invoke:` fields when choosing which computed fields to mark as output.
 
-**Main module with sub-modules:** Draft with `invoke:` computed fields using the confirmed `bind:` maps from SP-ResolveSubRulesets's work-list. Use confirmed field names from the sub-module Name Inventory tables (or actual field names from `reference` files) in dot-access expressions (e.g., `client_result.net_income`). Each `invoke:` field has `type: object` and a `module:` matching the sub-module name.
+**Main module with sub-modules:** Draft with `invoke:` computed fields using the confirmed `bind:` maps from SP-ResolveRulesetModules's work-list. Use confirmed field names from the sub-module Name Inventory tables (or actual field names from `reference` files) in dot-access expressions (e.g., `client_result.net_income`). Each `invoke:` field has `type: object` and a `module:` matching the sub-module name.
 
-**Single-file (sub_rulesets: empty):** existing behavior unchanged.
+**Single-file (ruleset_modules: empty):** existing behavior unchanged.
 
-**CIVIL v6 — workflow_stages auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `workflow_stages:` list (written by `/refine-guidance` Sub-step 3b.5):
-- **If present:** copy the list directly into `rule_set.workflow_stages` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
-- **If absent:** omit the `workflow_stages:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
+**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `ruleset_groups:` list (written by `/refine-guidance` Sub-step 3b.5):
+- **If present:** copy the list directly into `rule_set.ruleset_groups` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
+- **If absent:** omit the `ruleset_groups:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
 
 **If the example rules list (from Step 1) is non-empty**, display those rules at the top of the CIVIL draft output before emitting any new content:
 
@@ -188,7 +188,7 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 # === User-approved example rules from /refine-guidance ===
 # These rules were confirmed by the user. Use them as anchors for CIVIL
 # structure, citation format, and naming style throughout this draft.
-<civil: content of each example_rules entry>
+<civil: content of each sample_rules entry>
 # =========================================================
 ```
 
@@ -305,8 +305,8 @@ rule_set:
   name: "<identifier>"
   precedence: "deny_overrides_allow"
   description: "..."
-  # CIVIL v6: workflow_stages (auto-copied from guidance.yaml if defined)
-  # workflow_stages:
+  # CIVIL v6: ruleset_groups (auto-copied from guidance.yaml if defined)
+  # ruleset_groups:
   #   - name: income_test
   #     description: Income eligibility tests
 
@@ -361,7 +361,7 @@ Proceed to Step 5 only after SP-MaintainabilityReview passes (no blocking failur
 
 ### Step 5: Write Extraction Manifest
 
-**Single-file (sub_rulesets: empty):** create `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` in single-file format:
+**Single-file (ruleset_modules: empty):** create `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` in single-file format:
 
 ```yaml
 # Auto-generated by /extract-ruleset — do not edit manually
@@ -373,7 +373,7 @@ programs:
       - { path: "input/policy_docs/<filename>.md", git_sha: "<sha>" }
 ```
 
-**Multi-file (sub_rulesets: non-empty):** write using the multi-file format (see `core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
+**Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
 
 Get each doc's git SHA:
 ```bash
@@ -551,9 +551,9 @@ Files created or modified by this command:
 
 | File | Action |
 |------|--------|
-| `$DOMAINS_DIR/<domain>/specs/<sub_module>.civil.yaml` | Created (for each generated sub-module, if sub_rulesets: non-empty) |
+| `$DOMAINS_DIR/<domain>/specs/<sub_module>.civil.yaml` | Created (for each generated sub-module, if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
-| `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if sub_rulesets: non-empty) |
+| `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (after Step 7b) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 6b) / Refreshed (Step 7c) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 6b) / Refreshed (Step 7c) |

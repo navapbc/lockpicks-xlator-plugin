@@ -159,7 +159,7 @@ $DOMAINS_DIR/<domain>/specs/suggested_rulesets/<ruleset_name>.yaml    [CREATED]
 
 ## Common Mistakes to Avoid
 
-- **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `workflow_stages:`, or `sub_rulesets:` in suggestion files** — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
+- **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later commands (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `input-index.yaml` is the sole source of doc signals
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
 - **`secondary_decisions: []` is valid when no secondary outputs are identified** — do not omit the field; an absent `secondary_decisions` key is not the same as an empty list

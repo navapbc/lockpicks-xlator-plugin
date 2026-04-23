@@ -788,7 +788,7 @@
             }
           ],
           "default": null,
-          "description": "(CIVIL v6) Workflow stage this rule belongs to. Must match a name in rule_set.workflow_stages when that list is non-empty. Transpiler no-op \u2014 annotation only.",
+          "description": "(CIVIL v6) Ruleset group this rule belongs to. Must match a name in rule_set.ruleset_groups when that list is non-empty. Transpiler no-op \u2014 annotation only.",
           "title": "Group"
         },
         "mutex_group": {
@@ -855,11 +855,11 @@
           "description": "Description of this rule set.",
           "title": "Description"
         },
-        "workflow_stages": {
+        "ruleset_groups": {
           "default": [],
           "description": "(CIVIL v6) Named evaluation phases for this rule set. Defines the controlled vocabulary for rule group: annotations. E.g., income_test, asset_test, household_composition. When present, validate_civil.py checks that every rule group: value matches a stage name defined here.",
           "items": {
-            "$ref": "#/$defs/WorkflowStage"
+            "$ref": "#/$defs/RulesetGroup"
           },
           "title": "Workflow Stages",
           "type": "array"
@@ -971,7 +971,7 @@
       "title": "TableLookupDef",
       "type": "object"
     },
-    "WorkflowStage": {
+    "RulesetGroup": {
       "description": "A named phase of policy evaluation (CIVIL v6).\n\nDefines the controlled vocabulary for rule group: annotations within this module.\nE.g., income_test, asset_test, household_composition.",
       "properties": {
         "name": {
@@ -996,7 +996,7 @@
       "required": [
         "name"
       ],
-      "title": "WorkflowStage",
+      "title": "RulesetGroup",
       "type": "object"
     }
   },

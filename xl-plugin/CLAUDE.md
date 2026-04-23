@@ -17,7 +17,7 @@ To avoid having to use `uv run` for each command line, activate the virtual envi
 
 ## Project Terminology
 
-Use the project's exact terminology: 'sub-ruleset' (not 'submodule'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
+Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 'submodule'), 'ruleset group' (not 'workflow stage'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
 
 ## Slash Commands Next steps
 
@@ -33,8 +33,8 @@ Typical steps:
         - `/xl:suggest-ruleset-io <domain>` — analyze the document index and write candidate rulesets to files for user selection
         - `/xl:declare-ruleset-io <domain>` — write `guidance.yaml` from a specified candidate rulesets file (one of the files created by `/xl:suggest-ruleset-io`)
         - `/xl:create-skeleton <domain>` — extract doc signals from the document index and build the computation skeleton
-        - `/xl:create-ruleset-groups <domain>` — propose workflow stages that group related computations in the skeleton; these groups will help with ruleset visualizations
-        - `/xl:create-ruleset-modules <domain>` — apply heuristics to detect sub-ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
+        - `/xl:create-ruleset-groups <domain>` — propose ruleset groups that group related computations in the skeleton; these groups will help with ruleset visualizations
+        - `/xl:create-ruleset-modules <domain>` — apply heuristics to detect ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
         - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules) for the user to become familiar, revise, and gain confidence in the anticipated results
         - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect intermediate computed variables to be exposed along with the final output (best after extract-sample-rules); the selected variables are intended to be useful for explaining the computations used to derive the final output
         - `/xl:create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
@@ -62,16 +62,16 @@ flowchart TD
     SKEL["/xl:create-skeleton\nenabled: guidance.yaml exists"]
     GY_SKEL(["guidance.yaml\nwith skeleton:"])
     GROUPS["/xl:create-ruleset-groups\nenabled: skeleton: present"]
-    GY_GROUPS(["guidance.yaml\nwith workflow_stages:"])
-    MODS["/xl:create-ruleset-modules\nenabled: workflow_stages: present"]
+    GY_GROUPS(["guidance.yaml\nwith ruleset_groups:"])
+    MODS["/xl:create-ruleset-modules\nenabled: ruleset_groups: present"]
 
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
-    GY_MODS(["guidance.yaml\nwith sub_rulesets:"])
-    SAMPLERULES["/xl:extract-sample-rules\nbest: sub_rulesets: present\nmin: skeleton: present\nenabled: guidance.yaml + input-index.yaml exist"]
+    GY_MODS(["guidance.yaml\nwith ruleset_modules:"])
+    SAMPLERULES["/xl:extract-sample-rules\nbest: ruleset_modules: present\nmin: skeleton: present\nenabled: guidance.yaml + input-index.yaml exist"]
     GY_RULES(["guidance.yaml\nwith sample_rules"])
     TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
-    SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or example_rules present"]
+    SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or sample_rules present"]
     GY_SAMPLETESTS(["guidance.yaml\nwith sample_tests:"])
 
     MODS --> GY_MODS --> SAMPLERULES
@@ -79,7 +79,7 @@ flowchart TD
     SAMPLERULES --> GY_RULES --> TAGVARS
     GY_RULES --> SAMPLETESTS --> GY_SAMPLETESTS
 
-    EXTRACT["/xl:extract-ruleset\nenabled: workflow_stages: + sub_rulesets: present"]
+    EXTRACT["/xl:extract-ruleset\nenabled: ruleset_groups: + ruleset_modules: present"]
 
     GY_MODS --> EXTRACT
     TAGVARS --> EXTRACT
@@ -89,7 +89,7 @@ flowchart TD
 
 **`/create-sample-tests` is optional** — `/extract-ruleset` does not read `sample_tests:`. These are planning scaffolding only.
 
-- `extract-sample-rules` can run earlier (after `create-skeleton` minimum) but produces flat, ungrouped output without `sub_rulesets:`
+- `extract-sample-rules` can run earlier (after `create-skeleton` minimum) but produces flat, ungrouped output without `ruleset_modules:`
 - `tag-vars` can run earlier but misses invoke-derived variables only visible in CIVIL snippets
 - `create-sample-tests` always follows `extract-sample-rules`
 

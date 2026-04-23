@@ -349,7 +349,7 @@ decision := {
 
 ---
 
-### 2f) Invoke: sub-ruleset computed fields (CIVIL v4)
+### 2f) Invoke: ruleset module computed fields (CIVIL v4)
 
 An `invoke:` computed field runs an external CIVIL module as a sub-computation and makes its result accessible in the parent module's `computed:` chain and rules.
 
@@ -457,7 +457,7 @@ If a name is found in multiple entities, validation raises an ambiguity error. I
 
 **CIVIL v6** adds three opt-in annotation fields to improve maintainability at scale. All three are transpiler no-ops — they have no effect on rule evaluation or code generation.
 
-#### `rule_set.workflow_stages:` — named evaluation phases
+#### `rule_set.ruleset_groups:` — named evaluation phases
 
 Defines the controlled vocabulary for rule grouping. When non-empty, `validate_civil.py` checks that every rule's `group:` value matches a stage name listed here.
 
@@ -465,7 +465,7 @@ Defines the controlled vocabulary for rule grouping. When non-empty, `validate_c
 rule_set:
   name: snap_eligibility
   precedence: deny_overrides_allow
-  workflow_stages:
+  ruleset_groups:
     - name: income_test
       description: Gross and net income eligibility tests
     - name: asset_test
@@ -474,9 +474,9 @@ rule_set:
       description: Rules determining household unit size
 ```
 
-Populated by `/refine-guidance` Step 3 (workflow stage elicitation) and auto-copied into the CIVIL file by `/extract-ruleset` Step 4.
+Populated by `/refine-guidance` Step 3 (ruleset group elicitation) and auto-copied into the CIVIL file by `/extract-ruleset` Step 4.
 
-#### `rule.group:` — workflow stage assignment
+#### `rule.group:` — ruleset group assignment
 
 Tags a rule with the evaluation phase it belongs to. Enables readers and reviewers to quickly find, compare, and retire all rules for a given policy test.
 
@@ -485,12 +485,12 @@ rules:
   - id: SNAP-INCOME-DENY-001
     kind: deny
     priority: 10
-    group: income_test          # must match a workflow_stages name (when defined)
+    group: income_test          # must match a ruleset_groups name (when defined)
     when: gross_income > gross_limit
     then: ...
 ```
 
-**Validation:** If `workflow_stages` is non-empty and a rule has `group:` set to an unknown stage name, `validate_civil.py` errors. If `workflow_stages` is empty but a rule has `group:` set, the validator emits a warning (not an error) — backward compatible.
+**Validation:** If `ruleset_groups` is non-empty and a rule has `group:` set to an unknown stage name, `validate_civil.py` errors. If `ruleset_groups` is empty but a rule has `group:` set, the validator emits a warning (not an error) — backward compatible.
 
 #### `rule.mutex_group:` — mutual-exclusion grouping
 

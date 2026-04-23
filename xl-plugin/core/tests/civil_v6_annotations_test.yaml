@@ -43,19 +43,19 @@ decisions:
 rule_set:
   name: v6_test_rules
   precedence: deny_overrides_allow
-  # CIVIL v6: workflow_stages defines controlled vocabulary for rule group: annotations
-  workflow_stages:
+  # CIVIL v6: ruleset_groups defines controlled vocabulary for rule group: annotations
+  ruleset_groups:
     - name: income_test
       description: Income eligibility tests
     - name: household_test
       description: Household size tests
 
 rules:
-  # VALID: group matches a defined workflow stage; mutex_group has 2 members with unique priorities
+  # VALID: group matches a defined ruleset group; mutex_group has 2 members with unique priorities
   - id: TEST-INCOME-DENY-001
     kind: deny
     priority: 10
-    group: income_test        # matches workflow_stages
+    group: income_test        # matches ruleset_groups
     mutex_group: income_rules # two rules in this group with unique priorities (10, 20)
     when: "Applicant.income > 5000"
     then:
@@ -66,7 +66,7 @@ rules:
   - id: TEST-INCOME-DENY-002
     kind: deny
     priority: 20
-    group: income_test        # matches workflow_stages
+    group: income_test        # matches ruleset_groups
     mutex_group: income_rules # same mutex_group, different priority — valid
     when: "Applicant.income > 3000"
     then:
@@ -74,11 +74,11 @@ rules:
           code: INCOME_MODERATE
           message: "Income exceeds the moderate limit."
 
-  # VALID: different workflow stage, no mutex_group
+  # VALID: different ruleset group, no mutex_group
   - id: TEST-HOUSEHOLD-DENY-001
     kind: deny
     priority: 30
-    group: household_test     # matches workflow_stages
+    group: household_test     # matches ruleset_groups
     when: "Applicant.household_size > 8"
     then:
       - add_reason:
@@ -98,16 +98,16 @@ rules:
 # EXPECTED VALIDATOR BEHAVIOR FOR VARIANT CASES (not in this file — documented
 # here for reference when writing negative tests):
 #
-# VARIANT 1 — group set but workflow_stages empty:
-#   rule: group: income_test, rule_set has no workflow_stages
+# VARIANT 1 — group set but ruleset_groups empty:
+#   rule: group: income_test, rule_set has no ruleset_groups
 #   → validator WARNING: "rules → <id>: group='income_test' is set but
-#     rule_set.workflow_stages is empty"
+#     rule_set.ruleset_groups is empty"
 #   → exit 0 (warning only, not error)
 #
-# VARIANT 2 — group value not in workflow_stages:
-#   rule: group: nonexistent_stage, workflow_stages has [income_test, household_test]
+# VARIANT 2 — group value not in ruleset_groups:
+#   rule: group: nonexistent_stage, ruleset_groups has [income_test, household_test]
 #   → validator ERROR: "rules → <id>: group='nonexistent_stage' is not in
-#     rule_set.workflow_stages names: ['household_test', 'income_test']"
+#     rule_set.ruleset_groups names: ['household_test', 'income_test']"
 #   → exit 1
 #
 # VARIANT 3 — singleton mutex_group:
