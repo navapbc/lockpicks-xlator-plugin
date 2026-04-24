@@ -70,11 +70,7 @@ Which domain? Enter a number or domain name:
 
 ### Step 1: Load canonical names
 
-Check for `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml`.
-
-**If the manifest exists:** Read it. Build a lookup map from every `computed:` and `outputs:` entry: `{variable_name → manifest_entry}`. These names are **canonical** — prefer them over freshly inferred names during rule generation in Step 4.
-
-**If absent:** Proceed with an empty lookup map. The manifest will be created in Step 6.
+Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). The resulting lookup map is used in Step 4 to prefer canonical names over freshly inferred ones. If absent, the manifest will be created in Step 6.
 
 Show step checklist:
 ```
@@ -162,7 +158,7 @@ Rules are generated in two passes. Pass 4a processes `computed-only` entries usi
 
 For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the order they appear in `input-index.yaml`:
 
-**(a) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, check the canonical names map from Step 1. If a match is found, use the manifest name. If no match, derive a snake_case name from the entry's `computations[].description` text:
+**(a) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, apply the two operations from SP-LoadNamingManifest in order: (1) keyed lookup — if the variable name matches a map key, use that manifest name; (2) concept matching — if no keyed match, scan map values for a `policy_phrase` that closely matches the entry's `computations[].description` text, and use that entry's variable name if found. Only if neither operation finds a match, derive a snake_case name from the entry's `computations[].description` text:
 - Extract the noun phrase from the description
 - Strip entity prefixes (ClientData, DOLRecord, etc.) if present
 - Convert to snake_case
@@ -217,7 +213,7 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 - If the file at `path:` does not exist: log `⚠ Source not found: <path> — skipping entry` and add to `missing_info`. Continue to the next entry.
 - If the heading cannot be located in the file: log `⚠ Heading not found: "<heading>" in <path> — skipping entry` and add to `missing_info`. Continue.
 
-**(b) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, check the canonical names map from Step 1. If a match is found, use the manifest name. If no match, derive a snake_case name from the policy text using the Name Inventory algorithm:
+**(b) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, apply the two operations from SP-LoadNamingManifest in order: (1) keyed lookup — if the variable name matches a map key, use that manifest name; (2) concept matching — if no keyed match, scan map values for a `policy_phrase` that closely matches the policy text, preferring entries whose `source_doc` and `section` match the current document, and use that entry's variable name if found. Only if neither operation finds a match, derive a snake_case name from the policy text using the Name Inventory algorithm:
 - Extract the exact noun phrase from the policy text
 - Strip entity prefixes (ClientData, DOLRecord, etc.) if present
 - Convert to snake_case

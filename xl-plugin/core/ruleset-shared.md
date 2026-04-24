@@ -1,6 +1,6 @@
 # Ruleset Command — Shared Content
 
-Shared by `/extract-ruleset` and `/update-ruleset`. Read via directive at the start of each command.
+Shared by `/extract-ruleset`, `/update-ruleset`, and `/extract-sample-rules`. Read via directive at the start of each command.
 Do not invoke this file directly.
 
 ---
@@ -540,3 +540,21 @@ Do not advance to SP-Validate until M5 passes.
 - **Use `computed:` for multi-step formulas** — don't reference undefined identifiers in `when:` clauses; if a value needs multiple steps to compute, define it in `computed:` and reference it by name
 - **Don't use `git diff` alone for change detection** — also run `git status` to catch untracked new files not yet committed
 - **Always update the manifest after extraction** — stale git SHAs in `extraction-manifest.yaml` will cause UPDATE mode to miss real changes on the next run
+
+---
+
+## SP-LoadNamingManifest
+
+**If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:** Read it. Build a lookup map `{variable_name → manifest_entry}` from all `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>` keys.
+
+**Using the map during rule generation:**
+
+Two operations apply:
+
+1. **Name confirmation (keyed lookup):** When you have already inferred a candidate variable name, look it up directly by key. If found, use that name as-is — do not re-derive it.
+
+2. **Concept matching (value scan):** When you encounter a policy concept in source text and have not yet inferred a variable name, scan map values and compare the concept against each entry's `policy_phrase`. If a close match is found, use that entry's variable name rather than deriving a new one. When multiple entries match, prefer entries whose `source_doc` and `section` match the current policy document being processed; use non-matching entries as fallback only.
+
+In both cases these names are **canonical** — never re-derive or rename a variable that already exists in the manifest.
+
+**If absent:** Proceed with an empty lookup map.

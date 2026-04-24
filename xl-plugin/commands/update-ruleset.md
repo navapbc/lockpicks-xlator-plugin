@@ -41,8 +41,8 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:**
 
-1. Read all field names from the manifest (`inputs.<EntityName>.<field>` keys and `computed.<field>` keys)
-2. Read all fact and computed field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
+1. Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). Collect the variable names from the resulting map.
+2. Read all fact, computed, and output field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
 3. Compare the two sets. If any field name exists in the CIVIL file but not the manifest, or exists in both but with a different spelling, **halt** and list every mismatch:
 
    > ⚠️ Naming manifest divergence detected:

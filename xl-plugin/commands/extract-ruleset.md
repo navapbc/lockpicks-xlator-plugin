@@ -161,7 +161,7 @@ Present the result as a Markdown table:
 | net monthly income after all deductions | computed | `net_income` | §2.4 |
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` already exists** (CREATE re-run after a previous successful extraction):
-- Pre-populate the table with the frozen names from the manifest
+- Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). Pre-populate all table columns from the resulting map: Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, and Source Section from `section`.
 - Only derive new names for policy concepts not already listed
 
 Ask: "Do the field names in this table match your intent? You may edit any name." If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
