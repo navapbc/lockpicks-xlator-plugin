@@ -80,13 +80,17 @@ Use this goal to scope your reading:
 - Apply all constraints and standards listed above throughout Steps 1–7.
 ```
 
-Additionally, build three in-memory structures from the loaded `guidance.yaml`:
+Additionally, build five in-memory structures from the loaded `guidance.yaml`:
 
 1. **Confirmed exprs map** `{variable_name → expr}`: For each category in `intermediate_variables`, read its `computations:` list (if present). For each entry, add `name → expr` to the map. If a category has no `computations:`, no entries are added. This map is used in Step 4.
 
-2. **Example rules list**: Read the top-level `sample_rules:` section (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4.
+2. **Example rules list**: Read the top-level `sample_rules:` section (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
 
 3. **Guidance output set** `{variable_name}`: Read `intermediate_variables.include_with_output` (if present). If the key is absent or `intermediate_variables` does not exist, use an empty set. This set is used in Step 4 and SP-TagOutputs.
+
+4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key (if present). For each entry, collect its `name:` and `description:`. If the key is absent or empty, the list is empty. This list is used in Step 4.
+
+5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
 If `<filename>` is given, read only `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>`.
 Otherwise, read the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
@@ -185,21 +189,39 @@ Ask: "Do the field names in this table match your intent? You may edit any name.
 - **If present:** copy the list directly into `rule_set.ruleset_groups` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
 - **If absent:** omit the `ruleset_groups:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
 
-**If the example rules list (from Step 1) is non-empty**, display those rules at the top of the CIVIL draft output before emitting any new content:
+**If the example rules list (from Step 1) is non-empty**, display those rules at the top of the CIVIL draft output for the **main module** (single-file path or main module in multi-file path) before emitting any new content:
 
 ```
-# === User-approved example rules from /refine-guidance ===
+# === User-approved example rules ===
 # These rules were confirmed by the user. Use them as anchors for CIVIL
 # structure, citation format, and naming style throughout this draft.
 <civil: content of each sample_rules entry>
 # =========================================================
 ```
 
+**Multi-file — sub-module anchor injection:** For each **sub-module** `generate` entry, look up the module's `name:` in the per-module sample rules map (from Step 1). If the list is non-empty, display it before emitting any new content for that sub-module:
+
+```
+# === User-approved example rules (module: <name>) ===
+# These rules were confirmed by the user. Use them as anchors for CIVIL
+# structure, citation format, and naming style throughout this sub-module draft.
+<civil: content of each ruleset_modules[<name>].sample_rules entry>
+# =========================================================
+```
+
+If a sub-module's per-module list is empty, skip the anchor block for that module.
+
 **When emitting `computed:` fields**, check the confirmed exprs map (from Step 1) first:
 - If the variable name appears in the map, use its `expr:` value directly and add the YAML comment `# expr confirmed in /refine-guidance` on the same line or immediately above the `expr:` field.
 - For variables not in the map, infer `expr:` from policy text as normal.
 
 Additionally, check the guidance output set (from Step 1): if the variable name is in the set, add `tags: [expose]` immediately after the `type:` line in the emitted CIVIL YAML for that field.
+
+**When emitting `tables:` and `constants:` sections**, if the constants/tables seed list (from Step 1) is non-empty, begin with the seeded entries before drafting from policy text:
+- For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
+- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance.yaml constants_and_tables` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
+- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance.yaml constants_and_tables`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
+- After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
