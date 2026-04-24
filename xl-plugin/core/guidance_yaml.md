@@ -60,8 +60,9 @@ Which commands read each field as input (beyond `/extract-ruleset` and the comma
 | `ruleset_modules` | `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests` |
 | `ruleset_modules[].sample_rules` | `/tag-vars-to-include-with-output`, `/create-sample-tests` |
 | `sample_rules` | `/tag-vars-to-include-with-output`, `/create-sample-tests` |
+| `sample_tests` | `/create_tests` |
 
-Fields not listed (`source_template`, `generated_at`, `description`, `missing_info`, `assumptions`, `sample_tests`) are not consumed as inputs by any downstream command.
+Fields not listed (`source_template`, `generated_at`, `description`, `missing_info`, `assumptions`) are not consumed as inputs by any downstream command.
 
 ---
 
