@@ -39,6 +39,7 @@ Typical steps:
         - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect intermediate computed variables to be exposed along with the final output (best after extract-sample-rules); the selected variables are intended to be useful for explaining the computations used to derive the final output
         - `/xl:create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
   5. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
+  6. `/xl:review-ruleset <domain>` to review the extracted ruleset, finalize graph artifacts, and capture guidance learnings
 
 ### Command dependency diagram
 
@@ -80,9 +81,11 @@ flowchart TD
     GY_RULES --> SAMPLETESTS --> GY_SAMPLETESTS
 
     EXTRACT["/xl:extract-ruleset\nenabled: ruleset_groups: + ruleset_modules: present"]
+    REVIEW["/xl:review-ruleset\nenabled: <program>.civil.yaml + naming-manifest.yaml exist"]
 
     GY_MODS --> EXTRACT
     TAGVARS --> EXTRACT
+    EXTRACT --> REVIEW
 ```
 
 **`/tag-vars-to-include-with-output` is required before `/extract-ruleset`** in a UI-driven workflow — it populates `include_with_output` so SP-TagOutputs has pre-selections and doesn't block for interactive input. Skipping it causes `/extract-ruleset` to prompt mid-run.
@@ -93,7 +96,7 @@ flowchart TD
 - `tag-vars` can run earlier but misses invoke-derived variables only visible in CIVIL snippets
 - `create-sample-tests` always follows `extract-sample-rules`
 
-Once a ruleset exists or whenever the ruleset changes, the user can choose to:
+Once `/xl:review-ruleset` completes (or whenever the ruleset changes), the user can choose to:
   * `/xl:create-demo <domain>` to generate a web-based ruleset demo
   * `/xl:create-tests <domain>` to create an initial set of test cases
 
