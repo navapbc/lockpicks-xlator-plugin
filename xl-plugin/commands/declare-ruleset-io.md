@@ -101,15 +101,12 @@ constraints:
   - "Ensure no rule introduces concepts not present in the policy."
 
 standards:
-  - "Use monthly income amounts unless policy specifies annual."
-  - "Express monetary values in dollars."
-  - "Normalize citizenship status as boolean or enum (not free text)."
+  - "<standard from ruleset>"
+  # (repeat for each standard in the ruleset file's standards list)
 
 guidance:
-  - "Look for chained deductions: gross → earned deduction → net → shelter deduction → adjusted net income."
-  - "Check for both gross and net income tests as separate computed fields."
-  - "When federal and state policies conflict, prefer the more restrictive rule."
-  - "Deduction amounts typically appear in constants or household-size tables."
+  - "<guidance item from ruleset>"
+  # (repeat for each guidance item in the ruleset file's guidance list)
 
 edge_cases: []
 

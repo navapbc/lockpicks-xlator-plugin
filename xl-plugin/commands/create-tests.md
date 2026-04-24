@@ -73,11 +73,11 @@ Draft additional synthetic cases from CIVIL reasoning to reach the 6-tag coverag
 | Tag | What to cover |
 |-----|---------------|
 | `allow` | All conditions comfortably met (happy path) |
-| `deny` + gross test | Fails gross income threshold (if one exists) |
-| `deny` + net test | Passes gross, fails net after deductions (if net check exists) |
-| `allow` + exemption | Elderly, disabled, or other exemption path (if one exists) |
-| `allow` + boundary | Income or value exactly at a threshold (≤ limit = pass) |
-| `deny` + edge | Large household (size 9+), all-zero income, or other extreme |
+| `deny` + primary threshold | Fails primary threshold test (if one exists) |
+| `deny` + adjusted threshold | Passes primary threshold, fails adjusted threshold (if one exists) |
+| `allow` + exemption | Exemption or special path active (if one exists) |
+| `allow` + boundary | Value exactly at a threshold (≤ limit = pass) |
+| `deny` + edge | Extreme values: maximum count, all-zero numeric inputs, or other extreme |
 
 **Test format** (inputs always flat key-value, never nested by entity name):
 

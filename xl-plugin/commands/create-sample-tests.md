@@ -101,11 +101,11 @@ Float tolerance ±0.005 applies automatically to numeric `expected` fields.
 | Tag | Case to generate | When applicable |
 |-----|-----------------|-----------------|
 | `allow` | All threshold conditions comfortably met — happy path | Always |
-| `deny` + `gross_test` | Primary income exceeds the income threshold | When an income threshold is present in guidance |
-| `deny` + `net_test` | Passes gross threshold, fails after deductions | When deduction logic is in `sample_rules` |
-| `allow` + `exemption` | Exemption path active (elderly, disabled, student, etc.) | Only when `edge_cases` or `sample_rules` mention an exemption |
+| `deny` + `primary_threshold` | Primary input value exceeds the threshold | When a primary threshold is present in guidance |
+| `deny` + `adjusted_threshold` | Passes primary threshold, fails after adjustments | When adjustment logic is in `sample_rules` |
+| `allow` + `exemption` | Exemption or special path active | Only when `edge_cases` or `sample_rules` mention an exemption |
 | `allow` + `boundary` | Input value exactly at the threshold (≤ limit = pass) | When a concrete threshold value is available |
-| `deny` + `edge` | Extreme input: household size 9+, all-zero income, etc. | Always |
+| `deny` + `edge` | Extreme input: maximum count value, all-zero numeric values, etc. | Always |
 
 **`case_id` format:** `<primary_tag>_<NNN>` — e.g., `allow_001`, `deny_gross_001`, `allow_boundary_001`.
 

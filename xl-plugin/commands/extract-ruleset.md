@@ -101,9 +101,9 @@ Identify:
 
 1. **Program name and jurisdiction** — what benefit/program, which level of government
 2. **Effective dates** — when do these rules apply?
-3. **Applicant/household facts** — what information does a caseworker collect? (income, family size, age, etc.)
-4. **Eligibility decisions** — what yes/no determinations does the policy make?
-5. **Income thresholds and lookup tables** — tables of dollar amounts by household size, age band, etc.
+3. **Input facts** — what information does the system require? (numeric values, categorical fields, boolean flags, etc.)
+4. **Decisions** — what yes/no determinations does the policy make?
+5. **Thresholds and lookup tables** — tables keyed by categorical variables (size, band, category, etc.)
 6. **Named constants** — fixed rates, percentages, dollar amounts used in rules
 7. **The rules themselves** — conditions for allow vs. deny, and the reasons given
 8. **Legal citations** — CFR sections, USC provisions, or other citable authority
@@ -114,7 +114,7 @@ Map policy elements to CIVIL DSL constructs:
 
 | Policy Element | CIVIL Construct |
 |---|---|
-| Household/applicant inputs | `inputs:` entity with typed fields |
+| Entity inputs | `inputs:` entity with typed fields |
 | Eligibility outcome | `outputs:` (usually `eligible: bool` with `expr:`) |
 | Denial/approval explanations | `outputs: reasons: list[Reason]` |
 | Computed output value (e.g., adjusted_income) | `outputs:` field with `type: money` and `expr:` |
@@ -508,7 +508,7 @@ Review summary: X uncertain, Y complex, Z verified  (N items total)
 **Verified compact list**:
 ```
 ✅  VERIFIED (<N> items — not uncertain, not complex)
-    • FED-SNAP-DENY-001: Gross income exceeds 130% FPL limit
+    • FED-<PROGRAM>-DENY-001: Gross income exceeds income limit
     • computed: gross_income — total household gross monthly income
     ...
 ```

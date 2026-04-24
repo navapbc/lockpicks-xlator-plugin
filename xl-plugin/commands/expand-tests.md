@@ -122,9 +122,9 @@ For each gap identified in the coverage map, generate three cases per threshold 
 | Exactly at limit | `N` | Pass or fail per rule operator | `["boundary", "allow"\|"deny", ...]` |
 | Just above limit | `N + 1` | Pass or fail per rule operator | `["boundary", "allow"\|"deny", ...]` |
 
-**For table-keyed thresholds** (e.g., income limit varies by household size): generate one N-1/N/N+1 set **per table row**, not one set across all sizes.
+**For table-keyed thresholds** (e.g., threshold value varies by categorical key): generate one N-1/N/N+1 set **per table row**, not one set across all keys.
 
-**For extended table rows** (size 9+ formulas in `computed:`): calculate the actual limit for at least one size beyond the last table row (e.g., household size = last row + 1) and generate boundary cases for that value.
+**For extended table rows** (formula rows in `computed:`): calculate the actual limit for at least one key beyond the last table row (e.g., count = last row + 1) and generate boundary cases for that value.
 
 Determine the expected outcome for each case by applying the rule logic from the CIVIL spec (`when:` conditions and their operators). Set `expected:` to the domain's declared `outputs:` fields (from the `outputs:` section).
 
@@ -134,7 +134,7 @@ Determine the expected outcome for each case by applying the rule logic from the
 
 **Case ID prefix:** `nil_NNN`
 
-Generate one test per scenario below for each **required** fact field in the CIVIL spec. Required fields are those without `required: false` in the `inputs:` section; do not generate null tests for optional fields.
+Generate one test per scenario below for each **required** input fact field in the CIVIL spec. Required fields are those without `required: false` in the `inputs:` section; do not generate null tests for optional fields.
 
 | Scenario | What to set | Tags |
 |----------|-------------|------|
@@ -155,13 +155,13 @@ Generate tests for extreme values and unusual combinations not already covered b
 
 | Scenario | Description |
 |----------|-------------|
-| Zero income | All income-related fields set to 0; household size 1 |
-| Maximum household size | Largest size in `tables:` + 2 (to exercise the formula extension) |
-| All income types combined | All income-related fact fields set to non-zero values simultaneously |
-| All deductions combined | All deduction-related fact fields set to their maximum values simultaneously |
-| Exempt household members | All exemption-related boolean fields set to true (e.g., elderly + disabled), if such fields exist |
-| Single-person household | Smallest possible household with income exactly at the applicable limit |
-| Extreme income | Income value 10× the highest table limit |
+| All-zero numeric inputs | All numeric fields set to 0; minimum entity count (1) |
+| Maximum count value | Largest categorical key in `tables:` + 2 (to exercise the formula extension) |
+| All numeric inputs combined | All numeric fact fields set to non-zero values simultaneously |
+| All adjustments combined | All adjustment-related fact fields set to their maximum values simultaneously |
+| All exemptions active | All exemption-related boolean fields set to true, if such fields exist |
+| Minimum entity count | Smallest possible count with a key value exactly at the applicable limit |
+| Extreme numeric value | Primary numeric field set to 10× the highest table limit |
 
 For each edge case, derive `expected:` by applying the CIVIL rules to the chosen input values.
 

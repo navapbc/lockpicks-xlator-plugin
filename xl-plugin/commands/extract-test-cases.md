@@ -52,10 +52,10 @@ For each file under `$DOMAINS_DIR/<domain>/input/` (scanned recursively), check 
 Within each relevant file:
 
 1. Focus on sections whose headings or content match a source citation from the source citation list — these are the highest-priority areas for examples.
-2. Look for: numbered examples ("Example 1:", "Ex. 1"), "Illustration:", tables with named rows, paragraphs that give a specific household composition and walk through a calculation step-by-step.
+2. Look for: numbered examples ("Example 1:", "Ex. 1"), "Illustration:", tables with named rows, paragraphs that give a specific scenario with concrete input values and walk through a calculation step-by-step.
 3. For each found example, confirm it exercises the `<program>` ruleset (i.e., its inputs or conclusions reference the program vocabulary or a cited section). Discard examples that belong to a different program or benefit type.
-4. Map the stated values to CIVIL fact field names using the program vocabulary as a dictionary.
-5. If a value cannot be mapped to a known fact field (e.g., an intermediate value like "20% of gross earnings" that is a `computed:` field, not a fact input), record it in the `notes:` YAML key and omit from `inputs` — do not guess or coerce.
+4. Map the stated values to CIVIL input fact field names using the program vocabulary as a dictionary.
+5. If a value cannot be mapped to a known input fact field (e.g., an intermediate value like "20% of gross earnings" that is a `computed:` field, not a fact input), record it in the `notes:` YAML key and omit from `inputs` — do not guess or coerce.
 6. Infer all `expected.*` output decision fields (e.g., `expected.eligible`, `expected.reasons`, `expected.adjusted_income`) from the document's stated conclusion, **not** from running the rules.
 7. Tag as `["extracted"]` plus any applicable rule tags (e.g., `"allow"`, `"deny"`, `"earned_income"`).
 8. If a relevant file contains no concrete numerical examples, **do not fabricate them** — report: "No concrete examples found in `<filename>`." and continue to the next file.
@@ -81,7 +81,7 @@ extracted_tests:
       eligible: true
       reasons: []
     tags: ["extracted", "allow", "earned_income"]
-    notes: "Document also states gross_earned_exclusion=$420 (20% of gross) — computed field, excluded from inputs"
+    notes: "Document also states gross_earned_exclusion=$<amount> (<percentage> of gross) — computed field, excluded from inputs"
 ```
 
 Rules:

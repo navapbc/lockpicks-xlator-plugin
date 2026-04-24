@@ -265,11 +265,11 @@ Changed input docs:
 
 Updated CIVIL sections:
   tables.gross_income_limits:
-    OLD: household_size=3 → max_gross_monthly: $2,888
-    NEW: household_size=3 → max_gross_monthly: $2,945
+    OLD: household_size=3 → max_gross_monthly: $X,XXX
+    NEW: household_size=3 → max_gross_monthly: $Y,YYY
     Source: "<quote from policy doc>"
 
-  rules.FED-SNAP-DENY-003:
+  rules.FED-<PROGRAM>-DENY-003:
     OLD when: <expression>   OLD scores: fidelity:3 clarity:3 logic:2 policy:3
     NEW when: <expression>   NEW scores: fidelity:2 clarity:2 logic:3 policy:4
     NEW Notes: "'unless' clause may need a separate allow rule for exemption paths"
@@ -297,7 +297,7 @@ After the review gate passes, write `$DOMAINS_DIR/<domain>/specs/.stale-cases.ya
 # Written by /xl:update-ruleset. Consumed and deleted by /xl:create-tests.
 stale_cases:
   - case_id: "<case_id>"
-    reason: "<what changed — e.g., 'gross_limit for household_size 3 changed from 2888 to 2945'>"
+    reason: "<what changed — e.g., 'gross_limit for household_size 3 changed from X to Y'>"
 ```
 
 Include any test case whose `inputs` contain a value that was a table boundary or constant value in the old CIVIL file but has changed in the updated version. If no cases are stale, write an empty list:
