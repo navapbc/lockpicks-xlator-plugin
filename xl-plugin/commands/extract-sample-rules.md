@@ -72,7 +72,7 @@ Which domain? Enter a number or domain name:
 
 Check for `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml`.
 
-**If the manifest exists:** Read it. Build a lookup map from every `computed:` entry: `{variable_name → manifest_entry}`. These names are **canonical** — prefer them over freshly inferred names during rule generation in Step 4.
+**If the manifest exists:** Read it. Build a lookup map from every `computed:` and `outputs:` entry: `{variable_name → manifest_entry}`. These names are **canonical** — prefer them over freshly inferred names during rule generation in Step 4.
 
 **If absent:** Proceed with an empty lookup map. The manifest will be created in Step 6.
 
@@ -277,9 +277,17 @@ Add new unique strings to the top-level `assumptions:` list. Place after `missin
 > This schema is applied from within Step 4 after each pass. It is documented here as the canonical reference.
 
 **If `naming-manifest.yaml` already exists:**
-Read it. For each variable name used in the generated rules that is not already present in the `computed:` block, append a new entry:
+Read it. For each variable name used in the generated rules, route by whether the variable appears in `guidance.yaml`'s `outputs:` list:
+- **Output variable** (name is in `guidance.yaml` `outputs:`): if not already present in the `outputs:` block, append a new entry there.
+- **Computed variable** (name is not in `guidance.yaml` `outputs:`): if not already present in the `computed:` block, append a new entry there.
+
 ```yaml
 computed:
+  <variable_name>:
+    policy_phrase: "<noun phrase from source text>"
+    source_doc: "<filename.md>"
+    section: "<section heading>"
+outputs:
   <variable_name>:
     policy_phrase: "<noun phrase from source text>"
     source_doc: "<filename.md>"
@@ -288,7 +296,7 @@ computed:
 Do not modify or remove any existing entries.
 
 **If `naming-manifest.yaml` does not exist:**
-Create it with all variable names used in the generated rules:
+Create it with all variable names used in the generated rules, routing each to `computed:` or `outputs:` using the same rule above:
 ```yaml
 version: "1.0"
 inputs:
@@ -299,9 +307,16 @@ computed:
     policy_phrase: "<noun phrase from source text>"
     source_doc: "<filename.md>"
     section: "<section heading>"
+outputs:
+  <variable_name>:
+    policy_phrase: "<noun phrase from source text>"
+    source_doc: "<filename.md>"
+    section: "<section heading>"
 ```
 
 Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance.yaml`. If `ruleset_modules:` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /xl:extract-ruleset Step 7b`.
+
+Omit the `outputs:` block if no generated variables are in `guidance.yaml`'s `outputs:` list.
 
 Do not add an auto-generated comment. The file is user-editable.
 
@@ -378,7 +393,7 @@ Next: Run /xl:tag-vars-to-include-with-output <domain> to auto-detect intermedia
 | File | Action |
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Updated — `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions` merged |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created or updated — `computed:` entries merged |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created or updated — `computed:` and `outputs:` entries merged |
 
 ---
 
