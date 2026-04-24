@@ -1,6 +1,6 @@
 # Refine Ruleset Guidance for a Domain
 
-Create or update `guidance.yaml` for a domain — an ruleset guidance file that shapes how `/xl:extract-ruleset` uses policy documents and creates rules. On first run (CREATE), guides the user through guidance template selection and optional doc-aware Q&A to produce a new file. On subsequent runs (UPDATE), loads the existing `guidance.yaml` file and refines it based on user input.
+Create or update `guidance.yaml` for a domain by orchestrating the granular guidance-authoring commands in sequence. On first run (CREATE), guides the user through guidance template selection (or AI-suggested rulesets) to bootstrap `guidance.yaml`, then runs each authoring step in sequence. On subsequent runs (UPDATE), loads the existing `guidance.yaml` and runs each step to refine it.
 
 The **guidance template** (in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` and `$DOMAINS_DIR/guidance-templates/`) provides an initial ruleset guidance that is then customized per domain in `$DOMAINS_DIR/<domain>/specs/guidance.yaml`.
 
@@ -49,7 +49,20 @@ Run these checks before doing anything else:
 
 ## Process
 
-### Step 1 [CREATE]: Define goal – Ruleset Guidance template selection
+Steps in this command:
+1. Template / Load
+2. Computation skeleton
+3. Ruleset groups
+4. Ruleset modules
+5. Sample rules
+6. Tag output variables
+7. Sample tests
+
+### Step 1 [CREATE]: Bootstrap guidance.yaml
+
+Two paths are available. Present as options:
+
+**a. Template selection** — Choose a guidance template:
 
 Scan `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/*.yaml` and `$DOMAINS_DIR/guidance-templates/*.yaml` for all available guidance template files, reading only the top 5 lines to get the `template_id`, `display_name`, and `description` for each file.
 
@@ -68,6 +81,16 @@ The `source_template` and `generated_at` fields are inserted immediately after `
 
 Print: `Created $DOMAINS_DIR/<domain>/specs/guidance.yaml`
 
+**b. AI-suggest** — Let the AI propose candidate rulesets based on the index:
+
+1. Prompt: "Enter a hint to narrow candidate rulesets (e.g. 'eligibility', 'benefit calculation'), or press Enter to suggest all:"
+2. Run `/xl:suggest-ruleset-io <domain> [<hint>]` (omit `<hint>` if the user pressed Enter), following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/suggest-ruleset-io.md`. Skip pre-flight — domain and index already verified above.
+3. Present the list of generated candidate files from `specs/suggested_rulesets/`.
+4. Ask the user which candidate to use.
+5. Run `/xl:declare-ruleset-io <domain> <chosen_ruleset>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/declare-ruleset-io.md`. Skip pre-flight — domain already verified above.
+
+After either path, `guidance.yaml` exists and Step 2 may proceed.
+
 ### Step 1 [UPDATE]: Load existing file
 
 Read `$DOMAINS_DIR/<domain>/specs/guidance.yaml`. Print a summary:
@@ -81,354 +104,47 @@ Skeleton: <N> computations across <N> intermediate categories, <N> example rules
 
 ---
 
-### Step 2: Customize based on Input Docs
+### Step 2: Computation skeleton
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`.
-Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — the index is the sole source of doc signals.
+Run `/xl:create-skeleton <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-skeleton.md`. Skip pre-flight — domain, `guidance.yaml`, and `input-index.yaml` already verified above.
 
-The guidance (`$DOMAINS_DIR/<domain>/specs/guidance.yaml`) will be used as the prompt for an AI to generate a ruleset.
-Extend the guidance by extracting relevant signals from the index:
+The sub-command handles:
+- Doc signal extraction from `input-index.yaml` (topic tags, section headings, file summaries, computation hints)
+- Merging doc-derived proposals into the four guidance sections (`constraints`, `standards`, `guidance`, `edge_cases`)
+- Building and confirming the computation skeleton with the user
+- Writing the confirmed skeleton and variable categories to `guidance.yaml` under `skeleton:`
 
-- **Topic tags** across all sections → cluster to find prominent domain areas
-- **Section headings** → reveals statutory structure (e.g., income tests, deduction chains)
-- **File summaries** → reveals program scope and terminology
-- **Computation hints** → collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable (last item in `variables`). If the index has no `computations:` entries, skip this signal.
+In UPDATE mode, `create-skeleton` detects the existing skeleton and offers accept / replace / revise.
 
-For each of the four guidance sections (`constraints`, `standards`, `guidance`, `edge_cases`), generate proposed additions grounded in these index signals. Use computation hints to enrich `guidance` and `standards` proposals with concrete variable names and formula patterns (e.g., "The CIVIL ruleset should define `earned_income_deduction` as a `computed:` field equal to `earned_income * 0.20`").
+### Step 3: Ruleset groups
 
-Merge the doc-derived proposals into `$DOMAINS_DIR/<domain>/specs/guidance.yaml` immediately:
-- For each of the four sections, append the proposed items into the section's current list
-- Deduplicate: do not add items that are substantively identical to existing items
-- Write the updated file to disk
+Run `/xl:create-ruleset-groups <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-ruleset-groups.md`. Skip pre-flight — already verified above.
 
-This step runs identically in CREATE and UPDATE modes — no gap-detection branch, no separate proposals display.
+The sub-command scans `input-index.yaml` for phase headings, proposes `ruleset_groups`, and writes the confirmed list to `guidance.yaml`. In UPDATE mode, it detects existing `ruleset_groups:` and offers accept / replace / merge.
 
-### Step 3: Computation skeleton
+### Step 4: Ruleset modules
 
-*Runs in both CREATE and UPDATE modes.*
+Run `/xl:create-ruleset-modules <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-ruleset-modules.md`. Skip pre-flight — already verified above.
 
-Build and display the skeleton using:
+The sub-command applies heuristics to detect ruleset module candidates from the confirmed skeleton and `ruleset_groups:`, presents them for confirmation, and writes the confirmed list to `guidance.yaml` under `ruleset_modules:`. In UPDATE mode, existing entries are pre-confirmed and preserved.
 
-- **ruleset guidance** — `input_variables`, `intermediate_variables`, `output_variables` categories provide the structure and group names (from `guidance.yaml`, which always exists by this point)
-- **Step 2 doc signals** (in-memory index signals) — topic tags, section headings, and file summaries enrich variable names; computation hints from signal 4 provide concrete variable names (prefer these over generic `examples` from the guidance template) and expression hints (show as `≈ <expr_hint>` when available from the index, `= ?` when not inferable)
+### Step 5: Sample rules
 
-Display the skeleton:
+Run `/xl:extract-sample-rules <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/extract-sample-rules.md`. Skip pre-flight — already verified above.
 
-```
-**Computation skeleton for [display_name]:**
+The sub-command generates a comprehensive set of CIVIL rules grounded in `input-index.yaml` entries and writes them to `guidance.yaml` under `sample_rules:`. Runs non-interactively — no mid-run prompting.
 
-**Inputs:**
-- [variable names from input_variables categories, enriched with domain-specific names]
-- ...
+### Step 6: Tag output variables
 
-**Output:**
-- [primary output field] ([type])
-- [secondary_decisions fields] ([type])
+Run `/xl:tag-vars-to-include-with-output <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/tag-vars-to-include-with-output.md`. Skip pre-flight — already verified above.
 
-**Computed:** *(how to get the Output from the Inputs)*
+The sub-command auto-detects invoke-derived variables (dot-access expressions in `computations:`) and writes the selection to `guidance.yaml` under `intermediate_variables.include_with_output`. Running after Step 5 ensures variables visible only in CIVIL snippets are captured. Runs non-interactively.
 
-*[category name — category description]:*
-- `[variable]` = [expression hint, or `= ?` if not inferable]
-- ...
+### Step 7: Sample tests
 
-[repeat for each intermediate_variables category]
+Run `/xl:create-sample-tests <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-sample-tests.md`. Skip pre-flight — already verified above.
 
----
-[C]onfirm this computation skeleton, or describe what to add, remove, change, or rename.
-```
-
-Include an ASCII computation flow diagram only when the dependency graph is non-trivial (more than one path from inputs to output). For simple linear chains with less than 3 steps, omit it.
-
-**On confirm** ("confirm", "yes", "looks good"): Write the skeleton to `guidance.yaml`:
-
-1. Update `input_variables`, `output_variables`, and `intermediate_variables` sections with the confirmed category structure.
-2. For each `intermediate_variables` category, rewrite `examples:` with the confirmed variable names from the skeleton display, in display order (replacing any generic template names).
-3. For each `intermediate_variables` category, write a `computations:` list — one entry per variable that has a non-null expr hint (shown as `≈ <expr>` in the skeleton display). Each entry has `name:` (the variable name) and `expr:` (the expr hint). Variables shown as `= ?` are omitted from `computations:`. Entries are written in the order they appeared in the skeleton display.
-
-### Step 4: Ruleset Module Candidate Detection
-
-*Runs immediately after skeleton confirmation.*
-
-Scan the confirmed skeleton (variable names and category structure) for each heuristic in priority order in order to identify ruleset modules, which will be implemented as CIVIL sub-modules:
-
-| Priority | Heuristic | Rationale value | Test |
-|----------|-----------|-----------------|------|
-| 1 | Reuse across entities | `reuse_across_entities` | 2+ entity names in `inputs:` (inferred from skeleton input categories) where a common computation prefix would apply to each — e.g., `yyy_earned_income` and `zzz_earned_income` suggest the same `earned_income` sub-module bound to two entities |
-| 2 | Policy structure | `policy_structure` | Named sub-section in `input-index.yaml` headings (from Step 2 signals) covers ≥3 intermediate variables in the skeleton |
-| 3 | Depth threshold | `depth_threshold` | ≥5 variable names in the skeleton whose names suggest sequential dependence (e.g., `after_*` chain, or `net_*` derived from `gross_*` derived from `total_*`) |
-| 4 | User hint | `user_hint` | `ruleset_modules:` already populated in `guidance.yaml` — load existing entries as pre-confirmed |
-
-**If one or more candidates are detected**, display the confirmation table:
-
-```
-Ruleset Module Candidates
-─────────────────────────────────────────────────────────────────────────
-  # │ Sub-Module Name   │ Bound Entities          │ Heuristic
-  1 │ earned_income     │ YyyData, ZzzRecord      │ reuse_across_entities
-  2 │ deduction_chain   │ Household               │ depth_threshold
-─────────────────────────────────────────────────────────────────────────
-[C] confirm all,  [D] dismiss all,
-Per-item: [a] add missed candidate, [r] remove candidate, [e] edit name/entities  
-```
-
-In UPDATE mode, existing `ruleset_modules:` entries are displayed as pre-confirmed (marked `[confirmed]`). Only newly detected candidates require a user decision. The user may still add, remove, or edit any entry including pre-confirmed ones.
-
-After the user's response:
-- For each confirmed candidate, write it to `$DOMAINS_DIR/<domain>/specs/guidance.yaml` under `ruleset_modules:` (placed after `ruleset_groups:`, before `constraints:`). Each entry has `name:`, `description:`, `bound_entities:`, and `rationale:`.
-- For dismissed candidates, do not write them.
-- For edited entries, write the user-edited values.
-- After all decisions, overwrite the `ruleset_modules:` key in the file with the final confirmed list (replacing any prior content under that key). When overwriting, preserve `role:`, `depends_on:`, and `sample_rules:` verbatim from any existing entries — these fields are owned by `/create-ruleset-modules` and `/extract-sample-rules` and must not be stripped.
-
-**If zero candidates are detected** (all heuristics return no results), emit:
-```
-No ruleset module candidates identified. Proceeding with single-module extraction.
-```
-Clear the `ruleset_modules:` key. (Existing entries in UPDATE mode are preserved.)
-
-**On adjustment response** (user adds, removes, or renames items): Update the skeleton in memory, re-display the full updated skeleton, and re-ask the checkpoint question. No limit on iterations.
-
-**On unrecognized input**: Re-display the skeleton and re-prompt the checkpoint question.
-
-### Step 5: Ruleset Group Elicitation (CIVIL v6)
-
-**Purpose:** Propose `ruleset_groups` — named evaluation phases that `rule.group:` annotations will reference. These give rules a home that makes policies scannable and reviewable.
-
-**(a) Scan for phase headings.**
-Read `specs/input-index.yaml` (or the source policy document if available). Look for:
-- Section headings that name a test phase (e.g. "Income Test", "Household Size Verification", "Categorical Eligibility")
-- Logical groupings of rules or conditions described in the policy
-
-**(b) Propose ruleset groups.**
-Convert detected headings to `snake_case` names and propose a list. Format:
-
-```
-Proposed ruleset groups
-────────────────────────────────────────────────
-  1. income_test          — Income eligibility tests
-  2. household_test       — Household size and composition tests
-  3. categorical_test     — Categorical eligibility checks
-
-[A] accept all or describe the what to edit
-(e.g. "add asset_test — Asset limit checks", "remove 2", "rename 1 to gross_income_test"):
-```
-
-If no phase headings are found, propose a single catch-all stage based on the module name (e.g. `eligibility`) and note it can be refined later.
-
-**(c) User approval.**
-Accept the list as-is, or apply edits. Re-display after each edit. Accept when the user presses Enter or types "ok".
-
-**(d) Write to `guidance.yaml`.**
-Write the confirmed stages as a top-level `ruleset_groups:` list:
-
-```yaml
-ruleset_groups:
-  - name: income_test
-    description: Income eligibility tests
-  - name: household_test
-    description: Household size and composition tests
-```
-
-**UPDATE MODE:** If `ruleset_groups:` already exists in `guidance.yaml`, show the existing list and ask:
-```
-ruleset_groups already defined:
-  1. income_test — Income eligibility tests
-  2. household_test — Household size and composition tests
-
-[a]ccept / [r]eplace / [m]erge?  (default: accept)
-```
-- **accept**: skip this sub-step, leave file unchanged.
-- **replace**: overwrite with newly proposed list.
-- **merge**: combine existing and new entries, deduplicated by name (new descriptions win on conflict).
-
-### Step 6: Output tag selection
-
-**Auto-detect invoke-derived variables:** scan all `computations:` entries confirmed in Step 3 (and expr_hints retained from Step 2 in-memory signals) for expressions containing dot-notation (`<identifier>.<identifier>`). These variables compute their value by accessing a field on a ruleset module result object (e.g., `client_result.adjusted_earned_income`). Collect their names as `auto_tagged`.
-
-Build the display list of remaining intermediate variables from all `examples:` values across every `intermediate_variables` category, excluding names already in `auto_tagged`.
-
-Display:
-
-```
-Output tag selection
-────────────────────────────────────────────────
-Auto-tagged (invoke-derived — expose ruleset module results):
-  ✓ client_adjusted_income     (expr: client_result.adjusted_earned_income)
-  ✓ dol_avg_monthly_adjusted   (expr: dol_result.adjusted_earned_income)
-
-Additional computed variables:
-  [income_tests]
-    gross_income, net_income, deduction_total
-  [exclusion_chain]
-    after_student, after_65, after_half, adjusted_earned_income
-
-Which additional variables should also be tagged `tags: [expose]`
-(to be included as part of the ruleset execution output -- appears in the API's ComputedBreakdown response)?
-(Enter variable names, comma-separated, or press `S` to skip):
-```
-
-If `auto_tagged` is empty, omit the "Auto-tagged" section.
-
-**In UPDATE mode:** if `include_with_output:` already exists in `guidance.yaml`, display the current value before prompting:
-```
-Currently tagged: [client_adjusted_income, dol_avg_monthly_adjusted, income_standard]
-  (auto-tagged: client_adjusted_income, dol_avg_monthly_adjusted)
-Update additional selection ('a' to accept as-is):
-```
-
-**Validation:** after user input, check each entered name against the union of all `examples:` values across all `intermediate_variables` categories. If any names are unrecognized, display them and re-prompt:
-```
-Unknown names: [after_halff, income_totaal]
-These don't match any confirmed variable. Check spelling.
-Re-enter selection (or 'f' to force-accept):
-```
-On `f`: accept and save as-is (allows forward-referencing names not yet in examples:).
-
-**Write behavior:** `include_with_output` = `auto_tagged` ∪ user-entered names. Write to `guidance.yaml` under `intermediate_variables.include_with_output` immediately:
-```yaml
-intermediate_variables:
-  include_with_output: [client_adjusted_income, dol_avg_monthly_adjusted, income_standard]
-  categories:
-    ...
-```
-
-- On Enter (no user input): if CREATE mode, write `include_with_output: [<auto_tagged names>]`. If UPDATE mode and `include_with_output:` already exists, preserve the existing value unchanged (re-run auto-detection and merge, keeping any user-added names from previous runs).
-- `include_with_output: []` is a valid value when the user explicitly enters nothing and there are no auto-tagged variables.
-
-### Step 7: Q&A refinement
-
-Present all four section contents from `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
-
-```
-Current guidance sections for <domain>:
-
-[1] constraints (<N> items)
-    - <item>
-    - ...
-
-[2] standards (<N> items)
-    - <item>
-    - ...
-
-[3] guidance (<N> items)
-    - <item>
-    - ...
-
-[4] edge_cases (<N> items)
-    - <item>
-    - ...
-
-Which section would you like to update? [1–4] or 'p' to proceed:
-```
-
-**If the user chooses a section** — show the current content for that section and the section's key question:
-
-| Section | Key question |
-|---|---|
-| `constraints` | "What should I *not* infer or assume in this domain?" |
-| `standards` | "Are there normalization rules specific to this program? (units, categories, naming)" |
-| `guidance` | "What non-obvious rule patterns should I look for?" |
-| `edge_cases` | "What special populations or situations does this program treat differently?" |
-
-After the user answers, update that section in `$DOMAINS_DIR/<domain>/specs/guidance.yaml` immediately, then return to the section menu.
-
-**If the user presses Enter** (no section chosen) — proceed to Step 8.
-
-The section menu repeats after each update. The loop terminates when the user presses Enter or selects `[q] Quit`.
-
-**On `[q] Quit`:** Print:
-```
-Exiting. guidance.yaml saved at $DOMAINS_DIR/<domain>/specs/guidance.yaml
-Run /xl:refine-guidance <domain> to continue refining.
-```
-Stop.
-
-### Step 8: Rule Preview Gate
-
-`guidance.yaml` was written after each Q&A update in Step 7 and is fully current.
-Print: `guidance.yaml is up to date at $DOMAINS_DIR/<domain>/specs/guidance.yaml`
-
-Using in-memory index signals from Step 2 (topic clusters, section headings, policy excerpts, and computation hints from `input-index.yaml`), synthesize 2–3 illustrative CIVIL rules this guidance would shape the AI to extract. Select examples spanning different rule types (categorical, computed, table-lookup) where the policy supports it. For `computed:` examples, use `expr_hint` values from computation hints to populate concrete `expr:` values rather than placeholders.
-
-**When `ruleset_modules:` in `guidance.yaml` is non-empty:** One of the 2–3 examples must demonstrate `invoke:` field access. Use the first entry in `ruleset_modules:` and the first bound entity as the example. Use placeholder field names with a `# illustrative — final names confirmed at extraction` comment. The total example count stays at 2–3 — replace the table-lookup example type if needed (prefer dropping table-lookup over categorical or computed).
-
-If Step 2 observations are no longer in context (large docs), re-read `$DOMAINS_DIR/<domain>/specs/input-index.yaml` silently to reconstruct — do NOT read files under `$DOMAINS_DIR/<domain>/input/`.
-
-Present:
-
-─────────────────────────────────────────────
-Preview: Rules this guidance would extract
-─────────────────────────────────────────────
-
-Rule 1 — [rule name / topic area]
-  Source: "[quoted sentence from input-index.yaml section summary]"
-  CIVIL:
-    rules:
-      - id: ...
-        when: ...
-        then: ...
-
-Rule 2 — [rule name / topic area]
-  Source: "..."
-  CIVIL:
-    computed:
-      - name: ...
-        ...
-
-[Rule 3 if a third distinct type is identifiable — otherwise 2 is sufficient]
-
-*(Illustrative samples — run `/xl:extract-ruleset` for the full validated ruleset.)*
-─────────────────────────────────────────────
-Do these look right?
-  [a] Accept
-  [1] Refine constraints
-  [2] Refine standards
-  [3] Refine guidance
-  [4] Refine edge_cases
-  [m] More rules
-  [q] Quit (keep file as-is)
-
-**On [a]:** Write all displayed rules to `guidance.yaml` under a top-level `sample_rules:` section (placed after `edge_cases:`). Append to any existing entries and deduplicate by `id:`. Each entry has:
-- `id:` — snake_case identifier for the rule
-- `rule_type:` — one of `categorical`, `computed`, or `table-lookup`
-- `source:` — quoted sentence from the relevant `input-index.yaml` section summary that the rule is grounded in
-- `civil:` — the full CIVIL snippet as a literal block scalar (`|`)
-
-Then proceed to Step 9.
-
-**On [m]:** Generate 2–3 additional illustrative rules. Prioritize types not yet shown (e.g., add a table-lookup example if only categorical and computed have been displayed). Append the new rules to the displayed list. Re-present the full gate with the expanded rule set. No limit on `[m]` iterations.
-
-**On [1]–[4]:** Re-ask only that section's Q&A question, showing the current content for that section as the pre-filled default:
-```
-Current [<section>]: (N items)
-  - ...
-<section key question> ('a' to accept as-is):
-```
-After the user answers, update `guidance.yaml` immediately, regenerate the preview, and return to this step. Do not continue through the other sections automatically.
-
-**On [q]:** Do not write `sample_rules:` — rules have not been user-approved. Print:
-```
-Exiting. guidance.yaml saved at $DOMAINS_DIR/<domain>/specs/guidance.yaml
-Run /xl:refine-guidance <domain> to continue refining.
-```
-Stop.
-
-**On unrecognized input:** Re-display the gate options and re-prompt.
-
-### Step 9: Confirm
-
-Print:
-```
-[CREATE: Created / UPDATE: Updated] $DOMAINS_DIR/<domain>/specs/guidance.yaml
-
-Next: Run /xl:extract-ruleset <domain> to extract the CIVIL ruleset.
-      Re-run /xl:refine-guidance <domain> at any time to update guidance.
-```
-
-If `ruleset_modules:` in `guidance.yaml` is non-empty, append to the confirmation message:
-```
-(N ruleset module candidates: name1, name2, ...)
-```
-where N is the count and the names are the `name:` values from `ruleset_modules:`, comma-separated.
+The sub-command generates pre-extraction test scaffolding from `guidance.yaml` and writes test cases under `sample_tests:`. Requires `sample_rules:` to be present (written by Step 5). Runs non-interactively.
 
 ---
 
@@ -441,8 +157,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED or UPDATED]
 ## Common Mistakes to Avoid
 
 - Do not add `edge_cases:` to ruleset guidance template files in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` — they are domain-agnostic; `edge_cases:` belongs only in per-domain `guidance.yaml`
-- Do not rewrite sections the user did not change — preserve exact wording of unchanged sections
 - `source_template` is never updated after initial creation — it records which guidance template the file was originally created from
 - Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/xl:new-domain`
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-index.yaml` is the sole source of doc signals
-- `guidance.yaml` is created in Step 1 [CREATE], not deferred to Q&A — it always exists before Step 2 begins
+- `guidance.yaml` is created in Step 1 [CREATE], not deferred to later steps — it always exists before Step 2 begins
