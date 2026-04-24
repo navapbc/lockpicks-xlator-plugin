@@ -225,6 +225,11 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
+**Before drafting `outputs:`,** check `output_variables.primary.type` in `guidance.yaml`:
+- **`bool`** (default) — use `type: bool` with `expr: "count(reasons) == 0"`
+- **`enum`** — use `type: string` + `values:` + `conditional:` (see template below); `enum` maps to `string` in CIVIL
+- **other scalar** (`money`, `int`, `float`) — use a typed output decision with `expr:` instead of `computed:` + `tags: [expose]`
+
 ```yaml
 module: "<program_name>"
 description: "..."
@@ -248,44 +253,44 @@ inputs:
         currency: USD  # for money type
         optional: true  # if not required
 
+# outputs: CASE A — output_variables.primary.type is bool (default)
 outputs:
   eligible:
     type: bool
     default: false
     description: "..."
-    expr: "count(reasons) == 0"  # explicit expr: required for bool decisions
+    expr: "count(reasons) == 0"
   reasons:
     type: list
     item: Reason
     default: []
     description: "..."
-  # For computation-output modules, use a typed decision with expr: instead of computed: + tags: [expose]:
-  # adjusted_income:
-  #   type: money
-  #   currency: USD
-  #   description: "Final adjusted income after all exclusion steps"
-  #   expr: "step_n - exclusion_a - exclusion_b"
 
-**If `output_variables.primary.type` is `'enum'` (or any non-bool scalar type):**
-- Use `type: string` for the primary decision field (`enum` maps to `string` in CIVIL)
-- Add `values:` list from `output_variables.primary.values`
-- Add `default:` set to the "neutral" value (e.g., `"approve"` for eligibility)
-- Draft a `conditional:` that produces one of the declared values
-- For 3-way outcomes: use a binary `conditional:` where the `else:` branch is an
-  inline expression: `"if <cond2> then \"val2\" else \"val3\""`
+# outputs: CASE B — output_variables.primary.type is enum
+# outputs:
+#   eligible:
+#     type: string
+#     values: [approve, deny, manual_verification]  # from output_variables.primary.values
+#     default: "approve"  # "neutral" value
+#     description: "..."
+#     conditional:
+#       if: "count(reasons) > 0"
+#       then: "\"deny\""
+#       else: "if manual_verification_required then \"manual_verification\" else \"approve\""
+#             ^ for 3-way outcomes: binary conditional where else: is an inline if expression
+#   reasons:
+#     type: list
+#     item: Reason
+#     default: []
+#     description: "..."
 
-```yaml
-# For enum primary decisions (output_variables.primary.type: enum):
-# eligible:
-#   type: string
-#   values: [approve, deny, manual_verification]
-#   default: "approve"
-#   description: "..."
-#   conditional:
-#     if: "count(reasons) > 0"
-#     then: "\"deny\""
-#     else: "if manual_verification_required then \"manual_verification\" else \"approve\""
-```
+# outputs: CASE C — computation-output module (money, int, float)
+# outputs:
+#   adjusted_income:
+#     type: money
+#     currency: USD
+#     description: "Final adjusted income after all exclusion steps"
+#     expr: "step_n - exclusion_a - exclusion_b"
 
 tables:
   <table_name>:
