@@ -67,6 +67,11 @@ Capture stdout. Do not echo verbatim.
 
 **On success (exit 0):**
 Read `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml`. Extract all nodes where `kind == "computed"`.
+Then embed the generated diagram inline:
+
+````mermaid
+[contents of $DOMAINS_DIR/<domain>/specs/<program>.mmd]
+````
 
 **On failure (exit 1):**
 Print `Warning: computation graph preview could not be generated — continuing to review.`

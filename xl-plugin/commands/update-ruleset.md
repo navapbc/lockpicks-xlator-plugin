@@ -206,92 +206,15 @@ Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`:
 
 Run **SP-Validate**.
 
-### Step 8b: Generate Computation Graph (Preview)
-
-```bash
-python $CLAUDE_PLUGIN_ROOT/tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
-```
-
-Always run unconditionally — regenerates even if graph files already exist from a prior run.
-Capture stdout. Do not echo verbatim.
-
-**On success (exit 0):**
-Read `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml`. Extract all nodes where `kind == "computed"`.
-
-**On failure (exit 1):**
-Print `Warning: computation graph preview could not be generated — continuing to review.`
-Proceed to Step 9 without showing graph content.
-
-### Step 9: Human Review Gate
-
-**Multi-file (multiple files being re-extracted):** Run the review gate sequentially per re-extracted file. For each file being regenerated, present a full review gate with the header:
-```
-Review Gate (File N of M): <module_name>  [$DOMAINS_DIR/<domain>/specs/<module_name>.civil.yaml]
-```
-On rejection within a file's gate: re-extract only that file (re-run Steps 5 + SP-Validate for that file only). After all per-file gates pass, continue to Step 9b. Files not being re-extracted (no source doc changes) are not shown in the review gate.
-
-**Single-file:** existing review gate behavior unchanged.
-
-**If Step 8b succeeded**, show the following block before the `Changed input docs:` block:
-
-```
-✓ Draft graph: $DOMAINS_DIR/<domain>/specs/<program>.mmd
-
-Dependency graph (computed fields):
-  <field_1>    ← <dep_1>, <dep_2>    → <used_by_1>
-  <field_2>    ← <dep_1>             → [rule: <rule_id>]
-  ...
-```
-
-Format each line as: `<node_key>  ← <depends_on list>  → <used_by list>`
-- `depends_on`: join with `, ` — raw field names; no decoration
-- `used_by`: prefix rule nodes with `[rule: ]`; plain names for computed refs
-- Empty `depends_on`: show `← [no deps]`; empty `used_by`: show `→ [unused]` (potential dead-code)
-- Zero computed fields: replace the table with `(No computed fields in this module.)` but still show the Mermaid block
-
-Then embed the contents of `<program>.mmd` in a ```mermaid fence:
-
-````mermaid
-[contents of <program>.mmd]
-````
-
----
-
-Present a **diff-style summary** (not the full ruleset):
-
-```
-Changed input docs:
-  - input/policy_docs/<filename>.md
-
-Updated CIVIL sections:
-  tables.gross_income_limits:
-    OLD: household_size=3 → max_gross_monthly: $X,XXX
-    NEW: household_size=3 → max_gross_monthly: $Y,YYY
-    Source: "<quote from policy doc>"
-
-  rules.FED-<PROGRAM>-DENY-003:
-    OLD when: <expression>   OLD scores: fidelity:3 clarity:3 logic:2 policy:3
-    NEW when: <expression>   NEW scores: fidelity:2 clarity:2 logic:3 policy:4
-    NEW Notes: "'unless' clause may need a separate allow rule for exemption paths"
-
-  (repeat for each changed row/constant/rule/computed field)
-```
-
-**Score reset:** When a rule or computed field is re-extracted, its `review:` block is replaced entirely with fresh scores. Unchanged items retain their existing scores. Score reset applies at section granularity — if a `computed:` section is re-extracted, all fields in that section get new scores.
-
-Ask: "Does this update look correct? Any changes missing or incorrect?"
-
-**On rejection:** Re-extract the specific disputed section, re-merge, re-validate, re-present. Do not proceed until confirmed.
-
-### Step 9b: Update Naming Manifest
+### Step 8b: Update Naming Manifest
 
 If any new fact, computed, or outputs fields were added: derive canonical names using the 4-step algorithm from `/xl:extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate `inputs:` entity, `computed:`, or `outputs:` section. Preserve all existing entries unchanged.
 
-If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after the review gate passes.
+If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after validation.
 
-### Step 9c: Write Stale-Cases Hint
+### Step 8c: Write Stale-Cases Hint
 
-After the review gate passes, write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/xl:create-tests`:
+Write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/xl:create-tests`:
 
 ```yaml
 # Written by /xl:update-ruleset. Consumed and deleted by /xl:create-tests.
@@ -305,15 +228,13 @@ Include any test case whose `inputs` contain a value that was a table boundary o
 stale_cases: []
 ```
 
-### Step 9d: Refresh Computation Graph
+---
 
-Run **SP-ComputeGraph**.
+Update complete. Run the review gate to validate and finalize:
 
-Run **SP-TagOutputs**.
-
-Run **SP-GuidanceCapture**.
-
-Run **SP-CompleteExtraction**.
+```
+/xl:review-ruleset <domain> <program>
+```
 
 ---
 
@@ -325,11 +246,9 @@ Files created or modified by this command:
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Updated (affected sections only) |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Updated |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (new fields appended) |
-| `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 8b) / Refreshed (Step 9d) |
-| `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 8b) / Refreshed (Step 9d) |
-| `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (after Step 9c; consumed by `/xl:create-tests`) |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 8b, after validation) |
+| `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 8c; consumed by `/xl:create-tests`) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) / Updated by SP-GuidanceCapture if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) |
 
-Tests, transpilation, and other output are handled by `/xl:create-tests` and `/xl:transpile-and-test`.
+Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/xl:review-ruleset`. Tests and transpilation are handled by `/xl:create-tests` and `/xl:transpile-and-test`.
