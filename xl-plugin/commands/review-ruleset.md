@@ -166,13 +166,15 @@ Ask: "Does this translation correctly capture the policy intent? Any rules missi
 
 **On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Run **SP-Validate** (retry loop, max 3 attempts). Recompute the `review:` scores for the re-drafted item. Re-present the full review gate. Do not proceed until the user confirms.
 
-### Step 3: Refresh Computation Graph
+### Step 3: Finalize Outputs
 
 **SP-TagOutputs (output tagging):** Run **SP-TagOutputs** once per `generate` entry in the work-list, in work-list order.
 
 **Multi-file SP-TagOutputs behavior:** For sub-module files, before displaying the ranked list, pre-select and lock any computed fields whose names appear in the main module's `invoke:` dot-access expressions (e.g., if the main module accesses `client_result.net_income`, then `net_income` in the sub-module's computed: section is locked as `[REQUIRED for parent invoke:]` and cannot be deselected). Display locked fields at the top of the ranked list marked `[REQUIRED]`. Fields in the guidance output set (`[GUIDANCE]`) follow, then remaining fields in standard SP-TagOutputs rank order. See SP-TagOutputs in `core/ruleset-shared.md` for the full tier logic.
 
 Run **SP-ComputeGraph** after all files in the work-list have been reviewed and approved. In multi-file context, run SP-ComputeGraph for each `generate` entry separately.
+
+### Step 4: Capture Learnings
 
 Run **SP-GuidanceCapture** once per per-file review gate that passed (after each file's gate, not after all files). In multi-file context, call SP-GuidanceCapture with the current module name so it can prefix candidates with `[module: <name>]`.
 
@@ -197,4 +199,4 @@ Files created or modified by this command:
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 1) / Refreshed (Step 3) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 1) / Refreshed (Step 3) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required) / Updated by SP-GuidanceCapture if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
