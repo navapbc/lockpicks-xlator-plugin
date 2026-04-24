@@ -226,6 +226,15 @@ setup_tooling() {
     fi
 }
 
+ensure_xlator_symlink() {
+    local target_dir="$1"
+    local dest="$target_dir/xlator"
+    local src="$CLAUDE_PLUGIN_ROOT/bin/xlator"
+    if [ ! -L "$dest" ] || [ "$(readlink "$dest")" != "$src" ]; then
+        ln -vsnf "$src" "$dest"
+    fi
+}
+
 setup_misc() {
     echo "😊 6. Wrapping up: VS Code settings, put xlator in PATH, .plugin symlink, ..."
     mkdir -p "$PROJECT_ROOT/.vscode"
@@ -234,13 +243,15 @@ setup_misc() {
     # Claude's PATH should have $CLAUDE_PLUGIN_ROOT/bin included, so xlator should be available.
     # For other contexts (VS Code terminal, user shell), create a symlink to the xlator script in a folder that's on the PATH.
     # .venv/bin is on the PATH, so create a symlink to the xlator script there
-    [ -e "$XLATOR_UV_BASEDIR/.venv/bin/xlator" ] || ln -snf "$CLAUDE_PLUGIN_ROOT/bin/xlator" "$XLATOR_UV_BASEDIR/.venv/bin/xlator"
-    # Only if running in container, create the symlink in a PATH folder commonly used for the bash terminal (~/.local/bin).
-    # Don't do this for a user's actual $HOME, which is outside a container.
-    [ -e /.dockerenv ] && { [ -e "$HOME/.local/bin/xlator" ] || ln -snf "$CLAUDE_PLUGIN_ROOT/bin/xlator" "$HOME/.local/bin/xlator"; }
+    ensure_xlator_symlink "$XLATOR_UV_BASEDIR/.venv/bin"
+    # If ADD_TO_MY_HOME_BIN or running in container, create the symlink in a PATH folder commonly used for the bash terminal (~/.local/bin).
+    # By default, don't do this for a user's actual $HOME, which is outside a container.
+    if [ "${ADD_TO_MY_HOME_BIN:-}" = "true" ] || [ -e /.dockerenv ]; then
+        ensure_xlator_symlink "$HOME/.local/bin"
+    fi
 
     # Provides easy access to the plugin folder for reference
-    [ -e "$DOMAINS_FULLPATH/.shared/.plugin" ] || ln -snf "$CLAUDE_PLUGIN_ROOT" "$DOMAINS_FULLPATH/.shared/.plugin"
+    [ -e "$DOMAINS_FULLPATH/.shared/.plugin" ] || ln -vsnf "$CLAUDE_PLUGIN_ROOT" "$DOMAINS_FULLPATH/.shared/.plugin"
 }
 
 # --- Main ---
