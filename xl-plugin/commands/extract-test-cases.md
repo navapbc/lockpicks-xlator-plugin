@@ -56,7 +56,7 @@ Within each relevant file:
 3. For each found example, confirm it exercises the `<program>` ruleset (i.e., its inputs or conclusions reference the program vocabulary or a cited section). Discard examples that belong to a different program or benefit type.
 4. Map the stated values to CIVIL fact field names using the program vocabulary as a dictionary.
 5. If a value cannot be mapped to a known fact field (e.g., an intermediate value like "20% of gross earnings" that is a `computed:` field, not a fact input), record it in the `notes:` YAML key and omit from `inputs` — do not guess or coerce.
-6. Infer all `expected.*` decision fields (e.g., `expected.eligible`, `expected.reasons`, `expected.adjusted_income`) from the document's stated conclusion, **not** from running the rules.
+6. Infer all `expected.*` output decision fields (e.g., `expected.eligible`, `expected.reasons`, `expected.adjusted_income`) from the document's stated conclusion, **not** from running the rules.
 7. Tag as `["extracted"]` plus any applicable rule tags (e.g., `"allow"`, `"deny"`, `"earned_income"`).
 8. If a relevant file contains no concrete numerical examples, **do not fabricate them** — report: "No concrete examples found in `<filename>`." and continue to the next file.
 

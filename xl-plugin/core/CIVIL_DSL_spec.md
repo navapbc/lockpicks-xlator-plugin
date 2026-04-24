@@ -35,7 +35,7 @@ Core concepts
 
 Facts are the only input; the engine is a pure function:
 
-`evaluate(policy_bundle, facts, as_of_date, jurisdiction) -> outputs + reasons`
+`evaluate(policy_bundle, input_facts, as_of_date, jurisdiction) -> outputs + reasons`
 
 ### 2) Outputs are “decisions”
 
@@ -251,7 +251,7 @@ source: "7 CFR § 273.9(a)(1) — Gross Income Test"
 
 A deny rule will often have the same CFR section in both. That is expected — they serve different audiences.
 
-Example on a fact field, computed field, table, and rule:
+Example on an input fact field, computed field, table, and rule:
 
 ```yaml
 inputs:

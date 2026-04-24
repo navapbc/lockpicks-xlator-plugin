@@ -23,7 +23,7 @@ The [CIVIL_DSL_spec.md](CIVIL_DSL_spec.md) documents **CIVIL**, our policy speci
 - **Explainability**: Every decision includes reasons with legal citations
 - **Transpiler-friendly**: Intermediate representation for multiple rule engines
 - **Policy composition**: Overlay system for jurisdiction-specific rules
-- **Deterministic evaluation**: Pure function from facts to decisions
+- **Deterministic evaluation**: Pure function from input facts to output decisions
 
 ### Use Cases
 

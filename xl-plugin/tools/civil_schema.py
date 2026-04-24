@@ -150,7 +150,7 @@ class FactField(BaseModel):
     def warn_unknown_type(cls, v: str) -> str:
         if v not in PRIMITIVE_TYPES:
             print(
-                f"WARNING: unknown fact field type '{v}' (may be a custom type)",
+                f"WARNING: unknown input fact field type '{v}' (may be a custom type)",
                 file=sys.stderr,
             )
         return v

@@ -74,7 +74,7 @@ def _serialize_value(value, spec: FieldSpec) -> str:
 
 
 def _get_fact_value(test_inputs: dict, spec: FieldSpec) -> str:
-    """Extract a fact field value from test inputs dict using column_name."""
+    """Extract an input fact field value from test inputs dict using column_name."""
     col = spec.column_name
     if "." in col:
         # Multi-entity: "EntityName.field_name"

@@ -47,7 +47,7 @@ ls $DOMAINS_DIR/<domain>/output/demo-catala-<module>/ 2>/dev/null
 - Load `$DOMAINS_DIR/<domain>/specs/<module>.civil.yaml` — extract:
   - `inputs.<Entity>.fields` — input field names, types, optionality, descriptions
   - `computed:` — output computed field names (keys only; ignore `expr:`/`conditional:` values)
-  - `outputs:` — decision field names and types
+  - `outputs:` — output decision field names and types
   - `metadata` — domain name, description, any policy citation
 - Load `$DOMAINS_DIR/<domain>/specs/tests/<module>_tests.yaml` if present — pick up to 3 test cases with distinct outcomes (prefer one `allow_*`, one `deny_*`, one edge case).
 
@@ -89,7 +89,7 @@ from python.<ModuleName> import <InputClass>, <entry_function>
 from catala_runtime import money_of_units_int, integer_of_int, Unit
 ```
 
-**`InputFacts` Pydantic model** — one field per `facts.<Entity>.fields` entry:
+**`InputFacts` Pydantic model** — one field per `inputs.<Entity>.fields` entry:
 
 | CIVIL type | Python type | Field default |
 |-----------|-------------|---------------|
@@ -203,7 +203,7 @@ For three-outcome decisions (approve / deny / manual):
 ```
 Add `.cat-tag`, `details.chain-detail`, `.info-note`, `.manual-note`, or `.breakdown-table` rules as needed for this module's breakdown rendering.
 
-**`{{FIELDS_HTML}}`** — complete form structure. One `<div class="field">` per `facts.<Entity>.fields` entry:
+**`{{FIELDS_HTML}}`** — complete form structure. One `<div class="field">` per `inputs.<Entity>.fields` entry:
 - `bool` → `<input type="checkbox" id="<name>" name="<name>">` with label
 - `int` / `money` → `<input type="number" id="<name>" name="<name>" min="0" step="1">`
 - `enum` → `<select id="<name>" name="<name>">` with one `<option value="<variant>">` per `enum_values` entry:
@@ -230,13 +230,13 @@ const EXAMPLES = {
 ```
 If no test manifest: `const EXAMPLES = { example_1: { /* TODO: fill in after running /create-tests <domain> */ } };`
 
-**`{{LOAD_EXAMPLE_BODY_JS}}`** — body only, one line per fact field:
+**`{{LOAD_EXAMPLE_BODY_JS}}`** — body only, one line per input fact field:
 ```javascript
 document.getElementById('field_name').value = ex.field_name;   // numbers/enums
 document.getElementById('bool_field').checked = ex.bool_field; // booleans
 ```
 
-**`{{SUBMIT_PAYLOAD_JS}}`** — key-value pairs only (no surrounding braces), one per fact field:
+**`{{SUBMIT_PAYLOAD_JS}}`** — key-value pairs only (no surrounding braces), one per input fact field:
 - `bool` → `document.getElementById('<name>').checked`
 - `int` → `parseInt(document.getElementById('<name>').value)`
 - `money` → `parseFloat(document.getElementById('<name>').value) || 0`

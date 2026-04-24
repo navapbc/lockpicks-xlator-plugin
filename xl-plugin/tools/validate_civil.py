@@ -136,7 +136,7 @@ def validate_invoke_references(module_path: str, doc: dict) -> tuple[list[str], 
         # Resolve file + cycle detection
         _check_module(sub_path)
 
-        # Validate bind: entities against sub-module and parent facts
+        # Validate bind: entities against sub-module and parent input facts
         try:
             with open(sub_path) as f:
                 sub_doc = yaml.safe_load(f)

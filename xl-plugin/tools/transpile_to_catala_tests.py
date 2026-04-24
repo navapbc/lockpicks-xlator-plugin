@@ -238,7 +238,7 @@ def emit_test_scope(
     """Emit Catala lines for one #[test] scope.
 
     all_fields: ordered list of (field_name, civil_type, is_optional) for scope inputs.
-      Used only in single-entity mode (one facts entity).
+      Used only in single-entity mode (one input facts entity).
     entity_fields: {entity_name: [(field_name, civil_type, is_optional)]}.
       When more than one entity is present, struct-literal input emission is used instead
       of flat field assignment (multi-entity mode).

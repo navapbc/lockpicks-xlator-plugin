@@ -60,7 +60,7 @@ ls $DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml 2>/dev/null
 ## Process — CREATE Mode
 
 Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` to understand:
-- All fact fields (types, optionality)
+- All input fields (types, optionality)
 - All decisions (e.g., `eligible`, `reasons`, or any `expr:`-driven money/int/string decision fields)
 - All deny rules and their conditions
 - All computed fields involved in eligibility thresholds
@@ -182,4 +182,4 @@ Delete `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` if it exists (prevents st
 - **Don't nest inputs by entity name** — inputs are always flat key-value
 - **Don't change `case_id` values** when updating stale cases — preserve existing IDs
 - **Don't delete cases that aren't stale** — only update or add; removal is a human decision
-- **Omit optional fact fields** that aren't relevant to a test case — only include inputs the test actually depends on
+- **Omit optional input fields** that aren't relevant to a test case — only include inputs the test actually depends on

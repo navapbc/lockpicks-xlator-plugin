@@ -17,7 +17,7 @@ For full specification and design rationale, see [CIVIL_DSL_spec.md](CIVIL_DSL_s
 | `jurisdiction` | ✅ | See `Jurisdiction` table |
 | `effective` | ✅ | See `Effective` table |
 | `inputs` | ✅ | Dict of entity names → `FactEntity` |
-| `outputs` | ✅ | Dict of decision names → `DecisionField` |
+| `outputs` | ✅ | Dict of output decision names → `DecisionField` |
 | `rule_set` | ✅ | See `RuleSet` table |
 | `rules` | ✅ | List of `Rule` objects |
 | `tables` | — | Optional lookup tables |
@@ -382,7 +382,7 @@ The structured output object is always at `decision` (e.g., query `/v1/data/<pkg
 ## Common Gotchas
 
 1. **`FactField` has no `default:`** — use `optional: true`; defaults are input-level concerns
-2. **`string` not `str`** — fact field type for strings is `string`
+2. **`string` not `str`** — input fact field type for strings is `string`
 3. **`ComputedField.type` cannot be `string`** — only `money`, `bool`, `float`, `int`
 4. **`jurisdiction.country` is required** — don't omit it for state-level programs
 5. **`then:` must be non-empty** — every rule needs at least one action

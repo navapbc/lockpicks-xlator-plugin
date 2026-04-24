@@ -38,7 +38,7 @@ class FieldSpec:
 
 def _make_column_name(entity_name: str, field_name: str, multi_entity: bool,
                       used_names: set[str]) -> tuple[str, bool]:
-    """Return (column_name, forced_prefix) for a fact field.
+    """Return (column_name, forced_prefix) for an input fact field.
 
     Forces EntityName. prefix if:
     - multi_entity is True, OR
@@ -49,7 +49,7 @@ def _make_column_name(entity_name: str, field_name: str, multi_entity: bool,
         # Collision with reserved name — force prefix and warn
         forced = f"{entity_name}.{field_name}"
         print(
-            f"WARN: fact field '{field_name}' collides with reserved column name "
+            f"WARN: input fact field '{field_name}' collides with reserved column name "
             f"— using '{forced}' instead",
             file=sys.stderr,
         )
@@ -60,7 +60,7 @@ def _make_column_name(entity_name: str, field_name: str, multi_entity: bool,
 
 
 def build_csv_field_specs(civil_doc: dict) -> list[FieldSpec]:
-    """Return ordered FieldSpec list: facts fields then decision fields.
+    """Return ordered FieldSpec list: input facts fields then output decision fields.
 
     - Fact fields: entity declaration order, then field order within entity
     - Multi-entity modules: EntityName.field_name column names

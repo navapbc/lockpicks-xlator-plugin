@@ -143,7 +143,7 @@ def constant_to_catala(name: str, value) -> str:
 
 
 def civil_type_to_catala(civil_type: str) -> str:
-    """Map a CIVIL fact field type to its Catala equivalent."""
+    """Map a CIVIL input fact field type to its Catala equivalent."""
     return {
         "int":    "integer",
         "float":  "decimal",
@@ -1405,7 +1405,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     md_lines.append("")
 
     # --- Declarations ---
-    # Emit one H4 + prose per fact field before the single unified catala-metadata fence.
+    # Emit one H4 + prose per input fact field before the single unified catala-metadata fence.
     # The catala-metadata fence cannot be split (Catala requires one declaration scope block).
     md_lines.append("## Declarations")
     md_lines.append("")
