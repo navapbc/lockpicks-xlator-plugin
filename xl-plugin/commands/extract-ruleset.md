@@ -423,7 +423,7 @@ Do not proceed to the next file after a validation failure.
 
 **Single-file:** Run **SP-Validate** as today (single call).
 
-### Step 6b: Write Naming Manifest
+### Step 7: Write Naming Manifest
 
 Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
 
@@ -474,7 +474,7 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<sub_module>.civil.yaml` | Created (for each generated sub-module, if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 6b, after validation) |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) |
 

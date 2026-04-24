@@ -206,13 +206,13 @@ Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`:
 
 Run **SP-Validate**.
 
-### Step 8b: Update Naming Manifest
+### Step 9: Update Naming Manifest
 
 If any new fact, computed, or outputs fields were added: derive canonical names using the 4-step algorithm from `/xl:extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate `inputs:` entity, `computed:`, or `outputs:` section. Preserve all existing entries unchanged.
 
 If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after validation.
 
-### Step 8c: Write Stale-Cases Hint
+### Step 10: Write Stale-Cases Hint
 
 Write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/xl:create-tests`:
 
@@ -246,8 +246,8 @@ Files created or modified by this command:
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Updated (affected sections only) |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Updated |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 8b, after validation) |
-| `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 8c; consumed by `/xl:create-tests`) |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 9, after validation) |
+| `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 10; consumed by `/xl:create-tests`) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) |
 
