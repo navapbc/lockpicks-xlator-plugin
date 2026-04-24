@@ -33,7 +33,7 @@ source "$PROJECT_ROOT/.xlator.local.env"
 # If no command is given, open an interactive shell with the Xlator environment.
 if [ $# -eq 0 ]; then
     if command -v python >/dev/null && command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
-        echo "$(which python): $(python --version)"
+        echo "$(which python): $(python --version 2>&1)"
         echo "$(which opam) version: $(opam --version)"
         echo "$(which clerk) version: $(clerk --version)"
         echo "$(which catala) version: $(catala --version)"

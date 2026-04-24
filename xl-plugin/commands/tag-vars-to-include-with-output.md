@@ -109,7 +109,7 @@ No variables auto-detected. include_with_output: [] written to guidance.yaml.
 Then suggest next steps:
 
 ```
-Next: Run /xl:create-sample-tests <domain> to generate sample test cases to measure the accuracy of the generated ruleset
+Next: Run /xl:create-sample-tests <domain> to generate sample test cases used to assess correctness of the generated ruleset
 ```
 
 ---
