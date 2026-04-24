@@ -63,7 +63,7 @@ Run these checks before doing anything else:
      Ruleset groups not found in guidance.yaml.
      Run /xl:create-ruleset-groups <domain> first.
      Note: this command requires ruleset groups to be defined before ruleset module detection.
-     This is intentional: ruleset modules must stay within a single stage, so stages must be defined first.
+     This is intentional: ruleset modules must stay within a single stage, so groups must be defined first.
      ```
      Then stop.
 
@@ -115,7 +115,7 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |
 | 6 | `user_hint` | Pre-existing entries | `ruleset_modules:` already populated in `guidance.yaml` — load existing entries as pre-confirmed (UPDATE mode) |
 
-**R21 stage-boundary constraint:** Every variable in a candidate ruleset module must belong to a single ruleset group (no cross-stage ruleset modules). Infer stage membership by matching variable names and computation categories to stage descriptions and phase heading signals. If a candidate's variables span two stages, either split it into per-stage ruleset modules or reject it with an explanation to the user.
+**R21 stage-boundary constraint:** Every variable in a candidate ruleset module must belong to a single ruleset group (no cross-stage ruleset modules). Infer stage membership by matching variable names and computation categories to stage descriptions and phase heading signals. If a candidate's variables span two groups, either split it into per-stage ruleset modules or reject it with an explanation to the user.
 
 In UPDATE mode: pre-confirmed entries (existing sub-modules and any existing `role: main` entry) are shown above the table with `[confirmed]` labels as in Step 1. Only newly detected modules are shown in the table below.
 
@@ -224,7 +224,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 - `ruleset_modules:` is inserted after `ruleset_groups:` and before `constraints:` in `guidance.yaml`, not at the end of the file unless no later keys exist
 - In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset_modules:`
 - In UPDATE mode with new modules, overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones
-- A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans stages, split it or reject it with an explanation to the user
+- A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans groups, split it or reject it with an explanation to the user
 - Each sub-module `ruleset_modules:` entry must have `name`, `description`, `bound_entities`, `rationale`, and `depends_on` — never omit any field; `role:` defaults to `sub` when absent
 - The main module entry additionally requires `role: main`, `bound_entities: []`, `rationale: main_module`, and `depends_on:` listing all sub-module names
 - Do not write the `role: main` entry when zero sub-modules were detected — Step 3 only runs when at least one sub-module is present

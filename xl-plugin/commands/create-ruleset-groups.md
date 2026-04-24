@@ -96,7 +96,7 @@ In UPDATE mode with `m` (merge): after generating the new proposal list, combine
 
 ---
 
-### Step 2: Display stages
+### Step 2: Display groups
 
 Display the proposed list (or merged list in UPDATE `m` mode) in exactly this format:
 
@@ -114,7 +114,7 @@ Do not prompt for user input. Proceed directly to Step 3.
 
 ### Step 3: Write `ruleset_groups:`
 
-Write the confirmed stages to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
+Write the confirmed groups to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 
 - Insert `ruleset_groups:` as a top-level key immediately after `skeleton:` and before `constraints:` — do not append to the end of the file
 - Update `generated_at` to today's date
@@ -154,5 +154,5 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`
 - Convert phase headings to `snake_case` — "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`
 - When no phase headings are found, propose a single catch-all stage from `display_name` — never leave `ruleset_groups:` empty or omit the key
-- Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage, so stages must be defined first.
+- Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage, so groups must be defined first.
 - This command has 3 steps — the step checklist rule (>3 steps) does NOT apply; do not show a step checklist
