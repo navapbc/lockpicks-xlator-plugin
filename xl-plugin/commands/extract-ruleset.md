@@ -423,114 +423,11 @@ Do not proceed to the next file after a validation failure.
 
 **Single-file:** Run **SP-Validate** as today (single call).
 
-### Step 6b: Generate Computation Graph (Preview)
+### Step 6b: Write Naming Manifest
 
-```bash
-python $CLAUDE_PLUGIN_ROOT/tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
-```
+Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
 
-Always run unconditionally — regenerates even if graph files already exist from a prior run.
-Capture stdout. Do not echo verbatim.
-
-**On success (exit 0):**
-Read `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml`. Extract all nodes where `kind == "computed"`.
-
-**On failure (exit 1):**
-Print `Warning: computation graph preview could not be generated — continuing to review.`
-Proceed to Step 7 without showing graph content.
-
-### Step 7: Human Review Gate
-
-**Multi-file:** Run the review gate sequentially per file in work-list order. For each `generate` entry, present a full review gate (computation graph + review summary) with the header:
-```
-Review Gate (File N of M): <module_name>  [$DOMAINS_DIR/<domain>/specs/<module_name>.civil.yaml]
-```
-On rejection within a file's gate: re-extract only that file (re-run Steps 4 + SP-Validate for that file only; do not re-extract other files). Proceed to the next file only after the current file's gate passes. Skip `reference` entries (no review gate for files not regenerated).
-
-After all per-file gates pass, continue to Step 7b (Naming Manifest).
-
-**Single-file:** existing review gate behavior unchanged (no per-file header).
-
-**If Step 6b succeeded**, show the following block before the `Review summary:` header:
-
-```
-✓ Mermaid computation graph: $DOMAINS_DIR/<domain>/specs/<program>.mmd
-
-Computation graph (computed fields):
-  <field_1>    ← <dep_1>, <dep_2>    → <used_by_1>
-  <field_2>    ← <dep_1>             → [rule: <rule_id>]
-  ...
-```
-
-Format each line as: `<node_key>  ← <depends_on list>  → <used_by list>`
-- `depends_on`: join with `, ` — raw field names; no decoration
-- `used_by`: prefix rule nodes with `[rule: ]`; plain names for computed refs
-- Empty `depends_on`: show `← [no deps]`; empty `used_by`: show `→ [unused]` (potential dead-code)
-- Zero computed fields: replace the table with `(No computed fields in this module.)` but still show the Mermaid block
-
----
-
-Partition all `rules:` entries and `computed:` fields into three buckets based on their `review:` scores:
-
-| Bucket | Condition | Meaning |
-|--------|-----------|---------|
-| **Uncertain Extractions** | `extraction_fidelity` ≤ 2 OR `source_clarity` ≤ 2 | Claude wasn't confident — human must verify |
-| **Complex Rules** | `logic_complexity` ≥ 4 OR `policy_complexity` ≥ 4 | Inherently dense — worth careful review |
-| **Verified** | Not in either bucket above | All scores in range fidelity 3–5, clarity 3–5, logic 1–3, policy 1–3 |
-
-Items in **both** buckets appear once under Uncertain Extractions with both flags noted.
-
-**Summary header** (always show first):
-```
-Review summary: X uncertain, Y complex, Z verified  (N items total)
-```
-
-**Uncertain Extractions format** (one block per item):
-```
-─────────────────────────────────────────────────────────────────
-⚠️  UNCERTAIN: <rule-id or "computed: <field_name>">
-    Scores: fidelity:<N> clarity:<N> logic:<N> policy:<N>
-    Flagged for: <"low extraction fidelity" and/or "low source clarity">
-                 <+ "high logic complexity" and/or "high policy complexity" if also complex>
-    Policy: "<exact source sentence(s)>"
-    CIVIL:  <when: expression or expr:/conditional:>
-    Notes:  <notes field content, or "(none)" if omitted>
-─────────────────────────────────────────────────────────────────
-```
-
-**Complex Rules format** (one block per item; excludes items already shown under Uncertain):
-```
-─────────────────────────────────────────────────────────────────
-🔍  COMPLEX: <rule-id or "computed: <field_name>">
-    Scores: fidelity:<N> clarity:<N> logic:<N> policy:<N>
-    Flagged for: <"high logic complexity" and/or "high policy complexity">
-    Policy: "<exact source sentence(s)>"
-    CIVIL:  <when: expression or expr:/conditional:>
-    Notes:  <notes field content, or "(none)" if omitted>
-─────────────────────────────────────────────────────────────────
-```
-
-**Verified compact list**:
-```
-✅  VERIFIED (<N> items — not uncertain, not complex)
-    • FED-<PROGRAM>-DENY-001: Gross income exceeds income limit
-    • computed: gross_income — total household gross monthly income
-    ...
-```
-
-**Edge cases:**
-- If no uncertain items → omit the Uncertain Extractions section entirely.
-- If no complex items → omit the Complex Rules section entirely.
-- If no verified items → omit the Verified list.
-- If ALL items verified → show: "All items verified — no uncertain or complex items."
-
-Ask: "Does this translation correctly capture the policy intent? Any rules missing or incorrect?"
-
-**On rejection:** Re-extract the specific disputed rule or computed field, re-validate (using the retry loop), recompute its `review:` scores, then re-present the full review gate. Do not proceed until the user confirms.
-
-### Step 7b: Write Naming Manifest
-
-Now that the user has approved the rule-by-rule review, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
+**Multi-file:** Write one consolidated `naming-manifest.yaml` covering all `generate` entries in the work-list (sub-modules first, main module last). Merge entries from each module into the appropriate `inputs:`, `computed:`, and `outputs:` sections.
 
 ```yaml
 version: "1.0"
@@ -558,26 +455,13 @@ outputs:
 
 This file is user-editable. Do **not** add an "auto-generated" comment.
 
-### Step 7c: Refresh Computation Graph
+---
 
-**SP-TagOutputs (output tagging):** Run **SP-TagOutputs** once per `generate` entry in the work-list, in work-list order.
+Extraction complete. Run the review gate to validate and finalize:
 
-**Multi-file SP-TagOutputs behavior:** For sub-module files, before displaying the ranked list, pre-select and lock any computed fields whose names appear in the main module's `invoke:` dot-access expressions (e.g., if the main module accesses `client_result.net_income`, then `net_income` in the sub-module's computed: section is locked as `[REQUIRED for parent invoke:]` and cannot be deselected). Display locked fields at the top of the ranked list marked `[REQUIRED]`. Fields in the guidance output set (`[GUIDANCE]`) follow, then remaining fields in standard SP-TagOutputs rank order. See SP-TagOutputs in `core/ruleset-shared.md` for the full tier logic.
-
-Run **SP-ComputeGraph** after all files in the work-list have been reviewed and approved. In multi-file context, run SP-ComputeGraph for each `generate` entry separately.
-
-Run **SP-GuidanceCapture** once per per-file review gate that passed (after each file's gate, not after all files). In multi-file context, call SP-GuidanceCapture with the current module name so it can prefix candidates with `[module: <name>]`.
-
-**SP-CompleteExtraction (multi-file footer):** Run **SP-CompleteExtraction**. In multi-file context, prepend to the footer:
 ```
-Files written:
-  - $DOMAINS_DIR/<domain>/specs/<sub_module_name>.civil.yaml  [generated]
-  - $DOMAINS_DIR/<domain>/specs/<sub_module_name2>.civil.yaml  [referenced]
-  - $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml  [generated]
-
-extraction-manifest.yaml now tracks N files.
+/xl:review-ruleset <domain> <program>
 ```
-Then show the standard SP-CompleteExtraction footer (next steps).
 
 ---
 
@@ -590,10 +474,8 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<sub_module>.civil.yaml` | Created (for each generated sub-module, if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (after Step 7b) |
-| `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 6b) / Refreshed (Step 7c) |
-| `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 6b) / Refreshed (Step 7c) |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 6b, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) / Updated by SP-GuidanceCapture if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) |
 
-Tests, transpilation, and other output are handled by `/xl:create-tests` and `/xl:transpile-and-test`.
+Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/xl:review-ruleset`. Tests and transpilation are handled by `/xl:create-tests` and `/xl:transpile-and-test`.
