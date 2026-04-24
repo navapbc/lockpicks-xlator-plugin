@@ -2,13 +2,13 @@
 
 `guidance.yaml` is the per-domain ruleset guidance file. It lives at `$DOMAINS_DIR/<domain>/specs/guidance.yaml` and controls how `/extract-ruleset` reads policy documents and generates a CIVIL ruleset.
 
-The file is built incrementally by a sequence of slash commands. Fields are grouped below by which command introduces them.
+The file is built incrementally by a sequence of slash commands.
 
 ---
 
 ## Top-level key ordering
 
-Commands insert keys in this order:
+Slash commands insert keys in this order:
 
 ```
 template_id
@@ -29,11 +29,39 @@ input_variables
 output_variables
 intermediate_variables
 constants_and_tables
-sample_rules     ← /extract-sample-rules or /refine-guidance
+sample_rules      ← /extract-sample-rules
 missing_info      ← /extract-sample-rules
 assumptions       ← /extract-sample-rules
 sample_tests      ← /create-sample-tests
 ```
+
+---
+
+## Field usage by command
+
+Which commands read each field as input (beyond `/extract-ruleset` and the command that writes it):
+
+| Field | Read by |
+|-------|---------|
+| `template_id` | `/create-ruleset-modules` |
+| `display_name` | `/create-skeleton`, `/create-ruleset-groups`, `/extract-sample-rules` |
+| `role` | `/extract-sample-rules` |
+| `scope` | |
+| `constraints` | |
+| `standards` | |
+| `guidance` | |
+| `edge_cases` | `/create-sample-tests` |
+| `input_variables` | `/create-skeleton` (update mode) |
+| `output_variables` | `/create-skeleton` (update mode), `/create-ruleset-modules`, `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests` |
+| `intermediate_variables` | `/create-skeleton` (update mode), `/create-ruleset-modules`, `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests` |
+| `constants_and_tables` | `/create-sample-tests` |
+| `skeleton` | `/create-ruleset-groups`, `/create-ruleset-modules`, `/extract-sample-rules` |
+| `ruleset_groups` | `/create-ruleset-modules`, `/extract-sample-rules` |
+| `ruleset_modules` | `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests` |
+| `ruleset_modules[].sample_rules` | `/tag-vars-to-include-with-output`, `/create-sample-tests` |
+| `sample_rules` | `/tag-vars-to-include-with-output`, `/create-sample-tests` |
+
+Fields not listed (`source_template`, `generated_at`, `description`, `missing_info`, `assumptions`, `sample_tests`) are not consumed as inputs by any downstream command.
 
 ---
 
