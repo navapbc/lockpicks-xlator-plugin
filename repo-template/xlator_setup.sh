@@ -116,7 +116,7 @@ copy_if_diff() {
     local SRC_FILE="$1"
     local DST_FILE="$2"
     if [ -f "$DST_FILE" ] && cmp -s "$SRC_FILE" "$DST_FILE"; then
-        echo "  Skipping (unchanged): $DST_FILE"
+        echo "  Skipping (unchanged): $(basename "$DST_FILE")"
         return 1
     else
         if [ -f "$DST_FILE" ]; then
@@ -147,23 +147,23 @@ setup_xlator_plugin() {
         curl -fsSL https://claude.ai/install.sh | bash
     fi
 
+    # Fortunately, we don't need to authenticate claude to add plugins
     # Skip plugin install if .xlator.local.env was already written today
     if [ "$SETUP_TODAY" = "true" ] && claude plugin list --json | grep -q '"xl@lockpicks-marketplace"'; then
         echo "  (Skipping Xlator plugin update since .xlator.local.env was already written today)"
     else
-        # Fortunately, we don't need to authenticate claude to add plugins
-        if [ "${CLEAR_MARKETPLACE_CACHE:-}" = "true" ]; then
-            echo "  Clearing lockpicks-marketplace cache"
-            claude plugin marketplace remove lockpicks-marketplace
-            rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace"
+        if claude plugins marketplace list --json | grep -q '"lockpicks-marketplace"'; then
+            # Update git repo at ~/.claude/plugins/marketplaces/lockpicks-marketplace
+            claude plugin marketplace update lockpicks-marketplace
+        else
+            # Append '#tagOrBranch' to the URL to pin a version, e.g. 'main' or 'v1.2.3'
+            claude plugin marketplace add --scope project https://github.com/navapbc/lockpicks-xlator-plugin.git
         fi
-        # Append '#tagOrBranch' to the URL to pin a version, e.g. 'main' or 'v1.2.3'
-        claude plugin marketplace add https://github.com/navapbc/lockpicks-xlator-plugin.git
-        claude plugin install xl@lockpicks-marketplace --scope project
-
-        # Helpful for code generation
-        # claude plugin marketplace add https://github.com/EveryInc/every-marketplace.git
-        # claude plugin install compound-engineering@compound-engineering-plugin --scope project
+        echo "  Clearing lockpicks-marketplace cache"
+        # Clear out cache; this is the most reliable way
+        rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
+        # Install the plugin from the marketplace
+        claude plugin install --scope project xl@lockpicks-marketplace
     fi
 
     if ! command -v uv >/dev/null 2>&1; then
@@ -197,12 +197,8 @@ setup_xlator_plugin() {
 
 setup_tooling() {
     echo "🙂 2. Checking uv project files in $XLATOR_UV_BASEDIR"
-    RAW_GIT_REPO=https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main
     for F in $UV_PROJECT_FILES; do
-        if [ ! -f "$XLATOR_UV_BASEDIR/$F" ]; then
-            echo "  Downloading $F to $XLATOR_UV_BASEDIR"
-            curl -sSL -o "$XLATOR_UV_BASEDIR/$F" "$RAW_GIT_REPO/$F"
-        fi
+        copy_if_diff "$HOME/.claude/plugins/marketplaces/lockpicks-marketplace/$F" "$XLATOR_UV_BASEDIR/$F" || true
     done
 
     echo "😀 3. Checking Python virtual environment in $XLATOR_UV_BASEDIR"
@@ -261,7 +257,6 @@ if [ "$SETUP_TODAY" = "false" ] && update_this_script; then
     exit 10
 fi
 
-date
 setup_xlator_plugin
 setup_tooling
 setup_misc
