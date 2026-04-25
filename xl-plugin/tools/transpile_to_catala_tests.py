@@ -110,6 +110,7 @@ def build_field_type_map(civil_doc: dict) -> dict:
     optional_flags = {}
     enum_variants = {}
     entity_fields = {}
+    tables = civil_doc.get("tables", {})
     for entity_name, entity_def in civil_doc.get("inputs", {}).items():
         fields = []
         for field_name, field_def in entity_def.get("fields", {}).items():
@@ -119,12 +120,29 @@ def build_field_type_map(civil_doc: dict) -> dict:
             optional_flags[field_name] = is_optional
             if civil_type == "enum" and "values" in field_def:
                 enum_variants[field_name] = [str(v) for v in field_def["values"]]
+            elif civil_type == "string":
+                # Collect enum variants from table key columns for string fields.
+                # These map to Catala enumeration types so tests need real variant names.
+                variants: list = []
+                for table_def in tables.values():
+                    if field_name in table_def.get("key", []):
+                        for row in table_def.get("rows", []):
+                            val = row.get(field_name)
+                            if val is not None and isinstance(val, str) and val not in variants:
+                                variants.append(val)
+                if variants:
+                    enum_variants[field_name] = variants
+                elif "values" in field_def:
+                    enum_variants[field_name] = [str(v) for v in field_def.get("values", [])]
             fields.append((field_name, civil_type, is_optional))
         entity_fields[entity_name] = fields
+    # Only include computed fields tagged [expose] — these become scope outputs.
+    # Internal computed fields are inaccessible outside the scope and cannot be asserted.
     computed_field_types = {
         fname: fdef.get("type")
         for fname, fdef in civil_doc.get("computed", {}).items()
         if isinstance(fdef, dict) and "type" in fdef
+        and "expose" in (fdef.get("tags") or [])
     }
     return types, optional_flags, enum_variants, entity_fields, computed_field_types
 
@@ -195,12 +213,13 @@ def emit_field_value(
     Returns (catala_val: str, note: str | None).
     note is non-None when the value was defaulted or has a representability issue.
     """
-    valid_variants = enum_variants.get(field_name) if civil_type == "enum" else None
+    # string fields that map to Catala enums (table-derived) need variant lookup too
+    valid_variants = enum_variants.get(field_name) if civil_type in ("enum", "string") else None
 
     if input_val is not None:
         catala_val = value_to_catala(input_val, civil_type, valid_variants)
         if catala_val is None:
-            default = default_value_for_type(civil_type)
+            default = valid_variants[0] if valid_variants else default_value_for_type(civil_type)
             print(
                 f"  WARN  case '{case_id}': field '{note_prefix}{field_name}' has non-representable "
                 f"value '{input_val}'; defaulting to {default}",
@@ -209,9 +228,10 @@ def emit_field_value(
             return default, "non-representable input value; defaulted"
         return catala_val, None
     elif is_optional:
-        return default_value_for_type(civil_type), None
+        default = valid_variants[0] if valid_variants else default_value_for_type(civil_type)
+        return default, None
     else:
-        default = default_value_for_type(civil_type)
+        default = valid_variants[0] if valid_variants else default_value_for_type(civil_type)
         print(
             f"  WARN  case '{case_id}': required field '{note_prefix}{field_name}' not in inputs; "
             f"defaulting to {default}",
@@ -286,9 +306,14 @@ def emit_test_scope(
             struct_lines = []
             for field_name, civil_type, is_optional in fields:
                 prefixed_key = f"{entity_name}.{field_name}"
-                raw_val = inputs.get(prefixed_key)
-                # Treat missing key (not in inputs) same as not-provided
-                input_val = raw_val if prefixed_key in inputs else None
+                # Prefer entity-qualified key; fall back to bare field name for tests
+                # that use flat (non-prefixed) input keys.
+                if prefixed_key in inputs:
+                    input_val = inputs[prefixed_key]
+                elif field_name in inputs:
+                    input_val = inputs[field_name]
+                else:
+                    input_val = None
                 catala_val, note = emit_field_value(
                     case_id, field_name, civil_type, is_optional,
                     input_val, enum_variants, note_prefix=f"{entity_name}.",
