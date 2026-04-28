@@ -26,32 +26,36 @@ the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeG
 Run these checks before doing anything else:
 
 1. **Domain folder exists?**
-   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`. Stop.
+   - NO → Print:
+     :::error
+     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`.
+     :::
+     Stop.
 
 2. **CIVIL file already exists?**
    - **If `<program>` was given:** check if `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` exists → if yes, redirect:
-     ```
+     :::error
      A ruleset already exists for <program>. To update it, run:
        /update-ruleset <domain> <program>
-     ```
+     :::
      Then stop. Continue if not found.
    - **If `<program>` was not given:** check `$DOMAINS_DIR/<domain>/specs/*.civil.yaml`:
      - 0 files → continue (no existing ruleset)
      - 1 file → redirect:
-       ```
+       :::error
        A ruleset already exists for this domain. To update it, run:
          /update-ruleset <domain>
-       ```
+       :::
        Then stop.
      - 2+ files → list them and prompt:
-       ```
+       :::error
        Existing rulesets found:
          - <program1>
          - <program2>
          ...
        To update one of these, use /update-ruleset <domain> <program>.
        To create a new program, provide a name: /extract-ruleset <domain> <new_program>
-       ```
+       :::
        Then stop.
 
 Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
@@ -154,17 +158,22 @@ Before drafting any CIVIL YAML, produce the canonical field name for every fact 
 
 Present the result as a Markdown table:
 
+:::detail
 | Policy Phrase | Entity / Section | Field Name | Source Section |
 |--------------|-----------------|-----------|----------------|
 | gross monthly income | Household | `gross_monthly_income` | §1.2 |
 | number of people in the household | Household | `household_size` | §1.1 |
 | net monthly income after all deductions | computed | `net_income` | §2.4 |
+:::
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` already exists** (CREATE re-run after a previous successful extraction):
 - Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). Pre-populate all table columns from the resulting map: Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, and Source Section from `section`.
 - Only derive new names for policy concepts not already listed
 
-Ask: "Do the field names in this table match your intent? You may edit any name." If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
+:::user_input
+Do the field names in this table match your intent? You may edit any name.
+:::
+If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
 
 **`source:` population:** In Step 4, populate `source:` on every `FactField`, `ComputedField`, `TableDef`, and `Rule` using the "Source Section" value from the Name Inventory table above, *combined* with the surrounding document heading:
 
@@ -382,7 +391,10 @@ Run **SP-MaintainabilityReview** (from `core/ruleset-shared.md`) on the drafted 
 - SP-MaintainabilityReview applies in-place fixes for non-blocking items (M1–M4) where the fix is mechanical.
 - If blocking item **M5** (duplicate priority within a `mutex_group`) fails and cannot be auto-fixed:
   1. Display the conflicting rules and their priorities.
-  2. Ask: "Two or more rules in `mutex_group '<name>'` share the same priority. Please assign unique priorities, then type 'continue'."
+  2. Ask:
+     :::user_input
+     Two or more rules in `mutex_group '<name>'` share the same priority. Please assign unique priorities, then type 'continue'.
+     :::
   3. Apply the user's corrections to the draft in-memory.
   4. Re-run SP-MaintainabilityReview to confirm M5 is resolved before advancing.
 - On SP-MaintainabilityReview completion: display the summary table.
@@ -457,11 +469,17 @@ This file is user-editable. Do **not** add an "auto-generated" comment.
 
 ---
 
-Extraction complete. Run the review gate to validate and finalize:
+:::important
+Extraction complete.
+:::
+
+:::next_step
+Run the review gate to validate and finalize:
 
 ```
 /xl:review-ruleset <domain> <program>
 ```
+:::
 
 ---
 

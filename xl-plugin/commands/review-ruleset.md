@@ -22,25 +22,33 @@ Read `$CLAUDE_PLUGIN_ROOT/core/ruleset-shared.md` now. It contains shared proced
 Run these checks before doing anything else:
 
 1. **Domain folder exists?**
-   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`. Stop.
+   - NO → Print:
+     :::error
+     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`.
+     :::
+     Stop.
 
 2. **CIVIL file exists?**
    - **If `<program>` was given:** check if `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` exists. If not:
-     ```
+     :::error
      No CIVIL file found for <program>. Run /xl:extract-ruleset <domain> <program> first.
-     ```
+     :::
      Stop.
    - **If `<program>` was not given:** check `$DOMAINS_DIR/<domain>/specs/*.civil.yaml`:
-     - 0 files → `No CIVIL file found for this domain. Run /xl:extract-ruleset <domain> first.` Stop.
+     - 0 files →
+       :::error
+       No CIVIL file found for this domain. Run /xl:extract-ruleset <domain> first.
+       :::
+       Stop.
      - 1 file → use it; set `<program>` to the filename stem.
      - 2+ files → list them and prompt:
-       ```
+       :::user_input
        Multiple CIVIL files found:
          - <program1>
          - <program2>
          ...
        Which program would you like to review?
-       ```
+       :::
 
 3. **Input docs present?** — Run shared pre-flight check 3 from `core/ruleset-shared.md`.
 
@@ -74,7 +82,9 @@ Then embed the generated diagram inline:
 ````
 
 **On failure (exit 1):**
-Print `Warning: computation graph preview could not be generated — continuing to review.`
+:::important
+Warning: computation graph preview could not be generated — continuing to review.
+:::
 Proceed to Step 2 without showing graph content.
 
 ### Step 2: Human Review Gate
@@ -91,14 +101,14 @@ After all per-file gates pass, continue to Step 3.
 
 **If Step 1 succeeded**, show the following block before the `Review summary:` header:
 
-```
+:::detail
 ✓ Mermaid computation graph: $DOMAINS_DIR/<domain>/specs/<program>.mmd
 
 Computation graph (computed fields):
   <field_1>    ← <dep_1>, <dep_2>    → <used_by_1>
   <field_2>    ← <dep_1>             → [rule: <rule_id>]
   ...
-```
+:::
 
 Format each line as: `<node_key>  ← <depends_on list>  → <used_by list>`
 - `depends_on`: join with `, ` — raw field names; no decoration
@@ -118,6 +128,7 @@ Partition all `rules:` entries and `computed:` fields into three buckets based o
 
 Items in **both** buckets appear once under Uncertain Extractions with both flags noted.
 
+:::detail
 **Summary header** (always show first):
 ```
 Review summary: X uncertain, Y complex, Z verified  (N items total)
@@ -161,8 +172,12 @@ Review summary: X uncertain, Y complex, Z verified  (N items total)
 - If no complex items → omit the Complex Rules section entirely.
 - If no verified items → omit the Verified list.
 - If ALL items verified → show: "All items verified — no uncertain or complex items."
+:::
 
-Ask: "Does this translation correctly capture the policy intent? Any rules missing or incorrect?"
+Ask:
+:::user_input
+Does this translation correctly capture the policy intent? Any rules missing or incorrect?
+:::
 
 **On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Run **SP-Validate** (retry loop, max 3 attempts). Recompute the `review:` scores for the re-drafted item. Re-present the full review gate. Do not proceed until the user confirms.
 
@@ -179,14 +194,14 @@ Run **SP-ComputeGraph** after all files in the work-list have been reviewed and 
 Run **SP-GuidanceCapture** once per per-file review gate that passed (after each file's gate, not after all files). In multi-file context, call SP-GuidanceCapture with the current module name so it can prefix candidates with `[module: <name>]`.
 
 **SP-CompleteExtraction (multi-file footer):** Run **SP-CompleteExtraction**. In multi-file context, prepend to the footer:
-```
+:::important
 Files reviewed:
   - $DOMAINS_DIR/<domain>/specs/<sub_module_name>.civil.yaml  [generated]
   - $DOMAINS_DIR/<domain>/specs/<sub_module_name2>.civil.yaml  [referenced]
   - $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml  [generated]
 
 extraction-manifest.yaml now tracks N files.
-```
+:::
 Then show the standard SP-CompleteExtraction footer (next steps).
 
 ---

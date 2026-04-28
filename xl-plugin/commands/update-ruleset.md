@@ -26,10 +26,18 @@ the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeG
 Run these checks before doing anything else:
 
 1. **Domain folder exists?**
-   - NO → Print: domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`. Stop.
+   - NO → Print:
+     :::error
+     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`.
+     :::
+     Stop.
 
 2. **CIVIL file exists?**
-   - NO → Print: no ruleset found for this domain, suggest `/xl:extract-ruleset <domain>`. Stop.
+   - NO → Print:
+     :::error
+     no ruleset found for this domain, suggest `/xl:extract-ruleset <domain>`.
+     :::
+     Stop.
 
 Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
@@ -45,30 +53,34 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 2. Read all fact, computed, and output field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
 3. Compare the two sets. If any field name exists in the CIVIL file but not the manifest, or exists in both but with a different spelling, **halt** and list every mismatch:
 
-   > ⚠️ Naming manifest divergence detected:
-   > - CIVIL has `income` under `Household`, but manifest expects `gross_monthly_income`
-   >
-   > Resolve by either:
-   > a) Editing the CIVIL file to restore the manifest name, or
-   > b) Editing `naming-manifest.yaml` to acknowledge the rename
-   >
-   > Then re-run `/xl:update-ruleset <domain>`.
+   :::error
+   ⚠️ Naming manifest divergence detected:
+   - CIVIL has `income` under `Household`, but manifest expects `gross_monthly_income`
+
+   Resolve by either:
+   a) Editing the CIVIL file to restore the manifest name, or
+   b) Editing `naming-manifest.yaml` to acknowledge the rename
+
+   Then re-run `/xl:update-ruleset <domain>`.
+   :::
 
    Do not continue until there are no mismatches.
 
 **If the manifest does not exist** (domain was extracted before this feature was added):
 
-> ⚠️ No naming manifest found. Field names will not be enforced this run. A manifest will be created after this UPDATE completes.
+:::important
+⚠️ No naming manifest found. Field names will not be enforced this run. A manifest will be created after this UPDATE completes.
+:::
 
 **Multi-file validation (if `extraction-manifest.yaml` exists):**
 
 1. Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`.
 2. Verify that every path listed under `programs: <program>: civil_file:` and every path listed under `programs: <program>: sub_modules: [].civil_file:` exists on disk. If any file is missing, stop:
-   ```
+   :::error
    ⚠️  Missing CIVIL files listed in extraction-manifest.yaml:
      - $DOMAINS_DIR/<domain>/specs/<missing_file>.civil.yaml
    Restore the missing file(s) or re-run /xl:extract-ruleset <domain>.
-   ```
+   :::
 3. Run **SP-ResolveRulesetModules** (from `core/ruleset-shared.md`) with context `update`.
    - If SP-ResolveRulesetModules emits an abort signal (new `ruleset_modules:` entries not in manifest): stop with SP-ResolveRulesetModules's message.
    - Otherwise, store the returned work-list for use in Steps 2 and 9.
@@ -123,10 +135,10 @@ Collect the list of changed/added/deleted input docs.
 ### Step 3: No Changes — Exit Early
 
 If no changes detected:
-```
+:::important
 All input docs are up to date. Nothing to extract.
 To re-extract anyway, delete or rename $DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml and re-run.
-```
+:::
 Stop. Do not modify any files.
 
 ### Step 4: Identify Affected CIVIL Sections
@@ -179,7 +191,10 @@ Run **SP-MaintainabilityReview** (from `core/ruleset-shared.md`) on the CIVIL fi
 - SP-MaintainabilityReview applies in-place fixes for non-blocking items (M1–M4) where the fix is mechanical.
 - If blocking item **M5** (duplicate priority within a `mutex_group`) fails:
   1. Display the conflicting rules and their priorities.
-  2. Ask: "Two or more rules in `mutex_group '<name>'` share the same priority. Please assign unique priorities, then type 'continue'."
+  2. Ask:
+     :::user_input
+     Two or more rules in `mutex_group '<name>'` share the same priority. Please assign unique priorities, then type 'continue'.
+     :::
   3. Apply the user's corrections to the merged file.
   4. Re-run SP-MaintainabilityReview on the affected `mutex_group` to confirm M5 is resolved.
 - On SP-MaintainabilityReview completion: display the summary table.
@@ -230,11 +245,17 @@ stale_cases: []
 
 ---
 
-Update complete. Run the review gate to validate and finalize:
+:::important
+Update complete.
+:::
+
+:::next_step
+Run the review gate to validate and finalize:
 
 ```
 /xl:review-ruleset <domain> <program>
 ```
+:::
 
 ---
 
