@@ -56,19 +56,8 @@ Do not invoke this file directly.
      specs/input-index.yaml not found. An index enables faster and richer file selection with summaries and tags.
      Run /index-inputs <domain> now? [y (recommended) / n — continue without index]:
      ```
-   - **y (or Enter):** Run `/index-inputs <domain>` now (creating `specs/input-index.yaml`), then re-display the selection prompt using the rich indexed format (same as the "exists" path above).
-   - **n:** Fall back to the plain filename list:
-     ```
-     Multiple policy documents found in $DOMAINS_DIR/<domain>/input/policy_docs/:
-       1. <file1>.md
-       2. <file2>.md
-       ...
-       a. All files (unified corpus)
-
-     Process which file? [1/2/.../a]:
-     ```
-     - Selecting `a` proceeds with all files as a unified corpus (unchanged behavior).
-     - Selecting a number sets `<filename>` to that file for the rest of the run.
+   - **y:** Run `/index-inputs <domain>` now (creating `specs/input-index.yaml`), then re-display the selection prompt using the rich indexed format (same as the "exists" path above).
+   - **n:** Proceed with all files as a unified corpus (unchanged behavior).
 
 ---
 
@@ -430,7 +419,7 @@ After processing all components:
     | -------------- | ------- | ------------- |
     | <name>         | <O-code>: <reason> | <policy_source> |
     ...
-    Ask: "Do any of these belong in CIVIL after all? Enter names to re-include, or press Enter to confirm exclusions:"
+    Ask: "Do any of these belong in CIVIL after all? Enter names to re-include, or 'confirm' to confirm exclusions:"
 
     If user re-includes component C:
       → Add C back to the generate list

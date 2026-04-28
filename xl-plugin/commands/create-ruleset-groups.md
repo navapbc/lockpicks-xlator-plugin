@@ -150,7 +150,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of phase heading signals
 - `ruleset_groups:` is inserted after `skeleton:` and before `constraints:` in `guidance.yaml`, not at the end of the file
-- In UPDATE mode "accept" (or Enter), exit without writing — do not overwrite existing `ruleset_groups:` content
+- In UPDATE mode "accept", exit without writing — do not overwrite existing `ruleset_groups:` content
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`
 - Convert phase headings to `snake_case` — "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`
 - When no phase headings are found, propose a single catch-all stage from `display_name` — never leave `ruleset_groups:` empty or omit the key
