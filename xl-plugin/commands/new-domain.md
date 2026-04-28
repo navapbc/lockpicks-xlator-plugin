@@ -14,14 +14,6 @@ If `<domain>` is not provided, prompt: "What should the domain be named? (e.g., 
 
 1. **Domain name provided?** — If not, prompt for it. Then continue.
 
-2. **Confirm domain path:**
-   Print:
-   ```
-   This will create: $DOMAINS_DIR/<domain>/
-   Continue? [y/n]
-   ```
-   If user answers n → stop.
-
 ## Process
 
 ### Step 1: Create folder structure
