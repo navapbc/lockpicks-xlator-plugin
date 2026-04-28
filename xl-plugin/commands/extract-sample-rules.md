@@ -23,12 +23,12 @@ The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (s
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance.yaml` files as a numbered menu and prompt:
 
-```
+:::user_input
 Available domains:
   1. snap
   2. ak_doh
 Which domain? Enter a number or domain name:
-```
+:::
 
 `<rule_topic>` is an optional free-text filter (e.g., `"earned income"`, `"student exclusion"`). When provided, limit rule generation to index entries whose `heading:`, `summary:`, or `tags:` relate to the topic (case-insensitive keyword match). Report skipped entries at the end.
 
@@ -39,29 +39,33 @@ Which domain? Enter a number or domain name:
 1. **Domain argument provided?** — If not, show domain menu (above). Await response.
 
 2. **Domain folder exists?**
-   - NO → Print: `Domain not found: $DOMAINS_DIR/<domain>/` Then stop.
+   - NO →
+     :::error
+     Domain not found: $DOMAINS_DIR/<domain>/
+     :::
+     Then stop.
 
 3. **Third positional argument provided but not `index-only`?**
    - YES → Print:
-     ```
+     :::error
      Unrecognized argument: '<value>'. Did you mean: index-only?
-     ```
+     :::
      Stop.
 
 4. **`guidance.yaml` exists?**
    - NO → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:suggest-target-ruleset <domain> first.
-     ```
+     :::
      Stop.
 
 5. **`input-index.yaml` exists?**
    - NO → Print:
-     ```
+     :::error
      input-index.yaml not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first.
-     ```
+     :::
      Stop.
 
 ---
@@ -73,7 +77,7 @@ Which domain? Enter a number or domain name:
 Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). The resulting lookup map is used in Step 4 to prefer canonical names over freshly inferred ones. If absent, the manifest will be created in Step 6.
 
 Show step checklist:
-```
+:::progress
 Steps:
   [✓] 1. Load canonical names
   [ ] 2. Load and filter index
@@ -81,7 +85,7 @@ Steps:
   [ ] 4. Generate rules (two-pass)
   [ ] 5. Merge into guidance.yaml
   [ ] 6. Write naming-manifest.yaml
-```
+:::
 
 ### Step 2: Load and filter index
 
@@ -98,7 +102,7 @@ Then stop.
 
 Print: `Found N qualifying index entries` (or `Found N qualifying entries matching '<rule_topic>'`).
 
-Show updated step checklist.
+Show updated step checklist (as `:::progress`).
 
 ### Step 3: Read guidance context and classify entries
 
@@ -140,13 +144,13 @@ Tag each entry in the working set with its class. Classification runs regardless
 Note: heuristic signals (table/schedule keywords, conditional language in `tags:` or `summary:`) are **not** used for classification here. They are checked inside Pass 4a to decide whether a `computed-only` entry should also be queued for Pass 4b processing.
 
 Print a summary:
-```
+:::detail
 Working set: N entries (M high priority, K normal, L low priority)
   Classified: C computed-only, S needs-source
 Skipped: P entries (unrelated to role)
-```
+:::
 
-Show updated step checklist.
+Show updated step checklist (as `:::progress`).
 
 ### Step 4: Generate rules (two-pass)
 
@@ -183,10 +187,10 @@ If any signals are present, add this entry to the Pass 4b queue for `categorical
 After processing all `computed-only` entries:
 
 **`index-only` + zero computed-only entries check:** If `index-only` is set and no `computed-only` entries were found, print:
-```
+:::error
 ⚠ index-only mode: no computed-only entries found — nothing to generate.
   Remove index-only or add expr_hint: fields to the index.
-```
+:::
 Stop.
 
 **Write Pass 4a output:** Merge rules into `guidance.yaml` (Step 5 merge schema) and merge variable entries into `naming-manifest.yaml` (Step 6 merge schema), with index-derived field values:
@@ -324,7 +328,7 @@ The `→ <destination>` label uses the module's `name:` value (e.g., `→ eligib
 
 Printed immediately after Pass 4a writes, before Pass 4b begins. Print one line per `computed:` rule written:
 
-```
+:::progress
 Index-pass rules written:
   earned_income_limit   (computed)   → exclusion_chain
   net_earned_income     (computed)   → eligibility
@@ -333,7 +337,7 @@ Missing info (index pass):
   - blind_work_expenses: description absent in index — policy_phrase not written to naming-manifest
 
 Continuing with source reads...
-```
+:::
 
 If `index-only` mode, replace the last line with the Next: suggestion (see below) and stop. If any `needs-source` entries were skipped, append:
 
@@ -347,7 +351,7 @@ Skipped (index-only — source text required):
 
 Printed after Pass 4b completes (or after Pass 4a if `index-only`). Print one line per rule written across both passes, in the order they were generated:
 
-```
+:::important
 Rules written:
   after_federal     (computed)      → exclusion_chain
   after_eitc        (computed)      → exclusion_chain
@@ -360,27 +364,27 @@ Missing info:
 
 Assumptions:
   - No expr_hint for blind_work_expenses — expr marked as "?"
-```
+:::
 
 If `<rule_topic>` was provided and entries were skipped, list them:
-```
+:::detail
 Skipped (not related to '<rule_topic>'):
   - 441-2 UNEARNED INCOME
   - 523 MEDICAID EXCEPTIONS
-```
+:::
 
 If `index-only` was provided and `needs-source` entries were skipped, list them (as a separate block when both filters are active):
-```
+:::detail
 Skipped (index-only — source text required):
   - 441-1 EARNED INCOME
   - 523 A. SOCIAL SECURITY BENEFITS
-```
+:::
 
 Then suggest next steps:
 
-```
+:::next_step
 Next: Run /xl:tag-vars-to-include-with-output <domain> to auto-detect intermediate computed variables to be exposed along with the final output
-```
+:::
 
 ---
 

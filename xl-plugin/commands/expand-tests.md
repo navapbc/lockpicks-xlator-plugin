@@ -13,12 +13,24 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 ## Pre-flight
 
-1. **Domain folder exists?** — NO → Print: "Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first." Stop.
+1. **Domain folder exists?** — NO →
+   :::error
+   Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first.
+   :::
+   Stop.
 2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print: "No CIVIL file found. Run `/xl:extract-ruleset <domain>` first." Stop.
+   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing →
+     :::error
+     No CIVIL file found. Run `/xl:extract-ruleset <domain>` first.
+     :::
+     Stop.
 3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
 4. **Baseline tests exist?** — `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` missing → Print: "⚠️ No baseline test file found. Expanded tests will still be generated, but consider running `/xl:create-tests <domain>` first to establish a baseline." Continue.
-5. **Existing expanded files?** — If any of the four output files already exist → Prompt: "Expanded test files already exist in `$DOMAINS_DIR/<domain>/specs/tests/`. Overwrite and regenerate? `[yes]` / `[no — abort]`". If `[no]`, stop.
+5. **Existing expanded files?** — If any of the four output files already exist → Prompt:
+   :::user_input
+   Expanded test files already exist in `$DOMAINS_DIR/<domain>/specs/tests/`. Overwrite and regenerate? `[yes]` / `[no — abort]`
+   :::
+   If `[no]`, stop.
 
 ## Phase 1: Build Coverage Map
 
@@ -46,12 +58,12 @@ For each existing test, collect the `inputs:` map. Build a set of all input valu
 
 Print the coverage map before generating (for transparency):
 
-```
+:::detail
 Coverage map for <program>:
   Thresholds found:   [1066, 1311, 1830, 2311, 2792, 3273, 3754, 4235]
   Already covered:    [1830, 3500]
   Boundary gaps:      [1066, 1311, 2311, 2792, 3273, 3754, 4235]
-```
+:::
 
 ## Phase 2: Generate Tests
 
@@ -171,7 +183,7 @@ For each edge case, derive `expected:` by applying the CIVIL rules to the chosen
 
 After generating all four files, print a summary:
 
-```
+:::important
 /expand-tests complete for <domain>/<program>:
 
   <program>_derived_from_extracted_tests.yaml    — N cases (drv_*)
@@ -181,9 +193,11 @@ After generating all four files, print a summary:
 
   Total new cases: N
   Skipped (duplicates): N
+:::
 
+:::next_step
 Run /xl:transpile-and-test <domain> to validate these tests against the rules.
-```
+:::
 
 | File | Action |
 |------|--------|

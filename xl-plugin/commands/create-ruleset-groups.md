@@ -14,45 +14,45 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     ```
+     :::
      Then stop.
 
 3. **`guidance.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:declare-target-ruleset <domain> first.
-     ```
+     :::
      Then stop.
 
 4. **`input-index.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first.
-     ```
+     :::
      Then stop.
 
 5. **`skeleton:` key present in `guidance.yaml`?**
    - ABSENT → Print:
-     ```
+     :::error
      Skeleton not found in guidance.yaml.
      Run /xl:create-skeleton <domain> first.
-     ```
+     :::
      Then stop.
 
 ## Mode Detection
@@ -60,17 +60,17 @@ Run these checks before doing anything else:
 After pre-flight, check whether the `ruleset_groups:` key already exists in `guidance.yaml`:
 
 - **Present** → **UPDATE mode**. Display the existing list and prompt:
-  ```
+  :::user_input
   ruleset_groups already defined:
     1. <name> — <description>
     2. <name> — <description>
 
   [a]ccept / [r]eplace / [m]erge?  (default: accept)
-  ```
+  :::
   - `a` → Exit without writing. Suggest next step:
-    ```
+    :::next_step
     Next: Run /xl:create-ruleset-modules <domain> to detect ruleset module candidates.
-    ```
+    :::
   - `r` → Run the full process below (Steps 1–3): re-scan, re-propose, accept/edit, write.
   - `m` → Run the full process below to generate a new proposal list, then merge new + existing (deduplicated by `name`; new descriptions win on conflict). Display the merged list for confirmation using the same format as Step 2, then write on acceptance.
 
@@ -100,13 +100,13 @@ In UPDATE mode with `m` (merge): after generating the new proposal list, combine
 
 Display the proposed list (or merged list in UPDATE `m` mode) in exactly this format:
 
-```
+:::detail
 Proposed ruleset groups
 ────────────────────────────────────────────────
   1. income_test          — Income eligibility tests
   2. household_test       — Household size and composition tests
   3. categorical_test     — Categorical eligibility checks
-```
+:::
 
 Do not prompt for user input. Proceed directly to Step 3.
 
@@ -129,14 +129,14 @@ ruleset_groups:
 ```
 
 Print:
-```
+:::important
 $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
-```
+:::
 
 Then suggest the next step:
-```
+:::next_step
 Next: Run /xl:create-ruleset-modules <domain> to detect ruleset module candidates.
-```
+:::
 
 ---
 

@@ -14,37 +14,37 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     ```
+     :::
      Then stop.
 
 3. **`guidance.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:declare-target-ruleset <domain> first.
-     ```
+     :::
      Then stop.
 
 4. **`input-index.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first.
-     ```
+     :::
      Then stop.
 
 ## Mode Detection
@@ -52,12 +52,12 @@ Run these checks before doing anything else:
 After pre-flight, check whether the `skeleton:` key already exists in `guidance.yaml`:
 
 - **Present** → **UPDATE mode**. Display existing skeleton summary and offer:
-  ```
+  :::user_input
   Skeleton already exists: <N> computations across <M> categories (confirmed: <confirmed_at>)
   a. accept — keep as-is and exit
   b. replace — re-run full Step 2+3 flow, overwrite skeleton
   c. revise — show existing skeleton for editing
-  ```
+  :::
   - `a` → Print the Step 1 state summary (same format as Step 1 below) and exit. Suggest next step: `/xl:create-ruleset-groups <domain>`. Do not write anything.
   - `b` → Run the full process below (Steps 1–4).
   - `c` → Skip Steps 1–3. Show the existing skeleton (same display format as Step 3). Enter the confirm/adjust loop at Step 4.
@@ -100,13 +100,13 @@ Skeleton: <N> computations across <M> categories, confirmed <confirmed_at>
 
 Then show the step checklist with Step 1 checked off:
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [ ] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
   [ ] Step 4: Write computation skeleton
-```
+:::
 
 ---
 
@@ -130,19 +130,19 @@ Merge the doc-derived proposals into `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
 - Write the updated file to disk
 
 Print:
-```
+:::important
 Updated guidance sections.
-```
+:::
 
 Then show the step checklist with Steps 1–2 checked off:
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
   [ ] Step 4: Write computation skeleton
-```
+:::
 
 ---
 
@@ -155,7 +155,7 @@ Build and display the skeleton using:
 
 Display format:
 
-```
+:::detail
 **Computation skeleton for <display_name>:**
 
 **Inputs:**
@@ -173,19 +173,19 @@ Display format:
 - ...
 
 [repeat for each intermediate_variables category]
-```
+:::
 
 Include an ASCII computation flow diagram.
 
 Then show the step checklist with Steps 1–3 checked off:
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [✓] Step 3: Build computation skeleton
   [ ] Step 4: Write computation skeleton
-```
+:::
 
 ---
 
@@ -217,25 +217,25 @@ Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
    - Write a `computations:` list — one entry per variable that has a non-null expr hint (shown as `≈ <expr>` in the skeleton display). Each entry has `name:` (the variable name) and `expr:` (the expr hint string). Variables shown as `= ?` are omitted from `computations:`. Write entries in display order.
 
 Print:
-```
+:::important
 $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
-```
+:::
 
 Then show the final step checklist (all steps checked):
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [✓] Step 3: Build computation skeleton
   [✓] Step 4: Write computation skeleton
-```
+:::
 
 Then suggest the next step:
 
-```
+:::next_step
 Next: Run /xl:create-ruleset-groups <domain> to propose ruleset groups.
-```
+:::
 
 ---
 

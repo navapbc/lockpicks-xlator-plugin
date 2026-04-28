@@ -14,26 +14,30 @@ See `$CLAUDE_PLUGIN_ROOT/core/tests/eligibility_tests.yaml` for a complete worki
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance.yaml` files as a numbered menu and prompt:
 
-```
+:::user_input
 Available domains:
   1. snap
   2. ak_doh
 Which domain? Enter a number or domain name:
-```
+:::
 
 ## Pre-flight
 
 1. **Domain argument provided?** — If not, show domain menu (above). Await response.
 
 2. **Domain folder exists?**
-   - NO → Print: `Domain not found: $DOMAINS_DIR/<domain>/` Then stop.
+   - NO →
+     :::error
+     Domain not found: $DOMAINS_DIR/<domain>/
+     :::
+     Then stop.
 
 3. **`guidance.yaml` exists?**
    - NO → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:suggest-target-ruleset <domain> first.
-     ```
+     :::
      Stop.
 
 4. **Sample rules available?** Check whether any of the following is present and non-empty in `guidance.yaml`:
@@ -41,10 +45,10 @@ Which domain? Enter a number or domain name:
    - `sample_rules:` is a non-empty top-level list
 
    If neither is present:
-   ```
+   :::error
    No sample rules found in guidance.yaml.
    Run /xl:extract-sample-rules <domain> first to generate sample rules.
-   ```
+   :::
    Stop.
 
 **Degraded mode:** If pre-flight step 4 passes but only `sample_rules:` is present (no `ruleset_modules[].sample_rules`), print:
@@ -76,12 +80,12 @@ Read from `guidance.yaml`:
 **Thresholds and constants** — scan `constants_and_tables:` in `guidance.yaml` for named tables or constants that might yield concrete boundary values for test inputs.
 
 Show step checklist:
-```
+:::progress
 Steps:
   [✓] 1. Derive input and output field names
   [ ] 2. Generate test cases
   [ ] 3. Merge into guidance.yaml
-```
+:::
 
 ### Step 2: Generate test cases
 
@@ -146,17 +150,19 @@ Write the updated `guidance.yaml`.
 Show final step checklist (all complete).
 
 Print:
-```
+:::important
 sample_tests written to guidance.yaml:
   allow_001           (allow)
   deny_gross_001      (deny, gross_test)
   deny_net_001        (deny, net_test)
   allow_boundary_001  (allow, boundary)
   deny_edge_001       (deny, edge)
+:::
 
+:::next_step
 Next: Run /xl:extract-ruleset <domain> to extract the CIVIL ruleset.
       After extraction, run /xl:create-tests <domain> for the validated test suite.
-```
+:::
 
 ---
 
