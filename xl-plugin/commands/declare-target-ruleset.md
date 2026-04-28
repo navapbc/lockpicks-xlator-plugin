@@ -1,11 +1,11 @@
 # Declare Ruleset Input-Output from a Suggestion File
 
-Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/xl:suggest-ruleset-io`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.
+Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/xl:suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.
 
 ## Input
 
 ```
-/declare-ruleset-io <domain> [<ruleset_name>]
+/declare-target-ruleset <domain> [<ruleset_name>]
 ```
 
 ## Pre-flight
@@ -29,24 +29,24 @@ Run these checks before doing anything else:
      ```
      Then stop.
 
-3. **`suggested_rulesets/` directory exists and has at least one `.yaml` file?**
+3. **`suggested_targets/` directory exists and has at least one `.yaml` file?**
    - Directory absent or empty → Print:
      ```
-     No ruleset files found. Run /xl:suggest-ruleset-io <domain> first.
+     No ruleset files found. Run /xl:suggest-target-ruleset <domain> first.
      ```
      Then stop.
 
 4. **Ruleset file resolved:**
-   - If `<ruleset_name>` was provided: check `$DOMAINS_DIR/<domain>/specs/suggested_rulesets/<ruleset_name>.yaml` exists.
+   - If `<ruleset_name>` was provided: check `$DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml` exists.
      - NOT FOUND → Print:
        ```
-       Ruleset file not found: $DOMAINS_DIR/<domain>/specs/suggested_rulesets/<ruleset_name>.yaml
+       Ruleset file not found: $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml
        Available ruleset files:
          - <file1>.yaml
          - <file2>.yaml
        ```
        Then stop.
-   - If `<ruleset_name>` was NOT provided: list all `.yaml` files in `$DOMAINS_DIR/<domain>/specs/suggested_rulesets/` as a numbered menu and prompt:
+   - If `<ruleset_name>` was NOT provided: list all `.yaml` files in `$DOMAINS_DIR/<domain>/specs/suggested_targets/` as a numbered menu and prompt:
      ```
      Available ruleset files:
        1. <file1>

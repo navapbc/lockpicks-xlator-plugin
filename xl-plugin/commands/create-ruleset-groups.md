@@ -34,7 +34,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:declare-ruleset-io <domain> first.
+     Run /xl:declare-target-ruleset <domain> first.
      ```
      Then stop.
 

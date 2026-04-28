@@ -66,13 +66,13 @@ Fields not listed (`source_template`, `generated_at`, `description`, `missing_in
 
 ---
 
-## Created by `/declare-ruleset-io` or `/refine-guidance`
+## Created by `/declare-target-ruleset` or `/refine-guidance`
 
 These fields form the initial file and are never changed after creation.
 
 ### `template_id`
 
-Identifies the ruleset type in snake_case. Set to the `ruleset_name` from the suggestion file (when bootstrapped via `/declare-ruleset-io`) or the template's own `template_id` (when copied from a guidance template via `/refine-guidance`).
+Identifies the ruleset type in snake_case. Set to the `ruleset_name` from the suggestion file (when bootstrapped via `/declare-target-ruleset`) or the template's own `template_id` (when copied from a guidance template via `/refine-guidance`).
 
 ```yaml
 template_id: calculate-earned-income-after-exclusions
@@ -80,7 +80,7 @@ template_id: calculate-earned-income-after-exclusions
 
 ### `source_template`
 
-Records which source produced the file. For `/declare-ruleset-io`, uses the sentinel `suggestion--<ruleset_name>`. For `/refine-guidance`, uses the guidance template filename (without extension). Never updated after initial creation.
+Records which source produced the file. For `/declare-target-ruleset`, uses the sentinel `suggestion--<ruleset_name>`. For `/refine-guidance`, uses the guidance template filename (without extension). Never updated after initial creation.
 
 ```yaml
 source_template: suggestion--eligibility_check

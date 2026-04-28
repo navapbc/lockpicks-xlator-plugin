@@ -30,8 +30,8 @@ Typical steps:
   4. Write an AI prompt to extract a ruleset in the `guidance.yaml` file — two options:
       * **Monolithic (original):** `/xl:refine-guidance <domain>`
       * **Step-by-step (for UI-driven or incremental workflows):**
-        - `/xl:suggest-ruleset-io <domain>` — analyze the document index and write candidate rulesets to files for user selection
-        - `/xl:declare-ruleset-io <domain>` — write `guidance.yaml` from a specified candidate rulesets file (one of the files created by `/xl:suggest-ruleset-io`)
+        - `/xl:suggest-target-ruleset <domain>` — analyze the document index and write candidate target rulesets to files for user selection
+        - `/xl:declare-target-ruleset <domain>` — write `guidance.yaml` from a specified target ruleset file (one of the files created by `/xl:suggest-target-ruleset`)
         - `/xl:create-skeleton <domain>` — extract doc signals from the document index and build the computation skeleton
         - `/xl:create-ruleset-groups <domain>` — propose ruleset groups that group related computations in the skeleton; these groups will help with ruleset visualizations
         - `/xl:create-ruleset-modules <domain>` — apply heuristics to detect ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
@@ -53,9 +53,9 @@ flowchart TD
 
     DOCS --> IDX_CMD --> IDX
 
-    SUG["/xl:suggest-ruleset-io\nenabled: input-index.yaml exists"]
-    SUG_F(["suggested_rulesets/*.yaml"])
-    DECL["/xl:declare-ruleset-io\nenabled: suggested_rulesets/ has ≥1 file"]
+    SUG["/xl:suggest-target-ruleset\nenabled: input-index.yaml exists"]
+    SUG_F(["suggested_targets/*.yaml"])
+    DECL["/xl:declare-target-ruleset\nenabled: suggested_targets/ has ≥1 file"]
     GY(["guidance.yaml"])
 
     IDX --> SUG --> SUG_F --> DECL --> GY

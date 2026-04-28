@@ -32,7 +32,7 @@ Which domain? Enter a number or domain name:
    - NO → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:suggest-ruleset-io <domain> first.
+     Run /xl:suggest-target-ruleset <domain> first.
      ```
      Stop.
 

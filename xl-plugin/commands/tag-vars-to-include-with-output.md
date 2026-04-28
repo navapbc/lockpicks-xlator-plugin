@@ -43,7 +43,7 @@ Await the user's response and use it as `<domain>`. Then continue.
    - NO → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:suggest-ruleset-io <domain> first.
+     Run /xl:suggest-target-ruleset <domain> first.
      ```
      Stop.
 

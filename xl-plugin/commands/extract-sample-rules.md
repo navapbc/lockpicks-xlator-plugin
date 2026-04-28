@@ -11,7 +11,7 @@ Unlike `/xl:refine-guidance` Step 8, which produces 2–3 illustrative rules gat
 | `ruleset_modules:` populated (after `/xl:create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
 | `ruleset_groups:` present but no `ruleset_modules:` (after `/xl:create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
 | `skeleton:` present but no groups or ruleset modules (after `/xl:create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
-| Neither `skeleton:` nor `ruleset_modules:` (after `/xl:declare-ruleset-io` only) | Command runs but produces flat, unstructured output with no ordering context |
+| Neither `skeleton:` nor `ruleset_modules:` (after `/xl:declare-target-ruleset` only) | Command runs but produces flat, unstructured output with no ordering context |
 
 The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (see Step 2). It does not stop — partial output is better than none.
 
@@ -52,7 +52,7 @@ Which domain? Enter a number or domain name:
    - NO → Print:
      ```
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:suggest-ruleset-io <domain> first.
+     Run /xl:suggest-target-ruleset <domain> first.
      ```
      Stop.
 

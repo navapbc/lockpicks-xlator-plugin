@@ -84,10 +84,10 @@ Print: `Created $DOMAINS_DIR/<domain>/specs/guidance.yaml`
 **b. AI-suggest** — Let the AI propose candidate rulesets based on the index:
 
 1. Prompt: "Enter a hint to narrow candidate rulesets (e.g. 'eligibility', 'benefit calculation'), or press Enter to suggest all:"
-2. Run `/xl:suggest-ruleset-io <domain> [<hint>]` (omit `<hint>` if the user pressed Enter), following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/suggest-ruleset-io.md`. Skip pre-flight — domain and index already verified above.
+2. Run `/xl:suggest-target-ruleset <domain> [<hint>]` (omit `<hint>` if the user pressed Enter), following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/suggest-target-ruleset.md`. Skip pre-flight — domain and index already verified above.
 3. Present the list of generated candidate files from `specs/suggested_rulesets/`.
 4. Ask the user which candidate to use.
-5. Run `/xl:declare-ruleset-io <domain> <chosen_ruleset>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/declare-ruleset-io.md`. Skip pre-flight — domain already verified above.
+5. Run `/xl:declare-target-ruleset <domain> <chosen_ruleset>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/declare-target-ruleset.md`. Skip pre-flight — domain already verified above.
 
 After either path, `guidance.yaml` exists and Step 2 may proceed.
 
