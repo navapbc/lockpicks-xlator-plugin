@@ -16,29 +16,29 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
      Run: /xl:new-domain <domain>
-     ```
+     :::
      Then stop.
 
 3. **Input index present?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first, then re-run /xl:suggest-target-ruleset <domain>.
-     ```
+     :::
      Then stop.
 
 ---
@@ -79,7 +79,7 @@ Refer to `$DOMAINS_DIR/ak_doh/specs/guidance.yaml` as an exemplar of the expecte
 
 **Display all candidates** in a numbered list:
 
-```
+:::detail
 Suggestions focused on: <hint>            ← omit this line if no hint was provided
 
   1. <ruleset_name>
@@ -94,7 +94,7 @@ Suggestions focused on: <hint>            ← omit this line if no hint was prov
 
   3. <ruleset_name>   ← include only if a third distinct scope is identifiable
      ...
-```
+:::
 
 ### Step 2: Save
 
@@ -135,23 +135,23 @@ output_variables:
    - `# Generated:` date as YYYY-MM-DD (today's date)
 
 3. Confirm each file written:
-   ```
+   :::important
    Saved: $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml
-   ```
+   :::
 
 After all saves, suggest the next step:
 
-```
+:::next_step
 Next: Run /xl:declare-target-ruleset <domain> <ruleset_name> to create guidance.yaml from a suggestion file.
-```
+:::
 
 ---
 
 ## Output
 
-```
+:::important
 $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
-```
+:::
 
 (one line per saved file)
 

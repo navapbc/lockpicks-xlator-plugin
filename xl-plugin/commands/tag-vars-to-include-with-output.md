@@ -23,12 +23,12 @@ Best run **after `/xl:extract-sample-rules`** — that command may generate CIVI
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance.yaml` files as a numbered menu and prompt:
 
-```
+:::user_input
 Available domains:
   1. snap
   2. ak_doh
 Which domain? Enter a number or domain name:
-```
+:::
 
 Await the user's response and use it as `<domain>`. Then continue.
 
@@ -37,14 +37,18 @@ Await the user's response and use it as `<domain>`. Then continue.
 1. **Domain argument provided?** — If not, show domain menu (above). Await response.
 
 2. **Domain folder exists?**
-   - NO → Print: `Domain not found: $DOMAINS_DIR/<domain>/` Then stop.
+   - NO → Print:
+     :::error
+     Domain not found: $DOMAINS_DIR/<domain>/
+     :::
+     Then stop.
 
 3. **`guidance.yaml` exists?**
    - NO → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:suggest-target-ruleset <domain> first.
-     ```
+     :::
      Stop.
 
 ---
@@ -89,7 +93,7 @@ Write the merged list to `guidance.yaml` under `intermediate_variables.include_w
 
 Print one line per name in the final `include_with_output` list, labeled with its detection reason:
 
-```
+:::important
 include_with_output written to guidance.yaml:
   client_result   (invoke-derived: skeleton computations)
   dol_result      (invoke-derived: sample rule CIVIL snippet)
@@ -98,19 +102,19 @@ include_with_output written to guidance.yaml:
   eligible        (output variable: output_variables.primary)
   denial_reason   (output variable: output_variables.secondary_decisions)
   after_half      (existing)
-```
+:::
 
 If no variables were detected and no existing values were present, print:
 
-```
+:::important
 No variables auto-detected. include_with_output: [] written to guidance.yaml.
-```
+:::
 
 Then suggest next steps:
 
-```
+:::next_step
 Next: Run /xl:create-sample-tests <domain> to generate sample test cases used to assess correctness of the generated ruleset
-```
+:::
 
 ---
 

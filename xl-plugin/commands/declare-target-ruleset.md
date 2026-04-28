@@ -14,52 +14,52 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     ```
+     :::
      Then stop.
 
 3. **`suggested_targets/` directory exists and has at least one `.yaml` file?**
    - Directory absent or empty → Print:
-     ```
+     :::error
      No ruleset files found. Run /xl:suggest-target-ruleset <domain> first.
-     ```
+     :::
      Then stop.
 
 4. **Ruleset file resolved:**
    - If `<ruleset_name>` was provided: check `$DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml` exists.
      - NOT FOUND → Print:
-       ```
+       :::error
        Ruleset file not found: $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml
        Available ruleset files:
          - <file1>.yaml
          - <file2>.yaml
-       ```
+       :::
        Then stop.
    - If `<ruleset_name>` was NOT provided: list all `.yaml` files in `$DOMAINS_DIR/<domain>/specs/suggested_targets/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available ruleset files:
        1. <file1>
        2. <file2>
      Which ruleset file? Enter a number or file name:
-     ```
+     :::
      Await the user's response and use the resolved file as the ruleset file. Then continue.
 
 5. **`guidance.yaml` already exists?**
    - `$DOMAINS_DIR/<domain>/specs/guidance.yaml` present → Prompt:
-     ```
+     :::user_input
      guidance.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance.yaml. Overwrite? (y/n)
-     ```
+     :::
      - `n` → Stop without writing.
      - `y` → Continue.
 
@@ -69,13 +69,13 @@ Run these checks before doing anything else:
 
 Read the resolved ruleset file and display a summary:
 
-```
+:::detail
 Ruleset: <display_name>
 Description: <description>
 Inputs: <comma-separated category names>
 Output: <primary.name> (<primary.type>)
 Secondary: <secondary_decisions names, or "none">
-```
+:::
 
 ### Step 2: Create `guidance.yaml`
 
@@ -151,21 +151,21 @@ intermediate_variables:
 
 After writing, print:
 
-```
+:::important
 Created $DOMAINS_DIR/<domain>/specs/guidance.yaml
-```
+:::
 
 Then suggest the next step:
 
-```
+:::next_step
 Next: Run /xl:create-skeleton <domain> to extract document signals and build the computation skeleton.
-```
+:::
 
 ## Output
 
-```
+:::important
 $DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED]
-```
+:::
 
 ## Common Mistakes to Avoid
 
