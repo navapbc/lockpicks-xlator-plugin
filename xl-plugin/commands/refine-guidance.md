@@ -16,29 +16,29 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
      Run: /xl:new-domain <domain>
-     ```
+     :::
      Then stop. Do not scaffold a new domain here — that's `/xl:new-domain`'s job.
 
 3. **Input index required?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - **ABSENT** → Print:
-     ```
+     :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first, then re-run /xl:refine-guidance <domain>.
-     ```
+     :::
      Stop.
 
 4. **Detect mode** — check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
@@ -79,7 +79,9 @@ generated_at: <today YYYY-MM-DD>
 
 The `source_template` and `generated_at` fields are inserted immediately after `template_id:` so the file reads top-to-bottom: metadata → scope → guidance → variables.
 
-Print: `Created $DOMAINS_DIR/<domain>/specs/guidance.yaml`
+:::important
+Created $DOMAINS_DIR/<domain>/specs/guidance.yaml
+:::
 
 **b. AI-suggest** — Let the AI propose candidate rulesets based on the index:
 
@@ -94,12 +96,12 @@ After either path, `guidance.yaml` exists and Step 2 may proceed.
 ### Step 1 [UPDATE]: Load existing file
 
 Read `$DOMAINS_DIR/<domain>/specs/guidance.yaml`. Print a summary:
-```
+:::detail
 File: $DOMAINS_DIR/<domain>/specs/guidance.yaml
 Current guidance: <display_name> (source: <source_template>, updated: <generated_at>)
 Sections: constraints (<N> items), standards (<N> items), guidance (<N> items), edge_cases (<N> items)
 Skeleton: <N> computations across <N> intermediate categories, <N> example rules
-```
+:::
 (Show `Skeleton: none` if no `computations:` fields are present yet in `intermediate_variables` and no `sample_rules:` section exists.)
 
 ---

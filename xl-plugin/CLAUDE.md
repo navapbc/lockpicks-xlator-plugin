@@ -128,6 +128,29 @@ c. Option three
 
 If the user responds with more than 1 character, then use the user's response as the answer.
 
+## Output Fencing
+
+All slash command output must be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics.
+
+**Syntax:** `:::type` on its own line to open, `:::` on its own line to close. No nesting. Multiple blocks per response are allowed.
+
+| Fence type | When to use |
+|------------|-------------|
+| `:::important` | Primary result, written confirmation, summary verdict |
+| `:::error` | Pre-flight failure — always paired with a stop |
+| `:::next_step` | Suggested follow-on commands after successful completion |
+| `:::detail` | Skeleton, YAML, rule tables, coverage maps, verbatim relay output |
+| `:::progress` | In-flight status lines, scan progress, step checklist mid-run |
+| `:::user_input` | Any prompt requiring a user response before continuing |
+
+Unfenced output defaults to `detail`.
+
+**`progress` vs `detail`:** `:::progress` = transient, in-flight (still running). `:::detail` = complete, available for inspection.
+
+**Verbatim-relay commands:** Open `:::detail` before beginning relay; close `:::` after relay completes. One fence per program — do not wrap multiple programs in a single fence.
+
+Full authoring reference: `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md`
+
 ## Catala Conventions
 
 When working with Catala code, always use Catala semantics and syntax — never Rego. Double-check that generated tests, transpiler output, and examples use Catala conventions (e.g., `Using` not `Include`, correct module/entity prefixes).

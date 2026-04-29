@@ -18,19 +18,27 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/input/policy_docs/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
-   - NO → Print: `"Domain not found: $DOMAINS_DIR/<domain>/"` Then stop.
+   - NO →
+     :::error
+     Domain not found: $DOMAINS_DIR/<domain>/
+     :::
+     Then stop.
 
 3. **Input docs present?**
-   - `$DOMAINS_DIR/<domain>/input/policy_docs/` missing or contains no `.md` files → Print: `"No input documents found. Add .md files to $DOMAINS_DIR/<domain>/input/policy_docs/ and re-run."` Then stop.
+   - `$DOMAINS_DIR/<domain>/input/policy_docs/` missing or contains no `.md` files →
+     :::error
+     No input documents found. Add .md files to $DOMAINS_DIR/<domain>/input/policy_docs/ and re-run.
+     :::
+     Then stop.
 
 ## Mode Detection
 
@@ -51,7 +59,9 @@ ls $DOMAINS_DIR/<domain>/specs/input-index.yaml 2>/dev/null
 
 Glob all `.md` files recursively under `$DOMAINS_DIR/<domain>/input/policy_docs/`. Sort alphabetically by path.
 
-Print: `"Found <N> document(s). Indexing all..."`
+:::progress
+Found <N> document(s). Indexing all...
+:::
 
 ### Step 2: Get git SHA for each file
 
@@ -65,13 +75,13 @@ If the output is empty (file is untracked or staged but not committed), use `"un
 
 If any files have `"untracked"` SHA, prompt the user before proceeding:
 
-```
+:::user_input
 ⚠ <N> file(s) are not yet committed to git:
     input/policy_docs/<file1>.md
     input/policy_docs/<file2>.md
   Untracked files are re-indexed on every UPDATE run (no SHA to compare).
-  Commit these files now? [y/n]:
-```
+  Commit these files now? [y/n]
+:::
 
 - **y** → Run:
   ```bash
@@ -136,12 +146,12 @@ YAML conventions to follow exactly:
 
 After writing, print:
 
-```
+:::important
 ✓ specs/input-index.yaml written (CREATE).
   <N> file(s) indexed, <M> section(s) total.
 
 Re-run /index-inputs <domain> after adding or modifying input documents
-```
+:::
 
 ---
 
@@ -176,20 +186,19 @@ Compare current files + SHAs against the stored `files:` block:
 | File not in index (new) | **REINDEX** — read and generate sections |
 | File in index but not on disk (deleted) | **REMOVE** — drop from `files:` and `sections:` |
 
-Print:
-```
+:::progress
 Found <N> document(s): <X> changed/new, <Y> unchanged, <Z> deleted.
 Re-indexing <X> file(s)...
-```
+:::
 
 If any current files have `"untracked"` SHA, prompt the user:
 
-```
+:::user_input
 ⚠ <N> file(s) are not yet committed to git:
     input/policy_docs/<file1>.md
   Untracked files are re-indexed on every UPDATE run (no SHA to compare).
-  Commit these files now? [y/n]:
-```
+  Commit these files now? [y/n]
+:::
 
 - **y** → Commit them (same as CREATE mode Step 2 commit flow), then re-fetch real SHAs before proceeding.
 - **n** → Continue with `"untracked"` SHA.
@@ -207,13 +216,15 @@ Rebuild the complete index using:
 
 After writing, print:
 
-```
+:::important
 ✓ specs/input-index.yaml updated (UPDATE).
   <X> file(s) re-indexed, <Y> skipped (unchanged), <Z> removed.
   <M> section(s) total.
+:::
 
+:::next_step
 Next step: `/xl:refine-guidance <domain>` to set extraction goals and ruleset guidance
-```
+:::
 
 ---
 

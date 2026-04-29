@@ -17,13 +17,17 @@ If `<domain>` is not provided, run `${CLAUDE_PLUGIN_ROOT}/xlator list` and promp
    Find `*.civil.yaml` files in `$DOMAINS_DIR/<domain>/specs/`:
    - Exactly one found and `<program>` not specified → use it automatically.
    - Multiple found and `<program>` not specified → ask which program to transpile.
-   - None found → Print: "No CIVIL spec found in `$DOMAINS_DIR/<domain>/specs/`". Stop.
+   - None found → Print
+   :::error
+   No CIVIL spec found in `$DOMAINS_DIR/<domain>/specs/`
+   :::
+   Stop.
 
 2. **Run pre-flight check:**
    ```bash
    ${CLAUDE_PLUGIN_ROOT}/xlator preflight <domain> <module> --backend rego
    ```
-   If exit code != 0: stop and show the error. Do not proceed.
+   If exit code != 0: show the error in an `:::error` fence and stop. Do not proceed.
 
 ## Execution
 
@@ -31,9 +35,9 @@ If `<domain>` is not provided, run `${CLAUDE_PLUGIN_ROOT}/xlator list` and promp
 ${CLAUDE_PLUGIN_ROOT}/xlator rego-pipeline <domain> <program>
 ```
 
-Relay output verbatim. No summary formatting.
+Open a `:::detail` fence. Relay output verbatim. No summary formatting. Close the `:::` fence when relay completes.
 
-**On failure:** Show the failing case ID(s) and actual vs. expected output. Ask the user to diagnose:
+**On failure:** Show the failing case ID(s) and actual vs. expected output. In a `:::user_input` fence, ask the user to diagnose:
 
 - **Rule error** — the CIVIL `when:` expression is wrong → fix in the CIVIL file and re-run `/xl:extract-ruleset <domain>`
 - **Test expectation error** — the test case has wrong expected values → fix in the tests file and re-run `/xl:rego-transpile-and-test <domain>`

@@ -14,37 +14,37 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     ```
+     :::
      Then stop.
 
 3. **`guidance.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:declare-target-ruleset <domain> first.
-     ```
+     :::
      Then stop.
 
 4. **`input-index.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first.
-     ```
+     :::
      Then stop.
 
 ## Mode Detection
@@ -52,12 +52,12 @@ Run these checks before doing anything else:
 After pre-flight, check whether the `skeleton:` key already exists in `guidance.yaml`:
 
 - **Present** → **UPDATE mode**. Display existing skeleton summary and offer:
-  ```
+  :::user_input
   Skeleton already exists: <N> computations across <M> categories (confirmed: <confirmed_at>)
-  a. accept — keep as-is and exit
-  b. replace — re-run full Step 2+3 flow, overwrite skeleton
-  c. revise — show existing skeleton for editing
-  ```
+  [a] accept — keep as-is and exit
+  [b] replace — re-run full Step 2+3 flow, overwrite skeleton
+  [c] revise — show existing skeleton for editing
+  :::
   - `a` → Print the Step 1 state summary (same format as Step 1 below) and exit. Suggest next step: `/xl:create-ruleset-groups <domain>`. Do not write anything.
   - `b` → Run the full process below (Steps 1–4).
   - `c` → Skip Steps 1–3. Show the existing skeleton (same display format as Step 3). Enter the confirm/adjust loop at Step 4.
@@ -92,7 +92,7 @@ Sections: constraints (<N> items), standards (<N> items), guidance (<N> items), 
 Skeleton: none
 ```
 
-If `skeleton:` already exists in `guidance.yaml` (this occurs when `c. revise` was selected in UPDATE mode), show instead:
+If `skeleton:` already exists in `guidance.yaml` (this occurs when `[c] revise` was selected in UPDATE mode), show instead:
 
 ```
 Skeleton: <N> computations across <M> categories, confirmed <confirmed_at>
@@ -100,13 +100,13 @@ Skeleton: <N> computations across <M> categories, confirmed <confirmed_at>
 
 Then show the step checklist with Step 1 checked off:
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [ ] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
   [ ] Step 4: Write computation skeleton
-```
+:::
 
 ---
 
@@ -130,19 +130,19 @@ Merge the doc-derived proposals into `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
 - Write the updated file to disk
 
 Print:
-```
+:::important
 Updated guidance sections.
-```
+:::
 
 Then show the step checklist with Steps 1–2 checked off:
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [ ] Step 3: Build computation skeleton
   [ ] Step 4: Write computation skeleton
-```
+:::
 
 ---
 
@@ -155,7 +155,7 @@ Build and display the skeleton using:
 
 Display format:
 
-```
+:::detail
 **Computation skeleton for <display_name>:**
 
 **Inputs:**
@@ -173,19 +173,19 @@ Display format:
 - ...
 
 [repeat for each intermediate_variables category]
-```
+:::
 
 Include an ASCII computation flow diagram.
 
 Then show the step checklist with Steps 1–3 checked off:
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [✓] Step 3: Build computation skeleton
   [ ] Step 4: Write computation skeleton
-```
+:::
 
 ---
 
@@ -217,25 +217,25 @@ Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
    - Write a `computations:` list — one entry per variable that has a non-null expr hint (shown as `≈ <expr>` in the skeleton display). Each entry has `name:` (the variable name) and `expr:` (the expr hint string). Variables shown as `= ?` are omitted from `computations:`. Write entries in display order.
 
 Print:
-```
+:::important
 $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
-```
+:::
 
 Then show the final step checklist (all steps checked):
 
-```
+:::progress
 Steps:
   [✓] Step 1: Load current state
   [✓] Step 2: Extract doc signals and update guidance sections
   [✓] Step 3: Build computation skeleton
   [✓] Step 4: Write computation skeleton
-```
+:::
 
 Then suggest the next step:
 
-```
+:::next_step
 Next: Run /xl:create-ruleset-groups <domain> to propose ruleset groups.
-```
+:::
 
 ---
 
@@ -252,8 +252,8 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 - The `skeleton:` key is inserted after `scope:` (before `constraints:`), not at the end of the file
 - Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with actual `expr_hint` values get a `computations:` entry
 - In UPDATE mode "accept", exit without writing — do not overwrite any existing content
-- Step 2 runs in both CREATE and UPDATE mode (when `b. replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
+- Step 2 runs in both CREATE and UPDATE mode (when `[b] replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
 - Show the step checklist after EVERY step (4 steps total) — do not skip it
-- When `c. revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
+- When `[c] revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
 - The `skeleton:` key insertion position is after `scope:` and before `constraints:` — preserve all existing top-level key ordering for other keys
 - `intermediate_variables.categories` must be updated with the new category structure from the skeleton — if categories were empty before, populate them; if they existed, rewrite `examples:` with confirmed names

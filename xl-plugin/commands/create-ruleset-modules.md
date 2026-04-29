@@ -16,55 +16,55 @@ Run these checks before doing anything else:
 
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
-     ```
+     :::user_input
      Available domains:
        1. snap
        2. example_domain
      Which domain? Enter a number or domain name:
-     ```
+     :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
    - NO → Print:
-     ```
+     :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     ```
+     :::
      Then stop.
 
 3. **`guidance.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
      Run /xl:declare-target-ruleset <domain> first.
-     ```
+     :::
      Then stop.
 
 4. **`input-index.yaml` exists?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - ABSENT → Print:
-     ```
+     :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
      Run /xl:index-inputs <domain> first.
-     ```
+     :::
      Then stop.
 
 5. **`skeleton:` key present in `guidance.yaml`?**
    - ABSENT → Print:
-     ```
+     :::error
      Skeleton not found in guidance.yaml.
      Run /xl:create-skeleton <domain> first.
-     ```
+     :::
      Then stop.
 
 6. **`ruleset_groups:` key present in `guidance.yaml`?**
    - ABSENT → Print:
-     ```
+     :::error
      Ruleset groups not found in guidance.yaml.
      Run /xl:create-ruleset-groups <domain> first.
      Note: this command requires ruleset groups to be defined before ruleset module detection.
      This is intentional: ruleset modules must stay within a single stage, so groups must be defined first.
-     ```
+     :::
      Then stop.
 
 ## Mode Detection
@@ -92,13 +92,13 @@ Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is
 
 In UPDATE mode: display a summary of existing `ruleset_modules:` as pre-confirmed before scanning for new modules. Include the `role: main` entry (if present) in the pre-confirmed block — it will not be re-prompted in Step 3:
 
-```
+:::progress
 Existing ruleset modules (pre-confirmed):
   [confirmed] earned_income      (sub)   — Shared earned income computation (reuse_across_entities)
   [confirmed] deduction_chain    (sub)   — Sequential deduction chain (depth_threshold)
   [confirmed] eligibility        (main)  — AK DOH Earned Income Exclusions
 Scanning for new modules...
-```
+:::
 
 ---
 
@@ -121,14 +121,14 @@ In UPDATE mode: pre-confirmed entries (existing sub-modules and any existing `ro
 
 **If one or more new modules are detected**, display the results table in exactly this format:
 
-```
+:::detail
 Ruleset Modules
 ─────────────────────────────────────────────────────────────────────────
   # │ Name              │ Role │ Bound Entities          │ Heuristic
   1 │ earned_income     │ sub  │ ClientData, DOLRecord   │ reuse_across_entities
   2 │ deduction_chain   │ sub  │ Household               │ depth_threshold
 ─────────────────────────────────────────────────────────────────────────
-```
+:::
 
 All detected modules are confirmed automatically. Proceed immediately to Step 3.
 
@@ -160,9 +160,9 @@ Examples:
 
 Print the derived name so the user can see what was chosen:
 
-```
+:::important
 Main module: eligibility  (edit guidance.yaml to rename)
-```
+:::
 
 ---
 
@@ -200,15 +200,15 @@ When a main module name was confirmed in Step 3, append the main module entry at
 
 Print:
 
-```
+:::important
 $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
-```
+:::
 
 Then suggest next steps:
 
-```
+:::next_step
 Next: Run /xl:extract-sample-rules <domain> to extract sample rules.
-```
+:::
 
 ---
 

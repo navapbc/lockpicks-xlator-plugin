@@ -14,9 +14,17 @@ If no args are provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and 
 
 ## Pre-flight
 
-1. **Domain folder exists?** — NO → Print: `"Domain '<domain>' not found. Run /xl:new-domain <domain> first."` Stop.
+1. **Domain folder exists?** — NO → Print:
+   :::error
+   Domain '<domain>' not found. Run /xl:new-domain <domain> first.
+   :::
+   Stop.
 2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<module>.civil.yaml` missing → Print: `"No CIVIL file found. Run /xl:extract-ruleset <domain> first."` Stop.
+   - `$DOMAINS_DIR/<domain>/specs/<module>.civil.yaml` missing → Print:
+     :::error
+     No CIVIL file found. Run /xl:extract-ruleset <domain> first.
+     :::
+     Stop.
 3. **Transpiled output exists?**
    - Check `$DOMAINS_DIR/<domain>/output/<module>.catala_en`
    - Not found → Run `${CLAUDE_PLUGIN_ROOT}/xlator catala-transpile <domain> <module>`.
@@ -36,7 +44,11 @@ ls $DOMAINS_DIR/<domain>/output/demo-catala-<module>/ 2>/dev/null
 | Result | Mode |
 |--------|------|
 | Directory absent | **CREATE mode** |
-| Directory present | **UPDATE mode** — prompt: `"Demo already exists at $DOMAINS_DIR/<domain>/output/demo-catala-<module>/. Regenerate and overwrite? [y/N]"` — abort on N |
+| Directory present | **UPDATE mode** — prompt: `"Demo already exists at $DOMAINS_DIR/<domain>/output/demo-catala-<module>/. Regenerate and overwrite? [y/n]"` — abort on N |
+
+:::user_input
+Demo already exists at $DOMAINS_DIR/<domain>/output/demo-catala-<module>/. Regenerate and overwrite? [y/n]
+:::
 
 ---
 
@@ -250,27 +262,27 @@ document.getElementById('bool_field').checked = ex.bool_field; // booleans
 
 ### Step 6: Print Summary
 
-```
+:::important
 Demo created at $DOMAINS_DIR/<domain>/output/demo-catala-<module>/
   requirements.txt
   start.sh
   main.py
   static/index.html
-```
+:::
 
 If no test manifest was found, print:
-```
+:::important
 ⚠  No test manifest found — EXAMPLES in index.html contain TODO placeholders.
    Run /xl:create-tests <domain> <module> for realistic example scenarios.
-```
+:::
 
-```
+:::next_step
 Next steps:
   1. Install deps:   pip install -r $DOMAINS_DIR/<domain>/output/demo-catala-<module>/requirements.txt
   2. Run the demo:   ${CLAUDE_PLUGIN_ROOT}/xlator catala-demo <domain> <module>
   3. Open browser:   http://localhost:8000/static/index.html
   4. API docs:       http://localhost:8000/docs
-```
+:::
 
 ---
 

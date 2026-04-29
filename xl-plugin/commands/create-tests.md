@@ -13,9 +13,17 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 ## Pre-flight
 
-1. **Domain folder exists?** — NO → Print: "Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first." Stop.
+1. **Domain folder exists?** — NO → Print:
+   :::error
+   Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first.
+   :::
+   Stop.
 2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print: "No CIVIL file found. Run `/xl:extract-ruleset <domain>` first." Stop.
+   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print:
+     :::error
+     No CIVIL file found. Run `/xl:extract-ruleset <domain>` first.
+     :::
+     Stop.
 3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
 
 ## Step 0: Extract Policy Examples
@@ -28,16 +36,20 @@ ls $DOMAINS_DIR/<domain>/specs/extracted-tests.yaml 2>/dev/null
 ```
 
 **If `extracted-tests.yaml` already exists:**
-> "Found `extracted-tests.yaml` with N cases (last extracted from M documents). Use existing extracted tests, re-extract from input docs, or skip?"
-> Options: `[u]se` / `[r]e-extract` / `[s]kip`
+:::user_input
+Found `extracted-tests.yaml` with N cases (last extracted from M documents). Use existing extracted tests, re-extract from input docs, or skip?
+Options: `[u]se` / `[r]e-extract` / `[s]kip`
+:::
 
 - `[u]se`: proceed to Mode Detection using the existing file
 - `[r]e-extract`: run `/xl:extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `[s]kip`: proceed to Mode Detection without extracted tests
 
 **If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/input/` contains documents:**
-> "Found M policy documents in `$DOMAINS_DIR/<domain>/input/`. Extract concrete examples from them to seed tests? (recommended)"
-> Options: `y` / `n`
+:::user_input
+Found M policy documents in `$DOMAINS_DIR/<domain>/input/`. Extract concrete examples from them to seed tests? (recommended)
+Options: `[y/n]`
+:::
 
 - `y`: run `/xl:extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `n`: proceed to Mode Detection without extracted tests
@@ -74,7 +86,10 @@ Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` to understand:
 2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `inputs`, `expected`, `tags`) are preserved as-is.
 3. Accumulate the `tags` from all sample test entries and include them in the 6-tag coverage tally.
 
-Print: `"Seeded N sample test(s) from guidance.yaml (M field name warning(s))."` — or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing.
+:::important
+Seeded N sample test(s) from guidance.yaml (M field name warning(s)).
+:::
+— or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing.
 
 Draft additional synthetic cases from CIVIL reasoning to reach the 6-tag coverage minimum for any tags **not** already covered by extracted cases or sample tests:
 
@@ -157,7 +172,9 @@ Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 - **If present** (written by `/xl:extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
 - **If absent** (standalone run after a manual CIVIL edit): compare each test case's `inputs` values against all current `tables:` rows and `constants:` values in the CIVIL file. Flag any case where an input value exactly matches a value that no longer appears in any table row or constant.
 
-  Print: "No `.stale-cases.yaml` found — using table/constant comparison to detect stale cases. Logic-only rule changes (e.g., operator changes, new conditions) will not be detected; review manually."
+  :::important
+  No `.stale-cases.yaml` found — using table/constant comparison to detect stale cases. Logic-only rule changes (e.g., operator changes, new conditions) will not be detected; review manually.
+  :::
 
 ### Step 2: Update Stale Cases
 
@@ -166,9 +183,9 @@ For each stale case:
 - Preserve all other fields unchanged (`case_id`, `description`, `tags`)
 
 If no stale cases were identified:
-```
+:::important
 No stale cases detected. Review manually for logic-only rule changes.
-```
+:::
 Proceed to Step 3.
 
 ### Step 3: Add New Coverage
@@ -181,7 +198,15 @@ If extracted tests are available from Step 0 (existing `extracted-tests.yaml` wa
 
 - Compare each case in `extracted-tests.yaml` against the current suite, matching by `case_id` (all extracted cases have `ext_*` IDs)
 - For any `ext_*` case not already present in `<program>_tests.yaml`, append it with its `source:` field intact
-- Report: "Added N extracted cases not previously in the test suite." (or "All extracted cases already present." if none were missing)
+- Report:
+  - If N > 0:
+    :::important
+    Added N extracted cases not previously in the test suite.
+    :::
+  - If N = 0:
+    :::important
+    All extracted cases already present.
+    :::
 
 Skip this step silently if no extracted tests are available.
 
@@ -192,7 +217,15 @@ Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance.yaml` (same exist
 - If the `case_id` is already present: skip (do not overwrite).
 - If the `case_id` is absent: validate input fields against the CIVIL file and append the entry, adding a `notes:` field if unrecognised input keys are found.
 
-Print: `"Added N sample test(s) from guidance.yaml not previously in the test suite."`, `"All sample tests already present."`, or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing.
+Print (or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing):
+- If N > 0:
+  :::important
+  Added N sample test(s) from guidance.yaml not previously in the test suite.
+  :::
+- If N = 0:
+  :::important
+  All sample tests already present.
+  :::
 
 ### Step 5: Write Updated Test File
 
