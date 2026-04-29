@@ -107,9 +107,10 @@ get_xl_plugin_install_path() {
     claude plugin list --json | uv run --no-project python -c '
 import sys, json
 plugins = json.load(sys.stdin)
-xl = next((p for p in plugins if p["id"].startswith("xl@")), None)
+project_root = sys.argv[1]
+xl = next((p for p in plugins if p["id"].startswith("xl@") and p.get("projectPath") == project_root), None)
 print(xl["installPath"] if xl else "", end="")
-'
+' "$PROJECT_ROOT"
 }
 
 copy_if_diff() {
@@ -160,7 +161,10 @@ setup_xlator_plugin() {
             claude plugin marketplace add --scope project https://github.com/navapbc/lockpicks-xlator-plugin.git
         fi
         echo "  Clearing lockpicks-marketplace cache"
-        # Clear out cache; this is the most reliable way
+        # Uninstall first to remove the registry entry, then delete cached files.
+        # rm -rf alone only removes files; the claude CLI registry retains the old
+        # entry, causing plugin list to return a stale path after reinstall.
+        claude plugin uninstall xl@lockpicks-marketplace --scope project 2>/dev/null || true
         rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
         # Install the plugin from the marketplace
         claude plugin install --scope project xl@lockpicks-marketplace
