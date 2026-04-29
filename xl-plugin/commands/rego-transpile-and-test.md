@@ -17,7 +17,11 @@ If `<domain>` is not provided, run `${CLAUDE_PLUGIN_ROOT}/xlator list` and promp
    Find `*.civil.yaml` files in `$DOMAINS_DIR/<domain>/specs/`:
    - Exactly one found and `<program>` not specified → use it automatically.
    - Multiple found and `<program>` not specified → ask which program to transpile.
-   - None found → Print in an `:::error` fence: "No CIVIL spec found in `$DOMAINS_DIR/<domain>/specs/`". Stop.
+   - None found → Print
+   :::error
+   No CIVIL spec found in `$DOMAINS_DIR/<domain>/specs/`
+   :::
+   Stop.
 
 2. **Run pre-flight check:**
    ```bash
