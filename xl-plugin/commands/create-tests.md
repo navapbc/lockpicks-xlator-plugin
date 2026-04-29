@@ -48,7 +48,7 @@ Options: `[u]se` / `[r]e-extract` / `[s]kip`
 **If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/input/` contains documents:**
 :::user_input
 Found M policy documents in `$DOMAINS_DIR/<domain>/input/`. Extract concrete examples from them to seed tests? (recommended)
-Options: `[y]es / [n]o`
+Options: `y` / `n`
 :::
 
 - `y`: run `/xl:extract-test-cases <domain> <program>`, then proceed to Mode Detection

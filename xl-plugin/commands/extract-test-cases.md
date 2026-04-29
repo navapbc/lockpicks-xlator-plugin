@@ -39,7 +39,7 @@ ls $DOMAINS_DIR/<domain>/specs/extracted-tests.yaml 2>/dev/null
 **If `extracted-tests.yaml` already exists:**
 :::user_input
 Found `extracted-tests.yaml` with N cases (last extracted from M documents). Re-extract from input docs, or keep existing?
-Options: `[r]e-extract / [k]eep`
+Options: `[re-extract]` / `[keep]`
 :::
 
 If `[keep]`, stop.
