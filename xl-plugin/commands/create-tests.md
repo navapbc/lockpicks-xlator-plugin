@@ -199,14 +199,14 @@ If extracted tests are available from Step 0 (existing `extracted-tests.yaml` wa
 - Compare each case in `extracted-tests.yaml` against the current suite, matching by `case_id` (all extracted cases have `ext_*` IDs)
 - For any `ext_*` case not already present in `<program>_tests.yaml`, append it with its `source:` field intact
 - Report:
-  :::important
-  Added N extracted cases not previously in the test suite.
-  :::
-  (or
-  :::important
-  All extracted cases already present.
-  :::
-  if none were missing)
+  - If N > 0:
+    :::important
+    Added N extracted cases not previously in the test suite.
+    :::
+  - If N = 0:
+    :::important
+    All extracted cases already present.
+    :::
 
 Skip this step silently if no extracted tests are available.
 
@@ -217,15 +217,15 @@ Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance.yaml` (same exist
 - If the `case_id` is already present: skip (do not overwrite).
 - If the `case_id` is absent: validate input fields against the CIVIL file and append the entry, adding a `notes:` field if unrecognised input keys are found.
 
-Print:
-:::important
-Added N sample test(s) from guidance.yaml not previously in the test suite.
-:::
-or
-:::important
-All sample tests already present.
-:::
-— or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing.
+Print (or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing):
+- If N > 0:
+  :::important
+  Added N sample test(s) from guidance.yaml not previously in the test suite.
+  :::
+- If N = 0:
+  :::important
+  All sample tests already present.
+  :::
 
 ### Step 5: Write Updated Test File
 

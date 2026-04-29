@@ -28,9 +28,9 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 4. **Baseline tests exist?** — `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` missing → Print: "⚠️ No baseline test file found. Expanded tests will still be generated, but consider running `/xl:create-tests <domain>` first to establish a baseline." Continue.
 5. **Existing expanded files?** — If any of the four output files already exist → Prompt:
    :::user_input
-   Expanded test files already exist in `$DOMAINS_DIR/<domain>/specs/tests/`. Overwrite and regenerate? `[yes]` / `[no — abort]`
+   Expanded test files already exist in `$DOMAINS_DIR/<domain>/specs/tests/`. Overwrite and regenerate? `[y]es` / `[n]o — abort`
    :::
-   If `[no]`, stop.
+   If `n`, stop.
 
 ## Phase 1: Build Coverage Map
 
