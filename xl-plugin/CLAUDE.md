@@ -19,6 +19,29 @@ To avoid having to use `uv run` for each command line, activate the virtual envi
 
 Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 'submodule'), 'ruleset group' (not 'workflow stage'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
 
+## Output Fencing
+
+All slash command output MUST be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics. Always include the fencing syntax around the text blocks in the output, such as `:::important` and `:::next_step`.
+
+**Syntax:** `:::type` on its own line to open, `:::` on its own line to close. No nesting. Multiple blocks per response are allowed.
+
+| Fence type | When to use |
+|------------|-------------|
+| `:::important` | Primary result, written confirmation, summary verdict |
+| `:::error` | Pre-flight failure — always paired with a stop |
+| `:::next_step` | Suggested follow-on commands after successful completion |
+| `:::detail` | Skeleton, YAML, rule tables, coverage maps, verbatim relay output |
+| `:::progress` | In-flight status lines, scan progress, step checklist mid-run |
+| `:::user_input` | Any prompt requiring a user response before continuing |
+
+Unfenced output defaults to `detail`.
+
+**`progress` vs `detail`:** `:::progress` = transient, in-flight (still running). `:::detail` = complete, available for inspection.
+
+**Verbatim-relay commands:** Open `:::detail` before beginning relay; close `:::` after relay completes. One fence per program — do not wrap multiple programs in a single fence.
+
+Before executing any slash command, read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` for the full authoring reference.
+
 ## Slash Commands Next steps
 
 After completion of a `xl` slash command, suggest possible next steps based on the following workflows:
@@ -116,40 +139,17 @@ When a slash command has more than 3 steps, show a checklist of the steps at the
 ## AskUserQuestion
 
 When asking the user a question, never present the option of "Press Enter to ...".
-Instead, if the question expects a boolean response, then show "(y/n)".
+Instead, if the question expects a boolean response, then show "[y/n]".
 If there are multiple response options, present it as:
 
 ```
-a. Option one
-b. Option two
-c. Option three
+[a] Option one
+[b] Option two
+[c] Option three
 (or type in difference response)
 ```
 
 If the user responds with more than 1 character, then use the user's response as the answer.
-
-## Output Fencing
-
-All slash command output must be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics.
-
-**Syntax:** `:::type` on its own line to open, `:::` on its own line to close. No nesting. Multiple blocks per response are allowed.
-
-| Fence type | When to use |
-|------------|-------------|
-| `:::important` | Primary result, written confirmation, summary verdict |
-| `:::error` | Pre-flight failure — always paired with a stop |
-| `:::next_step` | Suggested follow-on commands after successful completion |
-| `:::detail` | Skeleton, YAML, rule tables, coverage maps, verbatim relay output |
-| `:::progress` | In-flight status lines, scan progress, step checklist mid-run |
-| `:::user_input` | Any prompt requiring a user response before continuing |
-
-Unfenced output defaults to `detail`.
-
-**`progress` vs `detail`:** `:::progress` = transient, in-flight (still running). `:::detail` = complete, available for inspection.
-
-**Verbatim-relay commands:** Open `:::detail` before beginning relay; close `:::` after relay completes. One fence per program — do not wrap multiple programs in a single fence.
-
-Full authoring reference: `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md`
 
 ## Catala Conventions
 

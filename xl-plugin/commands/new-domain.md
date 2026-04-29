@@ -10,6 +10,8 @@ Set up the standard folder scaffold for a new domain so it's ready for policy do
 
 If `<domain>` is not provided, prompt: "What should the domain be named? (e.g., `snap`, `ak_doh`)"
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 1. **Domain name provided?** — If not, prompt for it. Then continue.

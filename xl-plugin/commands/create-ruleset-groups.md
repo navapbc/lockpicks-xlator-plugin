@@ -8,6 +8,8 @@ Read `input-index.yaml` for phase headings and logical groupings, propose `rules
 /create-ruleset-groups <domain>
 ```
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

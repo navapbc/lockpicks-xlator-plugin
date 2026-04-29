@@ -10,6 +10,8 @@ The **guidance template** (in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` and
 /refine-guidance <domain>
 ```
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

@@ -11,6 +11,8 @@ Generate additional test cases for an existing CIVIL module test suite without d
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 1. **Domain folder exists?** — NO →

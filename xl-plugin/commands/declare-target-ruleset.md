@@ -8,6 +8,8 @@ Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/xl:sugg
 /declare-target-ruleset <domain> [<ruleset_name>]
 ```
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

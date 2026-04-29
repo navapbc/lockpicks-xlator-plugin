@@ -33,23 +33,27 @@ source "$PROJECT_ROOT/.xlator.local.env"
 # If no command is given, open an interactive shell with the Xlator environment.
 if [ $# -eq 0 ]; then
     if command -v python >/dev/null && command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
-        echo "$(which python): $(python --version 2>&1)"
+        python_version=$(python --version 2>&1)
+        echo "$(which python): $python_version"
         echo "$(which opam) version: $(opam --version)"
         echo "$(which clerk) version: $(clerk --version)"
         echo "$(which catala) version: $(catala --version)"
-        exit 0
+
+        if [[ "$python_version" == "Python 3.14"* ]]; then
+            exit 0
+        fi
     fi
 
-    echo "Starting a new shell in $DOMAINS_FULLPATH with Xlator environment activated (python, catala, and clerk commands available)"
+    echo "Starting a new shell with Xlator environment activated (python, catala, and clerk commands available)"
     case "$SHELL" in
         */zsh)
-            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env); cd "$DOMAINS_FULLPATH" && source .shared/.venv/bin/activate""; exec zsh'
+            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env)"; source "$DOMAINS_FULLPATH/.shared/.venv/bin/activate"; exec zsh'
             ;;
         *)
             exec bash --rcfile <(
                 cat ~/.bashrc 2>/dev/null || true
                 echo 'eval "$(opam env)"'
-                echo "cd \"$DOMAINS_FULLPATH\" && source .shared/.venv/bin/activate"
+                echo "source \"$DOMAINS_FULLPATH/.shared/.venv/bin/activate\""
             )
             ;;
     esac

@@ -21,6 +21,8 @@ Available domains:
 Which domain? Enter a number or domain name:
 :::
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 1. **Domain argument provided?** — If not, show domain menu (above). Await response.

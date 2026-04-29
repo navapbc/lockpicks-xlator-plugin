@@ -10,6 +10,8 @@ A "module" is a ruleset module — a subset of rules within a ruleset group (rul
 /create-ruleset-modules <domain>
 ```
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

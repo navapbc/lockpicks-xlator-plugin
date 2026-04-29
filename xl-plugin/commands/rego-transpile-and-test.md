@@ -11,6 +11,8 @@ Transpile a CIVIL module to Rego and run the test suite.
 
 If `<domain>` is not provided, run `${CLAUDE_PLUGIN_ROOT}/xlator list` and prompt the user to choose.
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 1. **Determine module:**

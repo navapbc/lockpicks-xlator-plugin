@@ -17,6 +17,8 @@ Read `$CLAUDE_PLUGIN_ROOT/core/ruleset-shared.md` now. It contains shared proced
 
 ---
 
+Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

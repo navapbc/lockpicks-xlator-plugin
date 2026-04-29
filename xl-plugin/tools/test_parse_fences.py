@@ -1,11 +1,12 @@
 """Tests for parse_fences.py — covers all plan scenarios (AE1, AE2, AE4)."""
 
+import json
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from parse_fences import parse_fences
+from parse_fences import extract_text, parse_fences
 
 
 def test_single_important_block():
@@ -80,6 +81,52 @@ def test_unclosed_fence_yields_partial_block():
     text = ":::progress\nScanning…"
     result = parse_fences(text)
     assert result == [{"type": "progress", "content": "Scanning…"}]
+
+
+def test_extract_text_plain():
+    """extract_text returns plain text unchanged."""
+    text = ":::important\nResult.\n:::"
+    assert extract_text(text) == text
+
+
+def test_extract_text_single_json():
+    """extract_text pulls result from --output-format json object."""
+    payload = json.dumps(
+        {"type": "result", "subtype": "success", "result": ":::important\nDomain ready.\n:::"}
+    )
+    assert extract_text(payload) == ":::important\nDomain ready.\n:::"
+
+
+def test_extract_text_stream_json():
+    """extract_text pulls result from the last result object in stream-json NDJSON."""
+    lines = [
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": ":::important\nDomain ready.\n:::"}]}}),
+        json.dumps({"type": "result", "subtype": "success", "result": ":::important\nDomain ready.\n:::"}),
+    ]
+    payload = "\n".join(lines)
+    assert extract_text(payload) == ":::important\nDomain ready.\n:::"
+
+
+def test_extract_text_json_no_result_key():
+    """extract_text returns raw string when JSON has no result key."""
+    payload = json.dumps({"type": "assistant"})
+    assert extract_text(payload) == payload
+
+
+def test_extract_text_invalid_json():
+    """extract_text returns raw string when input looks like JSON but is invalid."""
+    payload = "{not valid json"
+    assert extract_text(payload) == payload
+
+
+def test_parse_fences_from_json_input():
+    """End-to-end: JSON envelope is unwrapped and fences parsed correctly."""
+    inner = ":::important\nDomain 'my_domain' is ready.\n:::\n:::next_step\nRun index-inputs.\n:::"
+    payload = json.dumps({"type": "result", "subtype": "success", "result": inner})
+    result = parse_fences(extract_text(payload))
+    assert len(result) == 2
+    assert result[0] == {"type": "important", "content": "Domain 'my_domain' is ready."}
+    assert result[1] == {"type": "next_step", "content": "Run index-inputs."}
 
 
 def test_all_six_types_parsed():
