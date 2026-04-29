@@ -54,9 +54,9 @@ After pre-flight, check whether the `skeleton:` key already exists in `guidance.
 - **Present** → **UPDATE mode**. Display existing skeleton summary and offer:
   :::user_input
   Skeleton already exists: <N> computations across <M> categories (confirmed: <confirmed_at>)
-  a. accept — keep as-is and exit
-  b. replace — re-run full Step 2+3 flow, overwrite skeleton
-  c. revise — show existing skeleton for editing
+  [a] accept — keep as-is and exit
+  [b] replace — re-run full Step 2+3 flow, overwrite skeleton
+  [c] revise — show existing skeleton for editing
   :::
   - `a` → Print the Step 1 state summary (same format as Step 1 below) and exit. Suggest next step: `/xl:create-ruleset-groups <domain>`. Do not write anything.
   - `b` → Run the full process below (Steps 1–4).
@@ -92,7 +92,7 @@ Sections: constraints (<N> items), standards (<N> items), guidance (<N> items), 
 Skeleton: none
 ```
 
-If `skeleton:` already exists in `guidance.yaml` (this occurs when `c. revise` was selected in UPDATE mode), show instead:
+If `skeleton:` already exists in `guidance.yaml` (this occurs when `[c] revise` was selected in UPDATE mode), show instead:
 
 ```
 Skeleton: <N> computations across <M> categories, confirmed <confirmed_at>
@@ -252,8 +252,8 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 - The `skeleton:` key is inserted after `scope:` (before `constraints:`), not at the end of the file
 - Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with actual `expr_hint` values get a `computations:` entry
 - In UPDATE mode "accept", exit without writing — do not overwrite any existing content
-- Step 2 runs in both CREATE and UPDATE mode (when `b. replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
+- Step 2 runs in both CREATE and UPDATE mode (when `[b] replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
 - Show the step checklist after EVERY step (4 steps total) — do not skip it
-- When `c. revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
+- When `[c] revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
 - The `skeleton:` key insertion position is after `scope:` and before `constraints:` — preserve all existing top-level key ordering for other keys
 - `intermediate_variables.categories` must be updated with the new category structure from the skeleton — if categories were empty before, populate them; if they existed, rewrite `examples:` with confirmed names

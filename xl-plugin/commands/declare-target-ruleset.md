@@ -58,7 +58,7 @@ Run these checks before doing anything else:
 5. **`guidance.yaml` already exists?**
    - `$DOMAINS_DIR/<domain>/specs/guidance.yaml` present → Prompt:
      :::user_input
-     guidance.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance.yaml. Overwrite? (y/n)
+     guidance.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance.yaml. Overwrite? [y/n]
      :::
      - `n` → Stop without writing.
      - `y` → Continue.
