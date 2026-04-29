@@ -46,10 +46,10 @@ ls $DOMAINS_DIR/<domain>/output/demo-rego-<module>/ 2>/dev/null
 | Result | Mode |
 |--------|------|
 | Directory absent | **CREATE mode** |
-| Directory present | **UPDATE mode** — prompt: `"Demo already exists at $DOMAINS_DIR/<domain>/output/demo-rego-<module>/. Regenerate and overwrite? [y/N]"` — abort on N |
+| Directory present | **UPDATE mode** — prompt: `"Demo already exists at $DOMAINS_DIR/<domain>/output/demo-rego-<module>/. Regenerate and overwrite? [y]es / [n]o"` — abort on N |
 
 :::user_input
-Demo already exists at $DOMAINS_DIR/<domain>/output/demo-rego-<module>/. Regenerate and overwrite? [y/N]
+Demo already exists at $DOMAINS_DIR/<domain>/output/demo-rego-<module>/. Regenerate and overwrite? [y]es / [n]o
 :::
 
 ---

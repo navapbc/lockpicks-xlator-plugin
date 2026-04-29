@@ -80,7 +80,7 @@ If any files have `"untracked"` SHA, prompt the user before proceeding:
     input/policy_docs/<file1>.md
     input/policy_docs/<file2>.md
   Untracked files are re-indexed on every UPDATE run (no SHA to compare).
-  Commit these files now? [y/n]:
+  Commit these files now? [y]es / [n]o
 :::
 
 - **y** → Run:
@@ -197,7 +197,7 @@ If any current files have `"untracked"` SHA, prompt the user:
 ⚠ <N> file(s) are not yet committed to git:
     input/policy_docs/<file1>.md
   Untracked files are re-indexed on every UPDATE run (no SHA to compare).
-  Commit these files now? [y/n]:
+  Commit these files now? [y]es / [n]o
 :::
 
 - **y** → Commit them (same as CREATE mode Step 2 commit flow), then re-fetch real SHAs before proceeding.

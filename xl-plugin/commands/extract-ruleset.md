@@ -393,7 +393,7 @@ Run **SP-MaintainabilityReview** (from `core/ruleset-shared.md`) on the drafted 
   1. Display the conflicting rules and their priorities.
   2. Ask:
      :::user_input
-     Two or more rules in `mutex_group '<name>'` share the same priority. Please assign unique priorities, then type 'continue'.
+     Two or more rules in `mutex_group '<name>'` share the same priority. Please assign unique priorities, then type [c]ontinue.
      :::
   3. Apply the user's corrections to the draft in-memory.
   4. Re-run SP-MaintainabilityReview to confirm M5 is resolved before advancing.
