@@ -108,6 +108,12 @@ case "$1" in
         domain="$2"
         exec python3 "$TOOLS_DIR/tidy_obs_log.py" "$domain"
         ;;
+    rate-md-quality)
+        exec python3 "$TOOLS_DIR/rate_md_quality.py" "${@:2}"
+        ;;
+    reject-low-quality-inputs)
+        exec python3 "$TOOLS_DIR/reject_low_quality_inputs.py" "${@:2}"
+        ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
     # without needing to know where xlator.py is or worry about environment variables,

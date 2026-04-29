@@ -10,3 +10,8 @@ dependencies = [
     "rapidfuzz>=3.0",
     "rich>=10.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

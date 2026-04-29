@@ -53,6 +53,10 @@ ls $DOMAINS_DIR/<domain>/specs/input-index.yaml 2>/dev/null
 | File absent | **CREATE** — index all files from scratch |
 | File present | **UPDATE** — re-index changed/new files only |
 
+## Quality Threshold
+
+The minimum acceptable quality score is **40** (out of 100). Files scoring below this threshold are **REJECTED**: they are moved to `$DOMAINS_DIR/<domain>/input/rejected/` (preserving subdirectory structure) and no `sections:` entries are generated for them. The `md_quality:` field in the `files:` block explains the rejection.
+
 ---
 
 ## Process — CREATE Mode
@@ -65,7 +69,7 @@ Glob all `.md` files recursively under `$DOMAINS_DIR/<domain>/input/policy_docs/
 Found <N> document(s). Indexing all...
 :::
 
-### Step 2: Get git SHA for each file
+### Step 2: Get git SHA and quality score for each file
 
 For each file, run:
 
@@ -93,6 +97,14 @@ If any files have `"untracked"` SHA, prompt the user before proceeding:
   Then re-fetch the SHA for each committed file (`git log -1 --format="%H" -- ...`) and use the real SHA in the index.
 - **n** → Continue. These files get `"untracked"` SHA and will be re-indexed on every future UPDATE run.
 
+After obtaining each file's SHA, score it:
+
+```bash
+xlator rate-md-quality "$DOMAINS_DIR/<domain>/<domain-relative-path>"
+```
+
+Store the JSON result `{"score": N}` or `{"score": N, "flags": [...]}` alongside the SHA.
+
 ### Step 3: Write the index preamble and files block
 
 Ensure `$DOMAINS_DIR/<domain>/specs/` exists. Write the following to `$DOMAINS_DIR/<domain>/specs/input-index.yaml` (this creates or overwrites the file):
@@ -104,8 +116,17 @@ Ensure `$DOMAINS_DIR/<domain>/specs/` exists. Write the following to `$DOMAINS_D
 files:
   input/policy_docs/<file1>.md:
     sha: "<sha>"
+    md_quality:
+      score: <N>
+      flags: [<flag1>, <flag2>]
+  input/policy_docs/<file2>.md:
+    sha: "<sha>"
+    md_quality:
+      score: <N>
   "input/policy_docs/<file with spaces>.md":
     sha: "<sha>"
+    md_quality:
+      score: <N>
 
 sections:
 ```
@@ -114,13 +135,40 @@ YAML conventions for the `files:` block:
 - Two-space indentation throughout
 - Quote any path key that contains spaces (e.g., `"input/policy_docs/441-1 EARNED INCOME.md":`)
 - `sha:` values as quoted strings
+- `md_quality:` sub-block with `score:` as an unquoted integer
+- `flags:` as an inline bracket list (e.g., `flags: [no_headings, repeated_page_headers]`) — **omit the `flags:` line entirely** when there are no flags (do not emit `flags: []`)
 - Blank line between the `files:` block and the `sections:` line
 
-### Step 4: Process each file and append its sections immediately
+**Important:** Write each file's entry to the `files:` block one at a time (not all files in a single output block) to avoid hitting the 32k output token limit.
 
-For each file in sorted order, perform steps 4a–4b before moving to the next file.
+### Step 4: Move rejected files
 
-**Step 4a: Extract sections and generate entries**
+Run the rejection script, passing the domain directory and the quality threshold:
+
+```bash
+xlator reject-low-quality-inputs "$DOMAINS_DIR/<domain>" 40
+```
+
+The script reads the `files:` block just written, moves every file whose `md_quality.score` is below 40 from `input/policy_docs/` to `input/rejected/` (preserving subdirectory structure), and returns a JSON result:
+
+```json
+{"moved": <R>, "files": ["input/policy_docs/<file>.md", ...]}
+```
+
+Capture `<R>` (the moved count) for the completion message.
+
+### Step 5: Process each file and append its sections immediately
+
+For each file in sorted order:
+
+- **REJECTED** (score < 40): Skip entirely — do not emit any `sections:` entries for this file. Emit a progress line:
+  :::progress
+    Skipped (low quality, score=<N>): input/policy_docs/<file>.md
+  :::
+
+- **All other files**: Perform steps 5a–5b before moving to the next file.
+
+**Step 5a: Extract sections and generate entries**
 
 1. Read the full file content.
 2. Extract all H1 (`#`), H2 (`##`), and H3 (`###`) headings in the order they appear. For each heading, collect the text between it and the next heading of equal or higher level — this is the section body.
@@ -132,7 +180,7 @@ For each file in sorted order, perform steps 4a–4b before moving to the next f
    Omit the `computations:` field entirely (do not emit `computations: []`) when no rule logic is present in the section.
 5. If a file has **no H1–H3 headings**, emit one entry for the whole file using the filename stem as the heading, prefixed with `#`.
 
-**Step 4b: Append this file's sections to `specs/input-index.yaml`**
+**Step 5b: Append this file's sections to `specs/input-index.yaml`**
 
 Append the generated entries for this file to `$DOMAINS_DIR/<domain>/specs/input-index.yaml` using Bash. Each entry is preceded by a blank line:
 
@@ -161,16 +209,17 @@ After appending all entries for this file, emit a progress line:
 
 Then proceed to the next file.
 
-### Step 5: Completion
+### Step 6: Completion
 
 After all files are processed, print:
 
 :::important
 ✓ specs/input-index.yaml written (CREATE).
   <N> file(s) indexed, <M> section(s) total.
-
-Re-run /index-inputs <domain> after adding or modifying input documents
+  <R> file(s) rejected (low quality) and moved to input/rejected/ — re-run after reformatting.
 :::
+
+Omit the "rejected" line if R = 0.
 
 ---
 
@@ -178,13 +227,13 @@ Re-run /index-inputs <domain> after adding or modifying input documents
 
 ### Step 1: Read the existing index
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Extract the current `files:` SHA map and `sections:` list.
+Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Extract the current `files:` SHA map (including any existing `md_quality:` values) and `sections:` list.
 
 ### Step 2: Discover current input documents
 
 Glob all `.md` files recursively under `$DOMAINS_DIR/<domain>/input/policy_docs/`. Sort alphabetically by path.
 
-### Step 3: Get current git SHA for each file
+### Step 3: Get current git SHA and quality score for each file
 
 For each current file, run:
 
@@ -194,15 +243,26 @@ git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/<domain-relative-path>
 
 Empty output → `"untracked"`.
 
+For files that will be classified as **REINDEX** (see Step 4), also score them now:
+
+```bash
+xlator rate-md-quality "$DOMAINS_DIR/<domain>/<domain-relative-path>"
+```
+
+Store the JSON result alongside the SHA.
+
+For files that will be classified as **SKIP** (SHA unchanged), use the `md_quality:` value already stored in the prior index. If the prior index has no `md_quality:` for a SKIP file (e.g., it was indexed before this feature was added), score it now using the same command.
+
 ### Step 4: Classify files
 
 Compare current files + SHAs against the stored `files:` block:
 
-| Condition | Action |
-|-----------|--------|
-| File in index, SHA unchanged | **SKIP** — preserve existing sections |
+| Condition | Classification |
+|-----------|----------------|
+| File in index, SHA unchanged | **SKIP** — preserve existing sections and md_quality |
 | File in index, SHA changed | **REINDEX** — re-read and regenerate sections |
 | File not in index (new) | **REINDEX** — read and generate sections |
+| REINDEX file with score < 40 | **REJECTED** — move to `input/rejected/`, no sections |
 | File in index but not on disk (deleted) | **REMOVE** — drop from `files:` and `sections:` |
 
 :::progress
@@ -231,36 +291,55 @@ Write the following to `$DOMAINS_DIR/<domain>/specs/input-index.yaml` (overwrite
 # Domain: <domain>
 # Generated: YYYY-MM-DD
 files:
-  <all current files with their current SHAs>
+  <all current files with their current SHAs and md_quality>
 
 sections:
 ```
 
-Apply the same YAML conventions as CREATE mode Step 3 (quote paths with spaces, sha values as quoted strings).
+Apply the same YAML conventions as CREATE mode Step 3:
+- Quote paths with spaces; `sha:` as quoted strings; `md_quality:` sub-block with unquoted `score:`; `flags:` omitted when empty
+- Write each file's entry one at a time (incremental write)
 
-### Step 6: Append sections for all files in sorted order
+### Step 6: Move rejected files
+
+Run the same rejection script used in CREATE mode:
+
+```bash
+xlator reject-low-quality-inputs "$DOMAINS_DIR/<domain>" 40
+```
+
+Capture `<R>` from the JSON result for the completion message.
+
+### Step 7: Append sections for all files in sorted order
 
 Process all current files in alphabetical path order. For each file:
 
 - **SKIP**: Append the existing sections for this file directly from the old index (copy them verbatim). Each entry is preceded by a blank line.
-- **REINDEX**: Follow CREATE mode Steps 4a–4b (read the file, extract headings, generate summaries/tags/computations, then append).
+- **REINDEX**: Follow CREATE mode Steps 5a–5b (read the file, extract headings, generate summaries/tags/computations, then append).
+- **REJECTED**: Skip entirely — no `sections:` entries. Emit a progress line:
+  :::progress
+    Skipped (low quality, score=<N>): input/policy_docs/<file>.md
+  :::
 - **REMOVE**: Do nothing — the file is absent from both the new `files:` block and `sections:`.
 
-After appending all entries for each file, emit a progress line:
+After appending all entries for each non-rejected file, emit a progress line:
 
 :::progress
   Indexed: input/policy_docs/<file>.md (<K> section(s))  [re-indexed | preserved | removed]
 :::
 
-### Step 7: Completion
+### Step 8: Completion
 
 After all files are processed, print:
 
 :::important
 ✓ specs/input-index.yaml updated (UPDATE).
   <X> file(s) re-indexed, <Y> skipped (unchanged), <Z> removed.
+  <R> file(s) rejected (low quality) and moved to input/rejected/ — re-run after reformatting.
   <M> section(s) total.
 :::
+
+Omit the "rejected" line if R = 0.
 
 :::next_step
 Next step: `/xl:refine-guidance <domain>` to set extraction goals and ruleset guidance
@@ -275,8 +354,12 @@ Next step: `/xl:refine-guidance <domain>` to set extraction goals and ruleset gu
 - **Don't use absolute paths** — paths must start with `input/policy_docs/`, not `/Users/...` or `$DOMAINS_DIR/<domain>/`
 - **Don't skip the heading prefix** — `heading: "# Title"` not `heading: "Title"`; the `#` characters encode the level
 - **Don't merge all sections from a file into one entry** — each H1–H3 heading is its own entry
+- **Don't run the rejection script before the files block is fully written** — `reject-low-quality-inputs` reads `specs/input-index.yaml` for scores; run it only after Step 3/5 is complete
 - **Don't omit the blank line before each `sections:` entry** — one blank line before every entry for readability
 - **Don't omit the blank line between the `files:` block and the `sections:` line**
 - **Don't re-index unchanged files in UPDATE mode** — only re-process files whose SHA changed or that are new
 - **Do quote `files:` keys that contain spaces** — YAML keys with spaces must be quoted strings
 - **Don't emit `computations: []` for sections with no rule logic** — omit the field entirely; an empty list is never correct
+- **Don't emit `flags: []` for files with no quality flags** — omit the `flags:` line entirely; `score:` alone is sufficient
+- **Don't skip md_quality scoring** — every file in the `files:` block must have an `md_quality:` entry
+- **Don't generate sections for REJECTED files** — a file moved to `input/rejected/` gets no `sections:` entries
