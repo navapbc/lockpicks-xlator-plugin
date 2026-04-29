@@ -12,6 +12,36 @@ Usage (via xlator CLI):
 Options:
     --format {json,text}   Output format (default: json)
 
+Output (JSON format):
+    Score only — no structural problems detected:
+        {"score": 85}
+
+    Score with flags — each flag name identifies a signal that fired and
+    reduced the score by its penalty weight:
+        {"score": 20, "flags": ["no_headings", "repeated_page_headers", "repeated_page_numbers", "bold_as_headings"]}
+
+    Score of 0 — multiple signals fired whose combined penalty reached 100:
+        {"score": 0, "flags": ["no_headings", "repeated_page_headers", "repeated_page_numbers", "navigation_pollution", "repeated_boilerplate"]}
+
+Output (text format, printed to stdout):
+    16EAS.md  score: 20/100
+      • no_headings  (-40)
+      • repeated_page_headers  (-20)
+      • repeated_page_numbers  (-10)
+      • bold_as_headings  (-10)
+
+Signal flags and their penalty weights:
+    no_headings               -40   file has no ATX headings (# / ## / ###)
+    low_heading_density       -20   fewer than 1 heading per 50 non-empty lines
+    repeated_page_headers     -20   a non-heading line appears verbatim 3+ times
+    navigation_pollution      -15   breadcrumb lines (A > B > C) appear 2+ times
+    navigation_list_pollution -15   list block with 8+ URL-heavy or short items
+    html_entity_remnants      -10   unescaped HTML entities (&amp;, &nbsp;, etc.)
+    repeated_page_numbers     -10   "Page N" lines appear 3+ times
+    bold_as_headings          -10   **bold** lines used structurally, no ATX headings
+    repeated_boilerplate      -10   site-template phrases appear 2+ times
+    unindented_nested_lists    -5   list block starts with indented items (no root)
+
 Exit codes:
     0 — success
     1 — error (file not found, not a file, or unreadable)
@@ -241,7 +271,7 @@ def _print_text(path: Path, result: dict[str, object]) -> None:
         if flags:
             for flag in flags:  # type: ignore[union-attr]
                 penalty = PENALTIES.get(str(flag), 0)
-                console.print(f"  [yellow]•[/yellow] {flag}  (−{penalty})")
+                console.print(f"  [yellow]•[/yellow] {flag}  (-{penalty})")
         else:
             console.print("  [green]No issues detected[/green]")
     else:
