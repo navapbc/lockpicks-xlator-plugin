@@ -156,7 +156,7 @@ Show updated step checklist (as `:::progress`).
 
 ### Step 4: Generate rules (two-pass)
 
-Rules are generated in two passes. Pass 4a processes `computed-only` entries using index data alone and writes output immediately. Pass 4b processes `needs-source` entries (and any `computed-only` entries queued by heuristic signals) by reading source documents, then merges again. The merge schemas are defined in Steps 5 and 6 below.
+Rules are generated in two passes. **These passes are strictly sequential and must never be combined into a single write.** Pass 4a processes `computed-only` entries using index data alone and writes output immediately so the user can review rules while Pass 4b runs. Pass 4b processes `needs-source` entries (and any `computed-only` entries queued by heuristic signals) by reading source documents, then merges again. The merge schemas are defined in Steps 5 and 6 below.
 
 ---
 
@@ -200,9 +200,9 @@ Stop.
 - `heading:` (from index entry) → `section`
 - `computations[].description` → `policy_phrase` (if absent, omit the entry from naming-manifest for that variable and add to `missing_info`)
 
-Write both files now.
+Write both files now. **Do not begin Pass 4b until both files have been written to disk.**
 
-Print Pass 4a Summary (see [Summary](#summary)).
+Print Pass 4a Summary (see [Summary](#summary)). **Do not begin Pass 4b until the Pass 4a Summary has been printed.**
 
 Show updated step checklist.
 
@@ -331,6 +331,8 @@ The `→ <destination>` label uses the module's `name:` value (e.g., `→ eligib
 Printed immediately after Pass 4a writes, before Pass 4b begins. Print one line per `computed:` rule written:
 
 :::progress
+Sample quick ("index-only") rules were written to `guidance.yaml` and ready for review while the remaining ("needs-source") rules are being created.
+
 Index-pass rules written:
   earned_income_limit   (computed)   → exclusion_chain
   net_earned_income     (computed)   → eligibility
@@ -408,3 +410,4 @@ Next: Run /xl:tag-vars-to-include-with-output <domain> to auto-detect intermedia
 - **Use canonical names from the manifest** — if a variable name exists in `naming-manifest.yaml`, use it; do not re-derive or rename it
 - **`civil:` is a literal block scalar** — always use the `|` block indicator; never use a quoted string or folded scalar for CIVIL snippets
 - **`source:` must be a quoted sentence from the index** — copy from `input-index.yaml` section `summary:` or `computations[].description:`; do not paraphrase
+- **Do not combine Pass 4a and 4b into a single write** — Pass 4a must write files and print its summary before Pass 4b begins; the point is to let the user review index-derived rules while source reads are in progress

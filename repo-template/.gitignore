@@ -19,6 +19,9 @@ dist/
 # Observability logs (local only, never commit)
 **/logs/
 
+# Rejected malformed markdown files
+**/input/rejected/
+
 # Catala generated files
 _build/
 _targets/
