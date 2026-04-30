@@ -217,6 +217,8 @@ Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
 4. **Update `intermediate_variables`** — for each intermediate variable category:
    - Rewrite `examples:` with confirmed variable names from the skeleton display, in display order. Replace any generic placeholder names.
    - Write a `computations:` list — one entry per variable that has a non-null expr hint (shown as `≈ <expr>` in the skeleton display). Each entry has `name:` (the variable name) and `expr:` (the expr hint string). Variables shown as `= ?` are omitted from `computations:`. Write entries in display order.
+   - **Table lookup format:** for any variable whose value is a table lookup, write `expr:` as `table('table_name', key_var).value_col` — for example, `table('table_standard_deduction', household_size).monthly_deduction`. Do **not** use bracket subscript notation (`table_name[key]`): it is not a valid CIVIL expression and will cause Catala compilation to fail.
+
 
 Print:
 :::important
