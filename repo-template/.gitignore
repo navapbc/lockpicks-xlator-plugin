@@ -6,11 +6,13 @@ __pycache__/
 *.egg-info/
 dist/
 
+.claude/settings.local.json
+
 # Local environment variables for Xlator plugin (contains CLAUDE_PLUGIN_ROOT)
 .xlator.local.env
 
 # General shared folder used by Xlator; created by xlator_setup.sh
-# Used as the default uv project folder, until CLAUDE_PLUGIN_DATA is set
+# Used as the default uv project folder
 .shared/
 
 # Virtual environments set up by demo scripts

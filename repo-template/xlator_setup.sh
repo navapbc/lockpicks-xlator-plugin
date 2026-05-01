@@ -50,42 +50,10 @@ if [[ "$DOMAINS_FULLPATH" != /* ]]; then
     exit 4
 fi
 
-# --- Determine uv's base directory and clean up old files once CLAUDE_PLUGIN_DATA is set ---
-# CLAUDE_PLUGIN_DATA is only available when called as a hook from Claude.
-# Until then, we set up an initial uv base directory to be AI-vendor-independent,
-# and then switch to using CLAUDE_PLUGIN_DATA once it's available.
+# Files to set up a uv base directory
 UV_PROJECT_FILES="pyproject.toml .python-version uv.lock"
-
-# Default uv project folder, until CLAUDE_PLUGIN_DATA is set
-DEFAULT_XLATOR_UV_BASEDIR="$DOMAINS_FULLPATH/.shared"
-
-if [ "${CLAUDE_PLUGIN_DATA:-}" ]; then
-    # This is specific to Claude
-    # CLAUDE_PLUGIN_DATA is typically a subfolder under ~/.claude/plugins/data/...
-    XLATOR_UV_BASEDIR="$CLAUDE_PLUGIN_DATA"
-
-    # Clean up .venv and uv project files from the default base directory
-    if [ -d "$DEFAULT_XLATOR_UV_BASEDIR/.venv" ]; then
-        rm -rf "$DEFAULT_XLATOR_UV_BASEDIR/.venv"
-    fi
-    for F in $UV_PROJECT_FILES; do
-        [ -f "$DEFAULT_XLATOR_UV_BASEDIR/$F" ] && rm -f "$DEFAULT_XLATOR_UV_BASEDIR/$F"
-    done
-
-    # Create a symlink to the new uv base directory for tools (VS Code) looking at the default location
-    ln -snf "$XLATOR_UV_BASEDIR/.venv" "$DEFAULT_XLATOR_UV_BASEDIR/.venv"
-else
-    # Source .xlator.local.env to preserve XLATOR_UV_BASEDIR and avoid unnecessary changes to it
-    if [ -f "$PROJECT_ROOT/.xlator.local.env" ]; then
-        eval "$(grep '^export XLATOR_UV_BASEDIR=' "$PROJECT_ROOT/.xlator.local.env")"
-    fi
-    if [ "${XLATOR_UV_BASEDIR:-}" ] && [ -d "$XLATOR_UV_BASEDIR/.venv" ]; then
-        echo "Using preset XLATOR_UV_BASEDIR from .xlator.local.env: $XLATOR_UV_BASEDIR"
-    else
-        XLATOR_UV_BASEDIR="$DEFAULT_XLATOR_UV_BASEDIR"
-        mkdir -p "$XLATOR_UV_BASEDIR"
-    fi
-fi
+XLATOR_UV_BASEDIR="$DOMAINS_FULLPATH/.shared"
+mkdir -p "$XLATOR_UV_BASEDIR"
 
 # --- Helpers ---
 
