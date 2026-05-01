@@ -29,9 +29,9 @@ Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
      Stop.
 3. **Transpiled output exists?**
    - Check `$DOMAINS_DIR/<domain>/output/<module>.catala_en`
-   - Not found → Run `${CLAUDE_PLUGIN_ROOT}/xlator catala-transpile <domain> <module>`.
+   - Not found → Run `xlator catala-transpile <domain> <module>`.
 3a. **Python package built?**
-   - Run `${CLAUDE_PLUGIN_ROOT}/xlator catala-to-python <domain> <module>` — this handles everything: builds via `clerk build` if needed, moves compiled files into place, and creates `__init__.py`. If it exits non-zero, print the error and stop.
+   - Run `xlator catala-to-python <domain> <module>` — this handles everything: builds via `clerk build` if needed, moves compiled files into place, and creates `__init__.py`. If it exits non-zero, print the error and stop.
 4. **Test manifest present?**
    - `$DOMAINS_DIR/<domain>/specs/tests/<module>_tests.yaml` missing → note: proceed with placeholder examples; print warning at the end.
 
@@ -281,7 +281,7 @@ If no test manifest was found, print:
 :::next_step
 Next steps:
   1. Install deps:   pip install -r $DOMAINS_DIR/<domain>/output/demo-catala-<module>/requirements.txt
-  2. Run the demo:   ${CLAUDE_PLUGIN_ROOT}/xlator catala-demo <domain> <module>
+  2. Run the demo:   xlator catala-demo <domain> <module>
   3. Open browser:   http://localhost:8000/static/index.html
   4. API docs:       http://localhost:8000/docs
 :::

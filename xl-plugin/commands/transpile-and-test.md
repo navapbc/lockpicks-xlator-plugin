@@ -9,7 +9,7 @@ Transpile a CIVIL module to Catala and run the Catala test suite.
 /transpile-and-test [<domain> <program>]       # target a specific program
 ```
 
-If `<domain>` is not provided, run `${CLAUDE_PLUGIN_ROOT}/xlator list` and prompt the user to choose.
+If `<domain>` is not provided, run `xlator list` and prompt the user to choose.
 
 Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
 
@@ -27,14 +27,14 @@ Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
 
 2. **Run pre-flight check:**
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/xlator preflight <domain> <module> --backend catala
+   xlator preflight <domain> <module> --backend catala
    ```
    If exit code != 0: show the error in an `:::error` fence and stop. Do not proceed.
 
 ## Execution
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/xlator catala-pipeline <domain> <program>
+xlator catala-pipeline <domain> <program>
 ```
 
 Open a `:::detail` fence. Relay output verbatim. No summary formatting. Close the `:::` fence when relay completes. (Each program in a multi-program run gets its own `:::detail` / `:::` fence pair — do not wrap all programs in a single fence.)

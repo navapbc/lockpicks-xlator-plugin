@@ -104,6 +104,9 @@ case "$1" in
         domain="$2"
         exec python3 "$TOOLS_DIR/diff_report.py" "$domain"
         ;;
+    export-test-results)
+        exec python3 "$TOOLS_DIR/export_test_results.py" "${@:2}"
+        ;;
     tidy-log)
         domain="$2"
         exec python3 "$TOOLS_DIR/tidy_obs_log.py" "$domain"
