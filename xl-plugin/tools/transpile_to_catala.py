@@ -361,13 +361,16 @@ def translate_expr_to_catala(
         def replace_literal_table(m):
             tname = m.group(1)
             key_val = int(m.group(2))
-            if tname in tables:
-                key_col = tables[tname]["key"][0]
-                val_col = tables[tname]["value"][0]
-                for row in tables[tname].get("rows", []):
-                    if row[key_col] == key_val:
-                        return money_literal(row[val_col])
-            return m.group(0)  # fallback: leave unchanged
+            if tname not in tables:
+                print(f"ERROR: table '{tname}' referenced in expression but not defined in tables:", file=sys.stderr)
+                return m.group(0)
+            key_col = tables[tname]["key"][0]
+            val_col = tables[tname]["value"][0]
+            for row in tables[tname].get("rows", []):
+                if row[key_col] == key_val:
+                    return money_literal(row[val_col])
+            print(f"ERROR: table '{tname}' has no row where {key_col}={key_val} — leaving reference unchanged, will cause Catala syntax error", file=sys.stderr)
+            return m.group(0)
 
         result = re.sub(
             r"table\('(\w+)',\s*(\d+)\)\.\w+",
@@ -378,7 +381,17 @@ def translate_expr_to_catala(
     # Step 3: Strip variable-key table lookups — these appear only in then: of
     # conditional fields processed by emit_table_section, not in expressions we translate.
     # As a safety fallback, strip them to avoid syntax errors.
-    result = re.sub(r"table\('\w+',\s*([^)]+)\)\.\w+", r"\1", result)
+    def _warn_strip_fn(m):
+        print(f"WARNING: unexpected variable-key table lookup '{m.group(0)}' in translated expression — stripping to key only", file=sys.stderr)
+        return m.group(1)
+
+    result = re.sub(r"table\('\w+',\s*([^)]+)\)\.\w+", _warn_strip_fn, result)
+    # Bracket subscript syntax: table_name[key] → key
+    def _warn_strip_bracket(m):
+        print(f"WARNING: bracket subscript table lookup '{m.group(0)}' is not valid CIVIL — use table('name', key).col syntax; stripping to key only", file=sys.stderr)
+        return m.group(1)
+
+    result = re.sub(r"\w+\[(\w+)\]", _warn_strip_bracket, result)
 
     # Step 3.5: between(val, low, high) → (low <= val and val <= high)
     result = _rewrite_between(result)
@@ -500,19 +513,29 @@ def _uses_variable_table(field_def: dict) -> bool:
     """
     # Check expr: field
     if "expr" in field_def:
+        # Function-call syntax: table('name', key1, key2).col_name
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", field_def["expr"])
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return True
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", field_def["expr"])
+        if m and not m.group(2).isdigit():
+            return True
     # Check conditional.then:
     if "conditional" in field_def:
         then_expr = field_def["conditional"].get("then", "")
+        # Function-call syntax: table('name', key1, key2).col_name
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", then_expr)
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return True
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", then_expr)
+        if m and not m.group(2).isdigit():
+            return True
     return False
 
 
@@ -524,19 +547,29 @@ def _extract_table_info(field_def: dict) -> tuple:
     """
     # Check expr: first
     if "expr" in field_def:
+        # Function-call syntax: table('name', key1, key2).col
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", field_def["expr"])
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return m.group(1), keys
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", field_def["expr"])
+        if m and not m.group(2).isdigit():
+            return m.group(1), [m.group(2)]
     # Check conditional.then:
     if "conditional" in field_def:
         then_expr = field_def["conditional"].get("then", "")
+        # Function-call syntax: table('name', key1, key2).col
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", then_expr)
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return m.group(1), keys
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", then_expr)
+        if m and not m.group(2).isdigit():
+            return m.group(1), [m.group(2)]
     return None, None
 
 
@@ -708,7 +741,10 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         if not (isinstance(field_def, dict) and field_def.get("invoke")):
             continue
         sub_module_name = field_def.get("module", "")
-        catala_mod_name = sub_module_name[0].upper() + sub_module_name[1:] if sub_module_name else ""
+        if not sub_module_name:
+            print(f"ERROR: computed field '{field_name}' uses invoke: but has no module: — cannot emit scope declaration", file=sys.stderr)
+            continue
+        catala_mod_name = sub_module_name[0].upper() + sub_module_name[1:]
         sub_doc = sub_module_docs.get(sub_module_name, {})
         scope_decision = snake_to_pascal(sub_doc.get("module", sub_module_name).split(".")[0]) + "Decision"
         lines.append(f"  output {field_name} scope {catala_mod_name}.{scope_decision}")
@@ -831,9 +867,15 @@ def _substitute_row_into_expr(
     with their row literals and translate the full expression — this handles cases
     where a table value is wrapped inside a larger expression (e.g. min(var, table(...))).
     """
+    # Function-call syntax: table('name', key).col
     pure_m = re.match(r"^table\('\w+',\s*[^)]+\)\.(\w+)$", expr.strip())
     if pure_m:
         col_name = pure_m.group(1)
+        raw = row.get(col_name)
+        return money_literal(raw) if field_type == "money" else str(raw)
+    # Bracket subscript syntax: table_name[key] — column is implicit (first value column)
+    if re.match(r"^\w+\[\w+\]$", expr.strip()):
+        col_name = table_def["value"][0]
         raw = row.get(col_name)
         return money_literal(raw) if field_type == "money" else str(raw)
     # Complex expression: substitute each value column with its row literal, then translate
@@ -841,13 +883,17 @@ def _substitute_row_into_expr(
     for col_name in table_def.get("value", []):
         col_val = row.get(col_name)
         if col_val is None:
+            print(f"ERROR: table '{table_name}' row is missing value for column '{col_name}' — table reference will remain in output and cause Catala syntax error", file=sys.stderr)
             continue
         col_lit = money_literal(col_val) if isinstance(col_val, (int, float)) else str(col_val)
+        # Function-call syntax: table('name', key).col
         subst = re.sub(
             rf"table\('{re.escape(table_name)}',\s*[^)]+\)\.{re.escape(col_name)}",
             col_lit,
             subst,
         )
+        # Bracket subscript syntax: table_name[key]
+        subst = re.sub(rf"{re.escape(table_name)}\[\w+\]", col_lit, subst)
     return translate_expr_to_catala(
         subst, constants=constants, field_type=field_type, tables=tables,
         fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
@@ -934,12 +980,19 @@ def emit_table_definition(
         # Negate the if condition for the else branch
         else_cond = negate_simple_condition(if_catala) if if_catala else "true"
 
-        # Check if else is also a variable table lookup (e.g. table('name', key).col).
+        # Check if else is also a variable table lookup.
         # Literal-key lookups (e.g. table('name', 8).col) are NOT row-iterated — they are
         # handled by translate_expr_to_catala (Step 2) which resolves them to a single value.
+        # Function-call syntax: table('name', key).col
         else_table_m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.(\w+)", else_expr)
-        if else_table_m and not else_table_m.group(2).strip().lstrip("-").isdigit():
-            else_table_name = else_table_m.group(1)
+        # Bracket subscript syntax: table_name[key]
+        else_bracket_m = re.search(r"(\w+)\[(\w+)\]", else_expr) if not else_table_m else None
+        is_variable_else_table = (
+            (else_table_m and not else_table_m.group(2).strip().lstrip("-").isdigit()) or
+            (else_bracket_m and not else_bracket_m.group(2).isdigit())
+        )
+        if is_variable_else_table:
+            else_table_name = else_table_m.group(1) if else_table_m else else_bracket_m.group(1)
             else_table_def = tables.get(else_table_name, table_def)
             for row in else_table_def.get("rows", []):
                 catala_val = _substitute_row_into_expr(
@@ -1066,6 +1119,8 @@ def emit_table_section(doc: dict, scope_name: str, constants: dict, table_style:
             continue
         table_name, key_exprs = _extract_table_info(field_def)
         if not table_name or table_name not in tables:
+            if table_name:
+                print(f"WARNING: computed field '{field_name}' references table '{table_name}' which is not defined in tables: — skipping table section", file=sys.stderr)
             continue
         # Rewrite entity prefixes in key variable names:
         # invoke-bound entities → snake_case var name (e.g. ClientIncome. → client_income.)
@@ -1299,9 +1354,14 @@ def emit_decision_section_catala(
     for field_name, field_def in decisions.items():
         ftype = field_def.get("type", "bool")
         if ftype in ("list", "set"):
+            # list/set outputs are the deny-reasons accumulator — not emitted as individual
+            # decision definitions here. They are handled below as reasons_field_name,
+            # producing the all_reason_entries + filter/map pipeline (or an empty list [ ]
+            # when there are no deny rules).
             continue
         if ftype == "string" and not field_def.get("values"):
-            continue  # Skip free-form string outputs — Catala has no native string type
+            print(f"ERROR: output field '{field_name}' is a free-form string with no values: — Catala has no native string type; add values: to make it an enumeration or remove the field", file=sys.stderr)
+            continue
         lines = []
         if "conditional" in field_def:
             cond = field_def["conditional"]
@@ -1352,8 +1412,11 @@ def emit_decision_section_catala(
     # --- Reasons code: all_reason_entries + reasons filter (single combined fence) ---
     reasons_field_name = next(
         (k for k, v in decisions.items() if v.get("type") in ("list", "set")),
-        "reasons",
+        None,
     )
+    if reasons_field_name is None:
+        print("WARNING: deny rules exist but no list/set output field found — defaulting field name to 'reasons'", file=sys.stderr)
+        reasons_field_name = "reasons"
     reasons_field_def = decisions.get(reasons_field_name, {})
 
     reasons_lines = []
