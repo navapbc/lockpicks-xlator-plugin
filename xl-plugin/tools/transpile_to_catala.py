@@ -500,19 +500,29 @@ def _uses_variable_table(field_def: dict) -> bool:
     """
     # Check expr: field
     if "expr" in field_def:
+        # Function-call syntax: table('name', key1, key2).col_name
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", field_def["expr"])
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return True
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", field_def["expr"])
+        if m and not m.group(2).isdigit():
+            return True
     # Check conditional.then:
     if "conditional" in field_def:
         then_expr = field_def["conditional"].get("then", "")
+        # Function-call syntax: table('name', key1, key2).col_name
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", then_expr)
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return True
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", then_expr)
+        if m and not m.group(2).isdigit():
+            return True
     return False
 
 
@@ -524,19 +534,29 @@ def _extract_table_info(field_def: dict) -> tuple:
     """
     # Check expr: first
     if "expr" in field_def:
+        # Function-call syntax: table('name', key1, key2).col
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", field_def["expr"])
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return m.group(1), keys
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", field_def["expr"])
+        if m and not m.group(2).isdigit():
+            return m.group(1), [m.group(2)]
     # Check conditional.then:
     if "conditional" in field_def:
         then_expr = field_def["conditional"].get("then", "")
+        # Function-call syntax: table('name', key1, key2).col
         m = re.search(r"table\('(\w+)',\s*([^)]+)\)\.\w+", then_expr)
         if m:
             keys = [k.strip() for k in m.group(2).split(",")]
             if any(not k.isdigit() for k in keys):
                 return m.group(1), keys
+        # Bracket subscript syntax: table_name[key]
+        m = re.search(r"(\w+)\[(\w+)\]", then_expr)
+        if m and not m.group(2).isdigit():
+            return m.group(1), [m.group(2)]
     return None, None
 
 
