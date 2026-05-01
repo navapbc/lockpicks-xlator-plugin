@@ -52,6 +52,7 @@ _targets/
 **/output/*-depgraph.mmd
 **/output/*-depgraph.png
 **/output/*.graph.json
+**/output/test-results/
 
 # Temporary CSV files for test case authoring
 **/specs/tests/*_tests.csv

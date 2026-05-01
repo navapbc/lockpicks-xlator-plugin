@@ -49,6 +49,34 @@ def find_tests(filepath: Path) -> list[tuple[str, str, str]]:
     return tests
 
 
+def find_assertions(filepath: Path) -> dict[str, dict[str, str]]:
+    """Return {scope_name: {field: expected_value}} parsed from assertion statements."""
+    content = filepath.read_text()
+    result: dict[str, dict[str, str]] = {}
+
+    # Match each #[test] block up to its closing ```
+    block_pattern = re.compile(
+        r'#\[test\]\s*\ndeclaration scope (\w+):.*?(?=^```)',
+        re.MULTILINE | re.DOTALL,
+    )
+    assertion_pattern = re.compile(
+        r'^\s*assertion\s*\(\s*result\.([\w.]+)\s*=\s*(.*?)\s*\)\s*$',
+        re.MULTILINE,
+    )
+
+    for block_m in block_pattern.finditer(content):
+        scope_name = block_m.group(1)
+        block_text = block_m.group(0)
+        assertions: dict[str, str] = {}
+        for a_m in assertion_pattern.finditer(block_text):
+            field = a_m.group(1)
+            raw_value = a_m.group(2).strip()
+            assertions[field] = parse_catala_value(raw_value)
+        result[scope_name] = assertions
+
+    return result
+
+
 # --- Test execution ---
 
 def run_test(test_file: Path, scope_name: str) -> tuple[str, int]:
@@ -226,6 +254,7 @@ def process_file(test_file: Path) -> None:
     tests = find_tests(test_file)
     if not tests:
         return
+    assertions_by_scope = find_assertions(test_file)
 
     rows: list[dict[str, str]] = []
     all_input_keys: list[str] = []
@@ -264,23 +293,63 @@ def process_file(test_file: Path) -> None:
     if not rows:
         return
 
-    # Build final column list: metadata, then input fields, then output fields
-    fieldnames = (
-        ['test_name', 'description', 'status']
-        + all_input_keys
-        + [f'out.{k}' for k in all_output_keys]
-    )
-
     out_dir = Path('test-results')
     out_dir.mkdir(exist_ok=True)
-    csv_path = out_dir / (test_file.stem + '.csv')
-    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
+
+    # Input CSV: test_name + description + all input fields
+    input_fieldnames = ['test_name', 'description'] + all_input_keys
+    input_csv_path = out_dir / (test_file.stem + '_inputs.csv')
+    with open(input_csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=input_fieldnames, extrasaction='ignore')
         writer.writeheader()
         for row in rows:
-            writer.writerow({k: row.get(k, '') for k in fieldnames})
+            writer.writerow({k: row.get(k, '') for k in input_fieldnames})
 
-    print(f'  → {csv_path} ({len(rows)} rows, {len(fieldnames)} columns)')
+    # Output CSV: test_name + status + all output fields (out. prefix stripped)
+    output_fieldnames = ['test_name', 'status'] + all_output_keys
+    output_csv_path = out_dir / (test_file.stem + '_outputs.csv')
+    with open(output_csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=output_fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        for row in rows:
+            # Strip 'out.' prefix from keys when writing
+            out_row = {k: row.get(f'out.{k}', '') for k in all_output_keys}
+            out_row['test_name'] = row['test_name']
+            out_row['status'] = row['status']
+            writer.writerow({k: out_row.get(k, '') for k in output_fieldnames})
+
+    # Expected CSV: test_name + assertion fields in test order
+    all_expected_keys: list[str] = []
+    for scope_name, _, _ in tests:
+        for k in assertions_by_scope.get(scope_name, {}):
+            if k not in all_expected_keys:
+                all_expected_keys.append(k)
+
+    expected_fieldnames = ['test_name'] + all_expected_keys
+    expected_csv_path = out_dir / (test_file.stem + '_expected.csv')
+    with open(expected_csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=expected_fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        for row in rows:
+            scope_name = row['test_name']
+            exp_row: dict[str, str] = {'test_name': scope_name}
+            exp_row.update(assertions_by_scope.get(scope_name, {}))
+            writer.writerow({k: exp_row.get(k, '') for k in expected_fieldnames})
+
+    # Actual CSV: same columns as expected, values from trace output
+    actual_csv_path = out_dir / (test_file.stem + '_actual.csv')
+    with open(actual_csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=expected_fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        for row in rows:
+            act_row: dict[str, str] = {'test_name': row['test_name']}
+            act_row.update({k: row.get(f'out.{k}', '') for k in all_expected_keys})
+            writer.writerow({k: act_row.get(k, '') for k in expected_fieldnames})
+
+    print(f'  → {input_csv_path} ({len(rows)} rows, {len(input_fieldnames)} columns)')
+    print(f'  → {output_csv_path} ({len(rows)} rows, {len(output_fieldnames)} columns)')
+    print(f'  → {expected_csv_path} ({len(rows)} rows, {len(expected_fieldnames)} columns)')
+    print(f'  → {actual_csv_path} ({len(rows)} rows, {len(expected_fieldnames)} columns)')
 
 
 def main() -> None:
@@ -301,6 +370,7 @@ def main() -> None:
         sys.exit(1)
 
     os.chdir(output_dir)
+    print(f'Processing test files in {output_dir}...')
 
     test_files = sorted(TEST_DIR.glob('*.catala_en'))
     if not test_files:
