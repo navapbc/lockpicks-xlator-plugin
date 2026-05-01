@@ -1,6 +1,11 @@
+---
+name: fix-transpiler
+description: Fix transpiler bugs by identifying root causes and applying targeted fixes
+---
+
 # Fix Transpiler Bug
 
-1. Run full test suite: `${CLAUDE_PLUGIN_ROOT}/xlator catala-pipeline <domain> <program>` to identify all failures
+1. Run full test suite: `xlator catala-pipeline <domain> <program>` to identify all failures
 2. Group failures by root cause (don't fix symptoms individually)
 3. Fix the root cause in transpiler source code
 4. Re-run ALL tests across ALL domains — not just the failing ones

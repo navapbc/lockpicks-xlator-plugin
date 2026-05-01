@@ -102,7 +102,7 @@ FASTAPI_PORT=8000
 
 The Rego prerequisite error message must use the correct domain/module:
 ```bash
-  echo "  ${CLAUDE_PLUGIN_ROOT}/xlator rego-transpile <domain> <module>"
+  echo "  xlator rego-transpile <domain> <module>"
 ```
 
 Keep all other logic verbatim: OPA health-check loop, cleanup trap, uvicorn launch.
@@ -255,7 +255,7 @@ If no test manifest was found, print:
 :::next_step
 Next steps:
   1. Install deps:   pip install -r $DOMAINS_DIR/<domain>/output/demo-rego-<module>/requirements.txt
-  2. Run the demo:   ${CLAUDE_PLUGIN_ROOT}/xlator rego-demo <domain> <module>
+  2. Run the demo:   xlator rego-demo <domain> <module>
   3. Open browser:   http://localhost:8000/static/index.html
   4. API docs:       http://localhost:8000/docs
 :::
