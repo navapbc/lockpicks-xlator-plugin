@@ -32,10 +32,9 @@ Now that the repo is created, you can open the repo in GitHub Codespaces (recomm
 
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
 
-1. Setup `uv` virtual environment under `$XLATOR_UV_BASEDIR` to install Python and dependencies for Xlator scripts
-2. Initialize `opam` and install `catala`
-3. Create `.xlator.local.env` to set `CLAUDE_PLUGIN_ROOT`, which is used by `xlator` scripts and slash commands
-4. Create symlink to the `xlator` plugin installation folder for reference
+1. Initialize `opam` and install `catala`
+2. Create `.xlator.local.env` to set `CLAUDE_PLUGIN_ROOT`, which is used by `xlator` scripts and slash commands
+3. Create symlink to the `xlator` plugin installation folder for reference
 
 ## Authenticate Claude
 
@@ -53,7 +52,6 @@ You should now be able to interact with Claude Code. Test by pasting any of the 
 - `What is today's date?`
 - `What are the values of $CLAUDE_PLUGIN_ROOT and $DOMAINS_DIR`
 - `Which python version is installed?` -- This is relevant for your repo
-- `Which python version is being used by the 'xl' Claude plugin?`
 
 ## Confirm setup by creating a new domain
 

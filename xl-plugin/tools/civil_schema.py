@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pydantic>=2.0"]
+# ///
 """
 CIVIL DSL — Pydantic v2 schema models.
 

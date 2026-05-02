@@ -69,7 +69,7 @@ Run these checks before doing anything else:
 **Multi-file:** Run for each `generate` entry in the work-list, in work-list order.
 
 ```bash
-python $CLAUDE_PLUGIN_ROOT/tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
+uv run $CLAUDE_PLUGIN_ROOT/tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
 ```
 
 Always run unconditionally — regenerates even if graph files already exist from a prior run.

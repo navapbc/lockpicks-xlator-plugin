@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pydantic>=2.0", "pyyaml>=6.0"]
+# ///
 """
 CIVIL DSL Structure Validator
 

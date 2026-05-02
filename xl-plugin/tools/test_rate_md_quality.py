@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pytest>=9.0.3"]
+# ///
 """Tests for rate_md_quality.py — covers all plan scenarios."""
 
 import json

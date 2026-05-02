@@ -121,8 +121,8 @@ Pro-tip: To provide a coding assistant for sample data, create a symlink for the
 All tools can be run directly:
 
 ```bash
-python tools/validate_civil.py --spec domains/snap/specs/eligibility.civil.yaml
-python tools/transpile_to_rego.py --spec domains/snap/specs/eligibility.civil.yaml --package snap.eligibility
+uv run tools/validate_civil.py --spec domains/snap/specs/eligibility.civil.yaml
+uv run tools/transpile_to_rego.py --spec domains/snap/specs/eligibility.civil.yaml --package snap.eligibility
 ```
 
 ---

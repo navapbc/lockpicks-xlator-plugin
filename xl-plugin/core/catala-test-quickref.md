@@ -182,9 +182,9 @@ clerk run tests/eligibility_tests.catala_en --catala-opts=--trace
 
 ```sh
 # Create PNG
-python tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en --format png
+uv run tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en --format png
 # Create Mermaid diagram
-python tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en --format mmd
+uv run tools/catala_depgraph.py $DOMAINS_DIR/snap/output/eligibility.catala_en --format mmd
 ```
 
 ---

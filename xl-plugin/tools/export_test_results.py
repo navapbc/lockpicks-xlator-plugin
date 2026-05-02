@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Run catala tests with --trace and export inputs + results to CSV files.
 
 Usage (via xlator CLI):

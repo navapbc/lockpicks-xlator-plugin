@@ -1,9 +1,13 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["beautifulsoup4>=4.12", "requests>=2.28"]
+# ///
 """
 Scrape an Alaska APA manual HTML page and convert it to Markdown.
 
 Usage:
-  python scrape_to_md.py \
+  uv run scrape_to_md.py \
     "http://dpaweb.hss.state.ak.us/manuals/apa/442/442-1_income_exclusions_which_apply_to_both_.htm" \
     -o 442-1_income_exclusions.md
 """

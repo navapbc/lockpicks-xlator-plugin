@@ -1,3 +1,7 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# ///
 """
 Reference harness for parsing xlator output-fencing blocks.
 
@@ -8,7 +12,7 @@ Accepts three input forms (auto-detected):
 
 Usage:
   claude --dangerously-skip-permissions -p --output-format json '/xl:new-domain my_domain' \
-    | python xl-plugin/tools/parse_fences.py
+    | uv run xl-plugin/tools/parse_fences.py
 
 Parse `:::type` / `:::` delimited blocks from command output and return a list
 of {"type": str, "content": str} dicts. Unfenced text becomes type "detail".

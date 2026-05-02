@@ -117,7 +117,7 @@ tools/
   validate_civil.py                  ← CIVIL validator
   catala_to_python.sh                ← Catala → Python transpiler (via clerk)
 xlator.py                            ← CLI entry point (all pipeline actions)
-xlator                               ← shell shim: exec python xlator.py "$@"
+xlator                               ← shell shim: exec uv run xlator.py "$@"
 ```
 
 ### How can I create a repo that uses the Xlator plugin?

@@ -50,11 +50,6 @@ if [[ "$DOMAINS_FULLPATH" != /* ]]; then
     exit 4
 fi
 
-# Files to set up a uv base directory
-UV_PROJECT_FILES="pyproject.toml .python-version uv.lock"
-XLATOR_UV_BASEDIR="$DOMAINS_FULLPATH/.shared"
-mkdir -p "$XLATOR_UV_BASEDIR"
-
 # --- Helpers ---
 
 local_env_written_today() {
@@ -162,25 +157,12 @@ setup_xlator_plugin() {
         echo "export DOMAINS_DIR='${DOMAINS_DIR}'"
         echo "export DOMAINS_FULLPATH='${DOMAINS_FULLPATH}'"
         echo "export CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}'"
-        echo "export XLATOR_UV_BASEDIR='$XLATOR_UV_BASEDIR'"
     } > "$PROJECT_ROOT/.xlator.local.env"
     cat "$PROJECT_ROOT/.xlator.local.env"
 }
 
 setup_tooling() {
-    echo "🙂 2. Checking uv project files in $XLATOR_UV_BASEDIR"
-    for F in $UV_PROJECT_FILES; do
-        copy_if_diff "$HOME/.claude/plugins/marketplaces/lockpicks-marketplace/$F" "$XLATOR_UV_BASEDIR/$F" || true
-    done
-
-    echo "😀 3. Checking Python virtual environment in $XLATOR_UV_BASEDIR"
-    # Remove old .venv symlink if it doesn't exist so that uv can create a new one
-    [ -L "$XLATOR_UV_BASEDIR/.venv" ] && [ ! -e "$XLATOR_UV_BASEDIR/.venv" ] && rm -f "$XLATOR_UV_BASEDIR/.venv"
-    # 'uv sync' installs the version pinned in .python-version into a local .venv
-    uv sync --directory "$XLATOR_UV_BASEDIR"
-    . "$XLATOR_UV_BASEDIR/.venv/bin/activate"
-
-    echo "😅 4. Checking opam"
+    echo "😀 2. Checking opam"
     if [ ! -d "$HOME/.opam" ]; then
         echo "  Initializing opam (this can take 15 minutes)"
         # Catala supports OCaml versions from 4.14.0 up to 5.4.x
@@ -189,7 +171,7 @@ setup_tooling() {
     fi
     eval "$(opam env)"
 
-    echo "😄 5. Checking for catala/clerk"
+    echo "😄 3. Checking for catala/clerk"
     if ! command -v clerk >/dev/null 2>&1; then
         echo "  Installing catala/clerk (this can take 10 minutes) ..."
         opam update && opam install -y catala.1.1.0
@@ -207,14 +189,14 @@ ensure_xlator_symlink() {
 }
 
 setup_misc() {
-    echo "😊 6. Wrapping up: VS Code settings, put xlator in PATH, symlinks"
+    echo "😊 4. Wrapping up: VS Code settings, put xlator in PATH, symlinks"
     mkdir -p "$PROJECT_ROOT/.vscode"
     copy_if_diff "$CLAUDE_PLUGIN_ROOT/core/ruleset.schema.json" "$PROJECT_ROOT/.vscode/ruleset.schema.json" || true
 
-    # Claude's PATH should have $CLAUDE_PLUGIN_ROOT/bin included, so xlator should be available.
+    # Claude's PATH should have $CLAUDE_PLUGIN_ROOT/bin included, so xlator should be available for Claude.
     # For other contexts (VS Code terminal, user shell), create a symlink to the xlator script in a folder that's on the PATH.
     # .venv/bin is on the PATH, so create a symlink to the xlator script there
-    ensure_xlator_symlink "$XLATOR_UV_BASEDIR/.venv/bin"
+    [ -d "$VIRTUAL_ENV" ] && ensure_xlator_symlink "$VIRTUAL_ENV/bin"
     # as well as ~/.local/bin for the user shell (and VS Code terminal if it's launched from the user shell)
     ensure_xlator_symlink "$HOME/.local/bin"
 

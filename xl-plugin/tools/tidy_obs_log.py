@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["rich>=10.0"]
+# ///
 """
 tidy-log: render session log as a human-readable Markdown conversation.
 

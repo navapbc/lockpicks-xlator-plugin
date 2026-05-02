@@ -1,13 +1,9 @@
 {
   "build": { "dockerfile": "Dockerfile" },
   "remoteUser": "opam",
-  // postStartCommand (not postCreateCommand) so the venv exists before the VS Code
-  // Python extension initializes. postCreateCommand runs during image setup and
-  // can finish after the editor opens, causing a "Python not found" error.
   "postStartCommand": "./xlator_setup.sh || echo 'Error in xlator_setup.sh! Rerun manually.'",
   // waitFor causes VS Code to delay connecting until postStartCommand completes,
-  // so the workspace .venv exists before the Python extension initializes.
-  // uv sync is fast when the lockfile is unchanged, so waiting on every start is fine.
+  // so the workspace is set up before the Python extension initializes.
   "waitFor": "postStartCommand",
   // Expose opam's bin and ~/.local/bin to the VS Code extension host, which does not source .bashrc.
   "remoteEnv": {
@@ -26,7 +22,6 @@
       ],
       "settings": {
         "python.terminal.activateEnvironment": true,
-        "python.defaultInterpreterPath": "${workspaceFolder}/$DOMAINS_DIR_VALUE/.shared/.venv/bin/python",
         "catala.lspServerPath": "/home/opam/.opam/5.4/bin/catala-lsp"
       }
     }

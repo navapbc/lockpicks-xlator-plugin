@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pyyaml>=6.0"]
+# ///
 """
 Shared CIVIL spec helpers for CSV-based test case authoring tools.
 

@@ -1,3 +1,6 @@
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Tests for parse_fences.py — covers all plan scenarios (AE1, AE2, AE4)."""
 
 import json

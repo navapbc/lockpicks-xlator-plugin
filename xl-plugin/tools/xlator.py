@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pyyaml>=6.0", "rich>=10.0", "pydantic>=2.0"]
+# ///
 """
 xlator CLI - replaces the Makefile.
 

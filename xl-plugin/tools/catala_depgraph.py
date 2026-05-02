@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# ///
 """
 Catala file or dependency-graph → Graphviz dot / Mermaid mmd / PNG converter
 
@@ -7,23 +10,23 @@ When given a .catala_en file, runs `catala dependency-graph` to produce the
 .graph.json alongside the source file, then converts it.
 
 Usage:
-    python tools/catala_depgraph.py <file.catala_en|file.graph.json> [--format dot|mmd|png] [--scope <scope>]
+    catala_depgraph.py <file.catala_en|file.graph.json> [--format dot|mmd|png] [--scope <scope>]
 
 Output is always written to a file named <stem>-depgraph.<ext> next to the input file.
 
 Examples:
     # From source (generates graph.json automatically)
-    python tools/catala_depgraph.py <path_to>/snap/output/eligibility.catala_en
+    catala_depgraph.py <path_to>/snap/output/eligibility.catala_en
 
     # From pre-built graph.json
-    python tools/catala_depgraph.py <path_to>/ak_doh/output/earned_income.graph.json
+    catala_depgraph.py <path_to>/ak_doh/output/earned_income.graph.json
 
     # Mermaid, specific scope
-    python tools/catala_depgraph.py <path_to>/snap/output/eligibility.catala_en \\
+    catala_depgraph.py <path_to>/snap/output/eligibility.catala_en \\
         --format mmd --scope EligibilityDecision
 
     # Render directly to PNG (requires Graphviz installed)
-    python tools/catala_depgraph.py <path_to>/snap/output/eligibility.catala_en --format png
+    catala_depgraph.py <path_to>/snap/output/eligibility.catala_en --format png
 
 Exit codes:
     0 — success

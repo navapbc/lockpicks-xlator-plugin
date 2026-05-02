@@ -32,28 +32,21 @@ source "$PROJECT_ROOT/.xlator.local.env"
 
 # If no command is given, open an interactive shell with the Xlator environment.
 if [ $# -eq 0 ]; then
-    if command -v python >/dev/null && command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
-        python_version=$(python --version 2>&1)
-        echo "$(which python): $python_version"
+    if command -v clerk >/dev/null && command -v catala >/dev/null 2>&1; then
         echo "$(which opam) version: $(opam --version)"
         echo "$(which clerk) version: $(clerk --version)"
         echo "$(which catala) version: $(catala --version)"
-
-        if [[ "$python_version" == "Python 3.14"* ]]; then
-            exit 0
-        fi
     fi
 
-    echo "Starting a new shell with Xlator environment activated (python, catala, and clerk commands available)"
+    echo "Starting a new shell with Xlator environment activated (catala, and clerk commands available)"
     case "$SHELL" in
         */zsh)
-            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env)"; source "$DOMAINS_FULLPATH/.shared/.venv/bin/activate"; exec zsh'
+            exec zsh --login -i -c 'source ~/.zshrc 2>/dev/null; eval "$(opam env)"; exec zsh'
             ;;
         *)
             exec bash --rcfile <(
                 cat ~/.bashrc 2>/dev/null || true
                 echo 'eval "$(opam env)"'
-                echo "source \"$DOMAINS_FULLPATH/.shared/.venv/bin/activate\""
             )
             ;;
     esac
@@ -67,23 +60,14 @@ activate_opam() {
     fi
 }
 
-activate_venv() {
-    if [ -f "$XLATOR_UV_BASEDIR/.venv/bin/activate" ]; then
-        . "$XLATOR_UV_BASEDIR/.venv/bin/activate"
-    else
-        echo "Warning: No virtual environment found at $XLATOR_UV_BASEDIR/.venv. Run './xlator_setup.sh' to create it." >&2
-    fi
-}
-
-# Activate Python venv and Catala/clerk (opam) environments.
+# Activate Catala/clerk (opam) environments.
 # Required because Claude Code does not source shell configuration files.
-activate_venv
 activate_opam
 
 case "$1" in
     # Intended for internal use by Xlator developers or Claude hooks; not commands for user's direct use
     generate-schema)
-        exec python3 "$TOOLS_DIR/civil_schema.py"
+        exec uv run "$TOOLS_DIR/civil_schema.py"
         ;;
     observe_hook)
         event_type="$2"
@@ -91,7 +75,7 @@ case "$1" in
             1|true|yes)
                 ;;
             *)
-                exec python3 "$TOOLS_DIR/observe_hook.py" $event_type
+                exec uv run "$TOOLS_DIR/observe_hook.py" $event_type
                 ;;
         esac
         ;;
@@ -102,20 +86,20 @@ case "$1" in
         ;;
     diff-report)
         domain="$2"
-        exec python3 "$TOOLS_DIR/diff_report.py" "$domain"
+        exec uv run "$TOOLS_DIR/diff_report.py" "$domain"
         ;;
     export-test-results)
-        exec python3 "$TOOLS_DIR/export_test_results.py" "${@:2}"
+        exec uv run "$TOOLS_DIR/export_test_results.py" "${@:2}"
         ;;
     tidy-log)
         domain="$2"
-        exec python3 "$TOOLS_DIR/tidy_obs_log.py" "$domain"
+        exec uv run "$TOOLS_DIR/tidy_obs_log.py" "$domain"
         ;;
     rate-md-quality)
-        exec python3 "$TOOLS_DIR/rate_md_quality.py" "${@:2}"
+        exec uv run "$TOOLS_DIR/rate_md_quality.py" "${@:2}"
         ;;
     reject-low-quality-inputs)
-        exec python3 "$TOOLS_DIR/reject_low_quality_inputs.py" "${@:2}"
+        exec uv run "$TOOLS_DIR/reject_low_quality_inputs.py" "${@:2}"
         ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
@@ -125,6 +109,6 @@ case "$1" in
         # Change into DOMAINS_FULLPATH so relative paths produced by xlator.py stay within it.
         # TODO: Remove reliance on DOMAINS_FULLPATH: assume CWD is DOMAINS_FULLPATH if DOMAINS_FULLPATH not set?
         cd "$DOMAINS_FULLPATH"
-        exec python3 "$TOOLS_DIR/xlator.py" "$@"
+        exec uv run "$TOOLS_DIR/xlator.py" "$@"
         ;;
 esac
