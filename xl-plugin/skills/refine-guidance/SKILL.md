@@ -93,10 +93,10 @@ Created $DOMAINS_DIR/<domain>/specs/guidance.yaml
 **b. AI-suggest** — Let the AI propose candidate rulesets based on the index:
 
 1. Prompt: "Enter a hint to narrow candidate rulesets (e.g. 'eligibility', 'benefit calculation'), or 'all' to suggest all:"
-2. Run `/xl:suggest-target-ruleset <domain> [<hint>]` (omit `<hint>` if the user responded with 'all'), following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/suggest-target-ruleset.md`. Skip pre-flight — domain and index already verified above.
+2. Run `/xl:suggest-target-ruleset <domain> [<hint>]` (omit `<hint>` if the user responded with 'all'), following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/suggest-target-ruleset/SKILL.md`. Skip pre-flight — domain and index already verified above.
 3. Present the list of generated candidate files from `specs/suggested_rulesets/`.
 4. Ask the user which candidate to use.
-5. Run `/xl:declare-target-ruleset <domain> <chosen_ruleset>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/declare-target-ruleset.md`. Skip pre-flight — domain already verified above.
+5. Run `/xl:declare-target-ruleset <domain> <chosen_ruleset>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/declare-target-ruleset/SKILL.md`. Skip pre-flight — domain already verified above.
 
 After either path, `guidance.yaml` exists and Step 2 may proceed.
 
@@ -115,7 +115,7 @@ Skeleton: <N> computations across <N> intermediate categories, <N> example rules
 
 ### Step 2: Computation skeleton
 
-Run `/xl:create-skeleton <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-skeleton.md`. Skip pre-flight — domain, `guidance.yaml`, and `input-index.yaml` already verified above.
+Run `/xl:create-skeleton <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/create-skeleton/SKILL.md`. Skip pre-flight — domain, `guidance.yaml`, and `input-index.yaml` already verified above.
 
 The sub-command handles:
 - Doc signal extraction from `input-index.yaml` (topic tags, section headings, file summaries, computation hints)
@@ -127,31 +127,31 @@ In UPDATE mode, `create-skeleton` detects the existing skeleton and offers accep
 
 ### Step 3: Ruleset groups
 
-Run `/xl:create-ruleset-groups <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-ruleset-groups.md`. Skip pre-flight — already verified above.
+Run `/xl:create-ruleset-groups <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/create-ruleset-groups/SKILL.md`. Skip pre-flight — already verified above.
 
 The sub-command scans `input-index.yaml` for phase headings, proposes `ruleset_groups`, and writes the confirmed list to `guidance.yaml`. In UPDATE mode, it detects existing `ruleset_groups:` and offers accept / replace / merge.
 
 ### Step 4: Ruleset modules
 
-Run `/xl:create-ruleset-modules <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-ruleset-modules.md`. Skip pre-flight — already verified above.
+Run `/xl:create-ruleset-modules <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/create-ruleset-modules/SKILL.md`. Skip pre-flight — already verified above.
 
 The sub-command applies heuristics to detect ruleset module candidates from the confirmed skeleton and `ruleset_groups:`, presents them for confirmation, and writes the confirmed list to `guidance.yaml` under `ruleset_modules:`. In UPDATE mode, existing entries are pre-confirmed and preserved.
 
 ### Step 5: Sample rules
 
-Run `/xl:extract-sample-rules <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/extract-sample-rules.md`. Skip pre-flight — already verified above.
+Run `/xl:extract-sample-rules <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/extract-sample-rules/SKILL.md`. Skip pre-flight — already verified above.
 
 The sub-command generates a comprehensive set of CIVIL rules grounded in `input-index.yaml` entries and writes them to `guidance.yaml` under `sample_rules:`. Runs non-interactively — no mid-run prompting.
 
 ### Step 6: Tag output variables
 
-Run `/xl:tag-vars-to-include-with-output <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/tag-vars-to-include-with-output.md`. Skip pre-flight — already verified above.
+Run `/xl:tag-vars-to-include-with-output <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/tag-vars-to-include-with-output/SKILL.md`. Skip pre-flight — already verified above.
 
 The sub-command auto-detects invoke-derived variables (dot-access expressions in `computations:`) and writes the selection to `guidance.yaml` under `intermediate_variables.include_with_output`. Running after Step 5 ensures variables visible only in CIVIL snippets are captured. Runs non-interactively.
 
 ### Step 7: Sample tests
 
-Run `/xl:create-sample-tests <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/commands/create-sample-tests.md`. Skip pre-flight — already verified above.
+Run `/xl:create-sample-tests <domain>`, following the instructions in `$CLAUDE_PLUGIN_ROOT/skills/create-sample-tests/SKILL.md`. Skip pre-flight — already verified above.
 
 The sub-command generates pre-extraction test scaffolding from `guidance.yaml` and writes test cases under `sample_tests:`. Requires `sample_rules:` to be present (written by Step 5). Runs non-interactively.
 
