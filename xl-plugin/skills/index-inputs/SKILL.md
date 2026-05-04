@@ -1,3 +1,8 @@
+---
+name: index-inputs
+description: Index Input Policy Documents
+---
+
 # Index Input Policy Documents
 
 Scan a domain's `input/policy_docs/` directory and produce `specs/input-index.yaml` — a structured index of all policy document sections with LLM-generated summaries and topic tags. The index is the first place to look when searching for which document covers a given policy topic; specific documents can then be read for full detail.

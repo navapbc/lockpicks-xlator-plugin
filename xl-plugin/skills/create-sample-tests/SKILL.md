@@ -1,3 +1,8 @@
+---
+name: create-sample-tests
+description: Create Sample Tests
+---
+
 # Create Sample Tests
 
 Generate pre-extraction test scaffolding from `guidance.yaml` content alone — before a CIVIL file exists. Writes test cases to a `sample_tests:` field inside `guidance.yaml`. Runs non-interactively — no mid-run prompting.

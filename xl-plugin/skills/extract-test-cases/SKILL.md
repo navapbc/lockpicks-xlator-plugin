@@ -1,3 +1,8 @@
+---
+name: extract-test-cases
+description: Extract Test Cases from Policy Documents
+---
+
 # Extract Test Cases from Policy Documents
 
 Scan policy input documents for concrete numerical examples and write them to `extracted-tests.yaml` for use by `/xl:create-tests` and `/xl:expand-tests`.

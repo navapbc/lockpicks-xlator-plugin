@@ -1,3 +1,8 @@
+---
+name: transpile-and-test
+description: Transpile and Test (Catala)
+---
+
 # Transpile and Test (Catala)
 
 Transpile a CIVIL module to Catala and run the Catala test suite.

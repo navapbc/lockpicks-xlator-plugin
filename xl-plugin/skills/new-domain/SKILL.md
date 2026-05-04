@@ -1,3 +1,8 @@
+---
+name: new-domain
+description: Create a New Domain
+---
+
 # Create a New Domain
 
 Set up the standard folder scaffold for a new domain so it's ready for policy document ingestion and rule extraction.

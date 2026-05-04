@@ -1,3 +1,8 @@
+---
+name: update-ruleset
+description: Update Ruleset from Changed Policy Documents
+---
+
 # Update Ruleset from Changed Policy Documents
 
 Update an existing CIVIL DSL ruleset for a domain when input policy documents have changed.

@@ -1,3 +1,8 @@
+---
+name: extract-sample-rules
+description: Extract Sample Rules
+---
+
 # Extract Sample Rules
 
 Generate a comprehensive set of relevant CIVIL rules from `input-index.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.

@@ -1,3 +1,8 @@
+---
+name: rego-transpile-and-test
+description: Transpile and Test for Rego
+---
+
 # Transpile and Test for Rego
 
 Transpile a CIVIL module to Rego and run the test suite.

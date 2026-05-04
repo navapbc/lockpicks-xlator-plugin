@@ -1,3 +1,8 @@
+---
+name: create-skeleton
+description: Build Computation Skeleton for a Domain
+---
+
 # Build Computation Skeleton for a Domain
 
 Extract doc signals from `input-index.yaml` and merge proposals into the four guidance sections of `guidance.yaml`, then build and confirm the computation skeleton. Then, writes the `skeleton:` key and updates the variable sections.

@@ -1,3 +1,8 @@
+---
+name: review-ruleset
+description: Review Extracted Ruleset
+---
+
 # Review Extracted Ruleset
 
 Present a computation graph preview and human review gate for an already-extracted CIVIL ruleset, then refresh graph artifacts and capture guidance learnings.

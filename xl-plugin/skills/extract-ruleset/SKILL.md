@@ -1,3 +1,8 @@
+---
+name: extract-ruleset
+description: Extract Ruleset from Policy Documents
+---
+
 # Extract Ruleset from Policy Documents
 
 Create a CIVIL DSL ruleset for a domain from documents in its `input/policy_docs/` subfolder.

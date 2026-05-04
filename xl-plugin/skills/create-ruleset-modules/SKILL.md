@@ -1,3 +1,8 @@
+---
+name: create-ruleset-modules
+description: Detect Ruleset Module as Modules for a Domain
+---
+
 # Detect Ruleset Module as Modules for a Domain
 
 Reads `skeleton:` and `ruleset_groups:` from `guidance.yaml`, extracts doc signals from `input-index.yaml`, applies six heuristics to detect ruleset modules, and writes modules to `guidance.yaml` as `ruleset_modules:` after `ruleset_groups:`.

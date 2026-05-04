@@ -1,3 +1,8 @@
+---
+name: declare-target-ruleset
+description: Declare Ruleset Input-Output from a Suggestion File
+---
+
 # Declare Ruleset Input-Output from a Suggestion File
 
 Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/xl:suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.

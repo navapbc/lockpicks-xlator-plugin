@@ -1,3 +1,8 @@
+---
+name: suggest-target-ruleset
+description: Suggest Target Rulesets given Policy Documents
+---
+
 # Suggest Target Rulesets given Policy Documents
 
 Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/xl:declare-target-ruleset`.

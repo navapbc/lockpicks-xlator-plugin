@@ -1,3 +1,8 @@
+---
+name: create-ruleset-groups
+description: Propose and Write Ruleset Groups for a Domain
+---
+
 # Propose and Write Ruleset Groups for a Domain
 
 Read `input-index.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:` and before `constraints:`. A "Ruleset Group" is synonymous with a "ruleset group".

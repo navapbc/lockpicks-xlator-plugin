@@ -1,3 +1,8 @@
+---
+name: create-demo
+description: Generate a Demo App (Catala-Python Backend)
+---
+
 # Generate a Demo App (Catala-Python Backend)
 
 Generate a working FastAPI + browser demo for a domain's policy module using the **Catala-Python backend**. Reads the CIVIL spec and test manifest to produce four files in `$DOMAINS_DIR/<domain>/output/demo-catala-<module>/`.

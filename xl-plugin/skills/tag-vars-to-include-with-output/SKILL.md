@@ -1,3 +1,8 @@
+---
+name: tag-vars-to-include-with-output
+description: Tag Variables to Include with Output
+---
+
 # Tag Variables to Include with Output
 
 Identify which intermediate computed variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.

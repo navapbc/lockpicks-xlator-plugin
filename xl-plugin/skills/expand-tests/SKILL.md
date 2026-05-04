@@ -1,3 +1,8 @@
+---
+name: expand-tests
+description: Expand Test Coverage
+---
+
 # Expand Test Coverage
 
 Generate additional test cases for an existing CIVIL module test suite without duplicating existing cases.
