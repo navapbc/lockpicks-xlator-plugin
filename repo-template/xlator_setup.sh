@@ -52,20 +52,6 @@ fi
 
 # --- Helpers ---
 
-local_env_written_today() {
-    local env_file="$PROJECT_ROOT/.xlator.local.env"
-    [ -f "$env_file" ] || { echo "false"; return; }
-    local ref
-    ref=$(mktemp)
-    trap 'rm -f "${ref:-}"' RETURN
-    touch -t "$(date +%Y%m%d)0000" "$ref"
-    if find "$env_file" -newer "$ref" | grep -q .; then
-        echo "true"
-    else
-        echo "false"
-    fi
-}
-
 get_xl_plugin_install_path() {
     claude plugin list --json | uv run --no-project python -c '
 import sys, json
@@ -90,16 +76,14 @@ copy_if_diff() {
     fi
 }
 
-# To force updating the plugin: SETUP_TODAY=false ./xlator_setup.sh
-: ${SETUP_TODAY:=$(local_env_written_today)}
-
+: ${BRANCH_OR_TAG:="main"}
 
 update_this_script(){
     echo "0. Checking for updates to xlator_setup.sh..."
     local ref
     ref=$(mktemp)
     trap 'rm -f "${ref:-}"' RETURN
-    curl -sSL -o "$ref" "https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/main/repo-template/xlator_setup.sh"
+    curl -sSL -o "$ref" "https://raw.githubusercontent.com/navapbc/lockpicks-xlator-plugin/${BRANCH_OR_TAG}/repo-template/xlator_setup.sh"
     THIS_SCRIPT="$(realpath "$0")"
     copy_if_diff "$ref" "$THIS_SCRIPT"
 }
@@ -112,27 +96,21 @@ setup_xlator_plugin() {
     fi
 
     # Fortunately, we don't need to authenticate claude to add plugins
-    # Skip plugin install if .xlator.local.env was already written today
-    if [ "$SETUP_TODAY" = "true" ] && claude plugin list --json | grep -q '"xl@lockpicks-marketplace"'; then
-        echo "  (Skipping Xlator plugin update since .xlator.local.env was already written today)"
+    if claude plugins marketplace list --json | grep -q '"lockpicks-marketplace"'; then
+        # Update git repo at ~/.claude/plugins/marketplaces/lockpicks-marketplace
+        claude plugin marketplace update lockpicks-marketplace
     else
-        if claude plugins marketplace list --json | grep -q '"lockpicks-marketplace"'; then
-            # Update git repo at ~/.claude/plugins/marketplaces/lockpicks-marketplace
-            claude plugin marketplace update lockpicks-marketplace
-        else
-            # Append '#tagOrBranch' to the URL to pin a version, e.g. 'main' or 'v1.2.3'
-            : ${BRANCH_OR_TAG:="main"}
-            claude plugin marketplace add --scope project "https://github.com/navapbc/lockpicks-xlator-plugin.git#${BRANCH_OR_TAG}"
-        fi
-        echo "  Clearing lockpicks-marketplace cache"
-        # Uninstall first to remove the registry entry, then delete cached files.
-        # rm -rf alone only removes files; the claude CLI registry retains the old
-        # entry, causing plugin list to return a stale path after reinstall.
-        claude plugin uninstall xl@lockpicks-marketplace --scope project 2>/dev/null || true
-        rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
-        # Install the plugin from the marketplace
-        claude plugin install --scope project xl@lockpicks-marketplace
+        # Append '#tagOrBranch' to the URL to pin a version, e.g. 'main' or 'v1.2.3'
+        claude plugin marketplace add --scope project "https://github.com/navapbc/lockpicks-xlator-plugin.git#${BRANCH_OR_TAG}"
     fi
+    echo "  Clearing lockpicks-marketplace cache"
+    # Uninstall first to remove the registry entry, then delete cached files.
+    # rm -rf alone only removes files; the claude CLI registry retains the old
+    # entry, causing plugin list to return a stale path after reinstall.
+    claude plugin uninstall xl@lockpicks-marketplace --scope project 2>/dev/null || true
+    rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
+    # Install the plugin from the marketplace
+    claude plugin install --scope project xl@lockpicks-marketplace
 
     if ! command -v uv >/dev/null 2>&1; then
         curl -fsSL https://astral.sh/uv/install.sh | sh
@@ -207,7 +185,7 @@ setup_misc() {
 
 # --- Main ---
 
-if [ "$SETUP_TODAY" = "false" ] && update_this_script; then
+if [ ! "${SKIP_SCRIPT_UPDATE:-}" = "true" ] && update_this_script; then
     echo "xlator-setup.sh was updated; aborting current run. Please re-run."
     exit 10
 fi
