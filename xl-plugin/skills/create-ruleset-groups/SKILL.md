@@ -72,7 +72,7 @@ After pre-flight, check whether the `ruleset_groups:` key already exists in `gui
     1. <name> — <description>
     2. <name> — <description>
 
-  [a]ccept / [r]eplace / [m]erge?  (default: accept)
+  [a]ccept / [r]eplace / [m]erge?
   :::
   - `a` → Exit without writing. Suggest next step:
     :::next_step

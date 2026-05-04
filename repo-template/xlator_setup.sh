@@ -52,6 +52,19 @@ fi
 
 # --- Helpers ---
 
+uninstall_xlator() {
+    # Removing the marketplace also removes the plugin, so we don't need to uninstall separately
+    claude plugin marketplace remove lockpicks-marketplace || true
+    rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
+
+    [ -d "${VIRTUAL_ENV:-}" ] && rm -vf "${VIRTUAL_ENV}/bin/xlator" || true
+    rm -vf "$HOME/.local/bin/xlator" || true
+
+    rm -vf "$DOMAINS_FULLPATH/.shared/.plugin" || true
+
+    rm -vf "$PROJECT_ROOT/.xlator.local.env"
+}
+
 get_xl_plugin_install_path() {
     claude plugin list --json | uv run --no-project python -c '
 import sys, json
@@ -185,7 +198,14 @@ setup_misc() {
 
 # --- Main ---
 
-if [ ! "${SKIP_SCRIPT_UPDATE:-}" = "true" ] && update_this_script; then
+if [ "$1" = "uninstall" ]; then
+    echo "⚠️  Uninstalling Xlator marketplace and plugin..."
+    uninstall_xlator
+    exit 0
+fi
+
+# If shell is interactive, check for updates to this script before proceeding with the setup
+if [ -t 1 ] && [ ! "${SKIP_SCRIPT_UPDATE:-}" = "true" ] && update_this_script; then
     echo "xlator-setup.sh was updated; aborting current run. Please re-run."
     exit 10
 fi
