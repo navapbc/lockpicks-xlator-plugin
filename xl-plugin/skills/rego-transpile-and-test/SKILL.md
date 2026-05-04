@@ -16,7 +16,7 @@ Transpile a CIVIL module to Rego and run the test suite.
 
 If `<domain>` is not provided, run `xlator list` and prompt the user to choose.
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 

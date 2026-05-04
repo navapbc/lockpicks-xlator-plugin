@@ -50,7 +50,7 @@ To use the Xlator plugin, Claude Code must be authenticated. For reliable authen
 
 You should now be able to interact with Claude Code. Test by pasting any of the following in the input field:
 - `What is today's date?`
-- `What are the values of $CLAUDE_PLUGIN_ROOT and $DOMAINS_DIR`
+- `What is the value of $DOMAINS_DIR`
 - `Which python version is installed?` -- This is relevant for your repo
 
 ## Confirm setup by creating a new domain

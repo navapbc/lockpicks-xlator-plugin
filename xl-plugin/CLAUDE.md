@@ -1,6 +1,6 @@
 ## Environment variables
 
-The `.xlator.local.env` file exports the `$DOMAINS_DIR` and `$CLAUDE_PLUGIN_ROOT` environment variables, used by shell scripts and slash commands.
+The `.xlator.local.env` file exports the `$DOMAINS_DIR` and other environment variables, used by shell scripts and slash commands.
 
 If `$DOMAINS_DIR` is unknown, read it from `.xlator.local.env` in the project root folder.
 
@@ -39,7 +39,7 @@ Unfenced output defaults to `detail`.
 
 **Verbatim-relay commands:** Open `:::detail` before beginning relay; close `:::` after relay completes. One fence per program — do not wrap multiple programs in a single fence.
 
-Before executing any slash command, read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` for the full authoring reference.
+Before executing any slash command, read `core/output-fencing.md` for the full authoring reference.
 
 ## Skills Next steps
 

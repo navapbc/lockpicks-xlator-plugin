@@ -39,7 +39,7 @@ Which domain? Enter a number or domain name:
 
 `index-only` is an optional literal keyword (third positional argument). When provided, only entries whose `computations[]` all have `expr_hint:` present are processed; entries that require reading source files are skipped entirely. Pass 4b does not run. Use this when you want fast, index-derived `computed:` rules without waiting for source reads.
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -81,7 +81,7 @@ Read `core/output-fencing.md` now.
 
 ### Step 1: Load canonical names
 
-Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). The resulting lookup map is used in Step 4 to prefer canonical names over freshly inferred ones. If absent, the manifest will be created in Step 6.
+Run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). The resulting lookup map is used in Step 4 to prefer canonical names over freshly inferred ones. If absent, the manifest will be created in Step 6.
 
 Show step checklist:
 :::progress

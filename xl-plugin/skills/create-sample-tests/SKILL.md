@@ -9,7 +9,7 @@ Generate pre-extraction test scaffolding from `guidance.yaml` content alone — 
 
 These tests serve as planning scaffolding to validate coverage intent before running `/xl:extract-ruleset`. They are not a substitute for the validated test suite produced by `/xl:create-tests` after extraction.
 
-See `core/tests/eligibility_tests.yaml` for a complete working example of test case structure.
+See `../../core/tests/eligibility_tests.yaml` for a complete working example of test case structure.
 
 ## Input
 
@@ -26,7 +26,7 @@ Available domains:
 Which domain? Enter a number or domain name:
 :::
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 

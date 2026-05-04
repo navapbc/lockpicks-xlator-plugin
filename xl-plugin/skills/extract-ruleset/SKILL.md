@@ -21,12 +21,12 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` dire
 
 ---
 
-Read `core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
+Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
 the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeGraph, SP-GuidanceCapture, and others), and common mistakes.
 
 ---
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -65,9 +65,9 @@ Run these checks before doing anything else:
        :::
        Then stop.
 
-Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
+Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 
-**After Check 5 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** (from `core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
+**After Check 5 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
 - If the work-list has exactly one entry (ruleset_modules: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
 
@@ -135,7 +135,7 @@ Map policy elements to CIVIL DSL constructs:
 | Income/asset test | `rules:` with `kind: deny` |
 | Pass all tests → eligible | `rules:` with `kind: allow`, `when: "true"` |
 
-After building the component map, run **SP-OrchestrationFilter** (from `core/ruleset-shared.md`) on the candidate rule components:
+After building the component map, run **SP-OrchestrationFilter** (from `../../core/ruleset-shared.md`) on the candidate rule components:
 - Remove flagged components from the generate list.
 - If any components were removed, display the SP-OrchestrationFilter summary table.
 - Continue to Step 3 with the filtered list. Re-included components will have a YAML comment added in the draft step.
@@ -174,7 +174,7 @@ Present the result as a Markdown table:
 :::
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` already exists** (CREATE re-run after a previous successful extraction):
-- Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). Pre-populate all table columns from the resulting map: Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, and Source Section from `section`.
+- Run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). Pre-populate all table columns from the resulting map: Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, and Source Section from `section`.
 - Only derive new names for policy concepts not already listed
 
 :::user_input
@@ -379,9 +379,9 @@ rules:
       notes: "<explain any score ≤2 or ≥4>"  # omit if all scores are 3
 ```
 
-**Scoring:** Assign `review:` blocks to every entry in `rules:` and `computed:` as you draft them. Use the Scoring Rubric from `core/ruleset-shared.md`. Write scores while the source policy text is in context — do not defer to a separate pass.
+**Scoring:** Assign `review:` blocks to every entry in `rules:` and `computed:` as you draft them. Use the Scoring Rubric from `../../core/ruleset-shared.md`. Write scores while the source policy text is in context — do not defer to a separate pass.
 
-**Reference:** See the **CIVIL Reference** section in `core/ruleset-shared.md` for expression language syntax and multi-step formula guidance.
+**Reference:** See the **CIVIL Reference** section in `../../core/ruleset-shared.md` for expression language syntax and multi-step formula guidance.
 
 ### Step 4b: Maintainability Self-Review (CIVIL v6)
 
@@ -394,7 +394,7 @@ Maintainability Self-Review: <module_name>
 
 **Single-file:** Run SP-MaintainabilityReview on the single drafted file.
 
-Run **SP-MaintainabilityReview** (from `core/ruleset-shared.md`) on the drafted CIVIL file:
+Run **SP-MaintainabilityReview** (from `../../core/ruleset-shared.md`) on the drafted CIVIL file:
 - SP-MaintainabilityReview applies in-place fixes for non-blocking items (M1–M4) where the fix is mechanical.
 - If blocking item **M5** (duplicate priority within a `mutex_group`) fails and cannot be auto-fixed:
   1. Display the conflicting rules and their priorities.
@@ -422,7 +422,7 @@ programs:
       - { path: "input/policy_docs/<filename>.md", git_sha: "<sha>" }
 ```
 
-**Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
+**Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
 
 Get each doc's git SHA:
 ```bash

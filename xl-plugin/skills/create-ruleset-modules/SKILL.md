@@ -15,7 +15,7 @@ A "module" is a ruleset module — a subset of rules within a ruleset group (rul
 /create-ruleset-modules <domain>
 ```
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 

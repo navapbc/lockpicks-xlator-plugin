@@ -18,11 +18,11 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 ---
 
-Read `core/ruleset-shared.md` now. It contains shared procedures (SP-Validate, SP-ComputeGraph, SP-TagOutputs, SP-GuidanceCapture, SP-CompleteExtraction, SP-ResolveRulesetModules) referenced in the steps below.
+Read `../../core/ruleset-shared.md` now. It contains shared procedures (SP-Validate, SP-ComputeGraph, SP-TagOutputs, SP-GuidanceCapture, SP-CompleteExtraction, SP-ResolveRulesetModules) referenced in the steps below.
 
 ---
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -57,9 +57,9 @@ Run these checks before doing anything else:
        Which program would you like to review?
        :::
 
-3. **Input docs present?** — Run shared pre-flight check 3 from `core/ruleset-shared.md`.
+3. **Input docs present?** — Run shared pre-flight check 3 from `../../core/ruleset-shared.md`.
 
-4. **Load `guidance.yaml`** — Run shared pre-flight check 5 from `core/ruleset-shared.md`.
+4. **Load `guidance.yaml`** — Run shared pre-flight check 5 from `../../core/ruleset-shared.md`.
 
 **After Check 4 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** with context `extract`. Store the returned work-list for use in Steps 1–3 below.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
@@ -192,7 +192,7 @@ Does this translation correctly capture the policy intent? Any rules missing or 
 
 **SP-TagOutputs (output tagging):** Run **SP-TagOutputs** once per `generate` entry in the work-list, in work-list order.
 
-**Multi-file SP-TagOutputs behavior:** For sub-module files, before displaying the ranked list, pre-select and lock any computed fields whose names appear in the main module's `invoke:` dot-access expressions (e.g., if the main module accesses `client_result.net_income`, then `net_income` in the sub-module's computed: section is locked as `[REQUIRED for parent invoke:]` and cannot be deselected). Display locked fields at the top of the ranked list marked `[REQUIRED]`. Fields in the guidance output set (`[GUIDANCE]`) follow, then remaining fields in standard SP-TagOutputs rank order. See SP-TagOutputs in `core/ruleset-shared.md` for the full tier logic.
+**Multi-file SP-TagOutputs behavior:** For sub-module files, before displaying the ranked list, pre-select and lock any computed fields whose names appear in the main module's `invoke:` dot-access expressions (e.g., if the main module accesses `client_result.net_income`, then `net_income` in the sub-module's computed: section is locked as `[REQUIRED for parent invoke:]` and cannot be deselected). Display locked fields at the top of the ranked list marked `[REQUIRED]`. Fields in the guidance output set (`[GUIDANCE]`) follow, then remaining fields in standard SP-TagOutputs rank order. See SP-TagOutputs in `../../core/ruleset-shared.md` for the full tier logic.
 
 Run **SP-ComputeGraph** after all files in the work-list have been reviewed and approved. In multi-file context, run SP-ComputeGraph for each `generate` entry separately.
 

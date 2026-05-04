@@ -21,12 +21,12 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` dire
 
 ---
 
-Read `core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
+Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
 the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeGraph, SP-GuidanceCapture, and others), and common mistakes.
 
 ---
 
-Read `core/output-fencing.md` now.
+Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -46,7 +46,7 @@ Run these checks before doing anything else:
      :::
      Stop.
 
-Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
+Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 
 ---
 
@@ -56,7 +56,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
 
 **If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:**
 
-1. Run **SP-LoadNamingManifest** (from `core/ruleset-shared.md`). Collect the variable names from the resulting map.
+1. Run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). Collect the variable names from the resulting map.
 2. Read all fact, computed, and output field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
 3. Compare the two sets. If any field name exists in the CIVIL file but not the manifest, or exists in both but with a different spelling, **halt** and list every mismatch:
 
@@ -88,7 +88,7 @@ Run shared pre-flight checks 3–6 from `core/ruleset-shared.md`.
      - $DOMAINS_DIR/<domain>/specs/<missing_file>.civil.yaml
    Restore the missing file(s) or re-run /xl:extract-ruleset <domain>.
    :::
-3. Run **SP-ResolveRulesetModules** (from `core/ruleset-shared.md`) with context `update`.
+3. Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `update`.
    - If SP-ResolveRulesetModules emits an abort signal (new `ruleset_modules:` entries not in manifest): stop with SP-ResolveRulesetModules's message.
    - Otherwise, store the returned work-list for use in Steps 2 and 9.
 
@@ -178,7 +178,7 @@ For each affected section, re-read the relevant parts of the changed policy doc 
 
 When re-extracting any section that contains `inputs:` or `computed:` fields, inject the frozen names from `naming-manifest.yaml` into your extraction reasoning: "These fields must keep their exact current names: [list all names from manifest]. Only introduce new field names for policy concepts not in this list, using the 4-step algorithm: (1) exact noun phrase, (2) strip entity-name words, (3) snake_case, (4) disambiguate if needed." **Never rename an existing field.**
 
-After re-extracting, run **SP-OrchestrationFilter** (from `core/ruleset-shared.md`) on the newly extracted rule components (not the full existing CIVIL file — only rules and computed fields identified in Step 4):
+After re-extracting, run **SP-OrchestrationFilter** (from `../../core/ruleset-shared.md`) on the newly extracted rule components (not the full existing CIVIL file — only rules and computed fields identified in Step 4):
 - Remove flagged components; display the SP-OrchestrationFilter summary table if any were flagged.
 - Continue to Step 6 with the filtered set. Re-included components will have a YAML comment added when merged.
 
@@ -193,7 +193,7 @@ Update the existing `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` at sectio
 
 *Runs after Step 6 (Merge), before Step 7 (Update Manifest).*
 
-Run **SP-MaintainabilityReview** (from `core/ruleset-shared.md`) on the CIVIL file, **scoped to only the rules and computed fields that were added or modified in this update** (identified in Step 4). Unchanged rules and computed fields are not re-checked.
+Run **SP-MaintainabilityReview** (from `../../core/ruleset-shared.md`) on the CIVIL file, **scoped to only the rules and computed fields that were added or modified in this update** (identified in Step 4). Unchanged rules and computed fields are not re-checked.
 
 - SP-MaintainabilityReview applies in-place fixes for non-blocking items (M1–M4) where the fix is mechanical.
 - If blocking item **M5** (duplicate priority within a `mutex_group`) fails:
