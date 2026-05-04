@@ -121,7 +121,8 @@ setup_xlator_plugin() {
             claude plugin marketplace update lockpicks-marketplace
         else
             # Append '#tagOrBranch' to the URL to pin a version, e.g. 'main' or 'v1.2.3'
-            claude plugin marketplace add --scope project https://github.com/navapbc/lockpicks-xlator-plugin.git
+            : ${BRANCH_OR_TAG:="main"}
+            claude plugin marketplace add --scope project "https://github.com/navapbc/lockpicks-xlator-plugin.git#${BRANCH_OR_TAG}"
         fi
         echo "  Clearing lockpicks-marketplace cache"
         # Uninstall first to remove the registry entry, then delete cached files.
