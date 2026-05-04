@@ -24,13 +24,13 @@ def test_multiple_sequential_blocks():
     text = (
         ":::important\nResult A.\n:::\n"
         ":::error\nSomething failed.\n:::\n"
-        ":::next_step\nRun /xl:foo next.\n:::"
+        ":::next_step\nRun /foo next.\n:::"
     )
     result = parse_fences(text)
     assert len(result) == 3
     assert result[0] == {"type": "important", "content": "Result A."}
     assert result[1] == {"type": "error", "content": "Something failed."}
-    assert result[2] == {"type": "next_step", "content": "Run /xl:foo next."}
+    assert result[2] == {"type": "next_step", "content": "Run /foo next."}
 
 
 def test_unfenced_text_becomes_detail():

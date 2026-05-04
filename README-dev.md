@@ -98,7 +98,7 @@ Pro-tip: To provide a coding assistant for sample data, create a symlink for the
 ### Adding a domain
 
 ```bash
-/xl:new-domain <domain>     # Creates domains/<domain>/{input/policy_docs,specs,output}
+/new-domain <domain>     # Creates domains/<domain>/{input/policy_docs,specs,output}
 ```
 
 ---
@@ -146,15 +146,15 @@ Used for AI-assisted domain work. Run from within Claude Code (VS Code extension
 
 | Command | Purpose |
 |---------|---------|
-| `/xl:new-domain` | Scaffold a new domain folder structure |
-| `/xl:index-inputs` | Build a reading index from large policy documents |
-| `/xl:refine-guidance` | Tune AI extraction guidance in `guidance.yaml` |
-| `/xl:extract-ruleset` | Extract a CIVIL ruleset from policy docs in `input/policy_docs/` |
-| `/xl:update-ruleset` | Update an existing ruleset with changed policy rules |
-| `/xl:create-tests` | Generate test cases for a CIVIL module |
-| `/xl:expand-tests` | Add boundary, edge-case, and null-input tests |
-| `/xl:transpile-and-test` | Run transpile + test in one step |
-| `/xl:create-demo` | Create a demo app (Rego/OPA or Catala-Python) |
+| `/new-domain` | Scaffold a new domain folder structure |
+| `/index-inputs` | Build a reading index from large policy documents |
+| `/refine-guidance` | Tune AI extraction guidance in `guidance.yaml` |
+| `/extract-ruleset` | Extract a CIVIL ruleset from policy docs in `input/policy_docs/` |
+| `/update-ruleset` | Update an existing ruleset with changed policy rules |
+| `/create-tests` | Generate test cases for a CIVIL module |
+| `/expand-tests` | Add boundary, edge-case, and null-input tests |
+| `/transpile-and-test` | Run transpile + test in one step |
+| `/create-demo` | Create a demo app (Rego/OPA or Catala-Python) |
 
 ---
 
@@ -180,19 +180,19 @@ xlator graph <domain> <module>
 
 ```bash
 # 1. Scaffold the folder
-/xl:new-domain <domain>
+/new-domain <domain>
 
 # 2. Drop policy documents into:
 #    domains/<domain>/input/policy_docs/
 
 # 3. Index inputs (for large docs)
-/xl:index-inputs <domain>
+/index-inputs <domain>
 
 # 4. Extract ruleset interactively
-/xl:extract-ruleset <domain>
+/extract-ruleset <domain>
 
 # 5. Create test cases
-/xl:create-tests <domain> <module>
+/create-tests <domain> <module>
 
 # 6. Run the full pipeline
 xlator rego-pipeline <domain> <module>

@@ -347,7 +347,7 @@ After all files are processed, print:
 Omit the "rejected" line if R = 0.
 
 :::next_step
-Next step: `/xl:refine-guidance <domain>` to set extraction goals and ruleset guidance
+Next step: `/refine-guidance <domain>` to set extraction goals and ruleset guidance
 :::
 
 ---

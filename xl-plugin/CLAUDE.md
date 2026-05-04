@@ -46,22 +46,22 @@ Before executing any skill, read `core/output-fencing.md` for the full authoring
 After completion of a `xl` skill, suggest possible next steps based on the following workflows:
 
 Typical steps:
-  1. `/xl:new-domain <domain>` to set up the folder scaffold for a new domain
+  1. `/new-domain <domain>` to set up the folder scaffold for a new domain
   2. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
-  3. `/xl:index-inputs <domain>` to build a document index
+  3. `/index-inputs <domain>` to build a document index
   4. Write an AI prompt to extract a ruleset in the `guidance.yaml` file — two options:
-      * **Monolithic (original):** `/xl:refine-guidance <domain>`
+      * **Monolithic (original):** `/refine-guidance <domain>`
       * **Step-by-step (for UI-driven or incremental workflows):**
-        - `/xl:suggest-target-ruleset <domain>` — analyze the document index and write candidate target rulesets to files for user selection
-        - `/xl:declare-target-ruleset <domain>` — write `guidance.yaml` from a specified target ruleset file (one of the files created by `/xl:suggest-target-ruleset`)
-        - `/xl:create-skeleton <domain>` — extract doc signals from the document index and build the computation skeleton
-        - `/xl:create-ruleset-groups <domain>` — propose ruleset groups that group related computations in the skeleton; these groups will help with ruleset visualizations
-        - `/xl:create-ruleset-modules <domain>` — apply heuristics to detect ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
-        - `/xl:extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules) for the user to become familiar, revise, and gain confidence in the anticipated results
-        - `/xl:tag-vars-to-include-with-output <domain>` — auto-detect intermediate computed variables to be exposed along with the final output (best after extract-sample-rules); the selected variables are intended to be useful for explaining the computations used to derive the final output
-        - `/xl:create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
-  5. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
-  6. `/xl:review-ruleset <domain>` to review the extracted ruleset, finalize graph artifacts, and capture guidance learnings
+        - `/suggest-target-ruleset <domain>` — analyze the document index and write candidate target rulesets to files for user selection
+        - `/declare-target-ruleset <domain>` — write `guidance.yaml` from a specified target ruleset file (one of the files created by `/suggest-target-ruleset`)
+        - `/create-skeleton <domain>` — extract doc signals from the document index and build the computation skeleton
+        - `/create-ruleset-groups <domain>` — propose ruleset groups that group related computations in the skeleton; these groups will help with ruleset visualizations
+        - `/create-ruleset-modules <domain>` — apply heuristics to detect ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
+        - `/extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules) for the user to become familiar, revise, and gain confidence in the anticipated results
+        - `/tag-vars-to-include-with-output <domain>` — auto-detect intermediate computed variables to be exposed along with the final output (best after extract-sample-rules); the selected variables are intended to be useful for explaining the computations used to derive the final output
+        - `/create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
+  5. `/extract-ruleset <domain>` to extract the CIVIL ruleset
+  6. `/review-ruleset <domain>` to review the extracted ruleset, finalize graph artifacts, and capture guidance learnings
 
 ### Skill dependency diagram
 
@@ -70,31 +70,31 @@ Enable/disable each skill in the UI based on which file-state prerequisites are 
 ```mermaid
 flowchart TD
     DOCS["policy docs in input/policy_docs/"]
-    IDX_CMD["/xl:index-inputs"]
+    IDX_CMD["/index-inputs"]
     IDX(["input-index.yaml"])
 
     DOCS --> IDX_CMD --> IDX
 
-    SUG["/xl:suggest-target-ruleset\nenabled: input-index.yaml exists"]
+    SUG["/suggest-target-ruleset\nenabled: input-index.yaml exists"]
     SUG_F(["suggested_targets/*.yaml"])
-    DECL["/xl:declare-target-ruleset\nenabled: suggested_targets/ has ≥1 file"]
+    DECL["/declare-target-ruleset\nenabled: suggested_targets/ has ≥1 file"]
     GY(["guidance.yaml"])
 
     IDX --> SUG --> SUG_F --> DECL --> GY
 
-    SKEL["/xl:create-skeleton\nenabled: guidance.yaml exists"]
+    SKEL["/create-skeleton\nenabled: guidance.yaml exists"]
     GY_SKEL(["guidance.yaml\nwith skeleton:"])
-    GROUPS["/xl:create-ruleset-groups\nenabled: skeleton: present"]
+    GROUPS["/create-ruleset-groups\nenabled: skeleton: present"]
     GY_GROUPS(["guidance.yaml\nwith ruleset_groups:"])
-    MODS["/xl:create-ruleset-modules\nenabled: ruleset_groups: present"]
+    MODS["/create-ruleset-modules\nenabled: ruleset_groups: present"]
 
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
     GY_MODS(["guidance.yaml\nwith ruleset_modules:"])
-    SAMPLERULES["/xl:extract-sample-rules\nbest: ruleset_modules: present\nmin: skeleton: present\nenabled: guidance.yaml + input-index.yaml exist"]
+    SAMPLERULES["/extract-sample-rules\nbest: ruleset_modules: present\nmin: skeleton: present\nenabled: guidance.yaml + input-index.yaml exist"]
     GY_RULES(["guidance.yaml\nwith sample_rules"])
-    TAGVARS["/xl:tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
-    SAMPLETESTS["/xl:create-sample-tests\nenabled: sample_rules or sample_rules present"]
+    TAGVARS["/tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
+    SAMPLETESTS["/create-sample-tests\nenabled: sample_rules or sample_rules present"]
     GY_SAMPLETESTS(["guidance.yaml\nwith sample_tests:"])
 
     MODS --> GY_MODS --> SAMPLERULES
@@ -102,8 +102,8 @@ flowchart TD
     SAMPLERULES --> GY_RULES --> TAGVARS
     GY_RULES --> SAMPLETESTS --> GY_SAMPLETESTS
 
-    EXTRACT["/xl:extract-ruleset\nenabled: ruleset_groups: + ruleset_modules: present"]
-    REVIEW["/xl:review-ruleset\nenabled: <program>.civil.yaml + naming-manifest.yaml exist"]
+    EXTRACT["/extract-ruleset\nenabled: ruleset_groups: + ruleset_modules: present"]
+    REVIEW["/review-ruleset\nenabled: <program>.civil.yaml + naming-manifest.yaml exist"]
 
     GY_MODS --> EXTRACT
     TAGVARS --> EXTRACT
@@ -118,18 +118,18 @@ flowchart TD
 - `tag-vars` can run earlier but misses invoke-derived variables only visible in CIVIL snippets
 - `create-sample-tests` always follows `extract-sample-rules`
 
-Once `/xl:review-ruleset` completes (or whenever the ruleset changes), the user can choose to:
-  * `/xl:create-demo <domain>` to generate a web-based ruleset demo
-  * `/xl:create-tests <domain>` to create an initial set of test cases
+Once `/review-ruleset` completes (or whenever the ruleset changes), the user can choose to:
+  * `/create-demo <domain>` to generate a web-based ruleset demo
+  * `/create-tests <domain>` to create an initial set of test cases
 
 After test cases are created or modified, the user can choose to:
-  * `/xl:transpile-and-test <domain>` to transpile to default output language (Catala) and run the test cases
-  * `/xl:expand-tests <domain>` to increase test coverage
+  * `/transpile-and-test <domain>` to transpile to default output language (Catala) and run the test cases
+  * `/expand-tests <domain>` to increase test coverage
   * Add manually-created tests to the `$DOMAINS_DIR/<domain>/specs/tests` folder
 
 After the user adds/updates .md policy documents in `$DOMAINS_DIR/<domain>/input/policy_docs/`, they should:
-  1. `/xl:index-inputs <domain>` to update the document index
-  2. `/xl:update-ruleset <domain>` to update the CIVIL ruleset
+  1. `/index-inputs <domain>` to update the document index
+  2. `/update-ruleset <domain>` to update the CIVIL ruleset
 
 ## Multi-step Skills
 

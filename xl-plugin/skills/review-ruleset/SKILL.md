@@ -31,20 +31,20 @@ Run these checks before doing anything else:
 1. **Domain folder exists?**
    - NO → Print:
      :::error
-     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`.
+     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/new-domain <domain>`.
      :::
      Stop.
 
 2. **CIVIL file exists?**
    - **If `<program>` was given:** check if `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` exists. If not:
      :::error
-     No CIVIL file found for <program>. Run /xl:extract-ruleset <domain> <program> first.
+     No CIVIL file found for <program>. Run /extract-ruleset <domain> <program> first.
      :::
      Stop.
    - **If `<program>` was not given:** check `$DOMAINS_DIR/<domain>/specs/*.civil.yaml`:
      - 0 files →
        :::error
-       No CIVIL file found for this domain. Run /xl:extract-ruleset <domain> first.
+       No CIVIL file found for this domain. Run /extract-ruleset <domain> first.
        :::
        Stop.
      - 1 file → use it; set `<program>` to the filename stem.

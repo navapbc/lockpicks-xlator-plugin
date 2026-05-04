@@ -54,7 +54,7 @@ Domain not found: $DOMAINS_DIR/unknown/
 
 ```
 :::next_step
-Run /xl:create-skeleton <domain> to extract document signals and build the computation skeleton.
+Run /create-skeleton <domain> to extract document signals and build the computation skeleton.
 :::
 ```
 

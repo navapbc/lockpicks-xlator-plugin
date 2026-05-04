@@ -22,17 +22,17 @@ Read `../../core/output-fencing.md` now.
 
 1. **Domain folder exists?** — NO →
    :::error
-   Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first.
+   Domain `<domain>` not found. Run `/extract-ruleset <domain>` first.
    :::
    Stop.
 2. **CIVIL file exists?**
    - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing →
      :::error
-     No CIVIL file found. Run `/xl:extract-ruleset <domain>` first.
+     No CIVIL file found. Run `/extract-ruleset <domain>` first.
      :::
      Stop.
 3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
-4. **Baseline tests exist?** — `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` missing → Print: "⚠️ No baseline test file found. Expanded tests will still be generated, but consider running `/xl:create-tests <domain>` first to establish a baseline." Continue.
+4. **Baseline tests exist?** — `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` missing → Print: "⚠️ No baseline test file found. Expanded tests will still be generated, but consider running `/create-tests <domain>` first to establish a baseline." Continue.
 5. **Existing expanded files?** — If any of the four output files already exist → Prompt:
    :::user_input
    Expanded test files already exist in `$DOMAINS_DIR/<domain>/specs/tests/`. Overwrite and regenerate? [y/n]
@@ -203,7 +203,7 @@ After generating all four files, print a summary:
 :::
 
 :::next_step
-Run /xl:transpile-and-test <domain> to validate these tests against the rules.
+Run /transpile-and-test <domain> to validate these tests against the rules.
 :::
 
 | File | Action |

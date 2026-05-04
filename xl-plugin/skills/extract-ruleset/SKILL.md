@@ -35,7 +35,7 @@ Run these checks before doing anything else:
 1. **Domain folder exists?**
    - NO → Print:
      :::error
-     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/xl:new-domain <domain>`.
+     domain not found at `$DOMAINS_DIR/<domain>/`, suggest running `/new-domain <domain>`.
      :::
      Stop.
 
@@ -201,7 +201,7 @@ If the user changes any name, update the table and re-present. Loop until the us
 
 **Single-file (ruleset_modules: empty):** existing behavior unchanged.
 
-**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `ruleset_groups:` list (written by `/xl:refine-guidance` Sub-step 3b.5):
+**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `ruleset_groups:` list (written by `/refine-guidance` Sub-step 3b.5):
 - **If present:** copy the list directly into `rule_set.ruleset_groups` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
 - **If absent:** omit the `ruleset_groups:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
 
@@ -484,7 +484,7 @@ Extraction complete.
 Run the review gate to validate and finalize:
 
 ```
-/xl:review-ruleset <domain> <program>
+/review-ruleset <domain> <program>
 ```
 :::
 
@@ -501,6 +501,6 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/xl:refine-guidance <domain>` first) |
+| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) |
 
-Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/xl:review-ruleset`. Tests and transpilation are handled by `/xl:create-tests` and `/xl:transpile-and-test`.
+Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.

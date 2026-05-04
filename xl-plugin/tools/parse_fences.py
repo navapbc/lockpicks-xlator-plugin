@@ -11,7 +11,7 @@ Accepts three input forms (auto-detected):
   - claude --output-format stream-json  (NDJSON; text in the final .result)
 
 Usage:
-  claude --dangerously-skip-permissions -p --output-format json '/xl:new-domain my_domain' \
+  claude --dangerously-skip-permissions -p --output-format json '/new-domain my_domain' \
     | uv run xl-plugin/tools/parse_fences.py
 
 Parse `:::type` / `:::` delimited blocks from command output and return a list

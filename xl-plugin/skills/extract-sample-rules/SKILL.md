@@ -7,16 +7,16 @@ description: Extract Sample Rules
 
 Generate a comprehensive set of relevant CIVIL rules from `input-index.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
 
-Unlike `/xl:refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately for user review.
+Unlike `/refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately for user review.
 
-**Recommended run order:** After `/xl:create-ruleset-modules`. The quality of the output depends on how complete `guidance.yaml` is at invocation time:
+**Recommended run order:** After `/create-ruleset-modules`. The quality of the output depends on how complete `guidance.yaml` is at invocation time:
 
 | `guidance.yaml` state | Impact on output |
 |---|---|
-| `ruleset_modules:` populated (after `/xl:create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
-| `ruleset_groups:` present but no `ruleset_modules:` (after `/xl:create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
-| `skeleton:` present but no groups or ruleset modules (after `/xl:create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
-| Neither `skeleton:` nor `ruleset_modules:` (after `/xl:declare-target-ruleset` only) | Command runs but produces flat, unstructured output with no ordering context |
+| `ruleset_modules:` populated (after `/create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
+| `ruleset_groups:` present but no `ruleset_modules:` (after `/create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
+| `skeleton:` present but no groups or ruleset modules (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
+| Neither `skeleton:` nor `ruleset_modules:` (after `/declare-target-ruleset` only) | Command runs but produces flat, unstructured output with no ordering context |
 
 The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (see Step 2). It does not stop — partial output is better than none.
 
@@ -63,7 +63,7 @@ Read `../../core/output-fencing.md` now.
    - NO → Print:
      :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:suggest-target-ruleset <domain> first.
+     Run /suggest-target-ruleset <domain> first.
      :::
      Stop.
 
@@ -71,7 +71,7 @@ Read `../../core/output-fencing.md` now.
    - NO → Print:
      :::error
      input-index.yaml not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /xl:index-inputs <domain> first.
+     Run /index-inputs <domain> first.
      :::
      Stop.
 
@@ -119,10 +119,10 @@ Check for missing context and print warnings if applicable:
 
 ```
 ⚠ skeleton: not found in guidance.yaml — computation ordering and category groupings unavailable.
-  Run /xl:create-skeleton <domain> first for better-structured output.
+  Run /create-skeleton <domain> first for better-structured output.
 
 ⚠ ruleset_modules: not found in guidance.yaml — all rules will be written to top-level sample_rules: (no ruleset module grouping).
-  Run /xl:create-ruleset-modules <domain> first for structured rule routing.
+  Run /create-ruleset-modules <domain> first for structured rule routing.
 ```
 
 Print only the warnings that apply. Proceed regardless.
@@ -308,7 +308,7 @@ Create it with all variable names used in the generated rules, routing each to `
 version: "1.0"
 inputs:
   <EntityName>:        # one entry per entity from bound_entities: (if available)
-    # (fields populated by /xl:extract-ruleset Step 7b)
+    # (fields populated by /extract-ruleset Step 7b)
 computed:
   <variable_name>:
     policy_phrase: "<noun phrase from source text>"
@@ -321,7 +321,7 @@ outputs:
     section: "<section heading>"
 ```
 
-Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance.yaml`. If `ruleset_modules:` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /xl:extract-ruleset Step 7b`.
+Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance.yaml`. If `ruleset_modules:` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /extract-ruleset Step 7b`.
 
 Omit the `outputs:` block if no generated variables are in `guidance.yaml`'s `outputs:` list.
 
@@ -392,7 +392,7 @@ Skipped (index-only — source text required):
 Then suggest next steps:
 
 :::next_step
-Next: Run /xl:tag-vars-to-include-with-output <domain> to auto-detect intermediate computed variables to be exposed along with the final output
+Next: Run /tag-vars-to-include-with-output <domain> to auto-detect intermediate computed variables to be exposed along with the final output
 :::
 
 ---
@@ -410,7 +410,7 @@ Next: Run /xl:tag-vars-to-include-with-output <domain> to auto-detect intermedia
 
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use `path:` and `heading:` from `input-index.yaml` to locate sections. Reading source policy files via those pointers is explicitly permitted for this command.
 - **Do not overwrite existing `sample_rules:` entries** — merge by `id:` only; never remove manually edited rules
-- **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/xl:extract-ruleset` run
+- **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/extract-ruleset` run
 - **Do not clobber other guidance.yaml sections** — this command writes only to `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions`; all other sections must be preserved verbatim
 - **Use canonical names from the manifest** — if a variable name exists in `naming-manifest.yaml`, use it; do not re-derive or rename it
 - **`civil:` is a literal block scalar** — always use the `|` block indicator; never use a quoted string or folded scalar for CIVIL snippets

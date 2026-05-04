@@ -5,14 +5,14 @@ description: Suggest Target Rulesets given Policy Documents
 
 # Suggest Target Rulesets given Policy Documents
 
-Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/xl:declare-target-ruleset`.
+Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/declare-target-ruleset`.
 
 The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") narrows what kinds of rulesets to suggest — it prioritizes candidates that match the hint phrase but still reads the whole index. When no hint is provided, all distinct policy scopes found in the index are candidates with a preference for rulesets that cover more topics.
 
 ## Input
 
 ```
-/xl:suggest-target-ruleset <domain> [<hint>]
+/suggest-target-ruleset <domain> [<hint>]
 ```
 
 Read `../../core/output-fencing.md` now.
@@ -35,7 +35,7 @@ Run these checks before doing anything else:
    - NO → Print:
      :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     Run: /xl:new-domain <domain>
+     Run: /new-domain <domain>
      :::
      Then stop.
 
@@ -44,7 +44,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /xl:index-inputs <domain> first, then re-run /xl:suggest-target-ruleset <domain>.
+     Run /index-inputs <domain> first, then re-run /suggest-target-ruleset <domain>.
      :::
      Then stop.
 
@@ -149,7 +149,7 @@ output_variables:
 After all saves, suggest the next step:
 
 :::next_step
-Next: Run /xl:declare-target-ruleset <domain> <ruleset_name> to create guidance.yaml from a suggestion file.
+Next: Run /declare-target-ruleset <domain> <ruleset_name> to create guidance.yaml from a suggestion file.
 :::
 
 ---
@@ -166,7 +166,7 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 
 ## Common Mistakes to Avoid
 
-- **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later skills (`/xl:create-skeleton`, `/xl:create-ruleset-groups`, `/xl:create-ruleset-modules`)
+- **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `input-index.yaml` is the sole source of doc signals
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
 - **`secondary_decisions: []` is valid when no secondary outputs are identified** — do not omit the field; an absent `secondary_decisions` key is not the same as an empty list

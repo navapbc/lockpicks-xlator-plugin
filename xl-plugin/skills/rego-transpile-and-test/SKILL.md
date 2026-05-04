@@ -46,6 +46,6 @@ Open a `:::detail` fence. Relay output verbatim. No summary formatting. Close th
 
 **On failure:** Show the failing case ID(s) and actual vs. expected output. In a `:::user_input` fence, ask the user to diagnose:
 
-- **Rule error** — the CIVIL `when:` expression is wrong → fix in the CIVIL file and re-run `/xl:extract-ruleset <domain>`
-- **Test expectation error** — the test case has wrong expected values → fix in the tests file and re-run `/xl:rego-transpile-and-test <domain>`
+- **Rule error** — the CIVIL `when:` expression is wrong → fix in the CIVIL file and re-run `/extract-ruleset <domain>`
+- **Test expectation error** — the test case has wrong expected values → fix in the tests file and re-run `/rego-transpile-and-test <domain>`
 - **Transpiler bug** — the Rego generation is incorrect → file a transpiler issue; do not modify CIVIL or tests

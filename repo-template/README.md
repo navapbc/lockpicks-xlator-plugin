@@ -55,7 +55,7 @@ You should now be able to interact with Claude Code. Test by pasting any of the 
 
 ## Confirm setup by creating a new domain
 
-Run `/xl:new-domain` in Claude Code and follow the instructions.
+Run `/new-domain` in Claude Code and follow the instructions.
 
 ## Xlator Observability
 

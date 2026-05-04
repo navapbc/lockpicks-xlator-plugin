@@ -43,7 +43,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:declare-target-ruleset <domain> first.
+     Run /declare-target-ruleset <domain> first.
      :::
      Then stop.
 
@@ -52,7 +52,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /xl:index-inputs <domain> first.
+     Run /index-inputs <domain> first.
      :::
      Then stop.
 
@@ -60,7 +60,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      :::error
      Skeleton not found in guidance.yaml.
-     Run /xl:create-skeleton <domain> first.
+     Run /create-skeleton <domain> first.
      :::
      Then stop.
 
@@ -68,7 +68,7 @@ Run these checks before doing anything else:
    - ABSENT → Print:
      :::error
      Ruleset groups not found in guidance.yaml.
-     Run /xl:create-ruleset-groups <domain> first.
+     Run /create-ruleset-groups <domain> first.
      Note: this command requires ruleset groups to be defined before ruleset module detection.
      This is intentional: ruleset modules must stay within a single stage, so groups must be defined first.
      :::
@@ -214,7 +214,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
 Then suggest next steps:
 
 :::next_step
-Next: Run /xl:extract-sample-rules <domain> to extract sample rules.
+Next: Run /extract-sample-rules <domain> to extract sample rules.
 :::
 
 ---

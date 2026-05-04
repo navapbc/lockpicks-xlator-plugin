@@ -35,16 +35,16 @@ Run these checks before doing anything else:
    - NO → Print:
      :::error
      Domain not found: $DOMAINS_DIR/<domain>/
-     Run: /xl:new-domain <domain>
+     Run: /new-domain <domain>
      :::
-     Then stop. Do not scaffold a new domain here — that's `/xl:new-domain`'s job.
+     Then stop. Do not scaffold a new domain here — that's `/new-domain`'s job.
 
 3. **Input index required?**
    - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
    - **ABSENT** → Print:
      :::error
      Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
-     Run /xl:index-inputs <domain> first, then re-run /xl:refine-guidance <domain>.
+     Run /index-inputs <domain> first, then re-run /refine-guidance <domain>.
      :::
      Stop.
 
@@ -93,10 +93,10 @@ Created $DOMAINS_DIR/<domain>/specs/guidance.yaml
 **b. AI-suggest** — Let the AI propose candidate rulesets based on the index:
 
 1. Prompt: "Enter a hint to narrow candidate rulesets (e.g. 'eligibility', 'benefit calculation'), or 'all' to suggest all:"
-2. Run `/xl:suggest-target-ruleset <domain> [<hint>]` (omit `<hint>` if the user responded with 'all'). Skip pre-flight — domain and index already verified above.
+2. Run `/suggest-target-ruleset <domain> [<hint>]` (omit `<hint>` if the user responded with 'all'). Skip pre-flight — domain and index already verified above.
 3. Present the list of generated candidate files from `specs/suggested_rulesets/`.
 4. Ask the user which candidate to use.
-5. Run `/xl:declare-target-ruleset <domain> <chosen_ruleset>`. Skip pre-flight — domain already verified above.
+5. Run `/declare-target-ruleset <domain> <chosen_ruleset>`. Skip pre-flight — domain already verified above.
 
 After either path, `guidance.yaml` exists and Step 2 may proceed.
 
@@ -115,27 +115,27 @@ Skeleton: <N> computations across <N> intermediate categories, <N> example rules
 
 ### Step 2: Computation skeleton
 
-Run `/xl:create-skeleton <domain>`. Skip pre-flight — domain, `guidance.yaml`, and `input-index.yaml` already verified above.
+Run `/create-skeleton <domain>`. Skip pre-flight — domain, `guidance.yaml`, and `input-index.yaml` already verified above.
 
 ### Step 3: Ruleset groups
 
-Run `/xl:create-ruleset-groups <domain>`. Skip pre-flight — already verified above.
+Run `/create-ruleset-groups <domain>`. Skip pre-flight — already verified above.
 
 ### Step 4: Ruleset modules
 
-Run `/xl:create-ruleset-modules <domain>`. Skip pre-flight — already verified above.
+Run `/create-ruleset-modules <domain>`. Skip pre-flight — already verified above.
 
 ### Step 5: Sample rules
 
-Run `/xl:extract-sample-rules <domain>`. Skip pre-flight — already verified above.
+Run `/extract-sample-rules <domain>`. Skip pre-flight — already verified above.
 
 ### Step 6: Tag output variables
 
-Run `/xl:tag-vars-to-include-with-output <domain>`. Skip pre-flight — already verified above.
+Run `/tag-vars-to-include-with-output <domain>`. Skip pre-flight — already verified above.
 
 ### Step 7: Sample tests
 
-Run `/xl:create-sample-tests <domain>`. Skip pre-flight — already verified above.
+Run `/create-sample-tests <domain>`. Skip pre-flight — already verified above.
 
 ---
 
@@ -149,6 +149,6 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED or UPDATED]
 
 - Do not add `edge_cases:` to ruleset guidance template files in `../../core/guidance-templates/` — they are domain-agnostic; `edge_cases:` belongs only in per-domain `guidance.yaml`
 - `source_template` is never updated after initial creation — it records which guidance template the file was originally created from
-- Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/xl:new-domain`
+- Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/new-domain`
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-index.yaml` is the sole source of doc signals
 - `guidance.yaml` is created in Step 1 [CREATE], not deferred to later steps — it always exists before Step 2 begins

@@ -22,13 +22,13 @@ Read `../../core/output-fencing.md` now.
 
 1. **Domain folder exists?** — NO → Print:
    :::error
-   Domain `<domain>` not found. Run `/xl:extract-ruleset <domain>` first.
+   Domain `<domain>` not found. Run `/extract-ruleset <domain>` first.
    :::
    Stop.
 2. **CIVIL file exists?**
    - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print:
      :::error
-     No CIVIL file found. Run `/xl:extract-ruleset <domain>` first.
+     No CIVIL file found. Run `/extract-ruleset <domain>` first.
      :::
      Stop.
 3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
@@ -49,7 +49,7 @@ Options: `[u]se` / `[r]e-extract` / `[s]kip`
 :::
 
 - `[u]se`: proceed to Mode Detection using the existing file
-- `[r]e-extract`: run `/xl:extract-test-cases <domain> <program>`, then proceed to Mode Detection
+- `[r]e-extract`: run `/extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `[s]kip`: proceed to Mode Detection without extracted tests
 
 **If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/input/` contains documents:**
@@ -58,7 +58,7 @@ Found M policy documents in `$DOMAINS_DIR/<domain>/input/`. Extract concrete exa
 Options: `[y/n]`
 :::
 
-- `y`: run `/xl:extract-test-cases <domain> <program>`, then proceed to Mode Detection
+- `y`: run `/extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `n`: proceed to Mode Detection without extracted tests
 
 **If `input/` is empty or absent:** proceed to Mode Detection without extracted tests.
@@ -176,7 +176,7 @@ Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 
 Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 
-- **If present** (written by `/xl:extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
+- **If present** (written by `/extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
 - **If absent** (standalone run after a manual CIVIL edit): compare each test case's `inputs` values against all current `tables:` rows and `constants:` values in the CIVIL file. Flag any case where an input value exactly matches a value that no longer appears in any table row or constant.
 
   :::important

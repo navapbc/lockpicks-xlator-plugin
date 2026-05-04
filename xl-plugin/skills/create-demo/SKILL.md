@@ -23,13 +23,13 @@ Read `../../core/output-fencing.md` now.
 
 1. **Domain folder exists?** — NO → Print:
    :::error
-   Domain '<domain>' not found. Run /xl:new-domain <domain> first.
+   Domain '<domain>' not found. Run /new-domain <domain> first.
    :::
    Stop.
 2. **CIVIL file exists?**
    - `$DOMAINS_DIR/<domain>/specs/<module>.civil.yaml` missing → Print:
      :::error
-     No CIVIL file found. Run /xl:extract-ruleset <domain> first.
+     No CIVIL file found. Run /extract-ruleset <domain> first.
      :::
      Stop.
 3. **Transpiled output exists?**
@@ -280,7 +280,7 @@ Demo created at $DOMAINS_DIR/<domain>/output/demo-catala-<module>/
 If no test manifest was found, print:
 :::important
 ⚠  No test manifest found — EXAMPLES in index.html contain TODO placeholders.
-   Run /xl:create-tests <domain> <module> for realistic example scenarios.
+   Run /create-tests <domain> <module> for realistic example scenarios.
 :::
 
 :::next_step

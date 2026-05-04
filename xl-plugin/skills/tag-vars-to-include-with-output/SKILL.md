@@ -18,7 +18,7 @@ Good candidates are variables that a person would need to see to understand the 
 
 Poor candidates are purely internal chain steps with no standalone interpretive value (e.g., `after_eitc` as an intermediate step toward `adjusted_earned_income` when `adjusted_earned_income` itself is the meaningful quantity). When in doubt, favor inclusion — callers can filter, but cannot see what is not exposed.
 
-Best run **after `/xl:extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions and decision-condition variables not yet visible in the skeleton's `computations:` list. Because all writes are merge-safe, it is also safe to run earlier and re-run after.
+Best run **after `/extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions and decision-condition variables not yet visible in the skeleton's `computations:` list. Because all writes are merge-safe, it is also safe to run earlier and re-run after.
 
 Read `../../core/output-fencing.md` now.
 
@@ -54,7 +54,7 @@ Await the user's response and use it as `<domain>`. Then continue.
    - NO → Print:
      :::error
      guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-     Run /xl:suggest-target-ruleset <domain> first.
+     Run /suggest-target-ruleset <domain> first.
      :::
      Stop.
 
@@ -76,7 +76,7 @@ Collect all such base names as `auto_tagged_1`.
 
 Scan all CIVIL snippets in `ruleset_modules[].sample_rules[].civil:` and `sample_rules[].civil:` in `guidance.yaml`. Collect two categories of variable names:
 
-**(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/xl:extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
+**(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
 
 **(b) Decision-condition variables:** variable names that appear in `when:` conditions of `categorical:` rules. These are the pivotal computed values the ruleset evaluated to reach its decision — exactly the values a caller needs to understand the outcome. Scan for YAML keys `when:` and collect the variable name from each condition entry (e.g., `is_compatible: false` → `is_compatible`; `client_result.adjusted_earned_income > income_limit` → `income_limit`).
 
@@ -120,7 +120,7 @@ No variables auto-detected. include_with_output: [] written to guidance.yaml.
 Then suggest next steps:
 
 :::next_step
-Next: Run /xl:create-sample-tests <domain> to generate sample test cases used to assess correctness of the generated ruleset
+Next: Run /create-sample-tests <domain> to generate sample test cases used to assess correctness of the generated ruleset
 :::
 
 ---
