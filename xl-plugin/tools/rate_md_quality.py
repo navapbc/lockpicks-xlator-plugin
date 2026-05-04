@@ -143,7 +143,11 @@ def detect_repeated_page_headers(lines: list[str]) -> bool:
         and not _ATX_RE.match(ln)
         and 5 <= len(ln.strip()) < 100
     ]
-    return any(count >= 3 for count in Counter(candidates).values())
+    counts = Counter(candidates)
+    repeated = [text for text, count in counts.items() if count >= 3]
+    if repeated:
+        print(f"[detect_repeated_page_headers] repeated: {repeated}", file=sys.stderr)
+    return bool(repeated)
 
 
 def detect_repeated_page_numbers(lines: list[str]) -> bool:

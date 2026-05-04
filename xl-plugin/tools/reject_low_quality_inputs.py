@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
+# dependencies = ["pyyaml>=6.0"]
 # ///
 """
 Move low-quality markdown files from input/policy_docs/ to input/rejected/.
@@ -31,11 +32,7 @@ import json
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    print('Error: pyyaml is required. Install with: uv add pyyaml', file=sys.stderr)
-    sys.exit(1)
+import yaml
 
 _POLICY_DOCS_PREFIX = 'input/policy_docs/'
 _REJECTED_PREFIX = 'input/rejected/'

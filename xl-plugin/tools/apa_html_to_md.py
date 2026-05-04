@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
-# dependencies = ["beautifulsoup4>=4.12", "requests>=2.28"]
+# dependencies = ["beautifulsoup4>=4.12", "requests>=2.28", "html2text>=2024.1.26"]
 # ///
 """
 Scrape an Alaska APA manual HTML page and convert it to Markdown.
@@ -22,13 +22,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-try:
-    import html2text
-except ImportError as e:
-    raise SystemExit(
-        "Missing dependency: html2text\n"
-        "Install with: pip install html2text beautifulsoup4 requests"
-    ) from e
+import html2text
 
 
 DEFAULT_URL = "http://dpaweb.hss.state.ak.us/manuals/apa/442/442-1_income_exclusions_which_apply_to_both_.htm"
