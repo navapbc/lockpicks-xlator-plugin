@@ -21,12 +21,12 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` dire
 
 ---
 
-Read `$CLAUDE_PLUGIN_ROOT/core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
+Read `core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
 the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeGraph, SP-GuidanceCapture, and others), and common mistakes.
 
 ---
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 

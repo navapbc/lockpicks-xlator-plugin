@@ -20,7 +20,7 @@ Poor candidates are purely internal chain steps with no standalone interpretive 
 
 Best run **after `/xl:extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions and decision-condition variables not yet visible in the skeleton's `computations:` list. Because all writes are merge-safe, it is also safe to run earlier and re-run after.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Input
 

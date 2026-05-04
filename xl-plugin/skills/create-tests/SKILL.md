@@ -16,7 +16,7 @@ Create or update the test suite for a CIVIL module based on its current specs.
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -164,7 +164,7 @@ tests:
       adjusted_income: 1234.56  # float tolerance ±0.005 applied automatically
 ```
 
-**Reference:** See `$CLAUDE_PLUGIN_ROOT/core/tests/eligibility_tests.yaml` for a complete working example.
+**Reference:** See `core/tests/eligibility_tests.yaml` for a complete working example.
 
 Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 

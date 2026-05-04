@@ -18,11 +18,11 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 ---
 
-Read `$CLAUDE_PLUGIN_ROOT/core/ruleset-shared.md` now. It contains shared procedures (SP-Validate, SP-ComputeGraph, SP-TagOutputs, SP-GuidanceCapture, SP-CompleteExtraction, SP-ResolveRulesetModules) referenced in the steps below.
+Read `core/ruleset-shared.md` now. It contains shared procedures (SP-Validate, SP-ComputeGraph, SP-TagOutputs, SP-GuidanceCapture, SP-CompleteExtraction, SP-ResolveRulesetModules) referenced in the steps below.
 
 ---
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -74,7 +74,7 @@ Run these checks before doing anything else:
 **Multi-file:** Run for each `generate` entry in the work-list, in work-list order.
 
 ```bash
-uv run $CLAUDE_PLUGIN_ROOT/tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
+uv run tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
 ```
 
 Always run unconditionally — regenerates even if graph files already exist from a prior run.

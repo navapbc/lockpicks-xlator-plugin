@@ -13,7 +13,7 @@ Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/xl:sugg
 /declare-target-ruleset <domain> [<ruleset_name>]
 ```
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -183,5 +183,5 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED]
 - Do not add `edge_cases:` content here — `edge_cases: []` is always empty at creation; `/xl:create-skeleton` populates it
 - `secondary_decisions: []` must be present even when the ruleset had no secondary decisions — never omit the key
 - `examples: []` in each `input_variables` category is intentional — it is a placeholder that `/xl:create-skeleton` will fill in with domain-specific variable names
-- Do not add `edge_cases:` to the guidance template files in `$CLAUDE_PLUGIN_ROOT/core/guidance-templates/` — `edge_cases:` belongs only in per-domain `guidance.yaml`
+- Do not add `edge_cases:` to the guidance template files in `core/guidance-templates/` — `edge_cases:` belongs only in per-domain `guidance.yaml`
 - `template_id` is the `ruleset_name` from the ruleset file (snake_case) — not the `display_name`, not a path, not a template id from `guidance-templates/`

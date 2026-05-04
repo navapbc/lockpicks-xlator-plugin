@@ -17,7 +17,7 @@ Generate a working FastAPI + browser demo for a domain's policy module using the
 
 If no args are provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -78,11 +78,11 @@ mkdir -p $DOMAINS_DIR/<domain>/output/demo-catala-<module>/static
 
 ### Step 3: Copy `start.sh` and `requirements.txt`
 
-Copy `start.sh` and `requirements.txt` from `$CLAUDE_PLUGIN_ROOT/core/catala` to `$DOMAINS_DIR/<domain>/output/demo-catala-<module>`.
+Copy `start.sh` and `requirements.txt` from `core/catala` to `$DOMAINS_DIR/<domain>/output/demo-catala-<module>`.
 
 ### Step 4: Write `main.py`
 
-Model on `$CLAUDE_PLUGIN_ROOT/core/demo/demo-catala-eligibility/main.py`.
+Model on `core/demo/demo-catala-eligibility/main.py`.
 
 **How to identify the Catala entry points** — read `demo-catala-<module>/python/<ModuleName>.py` (module filename from `clerk.toml` `modules` field, e.g. `"Earned_income"`; populated by pre-flight step 3a) and find:
 - The `*In` class (e.g. `EarnedIncomeDecisionIn`) — input type; look for `class <Name>In:`
@@ -189,7 +189,7 @@ async def check(facts: InputFacts):
 Read the shared Catala HTML template and substitute all `{{PLACEHOLDER}}` markers with domain-specific content:
 
 ```bash
-# Read: $CLAUDE_PLUGIN_ROOT/core/demo/catala.html.template
+# Read: core/demo/catala.html.template
 ```
 
 **Placeholder contract** — substitute each marker exactly as described:
@@ -329,6 +329,6 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 - **`DenialReason.message` equals `code` in v1** — `str(r.code.name)` produces the raw enum name (e.g., `"EarnedIncomeExceedsLimit"`); acceptable for demo.
 
 **Reference files (read these before generating):**
-- `$CLAUDE_PLUGIN_ROOT/core/demo/catala.html.template` — shared HTML template; read this and substitute `{{PLACEHOLDER}}` markers for `static/index.html`
-- `$CLAUDE_PLUGIN_ROOT/core/demo/demo-catala-eligibility/main.py` — canonical FastAPI pattern (includes ComputedBreakdown + ExclusionChainSteps)
-- `$CLAUDE_PLUGIN_ROOT/core/demo/demo-catala-eligibility/python/Eligibility.py` — canonical Catala Python module structure
+- `core/demo/catala.html.template` — shared HTML template; read this and substitute `{{PLACEHOLDER}}` markers for `static/index.html`
+- `core/demo/demo-catala-eligibility/main.py` — canonical FastAPI pattern (includes ComputedBreakdown + ExclusionChainSteps)
+- `core/demo/demo-catala-eligibility/python/Eligibility.py` — canonical Catala Python module structure

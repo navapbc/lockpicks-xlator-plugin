@@ -39,7 +39,7 @@ Which domain? Enter a number or domain name:
 
 `index-only` is an optional literal keyword (third positional argument). When provided, only entries whose `computations[]` all have `expr_hint:` present are processed; entries that require reading source files are skipped entirely. Pass 4b does not run. Use this when you want fast, index-derived `computed:` rules without waiting for source reads.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 

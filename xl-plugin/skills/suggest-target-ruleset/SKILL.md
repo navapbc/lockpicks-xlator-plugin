@@ -15,7 +15,7 @@ The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") na
 /xl:suggest-target-ruleset <domain> [<hint>]
 ```
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 

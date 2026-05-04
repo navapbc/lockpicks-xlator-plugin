@@ -16,7 +16,7 @@ Scan policy input documents for concrete numerical examples and write them to `e
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 

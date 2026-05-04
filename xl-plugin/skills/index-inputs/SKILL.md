@@ -17,7 +17,7 @@ On first run (CREATE), all files are indexed. On subsequent runs (UPDATE), only 
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories as a numbered menu, prompt the user to choose, await their response, and use it as `<domain>` before continuing.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 

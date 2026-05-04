@@ -13,7 +13,7 @@ Extract doc signals from `input-index.yaml` and merge proposals into the four gu
 /create-skeleton <domain>
 ```
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 

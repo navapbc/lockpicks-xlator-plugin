@@ -17,7 +17,7 @@ Generate a working FastAPI + browser demo for a domain's policy module using the
 
 If no args are provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
 
-Read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` now.
+Read `core/output-fencing.md` now.
 
 ## Pre-flight
 
@@ -91,7 +91,7 @@ pydantic
 
 ### Step 4: Write `start.sh`
 
-Model on `$CLAUDE_PLUGIN_ROOT/core/demo/demo-rego-eligibility/start.sh`. Key substitutions:
+Model on `core/demo/demo-rego-eligibility/start.sh`. Key substitutions:
 
 ```bash
 #!/usr/bin/env bash
@@ -114,7 +114,7 @@ Keep all other logic verbatim: OPA health-check loop, cleanup trap, uvicorn laun
 
 ### Step 5: Write `main.py`
 
-Model on `$CLAUDE_PLUGIN_ROOT/core/demo/demo-rego-eligibility/main.py`. Key substitutions:
+Model on `core/demo/demo-rego-eligibility/main.py`. Key substitutions:
 
 **Constants:**
 ```python
@@ -180,7 +180,7 @@ Keep lifespan OPA health-check, error handling (ConnectError, HTTPStatusError, T
 Read the shared Rego HTML template and substitute all `{{PLACEHOLDER}}` markers with domain-specific content:
 
 ```bash
-# Read: $CLAUDE_PLUGIN_ROOT/core/demo/rego.html.template
+# Read: core/demo/rego.html.template
 ```
 
 The template has `.breakdown-table`, `.test-result`, and `testIcon()` already baked in — do not duplicate them in `{{EXTRA_CSS}}` or `{{EXTRA_JS_HELPERS}}`.
@@ -296,6 +296,6 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 - **`start.sh` REPO_ROOT is always 4 levels up** from the script — `$(cd "$SCRIPT_DIR/../../../.." && pwd)` — do not change this
 
 **Reference files (read these before generating):**
-- `$CLAUDE_PLUGIN_ROOT/core/demo/rego.html.template` — shared HTML template; read this and substitute `{{PLACEHOLDER}}` markers for `static/index.html`
-- `$CLAUDE_PLUGIN_ROOT/core/demo/demo-rego-eligibility/main.py` — canonical FastAPI pattern
-- `$CLAUDE_PLUGIN_ROOT/core/demo/demo-rego-eligibility/start.sh` — canonical launcher pattern
+- `core/demo/rego.html.template` — shared HTML template; read this and substitute `{{PLACEHOLDER}}` markers for `static/index.html`
+- `core/demo/demo-rego-eligibility/main.py` — canonical FastAPI pattern
+- `core/demo/demo-rego-eligibility/start.sh` — canonical launcher pattern
