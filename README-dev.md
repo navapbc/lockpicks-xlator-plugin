@@ -83,7 +83,7 @@ xlator/
 │   ├── plans/
 │   └── solutions/
 └── .claude/
-    └── commands/        # Claude Code slash commands (/extract-ruleset, etc.)
+    └── skills/          # Claude Code skills (/extract-ruleset, etc.)
 ```
 
 ### Active Domains

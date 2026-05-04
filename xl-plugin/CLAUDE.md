@@ -41,7 +41,7 @@ Unfenced output defaults to `detail`.
 
 Before executing any slash command, read `$CLAUDE_PLUGIN_ROOT/core/output-fencing.md` for the full authoring reference.
 
-## Slash Commands Next steps
+## Skills Next steps
 
 After completion of a `xl` slash command, suggest possible next steps based on the following workflows:
 
@@ -131,7 +131,7 @@ After the user adds/updates .md policy documents in `$DOMAINS_DIR/<domain>/input
   1. `/xl:index-inputs <domain>` to update the document index
   2. `/xl:update-ruleset <domain>` to update the CIVIL ruleset
 
-## Multi-step Slash Commands
+## Multi-step Skills
 
 When a slash command has more than 3 steps, show a checklist of the steps at the completion of each step to help the user track their progress.
 
