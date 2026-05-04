@@ -196,7 +196,7 @@ setup_misc() {
     # Claude's PATH should have $CLAUDE_PLUGIN_ROOT/bin included, so xlator should be available for Claude.
     # For other contexts (VS Code terminal, user shell), create a symlink to the xlator script in a folder that's on the PATH.
     # .venv/bin is on the PATH, so create a symlink to the xlator script there
-    [ -d "$VIRTUAL_ENV" ] && ensure_xlator_symlink "$VIRTUAL_ENV/bin"
+    [ -d "${VIRTUAL_ENV:-}" ] && ensure_xlator_symlink "$VIRTUAL_ENV/bin"
     # as well as ~/.local/bin for the user shell (and VS Code terminal if it's launched from the user shell)
     ensure_xlator_symlink "$HOME/.local/bin"
 
