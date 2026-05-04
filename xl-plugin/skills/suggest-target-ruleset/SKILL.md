@@ -5,7 +5,7 @@ description: Suggest Target Rulesets given Policy Documents
 
 # Suggest Target Rulesets given Policy Documents
 
-Analyze a domain's `specs/input-index.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/declare-target-ruleset`.
+Analyze a domain's `specs/input-sections.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/declare-target-ruleset`.
 
 The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") narrows what kinds of rulesets to suggest — it prioritizes candidates that match the hint phrase but still reads the whole index. When no hint is provided, all distinct policy scopes found in the index are candidates with a preference for rulesets that cover more topics.
 
@@ -40,10 +40,10 @@ Run these checks before doing anything else:
      Then stop.
 
 3. **Input index present?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
+   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
+     Input index not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
      Run /index-inputs <domain> first, then re-run /suggest-target-ruleset <domain>.
      :::
      Then stop.
@@ -54,9 +54,9 @@ Run these checks before doing anything else:
 
 ### Step 1: Analyze index
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`.
+Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`.
 
-Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of doc signals.
+Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals.
 
 Cluster the index signals to identify 1–5 distinct policy scopes. For each scope, derive a candidate target ruleset:
 
@@ -81,7 +81,7 @@ Refer to `$DOMAINS_DIR/ak_doh/specs/guidance.yaml` as an exemplar of the expecte
 **When `<hint>` is provided:**
 - Rank candidates by relevance to the hint phrase — prefer section headings, topic tags, and computation hints that match the hint
 - Show a display header: `Suggestions focused on: <hint>`
-- Still read all of `input-index.yaml` — the hint is a prioritization signal, not a filter that discards unrelated sections entirely
+- Still read all of `input-sections.yaml` — the hint is a prioritization signal, not a filter that discards unrelated sections entirely
 - If hint matches nothing strongly, show all candidates and note: `(No strong match found for "<hint>" — showing all candidates)`
 
 **Display all candidates** in a numbered list:
@@ -167,7 +167,7 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 ## Common Mistakes to Avoid
 
 - **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
-- **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `input-index.yaml` is the sole source of doc signals
+- **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `input-sections.yaml` is the sole source of doc signals
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
 - **`secondary_decisions: []` is valid when no secondary outputs are identified** — do not omit the field; an absent `secondary_decisions` key is not the same as an empty list
 - **Do not use block-style lists for `type:` values** — `type: enum` not `type:\n  - approve\n  - deny`

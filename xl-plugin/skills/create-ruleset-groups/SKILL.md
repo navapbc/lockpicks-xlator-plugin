@@ -5,7 +5,7 @@ description: Propose and Write Ruleset Groups for a Domain
 
 # Propose and Write Ruleset Groups for a Domain
 
-Read `input-index.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:` and before `constraints:`. A "Ruleset Group" is synonymous with a "ruleset group".
+Read `input-sections.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:` and before `constraints:`. A "Ruleset Group" is synonymous with a "ruleset group".
 
 ## Input
 
@@ -45,11 +45,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-4. **`input-index.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
+4. **`input-sections.yaml` exists?**
+   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
+     Input sections not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -89,7 +89,7 @@ After pre-flight, check whether the `ruleset_groups:` key already exists in `gui
 
 ### Step 1: Scan for phase headings
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of phase heading signals.
+Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals.
 
 Look for:
 - Section headings (`heading:` values) that name a test phase or logical grouping (e.g., "Income Test", "Household Size Verification", "Categorical Eligibility")
@@ -155,7 +155,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 
 ## Common Mistakes to Avoid
 
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of phase heading signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals
 - `ruleset_groups:` is inserted after `skeleton:` and before `constraints:` in `guidance.yaml`, not at the end of the file
 - In UPDATE mode "accept", exit without writing — do not overwrite existing `ruleset_groups:` content
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`

@@ -106,7 +106,7 @@ Additionally, build five in-memory structures from the loaded `guidance.yaml`:
 If `<filename>` is given, read only `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>`.
 Otherwise, read the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
 
-**If `specs/input-index.yaml` exists**, use the index as a reading guide: skim the index entries for the selected files to understand their structure before reading the full content. This helps prioritize which sections to extract from when the docs are long.
+**If `specs/input-sections.yaml` exists**, use the index as a reading guide: skim the index entries for the selected files to understand their structure before reading the full content. This helps prioritize which sections to extract from when the docs are long.
 
 Identify:
 
@@ -500,7 +500,7 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
-| `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.

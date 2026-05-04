@@ -71,16 +71,18 @@ Enable/disable each skill in the UI based on which file-state prerequisites are 
 flowchart TD
     DOCS["policy docs in input/policy_docs/"]
     IDX_CMD["/index-inputs"]
-    IDX(["input-index.yaml"])
+    IDX_META(["input-index.yaml\n(files block: SHAs, md_quality)"])
+    IDX_SECTS(["input-sections.yaml\n(sections block)"])
 
-    DOCS --> IDX_CMD --> IDX
+    DOCS --> IDX_CMD --> IDX_META
+    IDX_CMD --> IDX_SECTS
 
-    SUG["/suggest-target-ruleset\nenabled: input-index.yaml exists"]
+    SUG["/suggest-target-ruleset\nenabled: input-sections.yaml exists"]
     SUG_F(["suggested_targets/*.yaml"])
     DECL["/declare-target-ruleset\nenabled: suggested_targets/ has ≥1 file"]
     GY(["guidance.yaml"])
 
-    IDX --> SUG --> SUG_F --> DECL --> GY
+    IDX_SECTS --> SUG --> SUG_F --> DECL --> GY
 
     SKEL["/create-skeleton\nenabled: guidance.yaml exists"]
     GY_SKEL(["guidance.yaml\nwith skeleton:"])
@@ -91,14 +93,14 @@ flowchart TD
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
     GY_MODS(["guidance.yaml\nwith ruleset_modules:"])
-    SAMPLERULES["/extract-sample-rules\nbest: ruleset_modules: present\nmin: skeleton: present\nenabled: guidance.yaml + input-index.yaml exist"]
+    SAMPLERULES["/extract-sample-rules\nbest: ruleset_modules: present\nmin: skeleton: present\nenabled: guidance.yaml + input-sections.yaml exist"]
     GY_RULES(["guidance.yaml\nwith sample_rules"])
     TAGVARS["/tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
     SAMPLETESTS["/create-sample-tests\nenabled: sample_rules or sample_rules present"]
     GY_SAMPLETESTS(["guidance.yaml\nwith sample_tests:"])
 
     MODS --> GY_MODS --> SAMPLERULES
-    IDX --> SAMPLERULES
+    IDX_SECTS --> SAMPLERULES
     SAMPLERULES --> GY_RULES --> TAGVARS
     GY_RULES --> SAMPLETESTS --> GY_SAMPLETESTS
 

@@ -5,7 +5,7 @@ description: Extract Sample Rules
 
 # Extract Sample Rules
 
-Generate a comprehensive set of relevant CIVIL rules from `input-index.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
+Generate a comprehensive set of relevant CIVIL rules from `input-sections.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
 
 Unlike `/refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately for user review.
 
@@ -67,10 +67,10 @@ Read `../../core/output-fencing.md` now.
      :::
      Stop.
 
-5. **`input-index.yaml` exists?**
+5. **`input-sections.yaml` exists?**
    - NO → Print:
      :::error
-     input-index.yaml not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
+     input-sections.yaml not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Stop.
@@ -96,7 +96,7 @@ Steps:
 
 ### Step 2: Load and filter index
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
+Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
 
 **If `<rule_topic>` was provided:** further filter to entries whose `heading:`, `summary:`, or `tags:` contain the topic keywords (case-insensitive). If no entries match the topic, print:
 
@@ -167,7 +167,7 @@ Rules are generated in two passes. **These passes are strictly sequential and mu
 
 **Pass 4a — Index pass**
 
-For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the order they appear in `input-index.yaml`:
+For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the order they appear in `input-sections.yaml`:
 
 **(a) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, apply the two operations from SP-LoadNamingManifest in order: (1) keyed lookup — if the variable name matches a map key, use that manifest name; (2) concept matching — if no keyed match, scan map values for a `policy_phrase` that closely matches the entry's `computations[].description` text, and use that entry's variable name if found. Only if neither operation finds a match, derive a snake_case name from the entry's `computations[].description` text:
 - Extract the noun phrase from the description
@@ -217,7 +217,7 @@ If `index-only`: stop. Do not run Pass 4b.
 
 **Pass 4b — Source pass**
 
-Process all `needs-source` entries, then any `computed-only` entries added to the Pass 4b queue. Within each group, process in priority order (high → normal → low), then in `input-index.yaml` order.
+Process all `needs-source` entries, then any `computed-only` entries added to the Pass 4b queue. Within each group, process in priority order (high → normal → low), then in `input-sections.yaml` order.
 
 **(a) Read source text.** Locate the source file at `path:` and navigate to the section identified by `heading:`. Read that section's text.
 
@@ -265,7 +265,7 @@ Rule entry schema:
 sample_rules:
   - id: <snake_case_identifier>
     rule_type: computed | categorical | table-lookup
-    source: "<quoted sentence from input-index.yaml section summary>"
+    source: "<quoted sentence from input-sections.yaml section summary>"
     civil: |
       <full CIVIL YAML snippet>
 ```
@@ -408,11 +408,11 @@ Next: Run /tag-vars-to-include-with-output <domain> to auto-detect intermediate 
 
 ## Common Mistakes to Avoid
 
-- **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use `path:` and `heading:` from `input-index.yaml` to locate sections. Reading source policy files via those pointers is explicitly permitted for this command.
+- **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use `path:` and `heading:` from `input-sections.yaml` to locate sections. Reading source policy files via those pointers is explicitly permitted for this command.
 - **Do not overwrite existing `sample_rules:` entries** — merge by `id:` only; never remove manually edited rules
 - **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/extract-ruleset` run
 - **Do not clobber other guidance.yaml sections** — this command writes only to `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions`; all other sections must be preserved verbatim
 - **Use canonical names from the manifest** — if a variable name exists in `naming-manifest.yaml`, use it; do not re-derive or rename it
 - **`civil:` is a literal block scalar** — always use the `|` block indicator; never use a quoted string or folded scalar for CIVIL snippets
-- **`source:` must be a quoted sentence from the index** — copy from `input-index.yaml` section `summary:` or `computations[].description:`; do not paraphrase
+- **`source:` must be a quoted sentence from the index** — copy from `input-sections.yaml` section `summary:` or `computations[].description:`; do not paraphrase
 - **Do not combine Pass 4a and 4b into a single write** — Pass 4a must write files and print its summary before Pass 4b begins; the point is to let the user review index-derived rules while source reads are in progress

@@ -5,7 +5,7 @@ description: Detect Ruleset Module as Modules for a Domain
 
 # Detect Ruleset Module as Modules for a Domain
 
-Reads `skeleton:` and `ruleset_groups:` from `guidance.yaml`, extracts doc signals from `input-index.yaml`, applies six heuristics to detect ruleset modules, and writes modules to `guidance.yaml` as `ruleset_modules:` after `ruleset_groups:`.
+Reads `skeleton:` and `ruleset_groups:` from `guidance.yaml`, extracts doc signals from `input-sections.yaml`, applies six heuristics to detect ruleset modules, and writes modules to `guidance.yaml` as `ruleset_modules:` after `ruleset_groups:`.
 
 A "module" is a ruleset module — a subset of rules within a ruleset group (ruleset group). Ruleset modules must not cross ruleset group boundaries.
 
@@ -47,11 +47,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-4. **`input-index.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
+4. **`input-sections.yaml` exists?**
+   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
+     Input sections not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -89,13 +89,13 @@ After pre-flight, check whether `ruleset_modules:` already exists and is non-emp
 
 Read:
 - `$DOMAINS_DIR/<domain>/specs/guidance.yaml` — load `skeleton:`, `ruleset_groups:`, and `intermediate_variables.categories` (for variable names)
-- `$DOMAINS_DIR/<domain>/specs/input-index.yaml` — re-run Step 2 signal extraction:
+- `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` — re-run Step 2 signal extraction:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
   - **File summaries** — collect all `summary:` values; reveals program scope and terminology
   - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (last item in `variables` list is the output); collect `expr_hint` values keyed by output variable. If the index has no `computations:` entries, skip this signal.
 
-Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of doc signals.
+Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals.
 
 In UPDATE mode: display a summary of existing `ruleset_modules:` as pre-confirmed before scanning for new modules. Include the `role: main` entry (if present) in the pre-confirmed block — it will not be re-prompted in Step 3:
 
@@ -116,7 +116,7 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | Priority | Heuristic | Rationale value | Test |
 |----------|-----------|-----------------|------|
 | 1 | `reuse_across_entities` | Entity reuse | 2+ entity names in `input_variables.categories` (or `skeleton.inputs`) where a common computation prefix applies to each — e.g., `client_earned_income` and `dol_earned_income` suggest the same `earned_income` ruleset module bound to two entities (ClientData, DOLRecord) |
-| 2 | `policy_structure` | Policy section grouping | Named sub-section heading from `input-index.yaml` covers ≥3 intermediate variables in `skeleton.computations` |
+| 2 | `policy_structure` | Policy section grouping | Named sub-section heading from `input-sections.yaml` covers ≥3 intermediate variables in `skeleton.computations` |
 | 3 | `depth_threshold` | Sequential depth | ≥5 variables in `skeleton` whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | 4 | `variable_coupling` | Coupling clique | ≥3 intermediate variables in `skeleton.computations` where each references ≥2 of the others' outputs — forming a mutual dependency clique that signals a self-contained computation cluster worth isolating |
 | 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |
@@ -227,7 +227,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 
 ## Common Mistakes to Avoid
 
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-index.yaml` is the sole source of doc signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals
 - `ruleset_modules:` is inserted after `ruleset_groups:` and before `constraints:` in `guidance.yaml`, not at the end of the file unless no later keys exist
 - In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset_modules:`
 - In UPDATE mode with new modules, overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones

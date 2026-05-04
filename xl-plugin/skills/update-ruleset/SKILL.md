@@ -276,7 +276,7 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Updated |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 9, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 10; consumed by `/create-tests`) |
-| `$DOMAINS_DIR/<domain>/specs/input-index.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.

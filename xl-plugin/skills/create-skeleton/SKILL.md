@@ -5,7 +5,7 @@ description: Build Computation Skeleton for a Domain
 
 # Build Computation Skeleton for a Domain
 
-Extract doc signals from `input-index.yaml` and merge proposals into the four guidance sections of `guidance.yaml`, then build and confirm the computation skeleton. Then, writes the `skeleton:` key and updates the variable sections.
+Extract doc signals from `input-sections.yaml` and merge proposals into the four guidance sections of `guidance.yaml`, then build and confirm the computation skeleton. Then, writes the `skeleton:` key and updates the variable sections.
 
 ## Input
 
@@ -45,11 +45,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-4. **`input-index.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-index.yaml`
+4. **`input-sections.yaml` exists?**
+   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/specs/input-index.yaml
+     Input sections not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -119,8 +119,8 @@ Steps:
 
 ### Step 2: Extract doc signals and update guidance sections
 
-Read `$DOMAINS_DIR/<domain>/specs/input-index.yaml`.
-Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — the index is the sole source of doc signals.
+Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`.
+Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — the sections index is the sole source of doc signals.
 
 Extract the following signals (hold in memory for Step 3):
 
@@ -256,7 +256,7 @@ $DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
 
 ## Common Mistakes to Avoid
 
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-index.yaml` is the sole source of doc signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-sections.yaml` is the sole source of doc signals
 - Do not rewrite sections the user did not change — preserve exact wording of unchanged items; only append new proposals in Step 2
 - The `skeleton:` key is inserted after `scope:` (before `constraints:`), not at the end of the file
 - Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with actual `expr_hint` values get a `computations:` entry

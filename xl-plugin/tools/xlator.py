@@ -396,6 +396,62 @@ def cmd_manifest_update(domain):
     _print_ok(f"manifest updated: {mpath.relative_to(DOMAINS_FULLPATH)}")
 
 
+def cmd_extract_sections(domain, exclude_paths):
+    """Print sections block entries from input-sections.yaml, excluding specified file paths.
+
+    Outputs raw YAML text (the section entries only, without the 'sections:' header)
+    suitable for appending directly to a new sections file. Entries for paths in
+    exclude_paths are omitted; all others are preserved verbatim.
+    """
+    import re as _re
+    index_path = DOMAINS_FULLPATH / domain / "specs" / "input-sections.yaml"
+
+    if not index_path.exists():
+        _print_err(f"input-sections.yaml not found: {index_path.relative_to(DOMAINS_FULLPATH)}")
+        sys.exit(1)
+
+    with open(index_path) as f:
+        content = f.read()
+
+    marker = "\nsections:"
+    pos = content.find(marker)
+    if pos == -1:
+        return  # No sections block — nothing to output
+
+    after_header = content[pos + len(marker):]
+    # Strip the newline immediately after 'sections:'
+    after_header = after_header.lstrip("\n")
+
+    if not after_header.strip():
+        return  # Empty sections block
+
+    if not exclude_paths:
+        sys.stdout.write(after_header)
+        return
+
+    exclude_set = set(exclude_paths)
+
+    # Find the start position of each entry (lines beginning with '  - path:')
+    entry_starts = [m.start() for m in _re.finditer(r"^  - path:", after_header, _re.MULTILINE)]
+    if not entry_starts:
+        return
+
+    kept = []
+    for i, start in enumerate(entry_starts):
+        end = entry_starts[i + 1] if i + 1 < len(entry_starts) else len(after_header)
+        entry_text = after_header[start:end]
+        path_match = _re.match(r'  - path: "?([^"\n]+)"?', entry_text)
+        if path_match:
+            path = path_match.group(1).strip()
+            if path not in exclude_set:
+                kept.append(entry_text)
+        else:
+            kept.append(entry_text)
+
+    if kept:
+        sys.stdout.write("".join(kept))
+
+
 def cmd_detect_changes(domain):
     """Exit 0 = no changes (nothing to do). Exit 1 = changes detected.
 
@@ -510,6 +566,17 @@ examples:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
 
+    # extract-sections: used by /index-inputs UPDATE mode to preserve SKIP sections
+    p_es = sub.add_parser(
+        "extract-sections",
+        help="Print section entries from input-sections.yaml, excluding specified file paths",
+    )
+    p_es.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_es.add_argument(
+        "--exclude", metavar="PATH", action="append", default=[],
+        help="Domain-relative path to exclude (repeat for multiple paths)",
+    )
+
     # Preflight: domain + module + optional backend
     p_pre = sub.add_parser("preflight", help="Validate domain, module, and tool prerequisites")
     p_pre.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
@@ -587,6 +654,8 @@ examples:
             cmd_manifest_update(args.domain)
         case "detect-changes":
             cmd_detect_changes(args.domain)
+        case "extract-sections":
+            cmd_extract_sections(args.domain, args.exclude)
         case "export-test-template":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
