@@ -33,8 +33,8 @@ Now that the repo is created, you can open the repo in GitHub Codespaces (recomm
 A `postStartCommand` devcontainer configuration will run `xlator_setup.sh`, which does the following:
 
 1. Initialize `opam` and install `catala`
-2. Create `.xlator.local.env` to set `CLAUDE_PLUGIN_ROOT`, which is used by `xlator` scripts and slash commands
-3. Create symlink to the `xlator` plugin installation folder for reference
+2. Create `.xlator.local.env` to set environment variables, which are used by shell scripts
+3. Create a `.shared/.plugin` symlink to the `xlator` plugin installation folder for reference
 
 ## Authenticate Claude
 

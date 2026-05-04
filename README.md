@@ -213,7 +213,7 @@ Not yet in the diagram:
 
 The following illustrates how Xlator currently implements the vision above for policy documents.
 
-Note the `/transpile-and-test` block does not require AI -- it exists to have a consistent interface with the user (i.e., using slash commands). It checks for pre-requisites and runs scripts. With that said, an advantage to having the AI run it is when transpilation or test errors occur, the AI automatically tries to resolve them.
+Note the `/transpile-and-test` block does not require AI -- it exists to have a consistent interface with the user (i.e., using AI skills). It checks for pre-requisites and runs scripts. With that said, an advantage to having the AI run it is when transpilation or test errors occur, the AI automatically tries to resolve them.
 
 See [README-dev.md](README-dev.md) for more detail.
 

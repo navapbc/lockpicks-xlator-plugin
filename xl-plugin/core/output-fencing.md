@@ -1,8 +1,8 @@
 # Output Fencing — Authoring Reference
 
-Shared fence protocol for all xlator slash commands. Commands emit fenced output so a web UI harness can parse and route blocks deterministically without AI or heuristics.
+Shared fence protocol for all xlator skills. Skills emit fenced output so a web UI harness can parse and route blocks deterministically without AI or heuristics.
 
-Do not invoke this file directly. It is referenced from `xl-plugin/CLAUDE.md` and may be read on demand by any command.
+Do not invoke this file directly. It is referenced from `xl-plugin/CLAUDE.md` and may be read on demand by any AI skill.
 
 ---
 
@@ -18,7 +18,7 @@ Content goes here.
 - Closing delimiter: `:::` on its own line
 - Fences must not be nested
 - Multiple fence blocks per response are allowed; each is parsed independently
-- Unfenced output (including any output from a command that has not yet been annotated) defaults to `detail`
+- Unfenced output (including any output from a skill that has not yet been annotated) defaults to `detail`
 
 ---
 
@@ -50,7 +50,7 @@ Domain not found: $DOMAINS_DIR/unknown/
 
 ### `:::next_step`
 
-**When to use:** Suggested follow-on commands and workflow guidance shown after successful completion.
+**When to use:** Suggested follow-on skills and workflow guidance shown after successful completion.
 
 ```
 :::next_step
@@ -74,13 +74,13 @@ rules:
 :::
 ```
 
-**Verbatim-relay commands:** Wrap the relay block in `:::detail`. Open the fence immediately before beginning relay; close it immediately after relay completes. Each program's relay is a discrete block — do not wrap multiple programs in a single fence.
+**Verbatim-relay:** Wrap the relay block in `:::detail`. Open the fence immediately before beginning relay; close it immediately after relay completes. Each program's relay is a discrete block — do not wrap multiple programs in a single fence.
 
 ---
 
 ### `:::progress`
 
-**When to use:** Transient in-flight status messages shown while the command is still running — scanning lines, indexing counts, per-item extraction progress. Also use for step checklists that show checked/unchecked progress state during a multi-step command.
+**When to use:** Transient in-flight status messages shown while the skill is still running — scanning lines, indexing counts, per-item extraction progress. Also use for step checklists that show checked/unchecked progress state during a multi-step skill.
 
 `:::progress` is for *incomplete, in-flight* output. Once a result is final and complete, use `:::detail` or `:::important` instead.
 
@@ -103,7 +103,7 @@ Scanning for modules…
 
 ### `:::user_input`
 
-**When to use:** Any prompt that requires a response before the command can continue — domain-selection menus, mode-choice prompts, confirmation requests, disambiguation questions.
+**When to use:** Any prompt that requires a response before the skill can continue — domain-selection menus, mode-choice prompts, confirmation requests, disambiguation questions.
 
 ```
 :::user_input
@@ -123,7 +123,7 @@ Which domain? Enter a number or domain name:
 | `:::progress` | In-flight, transient, not yet complete | "Indexing 4 documents…", per-item scan lines, step checklist mid-run |
 | `:::detail` | Complete, substantive, available for inspection | Skeleton YAML, coverage map, rules table, completed relay output |
 
-When in doubt: if the output would look wrong or misleading after the command finishes, it is `progress`. If the user would want to read it after the command finishes, it is `detail`.
+When in doubt: if the output would look wrong or misleading after the skill finishes, it is `progress`. If the user would want to read it after the skill finishes, it is `detail`.
 
 ---
 
@@ -135,7 +135,7 @@ When in doubt: if the output would look wrong or misleading after the command fi
 | In-flight status line, scan progress, step checklist mid-run | `:::progress` |
 | Primary result, written confirmation, summary verdict | `:::important` |
 | Skeleton, YAML, rule table, coverage map, verbatim relay | `:::detail` |
-| Suggested follow-on commands | `:::next_step` |
+| Suggested follow-on skills | `:::next_step` |
 | Any prompt requiring user response before continuing | `:::user_input` |
 
 ---
@@ -146,6 +146,6 @@ If verbatim relay output contains a line that is exactly `:::` (e.g., a test run
 
 ---
 
-## Per-Command Mapping
+## Per-Skill Mapping
 
-The mapping of output blocks to fence types for each command is determined at implementation time by reading the command's output sections and applying the rules above. Per-command notes appear in the command file only when the mapping is non-obvious.
+The mapping of output blocks to fence types for each skill is determined at implementation time by reading the skill's output sections and applying the rules above. Per-skill notes appear in the skill file only when the mapping is non-obvious.

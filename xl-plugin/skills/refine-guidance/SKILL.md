@@ -5,7 +5,7 @@ description: Refine Ruleset Guidance for a Domain
 
 # Refine Ruleset Guidance for a Domain
 
-Create or update `guidance.yaml` for a domain by orchestrating the granular guidance-authoring commands in sequence. On first run (CREATE), guides the user through guidance template selection (or AI-suggested rulesets) to bootstrap `guidance.yaml`, then runs each authoring step in sequence. On subsequent runs (UPDATE), loads the existing `guidance.yaml` and runs each step to refine it.
+Create or update `guidance.yaml` for a domain by orchestrating the granular guidance-authoring skills in sequence. On first run (CREATE), guides the user through guidance template selection (or AI-suggested rulesets) to bootstrap `guidance.yaml`, then runs each authoring step in sequence. On subsequent runs (UPDATE), loads the existing `guidance.yaml` and runs each step to refine it.
 
 The **guidance template** (in `../../core/guidance-templates/` and `$DOMAINS_DIR/guidance-templates/`) provides an initial ruleset guidance that is then customized per domain in `$DOMAINS_DIR/<domain>/specs/guidance.yaml`.
 

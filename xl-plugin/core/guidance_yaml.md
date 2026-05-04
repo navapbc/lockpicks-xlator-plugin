@@ -2,13 +2,13 @@
 
 `guidance.yaml` is the per-domain ruleset guidance file. It lives at `$DOMAINS_DIR/<domain>/specs/guidance.yaml` and controls how `/extract-ruleset` reads policy documents and generates a CIVIL ruleset.
 
-The file is built incrementally by a sequence of slash commands.
+The file is built incrementally by a sequence of AI skills.
 
 ---
 
 ## Top-level key ordering
 
-Slash commands insert keys in this order:
+AI skills insert keys in this order:
 
 ```
 template_id
@@ -37,9 +37,9 @@ sample_tests      ← /create-sample-tests
 
 ---
 
-## Field usage by command
+## Field usage by skill
 
-Which commands read each field as input (beyond `/extract-ruleset` and the command that writes it):
+Which AI skills read each field as input (beyond `/extract-ruleset` and the skill that writes it):
 
 | Field | Read by |
 |-------|---------|
@@ -62,7 +62,7 @@ Which commands read each field as input (beyond `/extract-ruleset` and the comma
 | `sample_rules` | `/tag-vars-to-include-with-output`, `/create-sample-tests` |
 | `sample_tests` | `/create_tests` |
 
-Fields not listed (`source_template`, `generated_at`, `description`, `missing_info`, `assumptions`) are not consumed as inputs by any downstream command.
+Fields not listed (`source_template`, `generated_at`, `description`, `missing_info`, `assumptions`) are not consumed as inputs by any downstream skill.
 
 ---
 
@@ -90,7 +90,7 @@ source_template: assess-eligibility
 
 ### `generated_at`
 
-Date the file was created or last structurally updated, in `YYYY-MM-DD` format. Updated by commands that write new top-level keys (e.g., `/create-ruleset-groups`).
+Date the file was created or last structurally updated, in `YYYY-MM-DD` format. Updated by skills that write new top-level keys (e.g., `/create-ruleset-groups`).
 
 ```yaml
 generated_at: 2026-03-27
@@ -98,7 +98,7 @@ generated_at: 2026-03-27
 
 ### `display_name`
 
-Human-readable name for the ruleset, shown in command output and UI labels.
+Human-readable name for the ruleset, shown in skill output and UI labels.
 
 ```yaml
 display_name: "Determine Medicaid Eligibility based on Reported Income after Exclusions (Alaska)"

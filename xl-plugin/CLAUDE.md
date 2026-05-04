@@ -1,6 +1,6 @@
 ## Environment variables
 
-The `.xlator.local.env` file exports the `$DOMAINS_DIR` and other environment variables, used by shell scripts and slash commands.
+The `.xlator.local.env` file exports the `$DOMAINS_DIR` and other environment variables, used by shell scripts and AI skills.
 
 If `$DOMAINS_DIR` is unknown, read it from `.xlator.local.env` in the project root folder.
 
@@ -20,7 +20,7 @@ Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 's
 
 ## Output Fencing
 
-All slash command output MUST be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics. Always include the fencing syntax around the text blocks in the output, such as `:::important` and `:::next_step`.
+All skill output MUST be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics. Always include the fencing syntax around the text blocks in the output, such as `:::important` and `:::next_step`.
 
 **Syntax:** `:::type` on its own line to open, `:::` on its own line to close. No nesting. Multiple blocks per response are allowed.
 
@@ -28,7 +28,7 @@ All slash command output MUST be wrapped in semantic fence blocks so a web UI ha
 |------------|-------------|
 | `:::important` | Primary result, written confirmation, summary verdict |
 | `:::error` | Pre-flight failure — always paired with a stop |
-| `:::next_step` | Suggested follow-on commands after successful completion |
+| `:::next_step` | Suggested follow-on skills after successful completion |
 | `:::detail` | Skeleton, YAML, rule tables, coverage maps, verbatim relay output |
 | `:::progress` | In-flight status lines, scan progress, step checklist mid-run |
 | `:::user_input` | Any prompt requiring a user response before continuing |
@@ -37,13 +37,13 @@ Unfenced output defaults to `detail`.
 
 **`progress` vs `detail`:** `:::progress` = transient, in-flight (still running). `:::detail` = complete, available for inspection.
 
-**Verbatim-relay commands:** Open `:::detail` before beginning relay; close `:::` after relay completes. One fence per program — do not wrap multiple programs in a single fence.
+**Verbatim-relay:** Open `:::detail` before beginning relay; close `:::` after relay completes. One fence per program — do not wrap multiple programs in a single fence.
 
-Before executing any slash command, read `core/output-fencing.md` for the full authoring reference.
+Before executing any skill, read `core/output-fencing.md` for the full authoring reference.
 
 ## Skills Next steps
 
-After completion of a `xl` slash command, suggest possible next steps based on the following workflows:
+After completion of a `xl` skill, suggest possible next steps based on the following workflows:
 
 Typical steps:
   1. `/xl:new-domain <domain>` to set up the folder scaffold for a new domain
@@ -63,9 +63,9 @@ Typical steps:
   5. `/xl:extract-ruleset <domain>` to extract the CIVIL ruleset
   6. `/xl:review-ruleset <domain>` to review the extracted ruleset, finalize graph artifacts, and capture guidance learnings
 
-### Command dependency diagram
+### Skill dependency diagram
 
-Enable/disable each command in the UI based on which file-state prerequisites are satisfied. Dashed edges indicate optional steps — the downstream command is enabled independently, not gated on them.
+Enable/disable each skill in the UI based on which file-state prerequisites are satisfied. Dashed edges indicate optional steps — the downstream skill is enabled independently, not gated on them.
 
 ```mermaid
 flowchart TD
@@ -133,7 +133,7 @@ After the user adds/updates .md policy documents in `$DOMAINS_DIR/<domain>/input
 
 ## Multi-step Skills
 
-When a slash command has more than 3 steps, show a checklist of the steps at the completion of each step to help the user track their progress.
+When a skill has more than 3 steps, show a checklist of the steps at the completion of each step to help the user track their progress.
 
 ## AskUserQuestion
 

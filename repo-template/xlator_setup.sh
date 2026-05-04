@@ -138,7 +138,7 @@ setup_xlator_plugin() {
     fi
 
     # CLAUDE_PLUGIN_ROOT is set by Claude Code for hook commands but not other contexts.
-    # Persist it so shell scripts and slash commands can use it too.
+    # Persist it so shell scripts can use it too.
     CLAUDE_PLUGIN_ROOT=$(get_xl_plugin_install_path)
     if [ -z "$CLAUDE_PLUGIN_ROOT" ]; then
         echo "Error: Failed to determine CLAUDE_PLUGIN_ROOT from 'claude plugin list'" >&2

@@ -100,7 +100,7 @@ def _infer_domain(text: str) -> str:
 
     Primary: match against the resolved DOMAINS_FULLPATH path in the text.
     Secondary: match against the DOMAINS_FULLPATH basename (handles relative paths in text).
-    Fallback for xlator commands: positional arg 2 is the domain.
+    Fallback for xlator skills: positional arg 2 is the domain.
     Default: .shared
 
     Candidates are rejected if they contain non-identifier characters or do not

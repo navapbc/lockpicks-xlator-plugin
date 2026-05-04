@@ -34,7 +34,7 @@ def run(domain: str) -> None:
     log_path = DOMAINS_FULLPATH / domain / "logs" / "session.jsonl"
     if not log_path.exists():
         _err_console.print(f"[red]ERR[/red] No session log found: {log_path.relative_to(DOMAINS_FULLPATH)}")
-        _console.print("Run some slash commands in this domain first to generate log entries.")
+        _console.print("Run some Xlator skills in this domain first to generate log entries.")
         sys.exit(1)
 
     # Collect unique file paths from file_written and file_edited events
