@@ -75,6 +75,15 @@ print(xl["installPath"] if xl else "", end="")
 ' "$PROJECT_ROOT"
 }
 
+get_marketplace_install_location() {
+    claude plugin marketplace list --json | uv run --no-project python -c '
+import sys, json
+marketplaces = json.load(sys.stdin)
+mp = next((m for m in marketplaces if m["name"] == "lockpicks-marketplace"), None)
+print(mp["installLocation"] if mp else "", end="")
+'
+}
+
 copy_if_diff() {
     local SRC_FILE="$1"
     local DST_FILE="$2"
@@ -120,7 +129,7 @@ setup_xlator_plugin() {
     # Uninstall first to remove the registry entry, then delete cached files.
     # rm -rf alone only removes files; the claude CLI registry retains the old
     # entry, causing plugin list to return a stale path after reinstall.
-    claude plugin uninstall xl@lockpicks-marketplace --scope project 2>/dev/null || true
+    claude plugin uninstall --scope project xl@lockpicks-marketplace 2>/dev/null || true
     rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
     # Install the plugin from the marketplace
     claude plugin install --scope project xl@lockpicks-marketplace
@@ -128,6 +137,10 @@ setup_xlator_plugin() {
     if ! command -v uv >/dev/null 2>&1; then
         curl -fsSL https://astral.sh/uv/install.sh | sh
     fi
+
+    MARKETPLACE_LOCATION=$(get_marketplace_install_location)
+    CURRENT_BRANCH=$(cd "$MARKETPLACE_LOCATION" && git rev-parse --abbrev-ref HEAD)
+    echo "  Using branch: '$CURRENT_BRANCH' installed at $MARKETPLACE_LOCATION"
 
     # CLAUDE_PLUGIN_ROOT is set by Claude Code for hook commands but not other contexts.
     # Persist it so shell scripts can use it too.
@@ -142,6 +155,7 @@ setup_xlator_plugin() {
         exit 11
     fi
 
+    echo "  CLAUDE_PLUGIN_ROOT=$CLAUDE_PLUGIN_ROOT"
     cat "$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json"
 
     {
@@ -198,7 +212,7 @@ setup_misc() {
 
 # --- Main ---
 
-if [ "$1" = "uninstall" ]; then
+if [ "${1:-}" = "uninstall" ]; then
     echo "⚠️  Uninstalling Xlator marketplace and plugin..."
     uninstall_xlator
     exit 0
