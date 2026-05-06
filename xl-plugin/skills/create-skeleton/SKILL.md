@@ -5,7 +5,7 @@ description: Build Computation Skeleton for a Domain
 
 # Build Computation Skeleton for a Domain
 
-Extract doc signals from `input-sections.yaml` and merge proposals into the four guidance sections of `guidance.yaml`, then build and confirm the computation skeleton. Then, writes the `skeleton:` key and updates the variable sections.
+Extract doc signals from `input-sections.yaml` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` and updates `guidance/variables.yaml` and `guidance/prompt-context.yaml`.
 
 ## Input
 
@@ -36,11 +36,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-3. **`guidance.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
+3. **`guidance/prompt-context.yaml` exists?**
+   - Check for `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml`
    - ABSENT → Print:
      :::error
-     guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
+     guidance/prompt-context.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml
      Run /declare-target-ruleset <domain> first.
      :::
      Then stop.
@@ -56,7 +56,7 @@ Run these checks before doing anything else:
 
 ## Mode Detection
 
-After pre-flight, check whether the `skeleton:` key already exists in `guidance.yaml`:
+After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` exists:
 
 - **Present** → **UPDATE mode**. Display existing skeleton summary and offer:
   :::user_input
@@ -90,16 +90,16 @@ Steps:
 
 ### Step 1: Load current state
 
-Read `$DOMAINS_DIR/<domain>/specs/guidance.yaml`. Print a summary:
+Read `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` and `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml`. Print a summary:
 
 ```
-File: $DOMAINS_DIR/<domain>/specs/guidance.yaml
-Current guidance: <display_name> (source: <source_template>, updated: <generated_at>)
+Folder: $DOMAINS_DIR/<domain>/specs/guidance/
+Current guidance: <display_name> (source: <source_template>)
 Sections: constraints (<N> items), standards (<N> items), guidance (<N> items), edge_cases (<N> items)
 Skeleton: none
 ```
 
-If `skeleton:` already exists in `guidance.yaml` (this occurs when `[c] revise` was selected in UPDATE mode), show instead:
+If `skeleton.yaml` already exists in the `guidance/` folder (this occurs when `[c] revise` was selected in UPDATE mode), show instead:
 
 ```
 Skeleton: <N> computations across <M> categories, confirmed <confirmed_at>
@@ -131,10 +131,10 @@ Extract the following signals (hold in memory for Step 3):
 
 For each of the four guidance sections (`constraints`, `standards`, `guidance`, `edge_cases`), generate proposed additions grounded in these index signals. Use computation hints to enrich `guidance` and `standards` proposals with concrete variable names and formula patterns (e.g., "The CIVIL ruleset should define `earned_income_deduction` as a `computed:` field equal to `earned_income * 0.20`").
 
-Merge the doc-derived proposals into `$DOMAINS_DIR/<domain>/specs/guidance.yaml` immediately:
-- For each of the four sections, append the proposed items into the section's current list
+Merge the doc-derived proposals into `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` immediately:
+- For each of the four sections (`constraints`, `standards`, `guidance`, `edge_cases`), append the proposed items into the section's current list
 - Deduplicate: do not add items that are substantively identical to existing items
-- Write the updated file to disk
+- Write the updated file to disk; preserve all other fields in `prompt-context.yaml` exactly
 
 Print:
 :::important
@@ -157,7 +157,7 @@ Steps:
 
 Build and display the skeleton using:
 
-- **`guidance.yaml`** — `input_variables`, `intermediate_variables`, `output_variables` categories provide structure and group names
+- **`guidance/variables.yaml`** — `input_variables`, `intermediate_variables`, `output_variables` categories provide structure and group names
 - **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and `expr_hint` values (show as `≈ <expr_hint>` when available, `= ?` when not inferable)
 
 Display format:
@@ -198,9 +198,9 @@ Steps:
 
 ### Step 4: Write computation skeleton
 
-Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
+Write to the `guidance/` folder:
 
-1. **Write `skeleton:` key** — insert as a top-level key after `scope:` (before `constraints:`). Schema:
+1. **Write `guidance/skeleton.yaml`** — schema:
    ```yaml
    skeleton:
      inputs: [<flat list of confirmed input variable names>]
@@ -215,19 +215,19 @@ Write to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
        # (ASCII computation flow diagram)
    ```
 
-2. **Update `input_variables`** — for each `input_variables` category, rewrite `examples:` with the confirmed variable names from the skeleton display, in display order. Replace any generic placeholder names.
+2. **Update `guidance/variables.yaml`** — update these sections in place, preserving all other fields:
+   - **`input_variables`**: for each category, rewrite `examples:` with the confirmed variable names from the skeleton display, in display order.
+   - **`output_variables`**: rewrite `primary` and `secondary_decisions` with confirmed output variable names and types.
+   - **`intermediate_variables`**: for each category, rewrite `examples:` with confirmed names; write `computations:` list (one entry per variable with a non-null expr hint). Variables shown as `= ?` are omitted from `computations:`.
+   - **Table lookup format:** `expr:` uses `table('table_name', key_var).value_col` — do **not** use bracket subscript notation (`table_name[key]`).
 
-3. **Update `output_variables`** — rewrite `output_variables.primary` and `output_variables.secondary_decisions` with confirmed output variable names and types from the skeleton display.
-
-4. **Update `intermediate_variables`** — for each intermediate variable category:
-   - Rewrite `examples:` with confirmed variable names from the skeleton display, in display order. Replace any generic placeholder names.
-   - Write a `computations:` list — one entry per variable that has a non-null expr hint (shown as `≈ <expr>` in the skeleton display). Each entry has `name:` (the variable name) and `expr:` (the expr hint string). Variables shown as `= ?` are omitted from `computations:`. Write entries in display order.
-   - **Table lookup format:** for any variable whose value is a table lookup, write `expr:` as `table('table_name', key_var).value_col` — for example, `table('table_standard_deduction', household_size).monthly_deduction`. Do **not** use bracket subscript notation (`table_name[key]`): it is not a valid CIVIL expression and will cause Catala compilation to fail.
-
+3. **Update `guidance/prompt-context.yaml`** is not written in Step 4 — Step 2 already wrote it. Do not touch it here.
 
 Print:
 :::important
-$DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [UPDATED]
 :::
 
 Then show the final step checklist (all steps checked):
@@ -251,18 +251,20 @@ Next: Run /create-ruleset-groups <domain> to propose ruleset groups.
 ## Output
 
 ```
-$DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml       [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [UPDATED]
 ```
 
 ## Common Mistakes to Avoid
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-sections.yaml` is the sole source of doc signals
 - Do not rewrite sections the user did not change — preserve exact wording of unchanged items; only append new proposals in Step 2
-- The `skeleton:` key is inserted after `scope:` (before `constraints:`), not at the end of the file
+- Do not write `generated_at` — git tracks version history
 - Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with actual `expr_hint` values get a `computations:` entry
 - In UPDATE mode "accept", exit without writing — do not overwrite any existing content
 - Step 2 runs in both CREATE and UPDATE mode (when `[b] replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
 - Show the step checklist after EVERY step (4 steps total) — do not skip it
 - When `[c] revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
-- The `skeleton:` key insertion position is after `scope:` and before `constraints:` — preserve all existing top-level key ordering for other keys
-- `intermediate_variables.categories` must be updated with the new category structure from the skeleton — if categories were empty before, populate them; if they existed, rewrite `examples:` with confirmed names
+- Step 2 writes `prompt-context.yaml`; Step 4 writes `skeleton.yaml` and `variables.yaml` — do not conflate them
+- `intermediate_variables.categories` in `variables.yaml` must be updated with the new category structure from the skeleton — if categories were empty before, populate them; if they existed, rewrite `examples:` with confirmed names

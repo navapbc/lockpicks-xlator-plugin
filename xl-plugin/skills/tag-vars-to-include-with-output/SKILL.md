@@ -5,7 +5,7 @@ description: Tag Variables to Include with Output
 
 # Tag Variables to Include with Output
 
-Identify which intermediate computed variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.
+Identify which intermediate computed variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance/variables.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.
 
 ## Purpose
 
@@ -28,7 +28,7 @@ Read `../../core/output-fencing.md` now.
 /tag-vars-to-include-with-output [<domain>]
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance.yaml` files as a numbered menu and prompt:
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance/metadata.yaml` files as a numbered menu and prompt:
 
 :::user_input
 Available domains:
@@ -50,10 +50,10 @@ Await the user's response and use it as `<domain>`. Then continue.
      :::
      Then stop.
 
-3. **`guidance.yaml` exists?**
+3. **`guidance/variables.yaml` exists?**
    - NO → Print:
      :::error
-     guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
+     guidance/variables.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml
      Run /suggest-target-ruleset <domain> first.
      :::
      Stop.
@@ -64,7 +64,7 @@ Await the user's response and use it as `<domain>`. Then continue.
 
 ### Detection pass 1 — invoke-derived variables (skeleton computations)
 
-Scan all `computations:` entries across every `intermediate_variables.categories[]` entry in `guidance.yaml`. For each entry whose `expr:` value contains dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot.
+Scan all `computations:` entries across every `intermediate_variables.categories[]` entry in `guidance/variables.yaml`. For each entry whose `expr:` value contains dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot.
 
 Example: `expr: "client_result.adjusted_earned_income"` → base name `client_result`.
 
@@ -74,7 +74,7 @@ Collect all such base names as `auto_tagged_1`.
 
 ### Detection pass 2 — decision-condition and invoke-derived variables (sample rule CIVIL snippets)
 
-Scan all CIVIL snippets in `ruleset_modules[].sample_rules[].civil:` and `sample_rules[].civil:` in `guidance.yaml`. Collect two categories of variable names:
+Scan all CIVIL snippets in `ruleset_modules[].sample_rules[].civil:` from `guidance/ruleset-modules.yaml` and `sample_rules[].civil:` from `guidance/sample-artifacts.yaml`. Collect two categories of variable names:
 
 **(a) Invoke-derived:** dot-notation access patterns (`<identifier>.<identifier>`) — collect the base name (before the first dot). Catches invoke-derived variables that `/extract-sample-rules` generated but that were not yet in the skeleton's `computations:` list.
 
@@ -84,7 +84,7 @@ Collect all such names as `auto_tagged_2`.
 
 ### Detection pass 3 — declared output variables
 
-Collect `output_variables.primary.name` and all `output_variables.secondary_decisions[].name` values from `guidance.yaml`. These are the primary decision outputs the module is designed to produce.
+Collect `output_variables.primary.name` and all `output_variables.secondary_decisions[].name` values from `guidance/variables.yaml`. These are the primary decision outputs the module is designed to produce.
 
 Collect all such names as `output_declared`.
 
@@ -94,14 +94,14 @@ Compute: `new_include_with_output` = `auto_tagged_1` ∪ `auto_tagged_2` ∪ `ou
 
 Deduplicate. Preserve all existing names — never remove entries.
 
-Write the merged list to `guidance.yaml` under `intermediate_variables.include_with_output`. Do not modify any other section of `guidance.yaml`.
+Write the merged list to `guidance/variables.yaml` under `intermediate_variables.include_with_output`. Do not modify any other field in `variables.yaml`.
 
 ### Print result
 
 Print one line per name in the final `include_with_output` list, labeled with its detection reason:
 
 :::important
-include_with_output written to guidance.yaml:
+include_with_output written to guidance/variables.yaml:
   client_result   (invoke-derived: skeleton computations)
   dol_result      (invoke-derived: sample rule CIVIL snippet)
   is_compatible   (decision condition: when: clause in categorical rule)
@@ -114,7 +114,7 @@ include_with_output written to guidance.yaml:
 If no variables were detected and no existing values were present, print:
 
 :::important
-No variables auto-detected. include_with_output: [] written to guidance.yaml.
+No variables auto-detected. include_with_output: [] written to guidance/variables.yaml.
 :::
 
 Then suggest next steps:
@@ -129,7 +129,7 @@ Next: Run /create-sample-tests <domain> to generate sample test cases used to as
 
 | File | Action |
 |------|--------|
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Updated — `intermediate_variables.include_with_output` merged |
+| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Updated — `intermediate_variables.include_with_output` merged |
 
 ---
 
@@ -137,6 +137,6 @@ Next: Run /create-sample-tests <domain> to generate sample test cases used to as
 
 - **Tag for explainability, not completeness** — the goal is to surface variables that help callers understand the decision; not every computed variable needs to be exposed
 - **Do not remove existing entries** from `include_with_output` — this command only adds; removal is a manual edit
-- **Do not modify any section other than `intermediate_variables.include_with_output`** — preserve all other guidance.yaml content verbatim
+- **Do not modify any field other than `intermediate_variables.include_with_output`** — preserve all other `variables.yaml` content verbatim
 - **Base name only for dot-notation** — collect the identifier before the first dot (e.g., `client_result` from `client_result.adjusted_earned_income`), not the full expression
 - **Idempotent** — running this command twice must produce no duplicates and no changes on the second run

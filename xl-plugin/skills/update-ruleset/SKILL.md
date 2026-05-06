@@ -164,11 +164,11 @@ For each changed doc, read the diff and determine which CIVIL sections need upda
 
 ### Step 5: Re-extract Affected Sections
 
-**If `guidance.yaml` was loaded in pre-flight**, recall the extraction goal before re-reading any policy sections:
+**If guidance files were loaded in pre-flight**, recall the extraction goal before re-reading any policy sections:
 
 ```
 ---
-[guidance.yaml content — paste verbatim as loaded]
+[content of guidance/metadata.yaml, guidance/prompt-context.yaml, guidance/variables.yaml — paste verbatim as loaded]
 ---
 
 Apply these constraints and standards when re-extracting the affected CIVIL sections.
@@ -277,6 +277,9 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 9, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 10; consumed by `/create-tests`) |
 | `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.

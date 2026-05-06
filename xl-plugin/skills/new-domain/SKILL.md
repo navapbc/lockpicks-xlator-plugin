@@ -29,6 +29,8 @@ Read `../../core/output-fencing.md` now.
 xlator new-domain <domain>
 ```
 
+This creates `input/policy_docs/`, `specs/`, `specs/guidance/` (with `CLAUDE.md` copied from `core/guidance_claude.md`), and `output/`.
+
 ### Step 2: Print next steps
 
 :::important

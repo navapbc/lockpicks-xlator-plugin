@@ -87,16 +87,16 @@ Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` to understand:
 
 **If extracted tests are available** (from Step 0), copy them into the test suite as-is — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Note which of the 6 coverage tags they already satisfy.
 
-**If `$DOMAINS_DIR/<domain>/specs/guidance.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
+**If `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
 
 1. For each entry in `sample_tests:`, validate every key in `inputs` against the input fields declared in the CIVIL file. Collect unrecognised keys.
 2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `inputs`, `expected`, `tags`) are preserved as-is.
 3. Accumulate the `tags` from all sample test entries and include them in the 6-tag coverage tally.
 
 :::important
-Seeded N sample test(s) from guidance.yaml (M field name warning(s)).
+Seeded N sample test(s) from guidance/sample-tests.yaml (M field name warning(s)).
 :::
-— or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing.
+— or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tests` is empty/missing.
 
 Draft additional synthetic cases from CIVIL reasoning to reach the 6-tag coverage minimum for any tags **not** already covered by extracted cases or sample tests:
 
@@ -132,7 +132,7 @@ tests:
       reasons: []
     tags: ["extracted", "allow"]
 
-  # Sample tests from guidance.yaml (if any) come next, preserving their case_ids
+  # Sample tests from guidance/sample-tests.yaml (if any) come next, preserving their case_ids
   - case_id: "allow_001"
     description: "..."
     inputs:
@@ -219,15 +219,15 @@ Skip this step silently if no extracted tests are available.
 
 ### Step 4b: Reconcile Sample Tests
 
-Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance.yaml` (same existence check as CREATE mode). For each entry, compare by `case_id` against the current test suite:
+Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` (same existence check as CREATE mode). For each entry, compare by `case_id` against the current test suite:
 
 - If the `case_id` is already present: skip (do not overwrite).
 - If the `case_id` is absent: validate input fields against the CIVIL file and append the entry, adding a `notes:` field if unrecognised input keys are found.
 
-Print (or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing):
+Print (or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tests` is empty/missing):
 - If N > 0:
   :::important
-  Added N sample test(s) from guidance.yaml not previously in the test suite.
+  Added N sample test(s) from guidance/sample-tests.yaml not previously in the test suite.
   :::
 - If N = 0:
   :::important

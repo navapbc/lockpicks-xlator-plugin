@@ -49,11 +49,11 @@ Typical steps:
   1. `/new-domain <domain>` to set up the folder scaffold for a new domain
   2. User adds `.md` policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
   3. `/index-inputs <domain>` to build a document index
-  4. Write an AI prompt to extract a ruleset in the `guidance.yaml` file — two options:
+  4. Write an AI prompt to extract a ruleset in the `guidance/` folder — two options:
       * **Monolithic (original):** `/refine-guidance <domain>`
       * **Step-by-step (for UI-driven or incremental workflows):**
         - `/suggest-target-ruleset <domain>` — analyze the document index and write candidate target rulesets to files for user selection
-        - `/declare-target-ruleset <domain>` — write `guidance.yaml` from a specified target ruleset file (one of the files created by `/suggest-target-ruleset`)
+        - `/declare-target-ruleset <domain>` — write initial `guidance/` files from a specified target ruleset file (one of the files created by `/suggest-target-ruleset`)
         - `/create-skeleton <domain>` — extract doc signals from the document index and build the computation skeleton
         - `/create-ruleset-groups <domain>` — propose ruleset groups that group related computations in the skeleton; these groups will help with ruleset visualizations
         - `/create-ruleset-modules <domain>` — apply heuristics to detect ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
@@ -80,24 +80,24 @@ flowchart TD
     SUG["/suggest-target-ruleset\nenabled: input-sections.yaml exists"]
     SUG_F(["suggested_targets/*.yaml"])
     DECL["/declare-target-ruleset\nenabled: suggested_targets/ has ≥1 file"]
-    GY(["guidance.yaml"])
+    GY(["guidance/metadata.yaml\nguidance/prompt-context.yaml\nguidance/variables.yaml"])
 
     IDX_SECTS --> SUG --> SUG_F --> DECL --> GY
 
-    SKEL["/create-skeleton\nenabled: guidance.yaml exists"]
-    GY_SKEL(["guidance.yaml\nwith skeleton:"])
-    GROUPS["/create-ruleset-groups\nenabled: skeleton: present"]
-    GY_GROUPS(["guidance.yaml\nwith ruleset_groups:"])
-    MODS["/create-ruleset-modules\nenabled: ruleset_groups: present"]
+    SKEL["/create-skeleton\nenabled: guidance/metadata.yaml exists"]
+    GY_SKEL(["guidance/skeleton.yaml"])
+    GROUPS["/create-ruleset-groups\nenabled: guidance/skeleton.yaml present"]
+    GY_GROUPS(["guidance/ruleset-groups.yaml"])
+    MODS["/create-ruleset-modules\nenabled: guidance/ruleset-groups.yaml present"]
 
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
-    GY_MODS(["guidance.yaml\nwith ruleset_modules:"])
-    SAMPLERULES["/extract-sample-rules\nbest: ruleset_modules: present\nmin: skeleton: present\nenabled: guidance.yaml + input-sections.yaml exist"]
-    GY_RULES(["guidance.yaml\nwith sample_rules"])
-    TAGVARS["/tag-vars-to-include-with-output\nenabled: guidance.yaml exists\n(best after extract-sample-rules)"]
-    SAMPLETESTS["/create-sample-tests\nenabled: sample_rules or sample_rules present"]
-    GY_SAMPLETESTS(["guidance.yaml\nwith sample_tests:"])
+    GY_MODS(["guidance/ruleset-modules.yaml"])
+    SAMPLERULES["/extract-sample-rules\nbest: guidance/ruleset-modules.yaml present\nmin: guidance/skeleton.yaml present\nenabled: guidance/metadata.yaml + input-sections.yaml exist"]
+    GY_RULES(["guidance/sample-artifacts.yaml\nwith sample_rules"])
+    TAGVARS["/tag-vars-to-include-with-output\nenabled: guidance/variables.yaml exists\n(best after extract-sample-rules)"]
+    SAMPLETESTS["/create-sample-tests\nenabled: sample_rules present in ruleset-modules or sample-artifacts"]
+    GY_SAMPLETESTS(["guidance/sample-tests.yaml"])
 
     MODS --> GY_MODS --> SAMPLERULES
     IDX_SECTS --> SAMPLERULES

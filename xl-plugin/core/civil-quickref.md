@@ -395,9 +395,9 @@ The structured output object is always at `decision` (e.g., query `/v1/data/<pkg
 
 The following YAML schemas are used by `/refine-guidance`, `/extract-ruleset`, and `/update-ruleset`. They are not part of the CIVIL DSL itself.
 
-### `guidance.yaml` — `ruleset_modules:` key
+### `guidance/ruleset-modules.yaml` — `ruleset_modules:` key
 
-Place after `ruleset_groups:`, before `constraints:`. Populated by `/create-ruleset-modules` (and `/refine-guidance` Step 3 in the monolithic workflow). Lists all modules — sub-modules and the main program file — that will be generated as separate `.civil.yaml` files.
+Populated by `/create-ruleset-modules` (and `/refine-guidance` Step 3 in the monolithic workflow). Lists all modules — sub-modules and the main program file — that will be generated as separate `.civil.yaml` files.
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -434,7 +434,7 @@ ruleset_modules:
 | `depth_threshold` | ≥5 variable names in skeleton whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | `variable_coupling` | ≥3 intermediate variables each referencing ≥2 others' outputs, forming a mutual dependency clique |
 | `shared_gate` | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`) |
-| `user_hint` | `ruleset_modules:` already populated in `guidance.yaml` (UPDATE mode only) |
+| `user_hint` | `ruleset_modules:` already populated in `guidance/ruleset-modules.yaml` (UPDATE mode only) |
 | `main_module` | Main program entry — written by `/create-ruleset-modules` after sub-module detection |
 
 ---

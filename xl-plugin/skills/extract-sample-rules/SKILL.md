@@ -5,18 +5,18 @@ description: Extract Sample Rules
 
 # Extract Sample Rules
 
-Generate a comprehensive set of relevant CIVIL rules from `input-sections.yaml` entries based on `guidance.yaml` and write them into `guidance.yaml` and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
+Generate a comprehensive set of relevant CIVIL rules from `input-sections.yaml` entries based on the `guidance/` folder and write them into `guidance/ruleset-modules.yaml`, `guidance/sample-artifacts.yaml`, and `naming-manifest.yaml`. Runs non-interactively — no mid-run prompting. Suitable for automated UI invocation.
 
 Unlike `/refine-guidance` Step 8, which produces 2–3 illustrative rules gated behind user approval, this command generates as many rules as the index supports and writes them immediately for user review.
 
-**Recommended run order:** After `/create-ruleset-modules`. The quality of the output depends on how complete `guidance.yaml` is at invocation time:
+**Recommended run order:** After `/create-ruleset-modules`. The quality of the output depends on how complete the guidance files are at invocation time:
 
-| `guidance.yaml` state | Impact on output |
+| Guidance state | Impact on output |
 |---|---|
-| `ruleset_modules:` populated (after `/create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
-| `ruleset_groups:` present but no `ruleset_modules:` (after `/create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` |
-| `skeleton:` present but no groups or ruleset modules (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
-| Neither `skeleton:` nor `ruleset_modules:` (after `/declare-target-ruleset` only) | Command runs but produces flat, unstructured output with no ordering context |
+| `guidance/ruleset-modules.yaml` populated (after `/create-ruleset-modules`) | Rules routed to the correct ruleset module's `sample_rules:` — full structural grouping |
+| `guidance/ruleset-groups.yaml` present but no `ruleset-modules.yaml` (after `/create-ruleset-groups`) | Stage context available but all rules fall into the top-level `sample_rules:` in `sample-artifacts.yaml` |
+| `guidance/skeleton.yaml` present but no groups or ruleset modules (after `/create-skeleton`) | Computation ordering and category context available; rules still fall into the top-level `sample_rules:` |
+| No `skeleton.yaml` or `ruleset-modules.yaml` (after `/declare-target-ruleset` only) | Command runs but produces flat, unstructured output with no ordering context |
 
 The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (see Step 2). It does not stop — partial output is better than none.
 
@@ -26,7 +26,7 @@ The command prints a warning when `skeleton:` or `ruleset_modules:` is absent (s
 /extract-sample-rules [<domain>] [<rule_topic>] [index-only]
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance.yaml` files as a numbered menu and prompt:
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/guidance/metadata.yaml` files as a numbered menu and prompt:
 
 :::user_input
 Available domains:
@@ -59,10 +59,10 @@ Read `../../core/output-fencing.md` now.
      :::
      Stop.
 
-4. **`guidance.yaml` exists?**
+4. **`guidance/metadata.yaml` exists?**
    - NO → Print:
      :::error
-     guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
+     guidance/metadata.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml
      Run /suggest-target-ruleset <domain> first.
      :::
      Stop.
@@ -90,7 +90,7 @@ Steps:
   [ ] 2. Load and filter index
   [ ] 3. Read guidance context and classify entries
   [ ] 4. Generate rules (two-pass)
-  [ ] 5. Merge into guidance.yaml
+  [ ] 5. Merge into guidance files
   [ ] 6. Write naming-manifest.yaml
 :::
 
@@ -113,15 +113,15 @@ Show updated step checklist (as `:::progress`).
 
 ### Step 3: Read guidance context and classify entries
 
-Read `$DOMAINS_DIR/<domain>/specs/guidance.yaml` to produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with entries clearly unrelated to the ruleset's purpose removed and logged before further processing.
+Read `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` (`role:`), `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` (`output_variables`), and optionally `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` and `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` to produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with entries clearly unrelated to the ruleset's purpose removed and logged before further processing.
 
 Check for missing context and print warnings if applicable:
 
 ```
-⚠ skeleton: not found in guidance.yaml — computation ordering and category groupings unavailable.
+⚠ guidance/skeleton.yaml not found — computation ordering and category groupings unavailable.
   Run /create-skeleton <domain> first for better-structured output.
 
-⚠ ruleset_modules: not found in guidance.yaml — all rules will be written to top-level sample_rules: (no ruleset module grouping).
+⚠ guidance/ruleset-modules.yaml not found — all rules will be written to sample-artifacts.yaml (no ruleset module grouping).
   Run /create-ruleset-modules <domain> first for structured rule routing.
 ```
 
@@ -186,10 +186,10 @@ For each `computed-only` entry in the working set, processed in priority order (
 
 If any signals are present, add this entry to the Pass 4b queue for `categorical:` and `table-lookup:` rule generation. Do not read the source file now.
 
-**(d) Assign to ruleset module or main.** For each generated rule, determine the best matching `ruleset_modules:` entry in `guidance.yaml`:
+**(d) Assign to ruleset module or main.** For each generated rule, determine the best matching entry in `guidance/ruleset-modules.yaml`:
 - Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`. Only match against sub-module entries (entries where `role:` is absent or `sub`) — do not route to the `role: main` entry during this matching step.
-- If a clear match is found, assign to that sub-module's `sample_rules:` list.
-- If no sub-module match is found: check whether `guidance.yaml` has a `ruleset_modules:` entry with `role: main`. If yes, assign the rule to that entry's `sample_rules:` list (locate the entry by its `name:` value). If no `role: main` entry exists, assign to the top-level `sample_rules:` list as a fallback.
+- If a clear match is found, assign to that sub-module's `sample_rules:` list in `ruleset-modules.yaml`.
+- If no sub-module match is found: check whether `ruleset-modules.yaml` has an entry with `role: main`. If yes, assign the rule to that entry's `sample_rules:` list (locate the entry by its `name:` value). If no `role: main` entry exists, assign to the top-level `sample_rules:` in `sample-artifacts.yaml` as a fallback.
 
 After processing all `computed-only` entries:
 
@@ -200,7 +200,7 @@ After processing all `computed-only` entries:
 :::
 Stop.
 
-**Write Pass 4a output:** Merge rules into `guidance.yaml` (Step 5 merge schema) and merge variable entries into `naming-manifest.yaml` (Step 6 merge schema), with index-derived field values:
+**Write Pass 4a output:** Merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge variable entries into `naming-manifest.yaml` (Step 6 merge schema), with index-derived field values:
 - `path:` (from index entry) → `source_doc`
 - `heading:` (from index entry) → `section`
 - `computations[].description` → `policy_phrase` (if absent, omit the entry from naming-manifest for that variable and add to `missing_info`)
@@ -236,7 +236,7 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 - **`computed:` rule (no expr_hint)** — for `needs-source` entries where no `expr_hint:` is given: produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No expr_hint available for `<name>` — expr must be confirmed manually").
 - **`categorical:` rules** — scan the source text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names.
 - **`table-lookup:` rule** — if the source text references a table or schedule of thresholds, draft a `computed:` entry using `table_lookup:` syntax with `table:` and `key:` fields.
-- **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
+- **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance/ruleset-modules.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
 
 **(d) Assign to ruleset module or main.** Same logic as Pass 4a sub-step (d).
 
@@ -245,19 +245,19 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 - Any inferential leap or assumption → add descriptive string to `assumptions`
 - Any low-priority entry from Step 3 for which rules were generated → add to `assumptions`: `"<heading> not in skeleton — rule may be auxiliary or out of scope; confirm before use"`
 
-After processing all Pass 4b entries: merge rules into `guidance.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), overwriting any index-derived `policy_phrase` values with source-text values where available. Write both files.
+After processing all Pass 4b entries: merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), overwriting any index-derived `policy_phrase` values with source-text values where available. Write all files.
 
 Print Full Summary (see [Summary](#summary)).
 
 Show updated step checklist (all steps complete — both files written during Pass 4a and updated during Pass 4b).
 
-### Step 5: Merge schema — guidance.yaml
+### Step 5: Merge schema — `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml`
 
 > This schema is applied from within Step 4 after each pass. It is documented here as the canonical reference.
 
 Apply all merges without clobbering existing content:
 
-**`ruleset_modules[].sample_rules:` (merge by `id:`):**
+**`guidance/ruleset-modules.yaml` — `ruleset_modules[].sample_rules:` (merge by `id:`):**
 For each ruleset module entry that has assigned rules, add a `sample_rules:` sub-key if absent, then append rules whose `id:` is not already present. Do not overwrite or remove existing entries.
 
 Rule entry schema:
@@ -270,23 +270,23 @@ sample_rules:
       <full CIVIL YAML snippet>
 ```
 
-**`sample_rules:` (merge by `id:`):**
-Append unmatched rules to the top-level `sample_rules:` list. Place after `edge_cases:` if `sample_rules:` does not yet exist. Deduplicate by `id:`.
+**`guidance/sample-artifacts.yaml` — `sample_rules:` (merge by `id:`):**
+Append unmatched rules (those not assigned to any ruleset module) to the top-level `sample_rules:` list. If the file does not exist, create it with a `sample_rules:` key. Deduplicate by `id:`.
 
-**`missing_info:` (merge — append unique strings):**
-Add new unique strings to the top-level `missing_info:` list. Place after `edge_cases:` (or after `assumptions:` if that key already exists). Do not remove or overwrite existing entries.
+**`guidance/sample-artifacts.yaml` — `missing_info:` (merge — append unique strings):**
+Add new unique strings to the `missing_info:` list. If the key does not exist, add it. Do not remove or overwrite existing entries.
 
-**`assumptions:` (merge — append unique strings):**
-Add new unique strings to the top-level `assumptions:` list. Place after `missing_info:`. Do not remove or overwrite existing entries.
+**`guidance/sample-artifacts.yaml` — `assumptions:` (merge — append unique strings):**
+Add new unique strings to the `assumptions:` list. Place after `missing_info:`. Do not remove or overwrite existing entries.
 
 ### Step 6: Merge schema — naming-manifest.yaml
 
 > This schema is applied from within Step 4 after each pass. It is documented here as the canonical reference.
 
 **If `naming-manifest.yaml` already exists:**
-Read it. For each variable name used in the generated rules, route by whether the variable appears in `guidance.yaml`'s `outputs:` list:
-- **Output variable** (name is in `guidance.yaml` `outputs:`): if not already present in the `outputs:` block, append a new entry there.
-- **Computed variable** (name is not in `guidance.yaml` `outputs:`): if not already present in the `computed:` block, append a new entry there.
+Read it. For each variable name used in the generated rules, route by whether the variable appears in `guidance/variables.yaml`'s `output_variables` list:
+- **Output variable** (name is in `guidance/variables.yaml` `output_variables`): if not already present in the `outputs:` block, append a new entry there.
+- **Computed variable** (name is not in `guidance/variables.yaml` `output_variables`): if not already present in the `computed:` block, append a new entry there.
 
 ```yaml
 computed:
@@ -321,22 +321,22 @@ outputs:
     section: "<section heading>"
 ```
 
-Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance.yaml`. If `ruleset_modules:` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /extract-ruleset Step 7b`.
+Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance/ruleset-modules.yaml`. If `ruleset-modules.yaml` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /extract-ruleset Step 7b`.
 
-Omit the `outputs:` block if no generated variables are in `guidance.yaml`'s `outputs:` list.
+Omit the `outputs:` block if no generated variables are in `guidance/variables.yaml`'s `output_variables` list.
 
 Do not add an auto-generated comment. The file is user-editable.
 
 ### Summary
 
-The `→ <destination>` label uses the module's `name:` value (e.g., `→ eligibility` for the main module, `→ exclusion_chain` for a sub-module, `→ top-level` when no `role: main` entry exists and the rule falls back to the top-level `sample_rules:`).
+The `→ <destination>` label uses the module's `name:` value (e.g., `→ eligibility` for the main module, `→ exclusion_chain` for a sub-module, `→ sample-artifacts` when no `role: main` entry exists and the rule falls back to the top-level `sample_rules:`).
 
 #### Pass 4a Summary
 
 Printed immediately after Pass 4a writes, before Pass 4b begins. Print one line per `computed:` rule written:
 
 :::progress
-Sample quick ("index-only") rules were written to `guidance.yaml` and ready for review while the remaining ("needs-source") rules are being created.
+Sample quick ("index-only") rules were written to the guidance/ folder and ready for review while the remaining ("needs-source") rules are being created.
 
 Index-pass rules written:
   earned_income_limit   (computed)   → exclusion_chain
@@ -401,7 +401,8 @@ Next: Run /tag-vars-to-include-with-output <domain> to auto-detect intermediate 
 
 | File | Action |
 |------|--------|
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Updated — `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions` merged |
+| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Updated — `ruleset_modules[].sample_rules` merged |
+| `$DOMAINS_DIR/<domain>/specs/guidance/sample-artifacts.yaml` | Created or updated — `sample_rules`, `missing_info`, `assumptions` merged |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created or updated — `computed:` and `outputs:` entries merged |
 
 ---
@@ -411,8 +412,9 @@ Next: Run /tag-vars-to-include-with-output <domain> to auto-detect intermediate 
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use `path:` and `heading:` from `input-sections.yaml` to locate sections. Reading source policy files via those pointers is explicitly permitted for this command.
 - **Do not overwrite existing `sample_rules:` entries** — merge by `id:` only; never remove manually edited rules
 - **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/extract-ruleset` run
-- **Do not clobber other guidance.yaml sections** — this command writes only to `ruleset_modules[].sample_rules`, `sample_rules`, `missing_info`, `assumptions`; all other sections must be preserved verbatim
+- **Do not clobber other guidance file contents** — this command writes only to `ruleset_modules[].sample_rules` in `ruleset-modules.yaml`, and to `sample_rules`, `missing_info`, `assumptions` in `sample-artifacts.yaml`; all other fields must be preserved verbatim
 - **Use canonical names from the manifest** — if a variable name exists in `naming-manifest.yaml`, use it; do not re-derive or rename it
 - **`civil:` is a literal block scalar** — always use the `|` block indicator; never use a quoted string or folded scalar for CIVIL snippets
 - **`source:` must be a quoted sentence from the index** — copy from `input-sections.yaml` section `summary:` or `computations[].description:`; do not paraphrase
+- **Do not write `generated_at`**
 - **Do not combine Pass 4a and 4b into a single write** — Pass 4a must write files and print its summary before Pass 4b begins; the point is to let the user review index-derived rules while source reads are in progress

@@ -5,7 +5,7 @@ description: Propose and Write Ruleset Groups for a Domain
 
 # Propose and Write Ruleset Groups for a Domain
 
-Read `input-sections.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance.yaml` after `skeleton:` and before `constraints:`. A "Ruleset Group" is synonymous with a "ruleset group".
+Read `input-sections.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance/ruleset-groups.yaml`. A "Ruleset Group" is synonymous with a "ruleset group".
 
 ## Input
 
@@ -36,11 +36,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-3. **`guidance.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
+3. **`guidance/metadata.yaml` exists?**
+   - Check for `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`
    - ABSENT → Print:
      :::error
-     guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
+     guidance/metadata.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml
      Run /declare-target-ruleset <domain> first.
      :::
      Then stop.
@@ -54,17 +54,17 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-5. **`skeleton:` key present in `guidance.yaml`?**
+5. **`guidance/skeleton.yaml` exists?**
    - ABSENT → Print:
      :::error
-     Skeleton not found in guidance.yaml.
+     Skeleton not found: $DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml
      Run /create-skeleton <domain> first.
      :::
      Then stop.
 
 ## Mode Detection
 
-After pre-flight, check whether the `ruleset_groups:` key already exists in `guidance.yaml`:
+After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` exists:
 
 - **Present** → **UPDATE mode**. Display the existing list and prompt:
   :::user_input
@@ -97,7 +97,7 @@ Look for:
 
 Convert detected headings to `snake_case` names and prepare a proposed list. Examples: "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`.
 
-**If no phase headings are found:** propose a single catch-all stage derived from `display_name` in `guidance.yaml` (e.g., if `display_name` is "Determine Eligibility", propose `eligibility`), and note it can be refined later. Never leave `ruleset_groups:` empty.
+**If no phase headings are found:** propose a single catch-all stage derived from `display_name` in `guidance/metadata.yaml` (e.g., if `display_name` is "Determine Eligibility", propose `eligibility`), and note it can be refined later. Never leave `ruleset_groups:` empty.
 
 In UPDATE mode with `m` (merge): after generating the new proposal list, combine it with the existing `ruleset_groups:` entries. Deduplicate by `name` — when the same stage name appears in both lists, keep the new `description`. Hold the merged list in memory for Step 2.
 
@@ -119,14 +119,10 @@ Do not prompt for user input. Proceed directly to Step 3.
 
 ---
 
-### Step 3: Write `ruleset_groups:`
+### Step 3: Write `guidance/ruleset-groups.yaml`
 
-Write the confirmed groups to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
+Write the confirmed groups to `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml`:
 
-- Insert `ruleset_groups:` as a top-level key immediately after `skeleton:` and before `constraints:` — do not append to the end of the file
-- Update `generated_at` to today's date
-
-YAML format:
 ```yaml
 ruleset_groups:
   - name: income_test
@@ -135,9 +131,11 @@ ruleset_groups:
     description: Household size and composition tests
 ```
 
+Do not write `generated_at`.
+
 Print:
 :::important
-$DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml [CREATED]
 :::
 
 Then suggest the next step:
@@ -150,16 +148,16 @@ Next: Run /create-ruleset-modules <domain> to detect ruleset module candidates.
 ## Output
 
 ```
-$DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml    [CREATED]
 ```
 
 ## Common Mistakes to Avoid
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals
-- `ruleset_groups:` is inserted after `skeleton:` and before `constraints:` in `guidance.yaml`, not at the end of the file
-- In UPDATE mode "accept", exit without writing — do not overwrite existing `ruleset_groups:` content
+- In UPDATE mode "accept", exit without writing — do not overwrite existing `ruleset-groups.yaml` content
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`
 - Convert phase headings to `snake_case` — "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`
-- When no phase headings are found, propose a single catch-all stage from `display_name` — never leave `ruleset_groups:` empty or omit the key
+- When no phase headings are found, propose a single catch-all stage from `display_name` in `guidance/metadata.yaml` — never leave `ruleset_groups:` empty or omit the key
+- Do not write `generated_at`
 - Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage, so groups must be defined first.
 - This command has 3 steps — the step checklist rule (>3 steps) does NOT apply; do not show a step checklist
