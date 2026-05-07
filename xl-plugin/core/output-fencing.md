@@ -30,7 +30,7 @@ Content goes here.
 
 ```
 :::important
-Created $DOMAINS_DIR/snap/specs/guidance.yaml
+Created $DOMAINS_DIR/snap/specs/guidance/metadata.yaml
 :::
 ```
 

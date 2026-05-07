@@ -20,7 +20,7 @@ For brainstorm and plan documents, use the project's exact terminology: 'ruleset
 
 ## Git
 
-Never commit to the `main` branch.
+Never commit directly to the `main` or `dev` branches.
 
 ## CIVIL DSL versioning
 

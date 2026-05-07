@@ -331,11 +331,17 @@ def cmd_pipeline(domain, module):
 
 def cmd_new_domain(domain):
     base = DOMAINS_FULLPATH / domain
-    for d in [base / "input" / "policy_docs", base / "specs", base / "output"]:
+    for d in [base / "input" / "policy_docs", base / "specs" / "guidance", base / "output"]:
         d.mkdir(parents=True, exist_ok=True)
+    guidance_src = SCRIPT_DIR_TOOLS.parent / "core" / "guidance_claude.md"
+    guidance_dest = base / "specs" / "guidance" / "CLAUDE.md"
+    if not guidance_dest.exists():
+        import shutil
+        shutil.copy2(guidance_src, guidance_dest)
     _print_ok(f"{base}/")
     _print_info(f"  input/policy_docs/    ← add .md policy documents here")
     _print_info(f"  specs/")
+    _print_info(f"  specs/guidance/       ← ruleset guidance files (see guidance/CLAUDE.md)")
     _print_info(f"  output/               ← generated Catala or Rego files and demo folder(s)")
     _print_info(
         f"\nDomain '{domain}' created. "

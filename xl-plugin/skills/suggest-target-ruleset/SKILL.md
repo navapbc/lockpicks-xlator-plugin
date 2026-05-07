@@ -76,7 +76,7 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 - `output_variables.primary` — `name` (snake_case), `type` (bool | money | enum | str | int | ...), `description`
 - `output_variables.secondary_decisions` — list of `{name, type, description}` for secondary outputs (e.g., denial reasons, verification flags); may be empty
 
-Refer to `$DOMAINS_DIR/ak_doh/specs/guidance.yaml` as an exemplar of the expected ruleset shape when inferring variable names, types, and I/O structure.
+Refer to `$DOMAINS_DIR/ak_doh/specs/guidance/variables.yaml` as an exemplar of the expected variable structure when inferring variable names, types, and I/O structure.
 
 **When `<hint>` is provided:**
 - Rank candidates by relevance to the hint phrase — prefer section headings, topic tags, and computation hints that match the hint
@@ -149,7 +149,7 @@ output_variables:
 After all saves, suggest the next step:
 
 :::next_step
-Next: Run /declare-target-ruleset <domain> <ruleset_name> to create guidance.yaml from a suggestion file.
+Next: Run /declare-target-ruleset <domain> <ruleset_name> to create the guidance/ files from a suggestion file.
 :::
 
 ---

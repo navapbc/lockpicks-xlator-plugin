@@ -57,10 +57,10 @@ def _collect_expressions(doc: dict) -> list[str]:
 
 
 def validate_enum_decisions(path: str, data: dict) -> tuple[list[str], list[str]]:
-    """Warn when CIVIL primary decision type mismatches guidance.yaml declaration."""
+    """Warn when CIVIL primary decision type mismatches guidance/variables.yaml declaration."""
     warnings = []
     specs_dir = pathlib.Path(path).parent
-    guidance_path = specs_dir / "guidance.yaml"
+    guidance_path = specs_dir / "guidance" / "variables.yaml"
     if not guidance_path.exists():
         return [], []
     try:
@@ -79,7 +79,7 @@ def validate_enum_decisions(path: str, data: dict) -> tuple[list[str], list[str]
     actual_type = (decisions[declared_name] or {}).get("type", "")
     if declared_type in ("enum", "string") and actual_type == "bool":
         warnings.append(
-            f"decisions → {declared_name}: type is 'bool' but guidance.yaml "
+            f"decisions → {declared_name}: type is 'bool' but guidance/variables.yaml "
             f"output_variables.primary.type is '{declared_type}' — "
             f"consider using type: string with values: {primary.get('values', [])}"
         )

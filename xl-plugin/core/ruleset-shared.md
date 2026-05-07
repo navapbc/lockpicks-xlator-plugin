@@ -15,17 +15,17 @@ Do not invoke this file directly.
    - Verify `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>` exists on disk
    - If not found: print file not found, list available `.md` files, then stop.
 
-5. **Load `guidance.yaml`**
+5. **Load guidance files**
 
-   Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
+   Check for `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`:
 
    **If it exists:**
-   - Read the file
+   - Read `guidance/metadata.yaml` — load `display_name`, `source_template`, `template_id`
    - Print: `Using goal: <display_name> (source: <source_template>)`
-   - Store its content for injection in Step 1
+   - Each calling skill loads only the additional guidance files it needs (see per-skill file lists). Missing optional files are silently treated as empty.
 
-   **If it does not exist:**
-   - Print: no `guidance.yaml` found for this domain, suggest running `/refine-guidance <domain>` then re-running. Stop.
+   **If `guidance/metadata.yaml` does not exist:**
+   - Print: no guidance found for this domain, suggest running `/refine-guidance <domain>` then re-running. Stop.
 
 6. **Multiple input docs + no `<filename>`?**
    - If `$DOMAINS_DIR/<domain>/input/policy_docs/` contains 2+ `.md` files and `<filename>` was **not** given:
@@ -162,7 +162,7 @@ Continue — the CIVIL file and manifests are already written. Do NOT stop the e
 
 After the Human Review Gate is approved, synthesize candidate guidance items from the review session to improve future extractions.
 
-**Multi-file context:** When called from a multi-file review gate (i.e., after reviewing a sub-module or main module in a multi-file extraction), each candidate guidance item must be prefixed with `[module: <name>]` where `<name>` is the name of the CIVIL module being reviewed at that gate (e.g., `[module: earned_income]`). This prefix appears in the candidate display and is preserved in the written `guidance.yaml` entry. When called from a single-file review gate, no prefix is added.
+**Multi-file context:** When called from a multi-file review gate (i.e., after reviewing a sub-module or main module in a multi-file extraction), each candidate guidance item must be prefixed with `[module: <name>]` where `<name>` is the name of the CIVIL module being reviewed at that gate (e.g., `[module: earned_income]`). This prefix appears in the candidate display and is preserved in the written `prompt-context.yaml` entry. When called from a single-file review gate, no prefix is added.
 
 **Step 1 — Collect signals.**
 
@@ -180,7 +180,7 @@ From the collected signals, draft up to 5 candidate guidance items total across 
 - Assign it to the most appropriate section (`constraints`, `standards`, `guidance`, or `edge_cases`)
 - Write it as a concise, actionable statement (1–2 sentences)
 - In multi-file context, prepend `[module: <name>] ` to the statement text
-- Check the corresponding section in `$DOMAINS_DIR/<domain>/specs/guidance.yaml` — if a semantically equivalent item already exists, skip this candidate
+- Check the corresponding section in `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` — if a semantically equivalent item already exists, skip this candidate
 
 If zero candidates remain after deduplication, proceed silently to SP-CompleteExtraction.
 
@@ -207,14 +207,14 @@ Review them? [y/n]
 **Step 4 — Write to file.**
 
 After all candidates have been reviewed:
-- Append each accepted item to its assigned section in `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
-- Update `generated_at` to today's date (write once after all appends, not after each individual item)
-- Preserve `source_template` and all other sections verbatim
+- Append each accepted item to its assigned section in `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml`
+- Preserve all other fields in `prompt-context.yaml` verbatim (do not modify `role:`, `scope:`, or other sections)
+- Do not write `generated_at`
 
 If 1 or more items were added, print (use "item" for N=1, "items" for N>1):
 ```
-Updated guidance.yaml (+1 item)
-Updated guidance.yaml (+3 items)
+Updated guidance/prompt-context.yaml (+1 item)
+Updated guidance/prompt-context.yaml (+3 items)
 ```
 
 Then proceed to SP-CompleteExtraction.
@@ -253,7 +253,7 @@ To extract from all files as a unified corpus, run without specifying a filename
    - **Tier 4:** Sub-steps within a single exclusion stage
 5. Display the ranked list with three pre-selection tiers:
    - **`[REQUIRED]`** — fields whose names appear in the main module's `invoke:` dot-access expressions (sub-module files only); locked, cannot be deselected.
-   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (from `intermediate_variables.include_with_output` in `guidance.yaml`); pre-checked, user may uncheck.
+   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (from `intermediate_variables.include_with_output` in `guidance/variables.yaml`); pre-checked, user may uncheck.
    - *(unlabeled)* — the top 5–8 remaining eligible fields by rank; pre-checked, user may uncheck.
    - Fields already tagged `expose` in the CIVIL YAML are always pre-selected regardless of rank.
    - `[REQUIRED]` fields appear first, then `[GUIDANCE]` fields, then unlabeled fields in rank order.
@@ -266,11 +266,11 @@ To extract from all files as a unified corpus, run without specifying a filename
 ### SP-ResolveRulesetModules
 
 **When to call:**
-- `/extract-ruleset`: immediately after pre-flight Check 5 (load `guidance.yaml`)
+- `/extract-ruleset`: immediately after pre-flight Check 5 (load guidance files)
 - `/update-ruleset`: at the start of Step 0, after the naming-manifest divergence check
 
 **Parameter contract:**
-- Input: `guidance.yaml` (already loaded), `extraction-manifest.yaml` (loaded if exists), invocation context (`extract` or `update`)
+- Input: `guidance/ruleset-modules.yaml` (loaded if exists; treated as empty if absent), `extraction-manifest.yaml` (loaded if exists), invocation context (`extract` or `update`)
 - Output: an ordered **work-list** of `{file, name, action, bind_map, is_new}` entries, where `action` is one of `generate` or `reference`
 
 **Logic:**
@@ -278,7 +278,7 @@ To extract from all files as a unified corpus, run without specifying a filename
 ```
 SP-ResolveRulesetModules
 
-1. If ruleset_modules: absent or empty in guidance.yaml:
+1. If guidance/ruleset-modules.yaml is absent or ruleset_modules: is empty:
    → Output: [{file: $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml,
                name: <program>, action: generate, bind_map: {}, is_new: <bool>}]
    → Return immediately (single-file path; caller proceeds as today — no changes to existing behavior)
@@ -289,7 +289,7 @@ SP-ResolveRulesetModules
       main_name = that entry's name
       If <program> CLI arg was given AND differs from main_name:
         Print: "Note: Using declared main module name '<main_name>' from
-                guidance.yaml (ignoring '<program>' argument)."
+                guidance/ruleset-modules.yaml (ignoring '<program>' argument)."
     Else:
       main_name = <program> CLI arg if given (backward compat path — R11).
       If no <program> arg, main_name is resolved later by the caller's Step 3
@@ -305,7 +305,7 @@ SP-ResolveRulesetModules
    For each ruleset_modules: entry WHERE role != 'main' (or role absent)
      whose name does NOT appear in extraction-manifest.yaml sub_modules::
      → Emit:
-       "⚠️  New ruleset module candidates found in guidance.yaml that were not in the initial extraction:
+       "⚠️  New ruleset module candidates found in guidance/ruleset-modules.yaml that were not in the initial extraction:
              <names>.
         Run /extract-ruleset <domain> to generate them before running /update-ruleset."
      → Abort SP-ResolveRulesetModules (caller must stop — do not proceed with partial work-list)
@@ -348,7 +348,7 @@ SP-ResolveRulesetModules
       the emitted module in its depends_on:, decrement their in_degree; enqueue any that reach 0.
    d. If any modules remain after the queue drains (cycle detected):
       → Abort with: "Cycle detected in depends_on: references among ruleset modules: <list of cycle node names>.
-        Fix guidance.yaml depends_on: entries before running /extract-ruleset."
+        Fix guidance/ruleset-modules.yaml depends_on: entries before running /extract-ruleset."
 
    Fallback (no depends_on: declared on any entry, or all depends_on: are empty lists):
    Output work-list in current convention order — sub-module entries in ruleset_modules: declaration order,
@@ -452,7 +452,7 @@ After processing all components:
 
 **In `/update-ruleset` context:** SP-MaintainabilityReview checks only rules and computed fields that were added or modified in the current update (identified in Step 4: Identify Affected CIVIL Sections). It does not re-check unchanged rules.
 
-**Input:** The drafted/merged CIVIL module file (path). Also available: the `ruleset_groups:` defined in `guidance.yaml` for the domain (for context on expected stage names).
+**Input:** The drafted/merged CIVIL module file (path). Also available: the `ruleset_groups:` from `guidance/ruleset-groups.yaml` for the domain (for context on expected stage names).
 
 **Procedure:**
 

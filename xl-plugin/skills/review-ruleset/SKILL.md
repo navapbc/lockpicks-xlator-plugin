@@ -59,9 +59,9 @@ Run these checks before doing anything else:
 
 3. **Input docs present?** — Run shared pre-flight check 3 from `../../core/ruleset-shared.md`.
 
-4. **Load `guidance.yaml`** — Run shared pre-flight check 5 from `../../core/ruleset-shared.md`.
+4. **Load guidance files** — Run shared pre-flight check 5 from `../../core/ruleset-shared.md`.
 
-**After Check 4 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** with context `extract`. Store the returned work-list for use in Steps 1–3 below.
+**After Check 4 (guidance files loaded):** Run **SP-ResolveRulesetModules** with context `extract`. Store the returned work-list for use in Steps 1–3 below.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
 - If the work-list has exactly one entry (ruleset_modules: empty) → proceed as single-file path throughout.
 
@@ -221,4 +221,7 @@ Files created or modified by this command:
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 1) / Refreshed (Step 3) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 1) / Refreshed (Step 3) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |

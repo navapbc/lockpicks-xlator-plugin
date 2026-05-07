@@ -5,7 +5,7 @@ description: Declare Ruleset Input-Output from a Suggestion File
 
 # Declare Ruleset Input-Output from a Suggestion File
 
-Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.
+Bootstrap the `guidance/` folder for a domain from a ruleset file produced by `/suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.
 
 ## Input
 
@@ -62,13 +62,21 @@ Run these checks before doing anything else:
      :::
      Await the user's response and use the resolved file as the ruleset file. Then continue.
 
-5. **`guidance.yaml` already exists?**
-   - `$DOMAINS_DIR/<domain>/specs/guidance.yaml` present → Prompt:
+5. **`specs/guidance/` folder exists?**
+   - `$DOMAINS_DIR/<domain>/specs/guidance/` absent → Print:
+     :::error
+     guidance/ folder not found: $DOMAINS_DIR/<domain>/specs/guidance/
+     Run /new-domain <domain> first to create the folder scaffold.
+     :::
+     Then stop.
+
+6. **`guidance/metadata.yaml` already exists?**
+   - `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` present → Prompt:
      :::user_input
-     guidance.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance.yaml. Overwrite? [y/n]
+     guidance/metadata.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml. Overwrite? [y/n]
      :::
      - `n` → Stop without writing.
-     - `y` → Continue.
+     - `y` → Continue (UPDATE mode).
 
 ## Process
 
@@ -84,18 +92,22 @@ Output: <primary.name> (<primary.type>)
 Secondary: <secondary_decisions names, or "none">
 :::
 
-### Step 2: Create `guidance.yaml`
+### Step 2: Create split guidance files
 
-Use the following as the baseline constraint, standard, and guidance entries.
-Write `$DOMAINS_DIR/<domain>/specs/guidance.yaml` with this exact field ordering:
+Write three files into `$DOMAINS_DIR/<domain>/specs/guidance/`.
+
+**`guidance/metadata.yaml`:**
 
 ```yaml
 template_id: <ruleset_name from ruleset>
 source_template: suggestion--<ruleset_name>
-generated_at: <today YYYY-MM-DD>
 display_name: "<display_name from ruleset>"
 description: "<description from ruleset>"
+```
 
+**`guidance/prompt-context.yaml`:**
+
+```yaml
 role: "<role from ruleset>"
 scope: "<scope from ruleset>"
 
@@ -116,7 +128,11 @@ guidance:
   # (repeat for each guidance item in the ruleset file's guidance list)
 
 edge_cases: []
+```
 
+**`guidance/variables.yaml`:**
+
+```yaml
 input_variables:
   categories:
     - category: <category from ruleset>
@@ -144,22 +160,24 @@ intermediate_variables:
 
 - `template_id`: the `ruleset_name` field from the ruleset file (snake_case, e.g., `eligibility_check`)
 - `source_template`: `suggestion--<ruleset_name>` (e.g., `suggestion--eligibility_check`) — never a template filename, never just `suggestion-`
-- `generated_at`: today's date in `YYYY-MM-DD` format
 - `display_name`, `description`, `role`, `scope`: copied verbatim from the ruleset file as quoted strings
-- `constraints`, `standards`, `guidance`: copy all entries from `xl-plugin/core/guidance-templates/assess-eligibility.yaml` exactly as listed in that file — do not summarize or reword
+- `constraints`, `standards`, `guidance`: copy all entries from `xl-plugin/core/guidance-templates/assess-eligibility/prompt-context.yaml` exactly as listed — do not summarize or reword
 - `edge_cases: []`: always empty at creation; `/create-skeleton`'s Step 2 pass will populate
-- `input_variables.categories`: copy each `category` and `description` from the ruleset file; add `examples: []` to every category (template placeholder — skeleton building fills these in during `/create-skeleton`)
+- `input_variables.categories`: copy each `category` and `description` from the ruleset file; add `examples: []` to every category
 - `output_variables.primary`: copy `name`, `type`, and `description` from the ruleset file
 - `output_variables.secondary_decisions`: copy from the ruleset file; write `secondary_decisions: []` when the ruleset had none — never omit the key
 - `intermediate_variables.include_with_output: []`: always initialized empty — never omit this key
 - `intermediate_variables.categories: []`: always initialized empty
 
-**Fields to omit entirely:** `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, `sample_rules:` — those are written by later AI skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`).
+**Fields to omit entirely from all three files:** `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, `sample_rules:` — those are written by later AI skills.
+**Never write `generated_at`** — git version history tracks file history.
 
 After writing, print:
 
 :::important
-Created $DOMAINS_DIR/<domain>/specs/guidance.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml
 :::
 
 Then suggest the next step:
@@ -171,17 +189,20 @@ Next: Run /create-skeleton <domain> to extract document signals and build the co
 ## Output
 
 :::important
-$DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml      [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [CREATED]
 :::
 
 ## Common Mistakes to Avoid
 
 - `source_template` must be `suggestion--<ruleset_name>` — never a template filename (e.g., not `assess-eligibility`), never just `suggestion-`
 - `source_template` is never updated after creation — do not modify it on re-runs or updates
+- Do not write `generated_at` — git tracks version history; this field is dropped
 - Do not omit `intermediate_variables.include_with_output: []` — downstream AI skills (`/create-skeleton`, `/extract-ruleset`) expect this key to exist
-- Do not include `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, or `sample_rules:` — those are written by later AI skills
+- Do not include `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, or `sample_rules:` in any guidance file — those are written by later AI skills
 - Do not add `edge_cases:` content here — `edge_cases: []` is always empty at creation; `/create-skeleton` populates it
 - `secondary_decisions: []` must be present even when the ruleset had no secondary decisions — never omit the key
 - `examples: []` in each `input_variables` category is intentional — it is a placeholder that `/create-skeleton` will fill in with domain-specific variable names
-- Do not add `edge_cases:` to the guidance template files in `../../core/guidance-templates/` — `edge_cases:` belongs only in per-domain `guidance.yaml`
 - `template_id` is the `ruleset_name` from the ruleset file (snake_case) — not the `display_name`, not a path, not a template id from `guidance-templates/`
+- The skill assumes `specs/guidance/` already exists — it is created by `/new-domain`, not here

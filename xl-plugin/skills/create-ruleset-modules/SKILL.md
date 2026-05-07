@@ -5,7 +5,7 @@ description: Detect Ruleset Module as Modules for a Domain
 
 # Detect Ruleset Module as Modules for a Domain
 
-Reads `skeleton:` and `ruleset_groups:` from `guidance.yaml`, extracts doc signals from `input-sections.yaml`, applies six heuristics to detect ruleset modules, and writes modules to `guidance.yaml` as `ruleset_modules:` after `ruleset_groups:`.
+Reads `guidance/skeleton.yaml` and `guidance/ruleset-groups.yaml`, extracts doc signals from `input-sections.yaml`, applies six heuristics to detect ruleset modules, and writes modules to `guidance/ruleset-modules.yaml`.
 
 A "module" is a ruleset module — a subset of rules within a ruleset group (ruleset group). Ruleset modules must not cross ruleset group boundaries.
 
@@ -38,11 +38,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-3. **`guidance.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
+3. **`guidance/metadata.yaml` exists?**
+   - Check for `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`
    - ABSENT → Print:
      :::error
-     guidance.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance.yaml
+     guidance/metadata.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml
      Run /declare-target-ruleset <domain> first.
      :::
      Then stop.
@@ -56,18 +56,18 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-5. **`skeleton:` key present in `guidance.yaml`?**
+5. **`guidance/skeleton.yaml` exists?**
    - ABSENT → Print:
      :::error
-     Skeleton not found in guidance.yaml.
+     Skeleton not found: $DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml
      Run /create-skeleton <domain> first.
      :::
      Then stop.
 
-6. **`ruleset_groups:` key present in `guidance.yaml`?**
+6. **`guidance/ruleset-groups.yaml` exists?**
    - ABSENT → Print:
      :::error
-     Ruleset groups not found in guidance.yaml.
+     Ruleset groups not found: $DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml
      Run /create-ruleset-groups <domain> first.
      Note: this command requires ruleset groups to be defined before ruleset module detection.
      This is intentional: ruleset modules must stay within a single stage, so groups must be defined first.
@@ -76,9 +76,9 @@ Run these checks before doing anything else:
 
 ## Mode Detection
 
-After pre-flight, check whether `ruleset_modules:` already exists and is non-empty in `guidance.yaml`:
+After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` exists and is non-empty:
 
-- **Present and non-empty** → **UPDATE mode**. Existing entries are pre-confirmed. Only newly detected modules (not already in `ruleset_modules:`) are added.
+- **Present and non-empty** → **UPDATE mode**. Existing entries are pre-confirmed. Only newly detected modules (not already in `ruleset-modules.yaml`) are added.
 - **Absent or empty** → **CREATE mode**.
 
 ---
@@ -88,7 +88,9 @@ After pre-flight, check whether `ruleset_modules:` already exists and is non-emp
 ### Step 1: Load state and extract signals
 
 Read:
-- `$DOMAINS_DIR/<domain>/specs/guidance.yaml` — load `skeleton:`, `ruleset_groups:`, and `intermediate_variables.categories` (for variable names)
+- `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton:` key
+- `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` — `ruleset_groups:` key
+- `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` — `intermediate_variables.categories` (for variable names)
 - `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` — re-run Step 2 signal extraction:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
@@ -97,7 +99,7 @@ Read:
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals.
 
-In UPDATE mode: display a summary of existing `ruleset_modules:` as pre-confirmed before scanning for new modules. Include the `role: main` entry (if present) in the pre-confirmed block — it will not be re-prompted in Step 3:
+In UPDATE mode: display a summary of existing `ruleset-modules.yaml` entries as pre-confirmed before scanning for new modules. Include the `role: main` entry (if present) in the pre-confirmed block — it will not be re-prompted in Step 3:
 
 :::progress
 Existing ruleset modules (pre-confirmed):
@@ -120,7 +122,7 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | 3 | `depth_threshold` | Sequential depth | ≥5 variables in `skeleton` whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | 4 | `variable_coupling` | Coupling clique | ≥3 intermediate variables in `skeleton.computations` where each references ≥2 of the others' outputs — forming a mutual dependency clique that signals a self-contained computation cluster worth isolating |
 | 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |
-| 6 | `user_hint` | Pre-existing entries | `ruleset_modules:` already populated in `guidance.yaml` — load existing entries as pre-confirmed (UPDATE mode) |
+| 6 | `user_hint` | Pre-existing entries | `ruleset-modules.yaml` already exists — load existing entries as pre-confirmed (UPDATE mode) |
 
 **R21 stage-boundary constraint:** Every variable in a candidate ruleset module must belong to a single ruleset group (no cross-stage ruleset modules). Infer stage membership by matching variable names and computation categories to stage descriptions and phase heading signals. If a candidate's variables span two groups, either split it into per-stage ruleset modules or reject it with an explanation to the user.
 
@@ -146,7 +148,7 @@ No new ruleset modules identified.
 ```
 
 - In UPDATE mode: print `Existing entries preserved unchanged.` and exit without writing.
-- In CREATE mode: write `ruleset_modules: []` to `guidance.yaml` and suggest next step.
+- In CREATE mode: write `guidance/ruleset-modules.yaml` with `ruleset_modules: []` and suggest next step.
 
 ---
 
@@ -158,8 +160,8 @@ No new ruleset modules identified.
 
 Otherwise, derive the main module name automatically — no prompt:
 
-1. Check `output_variables.primary.name` in `guidance.yaml`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the value and use the result.
-2. If no primary output variable is declared, take the last hyphen-segment of `template_id` and strip leading generic prefixes (`calculate-`, `determine-`, `check-`, `compute-`).
+1. Check `output_variables.primary.name` in `guidance/variables.yaml`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the value and use the result.
+2. If no primary output variable is declared, take the last hyphen-segment of `template_id` from `guidance/metadata.yaml` and strip leading generic prefixes (`calculate-`, `determine-`, `check-`, `compute-`).
 
 Examples:
 - `primary.name: eligibility_determination` → `eligibility`
@@ -168,23 +170,21 @@ Examples:
 Print the derived name so the user can see what was chosen:
 
 :::important
-Main module: eligibility  (edit guidance.yaml to rename)
+Main module: eligibility  (edit guidance/ruleset-modules.yaml to rename)
 :::
 
 ---
 
-### Step 4: Write `ruleset_modules:`
+### Step 4: Write `guidance/ruleset-modules.yaml`
 
-Write all detected new candidates to `ruleset_modules:`.
-
-Write `ruleset_modules:` to `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
-- Insert after `ruleset_groups:` and before `constraints:` (if present), or at end of file if neither follows
-- In UPDATE mode: overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed); preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries verbatim
+Write all detected new candidates to `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml`:
+- In UPDATE mode: overwrite the file with the full final list (existing pre-confirmed + new confirmed); preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries verbatim
 - In CREATE mode with zero modules: write `ruleset_modules: []`
 
 Each confirmed sub-module entry must use this exact YAML format:
 
 ```yaml
+ruleset_modules:
   - name: <snake_case>
     description: "<what this ruleset module computes>"
     bound_entities: [<EntityName1>, <EntityName2>]
@@ -192,11 +192,11 @@ Each confirmed sub-module entry must use this exact YAML format:
     depends_on: []
 ```
 
-When a main module name was confirmed in Step 3, append the main module entry at the end of the list:
+When a main module name was confirmed in Step 3, append the main module entry at the end of the list. Use `display_name` from `guidance/metadata.yaml` as the main module description:
 
 ```yaml
   - name: <program_name>
-    description: "<display_name value from guidance.yaml>"
+    description: "<display_name value from guidance/metadata.yaml>"
     bound_entities: []
     rationale: main_module
     role: main
@@ -204,11 +204,12 @@ When a main module name was confirmed in Step 3, append the main module entry at
 ```
 
 `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case.
+Do not write `generated_at`.
 
 Print:
 
 :::important
-$DOMAINS_DIR/<domain>/specs/guidance.yaml [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml [CREATED]
 :::
 
 Then suggest next steps:
@@ -222,21 +223,21 @@ Next: Run /extract-sample-rules <domain> to extract sample rules.
 ## Output
 
 ```
-$DOMAINS_DIR/<domain>/specs/guidance.yaml    [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml    [CREATED]
 ```
 
 ## Common Mistakes to Avoid
 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals
-- `ruleset_modules:` is inserted after `ruleset_groups:` and before `constraints:` in `guidance.yaml`, not at the end of the file unless no later keys exist
-- In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset_modules:`
-- In UPDATE mode with new modules, overwrite `ruleset_modules:` with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones
+- In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset-modules.yaml`
+- In UPDATE mode with new modules, overwrite the file with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones
 - A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans groups, split it or reject it with an explanation to the user
-- Each sub-module `ruleset_modules:` entry must have `name`, `description`, `bound_entities`, `rationale`, and `depends_on` — never omit any field; `role:` defaults to `sub` when absent
+- Each sub-module entry must have `name`, `description`, `bound_entities`, `rationale`, and `depends_on` — never omit any field; `role:` defaults to `sub` when absent
 - The main module entry additionally requires `role: main`, `bound_entities: []`, `rationale: main_module`, and `depends_on:` listing all sub-module names
 - Do not write the `role: main` entry when zero sub-modules were detected — Step 3 only runs when at least one sub-module is present
 - In CREATE mode with zero modules, write `ruleset_modules: []` — never omit the key entirely
 - `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case; main module always uses `bound_entities: []`
-- In UPDATE mode, when overwriting `ruleset_modules:`, preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries — never strip fields added by a prior run
+- In UPDATE mode, preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries — never strip fields added by a prior run
+- Do not write `generated_at`
 - This command has 4 steps — the step checklist rule (>3 steps) applies; show a step checklist
 - Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage.

@@ -67,7 +67,7 @@ Run these checks before doing anything else:
 
 Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 
-**After Check 5 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
+**After Check 5 (guidance files loaded):** Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
 - If the work-list has exactly one entry (ruleset_modules: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
 
@@ -77,11 +77,12 @@ Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 
 ### Step 1: Read Policy Documents
 
-The `guidance.yaml` file was loaded in pre-flight. Internalize the following before reading any policy documents:
+The guidance files were loaded in pre-flight. Internalize the following before reading any policy documents:
 
 ```
 ---
-[guidance.yaml content — paste verbatim as loaded]
+[content of guidance/metadata.yaml, guidance/prompt-context.yaml, guidance/variables.yaml,
+ guidance/skeleton.yaml — paste verbatim as loaded]
 ---
 
 Use this goal to scope your reading:
@@ -91,17 +92,17 @@ Use this goal to scope your reading:
 - Apply all constraints and standards listed above throughout Steps 1–7.
 ```
 
-Additionally, build five in-memory structures from the loaded `guidance.yaml`:
+Additionally, build five in-memory structures from the loaded guidance files:
 
 1. **Confirmed exprs map** `{variable_name → expr}`: For each category in `intermediate_variables`, read its `computations:` list (if present). For each entry, add `name → expr` to the map. If a category has no `computations:`, no entries are added. This map is used in Step 4.
 
-2. **Example rules list**: Read the top-level `sample_rules:` section (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
+2. **Example rules list**: Read the top-level `sample_rules:` section from `guidance/sample-artifacts.yaml` (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
 
-3. **Guidance output set** `{variable_name}`: Read `intermediate_variables.include_with_output` (if present). If the key is absent or `intermediate_variables` does not exist, use an empty set. This set is used in Step 4 and SP-TagOutputs.
+3. **Guidance output set** `{variable_name}`: Read `intermediate_variables.include_with_output` from `guidance/variables.yaml` (if present). If the key is absent or `intermediate_variables` does not exist, use an empty set. This set is used in Step 4 and SP-TagOutputs.
 
-4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key (if present). For each entry, collect its `name:` and `description:`. If the key is absent or empty, the list is empty. This list is used in Step 4.
+4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/variables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the key is absent or empty, the list is empty. This list is used in Step 4.
 
-5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
+5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
 If `<filename>` is given, read only `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>`.
 Otherwise, read the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
@@ -142,7 +143,7 @@ After building the component map, run **SP-OrchestrationFilter** (from `../../co
 
 ### Step 3: Derive Program Name
 
-If SP-ResolveRulesetModules resolved a main module name from a `role: main` entry in `guidance.yaml` (Step 1b of SP-ResolveRulesetModules), use that name directly — no inference or prompt needed.
+If SP-ResolveRulesetModules resolved a main module name from a `role: main` entry in `guidance/ruleset-modules.yaml` (Step 1b of SP-ResolveRulesetModules), use that name directly — no inference or prompt needed.
 
 Otherwise (no `role: main` entry exists — backward compat path):
 1. Use `<program>` argument if given.
@@ -201,7 +202,7 @@ If the user changes any name, update the table and re-present. Loop until the us
 
 **Single-file (ruleset_modules: empty):** existing behavior unchanged.
 
-**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance.yaml` has a top-level `ruleset_groups:` list (written by `/refine-guidance` Sub-step 3b.5):
+**CIVIL v6 — ruleset_groups auto-copy:** When emitting the `rule_set:` block, check whether `guidance/ruleset-groups.yaml` exists and has a top-level `ruleset_groups:` list:
 - **If present:** copy the list directly into `rule_set.ruleset_groups` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
 - **If absent:** omit the `ruleset_groups:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
 
@@ -235,13 +236,13 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 
 **When emitting `tables:` and `constants:` sections**, if the constants/tables seed list (from Step 1) is non-empty, begin with the seeded entries before drafting from policy text:
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
-- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance.yaml constants_and_tables` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
-- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance.yaml constants_and_tables`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
+- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/variables.yaml constants_and_tables` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
+- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/variables.yaml constants_and_tables`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
 - After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
-**Before drafting `outputs:`,** check `output_variables.primary.type` in `guidance.yaml`:
+**Before drafting `outputs:`,** check `output_variables.primary.type` in `guidance/variables.yaml`:
 - **`bool`** (default) — use `type: bool` with `expr: "count(reasons) == 0"`
 - **`enum`** — use `type: string` + `values:` + `conditional:` (see template below); `enum` maps to `string` in CIVIL
 - **other scalar** (`money`, `int`, `float`) — use a typed output decision with `expr:` instead of `computed:` + `tags: [expose]`
@@ -351,7 +352,7 @@ rule_set:
   name: "<identifier>"
   precedence: "deny_overrides_allow"
   description: "..."
-  # CIVIL v6: ruleset_groups (auto-copied from guidance.yaml if defined)
+  # CIVIL v6: ruleset_groups (auto-copied from guidance/ruleset-groups.yaml if defined)
   # ruleset_groups:
   #   - name: income_test
   #     description: Income eligibility tests
@@ -501,6 +502,12 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/sample-artifacts.yaml` | Read (if present) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.
