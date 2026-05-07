@@ -162,6 +162,142 @@ def _ts() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Duration computation (used by handle_stop)
+# ---------------------------------------------------------------------------
+
+# Event types that mark the start of a new active-AI segment for per-turn timing.
+_TURN_BOUNDARY_TYPES = ("user_prompt", "assistant_response", "ai_question")
+
+
+def _read_session_events(session_id: str) -> list[dict]:
+    """Read all events for the given session_id across every per-domain session.jsonl
+    plus .shared, merged and sorted by ts.
+
+    Skips missing files and malformed lines silently. Constructs paths directly to
+    avoid _log_file()'s mkdir side-effect.
+    """
+    events: list[dict] = []
+    for log_path in DOMAINS_FULLPATH.glob("*/logs/session.jsonl"):
+        try:
+            with open(log_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if event.get("session_id") == session_id:
+                        events.append(event)
+        except OSError:
+            continue
+    events.sort(key=lambda e: e.get("ts", ""))
+    return events
+
+
+def _seconds_between(from_ts: str | None, to_ts: str) -> int | None:
+    """Whole-second difference (to_ts − from_ts). Returns None on invalid input or
+    negative delta. All session.jsonl timestamps are second-resolution
+    (isoformat(timespec='seconds')) so integer seconds is the natural precision."""
+    if from_ts is None:
+        return None
+    try:
+        dt_from = datetime.fromisoformat(from_ts.replace("Z", "+00:00"))
+        dt_to = datetime.fromisoformat(to_ts.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+    delta = int((dt_to - dt_from).total_seconds())
+    if delta < 0:
+        return None
+    return delta
+
+
+def _compute_durations(events: list[dict], now_ts: str) -> dict:
+    """Pure function. Given the chronologically-sorted events for the current
+    session and the current Stop's timestamp, returns a dict with:
+      - "turn": always present when computable, with from_ts, to_ts, duration_seconds
+      - "skill": present when a /-prefixed user_prompt exists in the session, with
+                 from_ts, to_ts, duration_seconds (active-AI), wait_seconds, turns
+
+    Returns {} if no per-turn duration can be computed. The current Stop's
+    assistant_response event is NOT in `events` yet (handle_stop appends it).
+    """
+    # Per-turn: from the latest boundary event (user_prompt | assistant_response | ai_question).
+    turn_from_ts: str | None = None
+    for event in reversed(events):
+        if event.get("type") in _TURN_BOUNDARY_TYPES:
+            turn_from_ts = event.get("ts")
+            break
+    if turn_from_ts is None:
+        return {}
+
+    turn_seconds = _seconds_between(turn_from_ts, now_ts)
+    if turn_seconds is None:
+        return {}
+
+    result: dict = {
+        "turn": {
+            "duration_seconds": turn_seconds,
+            "from_ts": turn_from_ts,
+            "to_ts": now_ts,
+        }
+    }
+
+    # Per-skill: find the most recent /-prefixed user_prompt in the session.
+    skill_start_event: dict | None = None
+    for event in reversed(events):
+        if event.get("type") == "user_prompt" and event.get("prompt", "").startswith("/"):
+            skill_start_event = event
+            break
+    if skill_start_event is None:
+        return result
+
+    skill_start_ts = skill_start_event.get("ts")
+    if skill_start_ts is None:
+        return result
+
+    # Walk events between skill_start and now: count assistant turns; sum AskUserQuestion waits.
+    # Each ai_question wait = (ai_question.ts − latest_preceding_assistant_response.ts), or
+    # (ai_question.ts − skill_start.ts) if no prior assistant_response exists.
+    last_active_ts = skill_start_ts
+    wait_total = 0
+    turn_count = 0
+    for event in events:
+        ts = event.get("ts")
+        if ts is None or ts <= skill_start_ts or ts > now_ts:
+            continue
+        etype = event.get("type")
+        if etype == "ai_question":
+            wait = _seconds_between(last_active_ts, ts)
+            if wait is not None:
+                wait_total += wait
+            last_active_ts = ts
+        elif etype == "assistant_response":
+            turn_count += 1
+            last_active_ts = ts
+
+    # Current Stop is the final turn of this skill_duration computation.
+    turn_count += 1
+
+    wall_seconds = _seconds_between(skill_start_ts, now_ts)
+    if wall_seconds is None:
+        return result
+    active_seconds = wall_seconds - wait_total
+    if active_seconds < 0:
+        return result
+
+    result["skill"] = {
+        "duration_seconds": active_seconds,
+        "from_ts": skill_start_ts,
+        "to_ts": now_ts,
+        "wait_seconds": wait_total,
+        "turns": turn_count,
+    }
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Event handlers
 # ---------------------------------------------------------------------------
 
@@ -189,7 +325,8 @@ def handle_user_prompt_submit(payload: dict) -> None:
 
 
 def handle_stop(payload: dict) -> None:
-    """Extract the last assistant text turn from the transcript and log it."""
+    """Log the assistant's last text response (when present) and append per-turn
+    and per-skill duration events derived from session.jsonl."""
     transcript = payload.get("transcript", [])
     last_response = ""
     for turn in reversed(transcript):
@@ -208,17 +345,55 @@ def handle_stop(payload: dict) -> None:
         if last_response:
             break
 
-    if not last_response:
-        return
-
     session_id = _get_session_id()
-    _append_event(".shared", {
-        "ts": _ts(),
-        "session_id": session_id,
-        "type": "assistant_response",
-        "domain": ".shared",
-        "response": last_response,
-    })
+    now_ts = _ts()
+
+    # Read session events BEFORE appending this turn's assistant_response so the
+    # per-turn boundary uses the *previous* turn-end, not the one we're about to write.
+    try:
+        prior_events = _read_session_events(session_id)
+    except Exception:
+        prior_events = []
+
+    if last_response:
+        _append_event(".shared", {
+            "ts": now_ts,
+            "session_id": session_id,
+            "type": "assistant_response",
+            "domain": ".shared",
+            "response": last_response,
+        })
+
+    # Compute and emit duration events. Failures are swallowed — observability must
+    # never block the workflow.
+    try:
+        durations = _compute_durations(prior_events, now_ts)
+    except Exception:
+        durations = {}
+
+    if "turn" in durations:
+        try:
+            _append_event(".shared", {
+                "ts": now_ts,
+                "session_id": session_id,
+                "type": "turn_duration",
+                "domain": ".shared",
+                **durations["turn"],
+            })
+        except Exception:
+            pass
+
+    if "skill" in durations:
+        try:
+            _append_event(".shared", {
+                "ts": now_ts,
+                "session_id": session_id,
+                "type": "skill_duration",
+                "domain": ".shared",
+                **durations["skill"],
+            })
+        except Exception:
+            pass
 
 
 def handle_post_tool_use(payload: dict) -> None:
