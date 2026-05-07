@@ -26,6 +26,10 @@ Downstream skills that need the policy doc *content* (e.g., `/extract-ruleset`, 
 
 `/index-inputs` itself continues to scan `input/policy_docs/` for SHA and md_quality scoring — its index reflects the source files, not the compressed copies.
 
+## Don't migrate old files
+
+Do not assume code is needed to migrate or handle old files. Ask the user if they want migration code or code that looks in old locations. Reason: this code is not yet in production and still in experimental stages. Such migration code complicates the logic and adds extraneous behavior.
+
 ## Output Fencing
 
 All skill output MUST be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics. Always include the fencing syntax around the text blocks in the output, such as `:::important` and `:::next_step`.

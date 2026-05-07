@@ -7,20 +7,18 @@
 xlator compress-inputs: maintain <domain>/policy_facets/compressed/ as a
 caveman-compressed mirror of <domain>/input/policy_docs/.
 
-This tool handles the non-AI half of /compress-inputs: bootstrap, file
-enumeration, copy, manifest read/write, mirror-deletes, and *.original.md
-cleanup. The orchestrating skill invokes the AI half (caveman /compress
-per file) between --plan and --finalize.
+This tool handles the non-AI half of /compress-inputs: file enumeration,
+copy, manifest read/write, mirror-deletes, and *.original.md cleanup. The
+orchestrating skill invokes the AI half (caveman /compress per file)
+between --plan and --finalize.
 
 Usage:
     xlator compress-inputs <domain> --plan
     xlator compress-inputs <domain> --finalize
 
 --plan:
-  - Bootstrap: mkdir policy_facets/ if absent; move
-    specs/input-{index,sections}.yaml into policy_facets/ if applicable.
   - Defensive sweep: remove any stray *.original.md files under compressed/.
-  - Enumerate eligible source files (.md only for v1; sensitive paths skipped).
+  - Enumerate allowed source files (.md only for v1).
   - Compute a work plan {to_compress, to_delete, noop, skipped} by comparing
     each source file's git SHA against the manifest's recorded SHA.
   - Copy each to_compress source to its compressed/ destination.
@@ -45,13 +43,12 @@ Output (JSON, --plan only):
       "to_compress":     [ {src, dst, source_sha}, ... ],
       "to_delete":       [ "policy_facets/compressed/<rel>.md", ... ],
       "noop":            [ {src, reason: "unchanged"}, ... ],
-      "skipped":         [ {src, reason: "sensitive_path"|"not_eligible"}, ... ],
-      "bootstrap_moved": [ "specs/input-index.yaml -> policy_facets/...", ... ]
+      "skipped":         [ {src, reason: "not_allowed"}, ... ]
     }
 
 Exit codes:
     0 — success
-    1 — error (missing domain, conflicting bootstrap state, corrupt plan, ...)
+    1 — error (missing domain, corrupt plan, ...)
 """
 
 from __future__ import annotations
@@ -59,7 +56,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -74,46 +70,12 @@ _COMPRESSED = "policy_facets/compressed"
 _MANIFEST = "policy_facets/.compress-manifest.yaml"
 _PLAN_TMP = "policy_facets/.compress-plan.tmp"
 
-_INDEX_FILE = "input-index.yaml"
-_SECTIONS_FILE = "input-sections.yaml"
-
-_ELIGIBLE_SUFFIXES = {".md"}
-_SENSITIVE_PATTERN = re.compile(
-    r"(secret|credential|password|api[_-]?key|token|private[_-]?key)",
-    re.IGNORECASE,
-)
+_ALLOWED_SUFFIXES = {".md"}
 
 
 # ---------------------------------------------------------------------------
-# Bootstrap
+# Sweep
 # ---------------------------------------------------------------------------
-
-def bootstrap(domain_dir: Path) -> list[str]:
-    """Ensure policy_facets/ exists and move legacy index files into it.
-
-    Returns a list of human-readable move records ("from -> to").
-    Raises RuntimeError on conflict (both source and destination exist).
-    """
-    moved: list[str] = []
-    facets = domain_dir / _POLICY_FACETS
-    facets.mkdir(parents=True, exist_ok=True)
-
-    for filename in (_INDEX_FILE, _SECTIONS_FILE):
-        legacy = domain_dir / "specs" / filename
-        new = domain_dir / _POLICY_FACETS / filename
-        if not legacy.exists():
-            continue
-        if new.exists():
-            raise RuntimeError(
-                f"Conflicting index files: both {legacy.relative_to(domain_dir)} "
-                f"and {new.relative_to(domain_dir)} exist. Resolve manually before "
-                f"running /compress-inputs."
-            )
-        legacy.rename(new)
-        moved.append(f"{legacy.relative_to(domain_dir)} -> {new.relative_to(domain_dir)}")
-
-    return moved
-
 
 def sweep_stale_backups(domain_dir: Path) -> int:
     """Remove any *.original.md files under policy_facets/compressed/.
@@ -135,15 +97,11 @@ def sweep_stale_backups(domain_dir: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Eligibility
+# Allowed
 # ---------------------------------------------------------------------------
 
-def is_eligible(rel_path: Path) -> bool:
-    return rel_path.suffix.lower() in _ELIGIBLE_SUFFIXES
-
-
-def is_sensitive(rel_path: Path) -> bool:
-    return bool(_SENSITIVE_PATTERN.search(str(rel_path)))
+def is_allowed(rel_path: Path) -> bool:
+    return rel_path.suffix.lower() in _ALLOWED_SUFFIXES
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +171,7 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
     if not domain_dir.is_dir():
         raise RuntimeError(f"Domain directory not found: {domain_dir}")
 
-    bootstrap_moved = bootstrap(domain_dir)
+    (domain_dir / _POLICY_FACETS).mkdir(parents=True, exist_ok=True)
     swept = sweep_stale_backups(domain_dir)
 
     source_root = domain_dir / _POLICY_DOCS
@@ -237,11 +195,8 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
         rel = abs_src.relative_to(domain_dir)  # e.g. input/policy_docs/sub/foo.md
         rel_str = str(rel)
 
-        if not is_eligible(rel):
-            skipped.append({"src": rel_str, "reason": "not_eligible"})
-            continue
-        if is_sensitive(rel):
-            skipped.append({"src": rel_str, "reason": "sensitive_path"})
+        if not is_allowed(rel):
+            skipped.append({"src": rel_str, "reason": "not_allowed"})
             continue
 
         seen_sources.add(rel_str)
@@ -280,7 +235,6 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
         "to_delete": to_delete,
         "noop": noop,
         "skipped": skipped,
-        "bootstrap_moved": bootstrap_moved,
         "succeeded": [],   # mutated by skill as it processes each file
         "failed": [],      # mutated by skill on per-file caveman failure
     }
@@ -297,9 +251,6 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
         f"{len(noop)} unchanged, {len(skipped)} skipped, {swept} stale backups removed",
         file=sys.stderr,
     )
-    if bootstrap_moved:
-        for line in bootstrap_moved:
-            print(f"# bootstrap: moved {line}", file=sys.stderr)
 
     return plan
 

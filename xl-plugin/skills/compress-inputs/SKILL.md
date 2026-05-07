@@ -73,7 +73,7 @@ Run:
 xlator compress-inputs <domain> --plan
 ```
 
-The tool bootstraps `policy_facets/` (creates the folder, moves any legacy `specs/input-{index,sections}.yaml` into `policy_facets/`), sweeps stale `*.original.md` files, computes the work plan, copies each `to_compress` source file into its destination under `policy_facets/compressed/`, and writes the work plan to `policy_facets/.compress-plan.tmp`.
+The tool ensures `policy_facets/` exists, sweeps stale `*.original.md` files, computes the work plan, copies each `to_compress` source file into its destination under `policy_facets/compressed/`, and writes the work plan to `policy_facets/.compress-plan.tmp`.
 
 The tool emits the work plan as JSON on stdout. Parse it. The shape is:
 
@@ -82,19 +82,11 @@ The tool emits the work plan as JSON on stdout. Parse it. The shape is:
   "to_compress":     [ {"src": "...", "dst": "...", "source_sha": "..."}, ... ],
   "to_delete":       [ "policy_facets/compressed/<rel>.md", ... ],
   "noop":            [ {"src": "...", "reason": "unchanged"}, ... ],
-  "skipped":         [ {"src": "...", "reason": "sensitive_path"|"not_eligible"}, ... ],
-  "bootstrap_moved": [ "specs/input-index.yaml -> policy_facets/...", ... ],
+  "skipped":         [ {"src": "...", "reason": "not_allowed"}, ... ],
   "succeeded":       [],
   "failed":          []
 }
 ```
-
-If `bootstrap_moved` is non-empty, emit:
-
-:::important
-Migrated index files into policy_facets/:
-  <list of moved files>
-:::
 
 If `to_compress` is empty AND `to_delete` is empty, emit:
 

@@ -202,65 +202,7 @@ def test_filename_with_spaces():
         assert "input/policy_docs/441-1 EARNED INCOME.md" in (data["sources"] or {})
 
 
-def test_bootstrap_moves_legacy_index_files():
-    """Edge case: legacy specs/input-{index,sections}.yaml move into policy_facets/."""
-    with tempfile.TemporaryDirectory() as tmp:
-        domain = _make_domain(Path(tmp))
-        _write_doc(domain, "a.md")
-        _git_init_and_commit(domain)
-        # Plant legacy files.
-        legacy_dir = domain / "specs"
-        legacy_dir.mkdir(exist_ok=True)
-        (legacy_dir / "input-index.yaml").write_text("# old index")
-        (legacy_dir / "input-sections.yaml").write_text("# old sections")
-
-        plan = compress_inputs.cmd_plan(domain)
-
-        assert len(plan["bootstrap_moved"]) == 2
-        assert (domain / "policy_facets" / "input-index.yaml").exists()
-        assert (domain / "policy_facets" / "input-sections.yaml").exists()
-        assert not (legacy_dir / "input-index.yaml").exists()
-        assert not (legacy_dir / "input-sections.yaml").exists()
-        # Re-run plan: no further moves.
-        plan2 = compress_inputs.cmd_plan(domain)
-        assert plan2["bootstrap_moved"] == []
-
-
-def test_bootstrap_conflict_hard_stops():
-    """Error path: both legacy and new index files exist -> RuntimeError."""
-    with tempfile.TemporaryDirectory() as tmp:
-        domain = _make_domain(Path(tmp))
-        _write_doc(domain, "a.md")
-        _git_init_and_commit(domain)
-        (domain / "specs").mkdir(exist_ok=True)
-        (domain / "policy_facets").mkdir(exist_ok=True)
-        (domain / "specs" / "input-index.yaml").write_text("# legacy")
-        (domain / "policy_facets" / "input-index.yaml").write_text("# new")
-
-        try:
-            compress_inputs.cmd_plan(domain)
-        except RuntimeError as exc:
-            assert "Conflicting index files" in str(exc)
-        else:
-            raise AssertionError("expected RuntimeError on conflict")
-
-
-def test_sensitive_paths_skipped():
-    """Edge case: file path matching sensitive pattern goes to skipped."""
-    with tempfile.TemporaryDirectory() as tmp:
-        domain = _make_domain(Path(tmp))
-        _write_doc(domain, "secrets/api_key.md")
-        _write_doc(domain, "ok.md")
-        _git_init_and_commit(domain)
-
-        plan = compress_inputs.cmd_plan(domain)
-        skipped_srcs = [e["src"] for e in plan["skipped"]]
-        compressed_srcs = [e["src"] for e in plan["to_compress"]]
-        assert "input/policy_docs/secrets/api_key.md" in skipped_srcs
-        assert "input/policy_docs/ok.md" in compressed_srcs
-
-
-def test_non_md_eligible_skipped():
+def test_non_md_allowed_skipped():
     """Edge case: .txt and other extensions are reported as skipped."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
@@ -270,7 +212,7 @@ def test_non_md_eligible_skipped():
 
         plan = compress_inputs.cmd_plan(domain)
         skipped_srcs = [(e["src"], e["reason"]) for e in plan["skipped"]]
-        assert ("input/policy_docs/b.txt", "not_eligible") in skipped_srcs
+        assert ("input/policy_docs/b.txt", "not_allowed") in skipped_srcs
 
 
 def test_finalize_aborts_uncompressed_dst_for_failed_files():
