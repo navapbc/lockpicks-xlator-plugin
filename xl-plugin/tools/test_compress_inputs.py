@@ -22,6 +22,9 @@ import yaml
 sys.path.insert(0, os.path.dirname(__file__))
 
 import compress_inputs  # noqa: E402
+import outcome_markers  # noqa: E402
+
+_PLAN_TMP_DIR = "policy_facets/.compress-plan.d"
 
 
 def _make_domain(tmp: Path, name: str = "test_dom") -> Path:
@@ -51,11 +54,37 @@ def _git_init_and_commit(domain: Path) -> None:
 
 
 def _mark_succeeded(domain: Path, srcs: list[str]) -> None:
-    """Simulate the skill marking files as compressed."""
+    """Simulate the skill marking files as compressed by writing per-file markers."""
     plan_path = domain / "policy_facets" / ".compress-plan.tmp"
     plan = json.loads(plan_path.read_text())
-    plan["succeeded"].extend(srcs)
-    plan_path.write_text(json.dumps(plan, indent=2))
+    sha_by_src = {entry["src"]: entry["source_sha"] for entry in plan["to_compress"]}
+    marker_dir = domain / _PLAN_TMP_DIR
+    for src in srcs:
+        outcome_markers.write_marker(
+            marker_dir, src, "succeeded", source_sha=sha_by_src.get(src),
+        )
+
+
+def _mark_failed(domain: Path, src: str, error: str = "boom") -> None:
+    """Simulate a worker writing a failure marker."""
+    plan_path = domain / "policy_facets" / ".compress-plan.tmp"
+    plan = json.loads(plan_path.read_text())
+    sha_by_src = {entry["src"]: entry["source_sha"] for entry in plan["to_compress"]}
+    marker_dir = domain / _PLAN_TMP_DIR
+    outcome_markers.write_marker(
+        marker_dir, src, "failed", source_sha=sha_by_src.get(src), error=error,
+    )
+
+
+def _mark_in_progress(domain: Path, src: str) -> None:
+    """Simulate a worker that wrote in_progress and then died before completing."""
+    plan_path = domain / "policy_facets" / ".compress-plan.tmp"
+    plan = json.loads(plan_path.read_text())
+    sha_by_src = {entry["src"]: entry["source_sha"] for entry in plan["to_compress"]}
+    marker_dir = domain / _PLAN_TMP_DIR
+    outcome_markers.write_marker(
+        marker_dir, src, "in_progress", source_sha=sha_by_src.get(src),
+    )
 
 
 def test_plan_fresh_domain():
@@ -309,6 +338,122 @@ def test_atomic_manifest_write_no_partial():
 
         # No .tmp leftover from the atomic write.
         assert not (domain / "policy_facets" / ".compress-manifest.yaml.tmp").exists()
+
+
+def test_finalize_in_progress_marker_treated_as_aborted():
+    """Edge case: in_progress marker (worker died mid-action) -> dst removed, summary lists aborted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md")
+        _git_init_and_commit(domain)
+
+        compress_inputs.cmd_plan(domain)
+        # Worker wrote in_progress, caveman started mutating dst, then worker died.
+        _mark_in_progress(domain, "input/policy_docs/a.md")
+
+        summary = compress_inputs.cmd_finalize(domain)
+        assert summary["compressed"] == 0
+        assert summary["aborted"] == 1
+        assert summary["failed"] == 1  # in_progress aborts surface as failures
+        # Dst was cleaned up because compress may have partially mutated it.
+        assert not (domain / "policy_facets" / "compressed" / "a.md").exists()
+        # Manifest does NOT include the aborted src.
+        manifest = compress_inputs.read_manifest(domain)
+        assert "input/policy_docs/a.md" not in manifest
+
+
+def test_finalize_missing_marker_treated_as_aborted():
+    """Edge case: src in to_compress has no marker (worker died before writing) -> aborted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md")
+        _git_init_and_commit(domain)
+
+        compress_inputs.cmd_plan(domain)
+        # No marker write at all.
+
+        summary = compress_inputs.cmd_finalize(domain)
+        assert summary["compressed"] == 0
+        assert summary["aborted"] == 1
+        assert summary["failed"] == 1
+        assert not (domain / "policy_facets" / "compressed" / "a.md").exists()
+
+
+def test_finalize_failed_marker_does_not_count_as_aborted():
+    """Edge case: explicit failed marker counts in failed but NOT in aborted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md")
+        _git_init_and_commit(domain)
+
+        compress_inputs.cmd_plan(domain)
+        _mark_failed(domain, "input/policy_docs/a.md", error="caveman refused")
+
+        summary = compress_inputs.cmd_finalize(domain)
+        assert summary["compressed"] == 0
+        assert summary["aborted"] == 0  # explicit failure ≠ abort
+        assert summary["failed"] == 1
+        assert not (domain / "policy_facets" / "compressed" / "a.md").exists()
+
+
+def test_finalize_v3_schema_aborts():
+    """Error path: v3.0.0-schema plan tmp (non-empty succeeded array) is rejected."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md")
+        _git_init_and_commit(domain)
+
+        compress_inputs.cmd_plan(domain)
+        # Hand-mutate the plan tmp to look like the v3.0.0 schema.
+        plan_path = domain / "policy_facets" / ".compress-plan.tmp"
+        plan = json.loads(plan_path.read_text())
+        plan["succeeded"] = ["input/policy_docs/a.md"]
+        plan["failed"] = []
+        plan_path.write_text(json.dumps(plan, indent=2))
+
+        try:
+            compress_inputs.cmd_finalize(domain)
+        except RuntimeError as exc:
+            assert "v3.0.0 schema" in str(exc)
+            assert "Delete" in str(exc)
+        else:
+            raise AssertionError("expected RuntimeError on v3.0.0-schema plan tmp")
+
+
+def test_plan_clears_stale_marker_dir():
+    """Crash recovery: pre-existing .compress-plan.d/ from a prior crashed run is wiped by --plan."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md")
+        _git_init_and_commit(domain)
+
+        # Simulate a stale marker dir from a prior crashed run.
+        stale_dir = domain / _PLAN_TMP_DIR
+        stale_dir.mkdir(parents=True, exist_ok=True)
+        stale_marker = stale_dir / "input" / "policy_docs" / "stale-source.md.outcome.json"
+        stale_marker.parent.mkdir(parents=True, exist_ok=True)
+        stale_marker.write_text('{"src": "stale", "status": "succeeded"}')
+
+        compress_inputs.cmd_plan(domain)
+
+        assert stale_dir.is_dir()
+        assert not stale_marker.exists()
+        leftovers = list(stale_dir.rglob("*.outcome.json"))
+        assert leftovers == []
+
+
+def test_finalize_cleans_up_marker_dir():
+    """Happy path: --finalize removes the .compress-plan.d/ directory after collation."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md")
+        _git_init_and_commit(domain)
+
+        compress_inputs.cmd_plan(domain)
+        _mark_succeeded(domain, ["input/policy_docs/a.md"])
+        compress_inputs.cmd_finalize(domain)
+
+        assert not (domain / _PLAN_TMP_DIR).exists()
 
 
 # ---------------------------------------------------------------------------
