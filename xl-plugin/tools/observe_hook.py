@@ -350,10 +350,9 @@ def handle_stop(payload: dict) -> None:
 
     # Read session events BEFORE appending this turn's assistant_response so the
     # per-turn boundary uses the *previous* turn-end, not the one we're about to write.
-    try:
-        prior_events = _read_session_events(session_id)
-    except Exception:
-        prior_events = []
+    # _read_session_events is itself defensive (returns [] on any I/O or parse failure),
+    # and main()'s top-level except still backstops anything below.
+    prior_events = _read_session_events(session_id)
 
     if last_response:
         _append_event(".shared", {
@@ -364,36 +363,31 @@ def handle_stop(payload: dict) -> None:
             "response": last_response,
         })
 
-    # Compute and emit duration events. Failures are swallowed — observability must
-    # never block the workflow.
+    # Compute durations. The except guard is intentional: _compute_durations is the new
+    # logic that could throw on malformed events; the per-_append_event calls below are
+    # already covered by main()'s top-level handler.
     try:
         durations = _compute_durations(prior_events, now_ts)
     except Exception:
         durations = {}
 
     if "turn" in durations:
-        try:
-            _append_event(".shared", {
-                "ts": now_ts,
-                "session_id": session_id,
-                "type": "turn_duration",
-                "domain": ".shared",
-                **durations["turn"],
-            })
-        except Exception:
-            pass
+        _append_event(".shared", {
+            "ts": now_ts,
+            "session_id": session_id,
+            "type": "turn_duration",
+            "domain": ".shared",
+            **durations["turn"],
+        })
 
     if "skill" in durations:
-        try:
-            _append_event(".shared", {
-                "ts": now_ts,
-                "session_id": session_id,
-                "type": "skill_duration",
-                "domain": ".shared",
-                **durations["skill"],
-            })
-        except Exception:
-            pass
+        _append_event(".shared", {
+            "ts": now_ts,
+            "session_id": session_id,
+            "type": "skill_duration",
+            "domain": ".shared",
+            **durations["skill"],
+        })
 
 
 def handle_post_tool_use(payload: dict) -> None:
