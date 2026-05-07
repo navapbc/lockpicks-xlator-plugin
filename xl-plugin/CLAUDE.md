@@ -12,9 +12,9 @@ If `$DOMAINS_DIR` is unknown, read it from `.xlator.local.env` in the project ro
 
 To run Python scripts under the `tools/` folder, use the `xlator` shell script as a shim so that required environment variables are correctly set.
 
-## Running arbitrary Python code
+## Running arbitrary Python code on the CLI
 
-Do not use the system Python; use `uv run python <args>`.
+Do not run the `python` or `python3`; instead run `uv run python <args>`.
 
 ## Project Terminology
 
