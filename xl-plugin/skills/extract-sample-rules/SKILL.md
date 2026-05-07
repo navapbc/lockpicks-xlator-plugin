@@ -164,6 +164,14 @@ Show updated step checklist (as `:::progress`).
 
 Rules are generated in two passes. **These passes are strictly sequential and must never be combined into a single write.** Pass 4a processes `computed-only` entries using index data alone and writes output immediately so the user can review rules while Pass 4b runs. Pass 4b processes `needs-source` entries (and any `computed-only` entries queued by heuristic signals) by reading source documents, then merges again. The merge schemas are defined in Steps 5 and 6 below.
 
+**Rendering `preconditions:` to CIVIL.** Multiple sub-steps below — Pass 4a (b), and Pass 4b (c) for both `computed:` and `categorical:` rules — consume the `preconditions:` field from index entries. Apply this rendering uniformly:
+
+- **Boolean shape** — the top-level list joins terms with AND; `{all_of: [...]}` joins terms with AND; `{any_of: [...]}` joins terms with OR; arbitrary nesting is permitted.
+- **Leaf translation** — each leaf string clause is a natural-language predicate. Translate it into a CIVIL boolean expression using canonical variable names (resolved via SP-LoadNamingManifest as in sub-step (a)). When a clause cannot be confidently translated to CIVIL, keep it as a quoted string in a `# precondition: <clause>` YAML comment immediately above the rule's `expr:` or `when:` line, and add a `missing_info:` entry: `"Precondition <clause> for <variable_name> could not be translated to CIVIL — confirm manually"`.
+- **`computed:` rules** — wrap `expr_hint:` in `conditional: { if: <rendered>, then: <expr_hint>, else: <inferred default or "?"> }` instead of a bare `expr:`. If no `else` branch is implied by the policy and no sensible default exists, keep the bare `expr:` form and prepend the `# precondition: <rendered>` comment.
+- **`categorical:` rules** — render preconditions as the rule's `when:` clause; source-text triggers from Pass 4b (c) contribute additional `when:` conditions joined with AND.
+- **Absent / empty `preconditions:`** — render rules unconditionally (existing behavior).
+
 ---
 
 **Pass 4a — Index pass**
@@ -180,6 +188,7 @@ For each `computed-only` entry in the working set, processed in priority order (
 - Canonical output variable name
 - `expr_hint:` as the `expr:` value, substituting canonical names for any input variable names
 - `source:` from `computations[].description` (if `description` is absent, use `expr: "?"` and add to `missing_info`: `"No description for <variable_name> — expr and source must be confirmed manually"`)
+- If `preconditions:` is present on the entry, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form, or fall back to a `# precondition: <rendered>` comment above the bare `expr:` when no `else` branch is inferable from the index.
 
 **(c) Check heuristic signals.** Scan the entry's `tags:` and `summary:` for these keywords (case-insensitive):
 - Table/schedule keywords: `table`, `schedule`, `threshold`, `limit`
@@ -233,9 +242,9 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 
 **(c) Generate rules.** For each computation hint in the entry, produce one or more CIVIL rule snippets:
 
-- **`computed:` rule** — for `needs-source` entries with an `expr_hint:`: produce a `computed:` snippet using the canonical output variable name and the expr_hint as the `expr:` value. For `computed-only` entries in the Pass 4b queue: **skip `computed:` rules** — already written in Pass 4a.
-- **`computed:` rule (no expr_hint)** — for `needs-source` entries where no `expr_hint:` is given: produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No expr_hint available for `<name>` — expr must be confirmed manually").
-- **`categorical:` rules** — scan the source text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names.
+- **`computed:` rule** — for `needs-source` entries with an `expr_hint:`: produce a `computed:` snippet using the canonical output variable name and the expr_hint as the `expr:` value. If the entry has `preconditions:`, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form; refine the rendered preconditions against the source text from sub-step (a) — clauses that the index pass could not translate cleanly may translate now using source-text variable names. For `computed-only` entries in the Pass 4b queue: **skip `computed:` rules** — already written in Pass 4a.
+- **`computed:` rule (no expr_hint)** — for `needs-source` entries where no `expr_hint:` is given: produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No expr_hint available for `<name>` — expr must be confirmed manually"). If the entry has `preconditions:`, still render them as a `# precondition: <rendered>` comment above the placeholder so the analyst can see the gating intent.
+- **`categorical:` rules** — scan the source text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names. If the originating index entry has `preconditions:`, seed the `when:` clause from the rendered preconditions (per the rendering rule above) and append source-text-derived conditions joined with AND.
 - **`table-lookup:` rule** — if the source text references a table or schedule of thresholds, draft a `computed:` entry using `table_lookup:` syntax with `table:` and `key:` fields.
 - **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance/ruleset-modules.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
 

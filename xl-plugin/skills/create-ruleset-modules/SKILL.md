@@ -95,7 +95,7 @@ Read:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
   - **File summaries** — collect all `summary:` values; reveals program scope and terminology
-  - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (last item in `variables` list is the output); collect `expr_hint` values keyed by output variable. If no entry has `computations:`, skip this signal.
+  - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (last item in `variables` list is the output); collect `expr_hint` values keyed by output variable; collect `preconditions:` expressions keyed by output variable. Preconditions feed the `shared_gate` heuristic in Step 2 — outputs whose `preconditions:` share a common clause are candidates for a co-activation cluster even when their variable names lack a common prefix. If no entry has `computations:`, skip this signal.
 
 Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Strip the trailing `.yaml` from the per-file file's relative path under `policy_facets/computations/` and prefix with `input/policy_docs/` to reconstruct `path:`.
 
@@ -123,7 +123,7 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | 2 | `policy_structure` | Policy section grouping | Named sub-section heading aggregated from `policy_facets/computations/**/*.md.yaml` covers ≥3 intermediate variables in `skeleton.computations` |
 | 3 | `depth_threshold` | Sequential depth | ≥5 variables in `skeleton` whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | 4 | `variable_coupling` | Coupling clique | ≥3 intermediate variables in `skeleton.computations` where each references ≥2 of the others' outputs — forming a mutual dependency clique that signals a self-contained computation cluster worth isolating |
-| 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |
+| 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`) **OR** ≥3 intermediate variables' `preconditions:` (collected in Step 1) all reference the same clause (e.g., three outputs whose preconditions all contain `"household contains an elderly member"`), suggesting they all fire under the same condition and belong together |
 | 6 | `user_hint` | Pre-existing entries | `ruleset-modules.yaml` already exists — load existing entries as pre-confirmed (UPDATE mode) |
 
 **R21 stage-boundary constraint:** Every variable in a candidate ruleset module must belong to a single ruleset group (no cross-stage ruleset modules). Infer stage membership by matching variable names and computation categories to stage descriptions and phase heading signals. If a candidate's variables span two groups, either split it into per-stage ruleset modules or reject it with an explanation to the user.

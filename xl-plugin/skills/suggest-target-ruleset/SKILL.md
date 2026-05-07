@@ -64,7 +64,7 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 - **Topic tags** across all sections → cluster to find prominent domain areas (e.g., "income", "eligibility", "household")
 - **Section headings** → reveals statutory structure and sub-program scope
 - **File summaries** → reveals program scope and terminology
-- **Computation hints** → collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable. If the index has no `computations:` entries, skip this signal.
+- **Computation hints** → collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable; collect `preconditions:` expressions keyed by their output variable. Recurring precondition clauses across many entries (e.g., a large cluster of computations all gated on `"applicant is over 65"`) signal a distinct policy scope and should yield a separate candidate ruleset rather than being mixed into a more general one. If the index has no `computations:` entries, skip this signal.
 
 **For each candidate, derive:**
 - `ruleset_name` — snake_case base filename (e.g., `eligibility_check`, `income_calculation`)

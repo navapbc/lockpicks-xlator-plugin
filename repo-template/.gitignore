@@ -21,6 +21,9 @@ dist/
 # Observability logs (local only, never commit)
 **/logs/
 
+# Temporary files
+**/.*.tmp
+
 # Rejected malformed markdown files
 **/input/rejected/
 

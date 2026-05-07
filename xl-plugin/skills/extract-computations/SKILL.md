@@ -87,6 +87,22 @@ For each section produce:
 - **`computations:`** — *optional* list. Include only if the section contains identifiable rule logic (formulas, arithmetic, table lookups, thresholds, conditional assignments). Each entry has:
   - `description:` — one sentence describing the computation in plain language.
   - `variables:` — all variable names involved, **inputs first, computed output last**, snake_case, inferred from policy terminology.
+  - `preconditions:` — *optional* boolean expression describing when the `expr_hint:` applies, derived from the section's own heading, its parent headings, and the surrounding text. The value is a list of **terms** joined by implicit AND at the top level. Each term is one of:
+    - a string clause — a self-contained predicate in plain language; reference variable names from `variables:` where possible (e.g., `"household contains a working adult"`, `"var2 > 0"`).
+    - `{all_of: [<term>, ...]}` — an explicit AND group; useful for nesting inside `any_of`.
+    - `{any_of: [<term>, ...]}` — an OR group; terms inside may themselves be string clauses or further `all_of` / `any_of` groups, so arbitrary nesting is allowed.
+
+    Example: a parent H2 "Working Adults" plus a phrase "if the applicant is over 65, or is married to an employed spouse" yields
+    ```yaml
+    preconditions:
+      - "household contains a working adult"
+      - any_of:
+          - "applicant is over 65"
+          - all_of:
+              - "applicant is married"
+              - "spouse is employed"
+    ```
+    Omit the field when the computation applies unconditionally within the section.
   - `expr_hint:` — *optional* short formula or expression fragment. Include when a formula or condition is stated or clearly implied; omit when the logic is descriptive only.
 
   **Omit the `computations:` field entirely** when no rule logic is present. Do not emit `computations: []` — an empty list is never correct.
@@ -108,6 +124,13 @@ Write a YAML file with this preamble and shape (use Bash `printf`/heredocs; do n
   computations:
     - description: "..."
       variables: [var1, var2, output_var]
+      preconditions:
+        - "household contains a working adult"
+        - any_of:
+            - "applicant is over 65"
+            - all_of:
+                - "applicant is married"
+                - "spouse is employed"
       expr_hint: "var1 * 0.20"
 
 - heading: "## Subsection"
