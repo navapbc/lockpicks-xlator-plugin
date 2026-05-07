@@ -183,22 +183,53 @@ def test_plan_mirror_delete():
         assert "input/policy_docs/b.md" not in manifest
 
 
-def test_untracked_always_recompresses():
-    """Edge case: untracked source files are always in to_compress."""
+def test_untracked_but_unchanged_is_noop():
+    """Untracked sources get a stable content-hash SHA via git hash-object,
+    so an unchanged untracked file is classified as noop on re-runs."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_doc(domain, "a.md")
-        # No git init -- file is "untracked"
+        # git init but never `git add` -- file remains untracked.
+        subprocess.run(["git", "init", "--quiet"], cwd=domain, check=True)
 
         plan = compress_inputs.cmd_plan(domain)
-        assert plan["to_compress"][0]["source_sha"] == "untracked"
+        # Real blob SHA (40 hex chars), not the literal "untracked".
+        sha = plan["to_compress"][0]["source_sha"]
+        assert sha != "untracked"
+        assert len(sha) == 40
 
         _mark_succeeded(domain, ["input/policy_docs/a.md"])
         compress_inputs.cmd_finalize(domain)
 
-        # Even after finalize, next --plan still re-compresses.
+        # Re-run --plan: content unchanged -> noop, not re-compressed.
         plan2 = compress_inputs.cmd_plan(domain)
-        assert len(plan2["to_compress"]) == 1
+        assert plan2["to_compress"] == []
+        assert plan2["noop"] == [{"src": "input/policy_docs/a.md", "reason": "unchanged"}]
+
+
+def test_plan_detects_uncommitted_change():
+    """Bug fix: editing a tracked file without committing must trigger re-compress.
+
+    Old git_sha used `git log -1` (last commit hash) and would return the same
+    SHA before and after an uncommitted edit, missing the change.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md", "doc a")
+        _git_init_and_commit(domain)
+
+        compress_inputs.cmd_plan(domain)
+        _mark_succeeded(domain, ["input/policy_docs/a.md"])
+        compress_inputs.cmd_finalize(domain)
+
+        # Modify the tracked file but DO NOT commit (no git add, no git commit).
+        _write_doc(domain, "a.md", "doc a CHANGED in working tree only")
+
+        plan = compress_inputs.cmd_plan(domain)
+        srcs = [e["src"] for e in plan["to_compress"]]
+        assert srcs == ["input/policy_docs/a.md"], (
+            f"uncommitted edit not detected: to_compress={srcs}, noop={plan['noop']}"
+        )
 
 
 def test_nested_dirs_preserved():

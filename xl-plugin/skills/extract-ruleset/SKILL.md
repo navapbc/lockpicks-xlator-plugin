@@ -425,11 +425,11 @@ programs:
 
 **Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
 
-Get each doc's git SHA:
+Get each doc's git blob SHA (working-tree content hash) — this is what `/update-ruleset` later compares against to detect changes:
 ```bash
-git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/input/policy_docs/<filename>.md
+git hash-object $DOMAINS_DIR/<domain>/input/policy_docs/<filename>.md
 ```
-If a file is untracked (not yet committed), use `"untracked"` as the SHA.
+`git hash-object` reflects the file's current bytes, so the recorded SHA matches whatever was actually extracted — even if the source doc has uncommitted edits at extraction time. Use `"untracked"` only if `git hash-object` itself fails.
 
 ### Step 6: Validate CIVIL files
 

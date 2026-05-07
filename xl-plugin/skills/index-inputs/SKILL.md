@@ -141,28 +141,12 @@ Found <N> document(s). Indexing all...
 For each file, run:
 
 ```bash
-git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/<domain-relative-path>
+git hash-object $DOMAINS_DIR/<domain>/<domain-relative-path>
 ```
 
-If the output is empty (file is untracked or staged but not committed), use `"untracked"`.
+`git hash-object` returns the blob SHA of the file's *current content* (working-tree state), so the SHA changes whenever the file's bytes change — independent of whether the file is tracked or committed. This is the comparison key the per-action manifests use to decide SKIP vs REINDEX.
 
-If any files have `"untracked"` SHA, prompt the user before proceeding:
-
-:::user_input
-⚠ <N> file(s) are not yet committed to git:
-    input/policy_docs/<file1>.md
-    input/policy_docs/<file2>.md
-  Untracked files are re-indexed on every UPDATE run (no SHA to compare).
-  Commit these files now? [y/n]
-:::
-
-- **y** → Run:
-  ```bash
-  git add $DOMAINS_DIR/<domain>/input/policy_docs/<file1>.md $DOMAINS_DIR/<domain>/input/policy_docs/<file2>.md
-  git commit -m "chore(<domain>): add input policy docs"
-  ```
-  Then re-fetch the SHA for each committed file (`git log -1 --format="%H" -- ...`) and use the real SHA in the index.
-- **n** → Continue. These files get `"untracked"` SHA and will be re-indexed on every future UPDATE run.
+If `git hash-object` itself fails (e.g., git unavailable), use `"untracked"` and the file will be re-indexed on every run.
 
 After obtaining each file's SHA, score it:
 
@@ -354,10 +338,10 @@ Glob all `.md` files recursively under `$DOMAINS_DIR/<domain>/input/policy_docs/
 For each current file, run:
 
 ```bash
-git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/<domain-relative-path>
+git hash-object $DOMAINS_DIR/<domain>/<domain-relative-path>
 ```
 
-Empty output → `"untracked"`.
+`git hash-object` returns the blob SHA of the file's current bytes — modified-but-uncommitted edits produce a new SHA, so changes are detected without requiring a commit. Use `"untracked"` only if `git hash-object` itself fails.
 
 For files that will be classified as **REINDEX** (see Step 4), also score them now:
 
@@ -385,8 +369,6 @@ Compare current files + SHAs against the stored `files:` block:
 Found <N> document(s): <X> changed/new, <Y> unchanged, <Z> deleted.
 Re-indexing <X> file(s)...
 :::
-
-If any current files have `"untracked"` SHA, prompt the user (same flow as CREATE Step 2).
 
 ### Step 5: Dispatch unified per-file workers
 

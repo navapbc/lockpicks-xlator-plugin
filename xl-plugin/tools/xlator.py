@@ -111,9 +111,17 @@ def _manifest_path(domain):
 
 
 def _get_file_sha(repo_relative_path):
-    """Return current HEAD git SHA for a file, or None if not tracked/committed."""
+    """Return git blob SHA of the file's current working-tree content, or None
+    if the file is missing / unreadable.
+
+    Uses `git hash-object` rather than `git log -1` so that uncommitted edits to
+    tracked files produce a new SHA (the commit-based form would return the SHA
+    of the file's last commit even after a working-tree edit, missing the change).
+    """
+    if not Path(repo_relative_path).exists():
+        return None
     result = subprocess.run(
-        ["git", "log", "-1", "--format=%H", "--", repo_relative_path],
+        ["git", "hash-object", repo_relative_path],
         capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
     )
     return result.stdout.strip() or None
@@ -387,7 +395,7 @@ def cmd_manifest_update(domain):
             domain_rel, _ = _parse_source_doc(entry)
             sha = _get_file_sha(f"{DOMAINS_FULLPATH}/{domain}/{domain_rel}")
             if sha is None:
-                _print_info(f"    [dim]dropped[/dim] {domain_rel} (no longer in git)")
+                _print_info(f"    [dim]dropped[/dim] {domain_rel} (file missing)")
                 continue
             new_entry = {"path": domain_rel, "git_sha": sha}
             if "last_extracted" in entry:
@@ -412,9 +420,10 @@ def cmd_manifest_update(domain):
 def cmd_detect_changes(domain):
     """Exit 0 = no changes (nothing to do). Exit 1 = changes detected.
 
-    Compares git SHA values stored in extraction-manifest.yaml against the current
-    HEAD SHA for each source document. Only committed changes are detected — this
-    intentionally matches the pipeline's behaviour of tracking committed policy versions.
+    Compares the blob SHA stored in extraction-manifest.yaml against the
+    current working-tree blob SHA (`git hash-object`) for each source document.
+    Detects both committed and uncommitted edits — any byte-level change to the
+    source flips the SHA.
     """
     mpath = _manifest_path(domain)
     if not mpath.exists():

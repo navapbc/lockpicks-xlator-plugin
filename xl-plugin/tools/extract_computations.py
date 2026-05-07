@@ -141,10 +141,14 @@ def write_manifest(domain_dir: Path, sources: dict[str, str]) -> None:
 # ---------------------------------------------------------------------------
 
 def git_sha(domain_dir: Path, abs_path: Path) -> str:
-    """git log -1 --format=%H -- <path>; returns 'untracked' if empty."""
+    """git hash-object <path>; SHA of current file content (working-tree blob).
+
+    Uses hash-object, not `git log`, so changes to a tracked-but-uncommitted file
+    produce a new SHA. Returns 'untracked' only when git/hash-object cannot run.
+    """
     try:
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%H", "--", str(abs_path)],
+            ["git", "hash-object", str(abs_path)],
             cwd=str(domain_dir),
             capture_output=True,
             text=True,

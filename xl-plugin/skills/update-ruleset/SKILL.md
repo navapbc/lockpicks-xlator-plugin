@@ -96,11 +96,9 @@ Proceed to Step 1.
 
 ### Step 1: Load Baseline
 
-Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the git SHA for each source doc.
+Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the recorded blob SHA for each source doc. Each entry's `git_sha` is a blob SHA (`git hash-object`) of the source doc's content at the time of the last extraction.
 
-**Fallback chain (if manifest absent):**
-1. Get the CIVIL file's last commit SHA: `git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
-2. If no git history at all → treat as CREATE mode (full re-extraction); run `/extract-ruleset <domain>` instead.
+**Fallback (if manifest absent):** there is no baseline to compare against, so re-extraction must be unconditional — stop and run `/extract-ruleset <domain>` instead.
 
 ### Step 1b: Reconcile Manifest
 
@@ -108,36 +106,30 @@ Before change detection, remove stale entries from `extraction-manifest.yaml` fo
 
 ### Step 2: Detect Changes
 
-**Multi-file (SP-ResolveRulesetModules work-list has more than one entry):**
-
-For each entry in the SP-ResolveRulesetModules work-list, run change detection against that entry's `source_docs:` from the manifest:
+For every source doc to be checked, compute its current blob SHA and compare against the SHA stored in the manifest. A mismatch (or a source doc absent from the manifest) means the file changed and must be re-extracted.
 
 ```bash
-# Per work-list entry:
-git diff <entry_source_sha>..HEAD -- <entry_source_doc_path>
-git status <entry_source_doc_path>
+# For each source doc <path>:
+git hash-object $DOMAINS_DIR/<domain>/<path>
 ```
 
-- If changes are detected for a sub-module entry: include it in the change report with label `[sub-module: <name>]` and add it to the set of files requiring re-extraction.
-- If no changes are detected for a sub-module entry: skip re-extraction for that sub-module (source-provenance-based scoping — only files whose source docs changed are re-extracted).
+`git hash-object` reflects the file's current working-tree bytes, so both committed AND uncommitted edits are caught by the same comparison — no separate `git diff` / `git status` step is needed.
+
+**Multi-file (SP-ResolveRulesetModules work-list has more than one entry):**
+
+For each entry in the work-list, run the comparison above against every path under that entry's `source_docs:`. If any source doc's current blob SHA differs from the stored `git_sha`, the entry is added to the set of files requiring re-extraction. Sub-module entries are reported with label `[sub-module: <name>]`. If no source doc for the entry changed, skip re-extraction for that entry (source-provenance-based scoping).
 
 The main module is re-extracted if its own source docs changed. If only sub-module source docs changed, the main module is not re-extracted (its `invoke:` fields reference sub-module names, which don't change).
 
 **Single-file (SP-ResolveRulesetModules work-list has one entry):**
 
-If `<filename>` is given, scope change detection to that file only:
+If `<filename>` is given, scope the comparison to that file only:
 
 ```bash
-# Scoped (when <filename> is given):
-git diff <baseline-sha>..HEAD -- $DOMAINS_DIR/<domain>/input/policy_docs/<filename>
-git status $DOMAINS_DIR/<domain>/input/policy_docs/<filename>
-
-# Full (when <filename> is not given):
-git diff <baseline-sha>..HEAD -- $DOMAINS_DIR/<domain>/input/policy_docs/
-git status $DOMAINS_DIR/<domain>/input/policy_docs/
+git hash-object $DOMAINS_DIR/<domain>/input/policy_docs/<filename>
 ```
 
-Collect the list of changed/added/deleted input docs.
+When `<filename>` is not given, run the comparison for every entry in the manifest's `source_docs:` and additionally check `$DOMAINS_DIR/<domain>/input/policy_docs/` for files that exist on disk but are absent from the manifest (treat them as added). Collect the list of changed/added/deleted input docs.
 
 ### Step 3: No Changes — Exit Early
 
@@ -210,7 +202,7 @@ Proceed to Step 7 only after SP-MaintainabilityReview passes (no blocking failur
 
 ### Step 7: Update Manifest
 
-Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`:
+Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`. Each `git_sha:` value is the source doc's blob SHA — recompute it with `git hash-object <path>` for every entry being written/refreshed.
 
 **Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated).
 

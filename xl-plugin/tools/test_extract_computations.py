@@ -222,23 +222,53 @@ def test_plan_mirror_delete():
         assert "input/policy_docs/b.md" not in manifest
 
 
-def test_untracked_always_re_extracts():
-    """Edge case: untracked source files are always in to_extract."""
+def test_untracked_but_unchanged_is_noop():
+    """Untracked sources get a stable content-hash SHA via git hash-object,
+    so an unchanged untracked file is classified as noop on re-runs."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_doc(domain, "a.md")
-        # No git init -- file is "untracked"
+        subprocess.run(["git", "init", "--quiet"], cwd=domain, check=True)
 
         plan = extract_computations.cmd_plan(domain)
-        assert plan["to_extract"][0]["source_sha"] == "untracked"
+        sha = plan["to_extract"][0]["source_sha"]
+        assert sha != "untracked"
+        assert len(sha) == 40
 
         _write_dst(domain, "a.md")
         _mark_succeeded(domain, ["input/policy_docs/a.md"])
         extract_computations.cmd_finalize(domain)
 
-        # Even after finalize, next --plan still re-extracts (untracked is never noop).
+        # Re-run --plan: content unchanged -> noop.
         plan2 = extract_computations.cmd_plan(domain)
-        assert len(plan2["to_extract"]) == 1
+        assert plan2["to_extract"] == []
+        assert plan2["noop"] == [{"src": "input/policy_docs/a.md", "reason": "unchanged"}]
+
+
+def test_plan_detects_uncommitted_change():
+    """Bug fix: editing a tracked file without committing must trigger re-extract.
+
+    Old git_sha used `git log -1` (last commit hash) and would return the same
+    SHA before and after an uncommitted edit, missing the change.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_doc(domain, "a.md", "doc a")
+        _git_init_and_commit(domain)
+
+        extract_computations.cmd_plan(domain)
+        _write_dst(domain, "a.md")
+        _mark_succeeded(domain, ["input/policy_docs/a.md"])
+        extract_computations.cmd_finalize(domain)
+
+        # Modify the tracked file but DO NOT commit.
+        _write_doc(domain, "a.md", "doc a CHANGED in working tree only")
+
+        plan = extract_computations.cmd_plan(domain)
+        srcs = [e["src"] for e in plan["to_extract"]]
+        assert srcs == ["input/policy_docs/a.md"], (
+            f"uncommitted edit not detected: to_extract={srcs}, noop={plan['noop']}"
+        )
 
 
 def test_nested_dirs_preserved():
