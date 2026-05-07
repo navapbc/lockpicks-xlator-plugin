@@ -39,11 +39,11 @@ Run these checks before doing anything else:
      :::
      Then stop. Do not scaffold a new domain here — that's `/new-domain`'s job.
 
-3. **Input index required?**
-   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
-   - **ABSENT** → Print:
+3. **Per-file computations required?**
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - **ABSENT or empty** → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
+     Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
      Run /index-inputs <domain> first, then re-run /refine-guidance <domain>.
      :::
      Stop.
@@ -117,7 +117,7 @@ Skeleton: <N> computations across <N> intermediate categories, <N> example rules
 
 ### Step 2: Computation skeleton
 
-Run `/create-skeleton <domain>`. Skip pre-flight — domain, guidance files, and `input-sections.yaml` already verified above.
+Run `/create-skeleton <domain>`. Skip pre-flight — domain, guidance files, and `policy_facets/computations/` already verified above.
 
 ### Step 3: Ruleset groups
 
@@ -155,5 +155,5 @@ $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [CREATED or UPDATED]
 - `source_template` is never updated after initial creation — it records which guidance template the folder was originally created from
 - Do not write `generated_at` in any guidance file — git tracks version history; this field is dropped
 - Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/new-domain`
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-sections.yaml` is the sole source of doc signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `policy_facets/computations/` is the sole source of doc signals
 - `guidance/metadata.yaml` is created in Step 1 [CREATE], not deferred to later steps — it always exists before Step 2 begins

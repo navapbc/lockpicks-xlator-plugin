@@ -5,7 +5,7 @@ description: Propose and Write Ruleset Groups for a Domain
 
 # Propose and Write Ruleset Groups for a Domain
 
-Read `input-sections.yaml` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance/ruleset-groups.yaml`. A "Ruleset Group" is synonymous with a "ruleset group".
+Read the per-file files under `policy_facets/computations/` for phase headings and logical groupings, propose `ruleset_groups`, and write them to `guidance/ruleset-groups.yaml`. A "Ruleset Group" is synonymous with a "ruleset group".
 
 ## Input
 
@@ -45,11 +45,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-4. **`input-sections.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
-   - ABSENT → Print:
+4. **Per-file computations present?**
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - ABSENT or empty → Print:
      :::error
-     Input sections not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
+     Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -89,7 +89,7 @@ After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-gr
 
 ### Step 1: Scan for phase headings
 
-Read `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals.
+Glob every `.md` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of phase heading signals.
 
 Look for:
 - Section headings (`heading:` values) that name a test phase or logical grouping (e.g., "Income Test", "Household Size Verification", "Categorical Eligibility")
@@ -153,7 +153,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml    [CREATED]
 
 ## Common Mistakes to Avoid
 
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of phase heading signals
 - In UPDATE mode "accept", exit without writing — do not overwrite existing `ruleset-groups.yaml` content
 - In UPDATE mode "merge", deduplicate by `name` — when the same stage name appears in both existing and new lists, keep the new `description`
 - Convert phase headings to `snake_case` — "Income Test" → `income_test`, "Household Size Verification" → `household_size_verification`

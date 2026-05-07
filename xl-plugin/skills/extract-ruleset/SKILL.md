@@ -107,7 +107,7 @@ Additionally, build five in-memory structures from the loaded guidance files:
 If `<filename>` is given, read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<filename>` (translate the index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`).
 Otherwise, read the compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
 
-**If `policy_facets/input-sections.yaml` exists**, use the index as a reading guide: skim the index entries for the selected files to understand their structure before reading the full content. This helps prioritize which sections to extract from when the docs are long. Index entries reference the source path (`input/policy_docs/<rel>.md`); read the matching compressed file.
+**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md` and skim its section blocks (heading/summary/tags/computations) to understand structure before reading the full compressed content. The source path of each per-file file is encoded in its relative location — `policy_facets/computations/<rel>.md` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
 
 Identify:
 
@@ -501,7 +501,7 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
-| `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/computations/<rel>.md` | Read-only (per-file section data; if present) |
 | `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |

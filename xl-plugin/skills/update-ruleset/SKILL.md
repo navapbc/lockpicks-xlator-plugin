@@ -276,7 +276,7 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Updated |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 9, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 10; consumed by `/create-tests`) |
-| `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/computations/<rel>.md` | Read-only (per-file section data; if present) |
 | `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |

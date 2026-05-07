@@ -5,7 +5,7 @@ description: Detect Ruleset Module as Modules for a Domain
 
 # Detect Ruleset Module as Modules for a Domain
 
-Reads `guidance/skeleton.yaml` and `guidance/ruleset-groups.yaml`, extracts doc signals from `input-sections.yaml`, applies six heuristics to detect ruleset modules, and writes modules to `guidance/ruleset-modules.yaml`.
+Reads `guidance/skeleton.yaml` and `guidance/ruleset-groups.yaml`, extracts doc signals from the per-file files under `policy_facets/computations/`, applies six heuristics to detect ruleset modules, and writes modules to `guidance/ruleset-modules.yaml`.
 
 A "module" is a ruleset module — a subset of rules within a ruleset group (ruleset group). Ruleset modules must not cross ruleset group boundaries.
 
@@ -47,11 +47,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-4. **`input-sections.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
-   - ABSENT → Print:
+4. **Per-file computations present?**
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - ABSENT or empty → Print:
      :::error
-     Input sections not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
+     Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -91,13 +91,15 @@ Read:
 - `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` — `ruleset_groups:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` — `intermediate_variables.categories` (for variable names)
-- `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml` — re-run Step 2 signal extraction:
+- Glob every `.md` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Re-run Step 2 signal extraction across all entries:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
   - **File summaries** — collect all `summary:` values; reveals program scope and terminology
-  - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (last item in `variables` list is the output); collect `expr_hint` values keyed by output variable. If the index has no `computations:` entries, skip this signal.
+  - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (last item in `variables` list is the output); collect `expr_hint` values keyed by output variable. If no entry has `computations:`, skip this signal.
 
-Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals.
+Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md` describes the source at `input/policy_docs/<rel>.md`. Reconstruct `path:` from the file's relative location when needed.
+
+Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 
 In UPDATE mode: display a summary of existing `ruleset-modules.yaml` entries as pre-confirmed before scanning for new modules. Include the `role: main` entry (if present) in the pre-confirmed block — it will not be re-prompted in Step 3:
 
@@ -118,7 +120,7 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | Priority | Heuristic | Rationale value | Test |
 |----------|-----------|-----------------|------|
 | 1 | `reuse_across_entities` | Entity reuse | 2+ entity names in `input_variables.categories` (or `skeleton.inputs`) where a common computation prefix applies to each — e.g., `client_earned_income` and `dol_earned_income` suggest the same `earned_income` ruleset module bound to two entities (ClientData, DOLRecord) |
-| 2 | `policy_structure` | Policy section grouping | Named sub-section heading from `input-sections.yaml` covers ≥3 intermediate variables in `skeleton.computations` |
+| 2 | `policy_structure` | Policy section grouping | Named sub-section heading aggregated from `policy_facets/computations/**/*.md` covers ≥3 intermediate variables in `skeleton.computations` |
 | 3 | `depth_threshold` | Sequential depth | ≥5 variables in `skeleton` whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | 4 | `variable_coupling` | Coupling clique | ≥3 intermediate variables in `skeleton.computations` where each references ≥2 of the others' outputs — forming a mutual dependency clique that signals a self-contained computation cluster worth isolating |
 | 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |
@@ -228,7 +230,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml    [CREATED]
 
 ## Common Mistakes to Avoid
 
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals
 - In UPDATE mode with zero new modules, preserve existing entries unchanged — do not clear `ruleset-modules.yaml`
 - In UPDATE mode with new modules, overwrite the file with the full final list (existing pre-confirmed + new confirmed) — do not append only the new ones
 - A ruleset module must not cross ruleset group boundaries — all variables in a candidate must belong to a single stage; if a candidate spans groups, split it or reject it with an explanation to the user
