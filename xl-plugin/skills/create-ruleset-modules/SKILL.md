@@ -48,7 +48,7 @@ Run these checks before doing anything else:
      Then stop.
 
 4. **Per-file computations present?**
-   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `*.md.yaml` file (recursive).
    - ABSENT or empty → Print:
      :::error
      Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
@@ -91,13 +91,13 @@ Read:
 - `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` — `ruleset_groups:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` — `intermediate_variables.categories` (for variable names)
-- Glob every `.md` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Re-run Step 2 signal extraction across all entries:
+- Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Re-run Step 2 signal extraction across all entries:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
   - **File summaries** — collect all `summary:` values; reveals program scope and terminology
   - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (last item in `variables` list is the output); collect `expr_hint` values keyed by output variable. If no entry has `computations:`, skip this signal.
 
-Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md` describes the source at `input/policy_docs/<rel>.md`. Reconstruct `path:` from the file's relative location when needed.
+Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Strip the trailing `.yaml` from the per-file file's relative path under `policy_facets/computations/` and prefix with `input/policy_docs/` to reconstruct `path:`.
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 
@@ -120,7 +120,7 @@ Apply the four heuristics in priority order. Each heuristic uses the `skeleton:`
 | Priority | Heuristic | Rationale value | Test |
 |----------|-----------|-----------------|------|
 | 1 | `reuse_across_entities` | Entity reuse | 2+ entity names in `input_variables.categories` (or `skeleton.inputs`) where a common computation prefix applies to each — e.g., `client_earned_income` and `dol_earned_income` suggest the same `earned_income` ruleset module bound to two entities (ClientData, DOLRecord) |
-| 2 | `policy_structure` | Policy section grouping | Named sub-section heading aggregated from `policy_facets/computations/**/*.md` covers ≥3 intermediate variables in `skeleton.computations` |
+| 2 | `policy_structure` | Policy section grouping | Named sub-section heading aggregated from `policy_facets/computations/**/*.md.yaml` covers ≥3 intermediate variables in `skeleton.computations` |
 | 3 | `depth_threshold` | Sequential depth | ≥5 variables in `skeleton` whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | 4 | `variable_coupling` | Coupling clique | ≥3 intermediate variables in `skeleton.computations` where each references ≥2 of the others' outputs — forming a mutual dependency clique that signals a self-contained computation cluster worth isolating |
 | 5 | `shared_gate` | Co-activation | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`, `qualified_*`), suggesting they all fire under the same condition and belong together |

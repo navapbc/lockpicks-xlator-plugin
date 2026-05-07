@@ -37,8 +37,11 @@ def _write_doc(domain: Path, rel: str, content: str = "hello") -> Path:
 
 
 def _write_dst(domain: Path, rel: str, content: str = "extracted") -> Path:
-    """Simulate the AI step writing a per-file computations file."""
-    path = domain / "policy_facets" / "computations" / rel
+    """Simulate the AI step writing a per-file computations file.
+
+    `rel` is the source rel (e.g. 'a.md'); the destination filename appends '.yaml'.
+    """
+    path = domain / "policy_facets" / "computations" / f"{rel}.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
     return path
@@ -78,7 +81,7 @@ def test_plan_fresh_domain():
         assert plan["to_delete"] == []
         assert plan["noop"] == []
         # Plan does NOT pre-write destination files (AI generates them).
-        assert not (domain / "policy_facets" / "computations" / "a.md").exists()
+        assert not (domain / "policy_facets" / "computations" / "a.md.yaml").exists()
         # Plan file written; intermediate dirs created.
         assert (domain / "policy_facets" / ".extract-plan.tmp").exists()
         assert (domain / "policy_facets" / "computations" / "sub").is_dir()
@@ -121,7 +124,7 @@ def test_plan_reclassifies_when_destination_missing():
         extract_computations.cmd_finalize(domain)
 
         # Manually delete the destination file (simulating partial checkout).
-        (domain / "policy_facets" / "computations" / "a.md").unlink()
+        (domain / "policy_facets" / "computations" / "a.md.yaml").unlink()
 
         plan2 = extract_computations.cmd_plan(domain)
         # Source SHA matches manifest, but destination is missing — must re-extract.
@@ -182,10 +185,10 @@ def test_plan_mirror_delete():
         (domain / "input" / "policy_docs" / "b.md").unlink()
 
         plan = extract_computations.cmd_plan(domain)
-        assert plan["to_delete"] == ["policy_facets/computations/b.md"]
+        assert plan["to_delete"] == ["policy_facets/computations/b.md.yaml"]
 
         extract_computations.cmd_finalize(domain)
-        assert not (domain / "policy_facets" / "computations" / "b.md").exists()
+        assert not (domain / "policy_facets" / "computations" / "b.md.yaml").exists()
         manifest = extract_computations.read_manifest(domain)
         assert "input/policy_docs/b.md" not in manifest
 
@@ -217,7 +220,7 @@ def test_nested_dirs_preserved():
         _git_init_and_commit(domain)
 
         plan = extract_computations.cmd_plan(domain)
-        assert plan["to_extract"][0]["dst"] == "policy_facets/computations/sub1/sub2/foo.md"
+        assert plan["to_extract"][0]["dst"] == "policy_facets/computations/sub1/sub2/foo.md.yaml"
         # Intermediate dirs created so AI can write there.
         assert (domain / "policy_facets" / "computations" / "sub1" / "sub2").is_dir()
 
@@ -268,8 +271,8 @@ def test_finalize_aborts_partial_dst_for_failed_files():
         _mark_succeeded(domain, ["input/policy_docs/a.md"])
         extract_computations.cmd_finalize(domain)
 
-        assert (domain / "policy_facets" / "computations" / "a.md").exists()
-        assert not (domain / "policy_facets" / "computations" / "b.md").exists()
+        assert (domain / "policy_facets" / "computations" / "a.md.yaml").exists()
+        assert not (domain / "policy_facets" / "computations" / "b.md.yaml").exists()
         manifest = extract_computations.read_manifest(domain)
         assert "input/policy_docs/a.md" in manifest
         assert "input/policy_docs/b.md" not in manifest

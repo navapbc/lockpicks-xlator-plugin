@@ -24,11 +24,11 @@ Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 's
 
 Downstream skills that need the policy doc *content* (e.g., `/extract-ruleset`, `/update-ruleset`) read the caveman-compressed counterpart at `<domain>/policy_facets/compressed/<rel>.md`.
 
-Downstream skills that need the policy doc *structured section data* (e.g., `/suggest-target-ruleset`, `/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`, `/extract-sample-rules`, `/refine-guidance`) glob `<domain>/policy_facets/computations/**/*.md`. Each per-file file is a YAML list of `{heading, summary, tags, computations?}` section blocks. The source path is encoded in the filename — a per-file file at `policy_facets/computations/<rel>.md` describes the source at `input/policy_docs/<rel>.md`. Readers reconstitute the `path:` field from the file's relative path under `policy_facets/computations/`.
+Downstream skills that need the policy doc *structured section data* (e.g., `/suggest-target-ruleset`, `/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`, `/extract-sample-rules`, `/refine-guidance`) glob `<domain>/policy_facets/computations/**/*.md.yaml`. Each per-file file is a YAML list of `{heading, summary, tags, computations?}` section blocks. The source path is encoded in the filename — a per-file file at `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Readers reconstitute the `path:` field by stripping the trailing `.yaml` suffix from the per-file file's relative path under `policy_facets/computations/` and prefixing with `input/policy_docs/`. There is no `path:` field inside the per-file files.
 
 `/index-inputs` itself continues to scan `input/policy_docs/` for SHA and md_quality scoring — its index reflects the source files, not the compressed copies and not the computations files.
 
-The per-file YAML-in-`.md` shape is intentional: the filename mirrors the source verbatim (`<rel>.md`), even though the file content is YAML. This matches the `policy_facets/compressed/` precedent. Editor syntax highlighting and `find -name '*.yaml'` filters do not pick these files up by default — that is by design.
+The per-file `<rel>.md.yaml` filename is intentional: the source filename (including its `.md` extension) is preserved verbatim and `.yaml` is appended so editor syntax highlighting and `find -name '*.yaml'` filters pick the files up as YAML.
 
 ## Output Fencing
 
@@ -84,7 +84,7 @@ flowchart TD
     DOCS["policy docs in input/policy_docs/"]
     IDX_CMD["/index-inputs"]
     IDX_META(["input-index.yaml\n(files block: SHAs, md_quality)"])
-    IDX_COMPS(["policy_facets/computations/<rel>.md\n(per-file section data, generated\nby /extract-computations)"])
+    IDX_COMPS(["policy_facets/computations/<rel>.md.yaml\n(per-file section data, generated\nby /extract-computations)"])
 
     DOCS --> IDX_CMD --> IDX_META
     IDX_CMD --> IDX_COMPS

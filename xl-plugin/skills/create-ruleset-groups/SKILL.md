@@ -46,7 +46,7 @@ Run these checks before doing anything else:
      Then stop.
 
 4. **Per-file computations present?**
-   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `*.md.yaml` file (recursive).
    - ABSENT or empty → Print:
      :::error
      Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
@@ -89,7 +89,7 @@ After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-gr
 
 ### Step 1: Scan for phase headings
 
-Glob every `.md` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of phase heading signals.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of phase heading signals.
 
 Look for:
 - Section headings (`heading:` values) that name a test phase or logical grouping (e.g., "Income Test", "Household Size Verification", "Categorical Eligibility")

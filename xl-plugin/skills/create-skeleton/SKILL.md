@@ -46,7 +46,7 @@ Run these checks before doing anything else:
      Then stop.
 
 4. **Per-file computations present?**
-   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `*.md.yaml` file (recursive).
    - ABSENT or empty → Print:
      :::error
      Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
@@ -119,10 +119,10 @@ Steps:
 
 ### Step 2: Extract doc signals and update guidance sections
 
-Glob every `.md` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks.
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 
-Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md` describes the source at `input/policy_docs/<rel>.md`. Reconstruct `path:` from the file's relative location when needed.
+Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Strip the trailing `.yaml` from the per-file file's relative path under `policy_facets/computations/` and prefix with `input/policy_docs/` to reconstruct `path:`.
 
 Extract the following signals (hold in memory for Step 3):
 

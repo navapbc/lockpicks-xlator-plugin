@@ -40,7 +40,7 @@ Run these checks before doing anything else:
      Then stop.
 
 3. **Per-file computations present?**
-   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `*.md.yaml` file (recursive).
    - ABSENT or empty → Print:
      :::error
      Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
@@ -54,7 +54,7 @@ Run these checks before doing anything else:
 
 ### Step 1: Analyze per-file computations
 
-Glob every `.md` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of `{heading, summary, tags, computations?}` section blocks. The source path of each section is encoded in the file's relative path under `policy_facets/computations/` (a section in `policy_facets/computations/sub/foo.md` describes `input/policy_docs/sub/foo.md`).
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of `{heading, summary, tags, computations?}` section blocks. The source path of each section is encoded in the file's relative path under `policy_facets/computations/` — strip the trailing `.yaml` to recover `<rel>.md`, then prefix with `input/policy_docs/`. (A section in `policy_facets/computations/sub/foo.md.yaml` describes `input/policy_docs/sub/foo.md`.)
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 

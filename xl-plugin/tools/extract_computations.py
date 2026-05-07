@@ -50,7 +50,7 @@ Usage:
 Output (JSON, --plan only):
     {
       "to_extract":      [ {src, dst, source_sha}, ... ],
-      "to_delete":       [ "policy_facets/computations/<rel>.md", ... ],
+      "to_delete":       [ "policy_facets/computations/<rel>.md.yaml", ... ],
       "noop":            [ {src, reason: "unchanged"}, ... ],
       "skipped":         [ {src, reason: "not_allowed"}, ... ],
       "succeeded":       [],
@@ -190,7 +190,7 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
         prev_sha = manifest.get(rel_str)
 
         sub_rel = rel.relative_to(_POLICY_DOCS)
-        dst_rel = Path(_COMPUTATIONS) / sub_rel
+        dst_rel = Path(_COMPUTATIONS) / f"{sub_rel}.yaml"
         abs_dst = domain_dir / dst_rel
 
         # noop only if SHA matches manifest AND destination file exists.
@@ -221,7 +221,7 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
         except ValueError:
             # Manifest key not under input/policy_docs/ — keep entry, log skip.
             continue
-        to_delete.append(str(Path(_COMPUTATIONS) / sub_rel))
+        to_delete.append(str(Path(_COMPUTATIONS) / f"{sub_rel}.yaml"))
 
     plan = {
         "to_extract": to_extract,
@@ -299,7 +299,11 @@ def cmd_finalize(domain_dir: Path) -> dict[str, int]:
             sub = Path(rel_dst).relative_to(_COMPUTATIONS)
         except ValueError:
             continue
-        deleted_sources.add(str(Path(_POLICY_DOCS) / sub))
+        # Strip the trailing ".yaml" we appended to the source filename.
+        sub_str = str(sub)
+        if sub_str.endswith(".yaml"):
+            sub_str = sub_str[: -len(".yaml")]
+        deleted_sources.add(str(Path(_POLICY_DOCS) / sub_str))
     for src in deleted_sources:
         manifest.pop(src, None)
 

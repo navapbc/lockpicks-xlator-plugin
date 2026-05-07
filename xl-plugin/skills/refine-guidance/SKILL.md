@@ -40,7 +40,7 @@ Run these checks before doing anything else:
      Then stop. Do not scaffold a new domain here — that's `/new-domain`'s job.
 
 3. **Per-file computations required?**
-   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `.md` file (recursive).
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `*.md.yaml` file (recursive).
    - **ABSENT or empty** → Print:
      :::error
      Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
