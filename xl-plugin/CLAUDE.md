@@ -18,6 +18,14 @@ Do not use the system Python; use `uv run python <args>`.
 
 Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 'submodule'), 'ruleset group' (not 'workflow stage'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
 
+## Index path keys vs content reads
+
+`input-index.yaml` and `input-sections.yaml` (in `<domain>/policy_facets/`) use `input/policy_docs/<rel>.md` as their path keys, identifying the source policy doc that was indexed. Source files are the canonical analyst-authored truth.
+
+Downstream skills that need the policy doc *content* (e.g., `/extract-ruleset`, `/update-ruleset`) read the caveman-compressed counterpart at `<domain>/policy_facets/compressed/<rel>.md`.
+
+`/index-inputs` itself continues to scan `input/policy_docs/` for SHA and md_quality scoring — its index reflects the source files, not the compressed copies.
+
 ## Output Fencing
 
 All skill output MUST be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics. Always include the fencing syntax around the text blocks in the output, such as `:::important` and `:::next_step`.

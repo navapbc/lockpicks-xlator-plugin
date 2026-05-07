@@ -331,7 +331,12 @@ def cmd_pipeline(domain, module):
 
 def cmd_new_domain(domain):
     base = DOMAINS_FULLPATH / domain
-    for d in [base / "input" / "policy_docs", base / "specs" / "guidance", base / "output"]:
+    for d in [
+        base / "input" / "policy_docs",
+        base / "policy_facets",
+        base / "specs" / "guidance",
+        base / "output",
+    ]:
         d.mkdir(parents=True, exist_ok=True)
     guidance_src = SCRIPT_DIR_TOOLS.parent / "core" / "guidance_claude.md"
     guidance_dest = base / "specs" / "guidance" / "CLAUDE.md"
@@ -340,12 +345,14 @@ def cmd_new_domain(domain):
         shutil.copy2(guidance_src, guidance_dest)
     _print_ok(f"{base}/")
     _print_info(f"  input/policy_docs/    ← add .md policy documents here")
+    _print_info(f"  policy_facets/        ← derived views of the policy docs (compressed/, etc.)")
     _print_info(f"  specs/")
     _print_info(f"  specs/guidance/       ← ruleset guidance files (see guidance/CLAUDE.md)")
     _print_info(f"  output/               ← generated Catala or Rego files and demo folder(s)")
     _print_info(
         f"\nDomain '{domain}' created. "
-        f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs."
+        f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs "
+        f"(which will auto-sync /compress-inputs first)."
     )
 
 
@@ -410,7 +417,7 @@ def cmd_extract_sections(domain, exclude_paths):
     exclude_paths are omitted; all others are preserved verbatim.
     """
     import re as _re
-    index_path = DOMAINS_FULLPATH / domain / "specs" / "input-sections.yaml"
+    index_path = DOMAINS_FULLPATH / domain / "policy_facets" / "input-sections.yaml"
 
     if not index_path.exists():
         _print_err(f"input-sections.yaml not found: {index_path.relative_to(DOMAINS_FULLPATH)}")

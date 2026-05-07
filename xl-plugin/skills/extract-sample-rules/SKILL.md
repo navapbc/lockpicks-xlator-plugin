@@ -70,7 +70,7 @@ Read `../../core/output-fencing.md` now.
 5. **`input-sections.yaml` exists?**
    - NO → Print:
      :::error
-     input-sections.yaml not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
+     input-sections.yaml not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Stop.
@@ -96,7 +96,7 @@ Steps:
 
 ### Step 2: Load and filter index
 
-Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
+Read `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`. Filter `sections[]` to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
 
 **If `<rule_topic>` was provided:** further filter to entries whose `heading:`, `summary:`, or `tags:` contain the topic keywords (case-insensitive). If no entries match the topic, print:
 

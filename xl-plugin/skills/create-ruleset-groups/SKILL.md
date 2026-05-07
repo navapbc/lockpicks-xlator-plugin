@@ -46,10 +46,10 @@ Run these checks before doing anything else:
      Then stop.
 
 4. **`input-sections.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
+   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input sections not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
+     Input sections not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -89,7 +89,7 @@ After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-gr
 
 ### Step 1: Scan for phase headings
 
-Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals.
+Read `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of phase heading signals.
 
 Look for:
 - Section headings (`heading:` values) that name a test phase or logical grouping (e.g., "Income Test", "Household Size Verification", "Categorical Eligibility")

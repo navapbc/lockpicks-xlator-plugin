@@ -10,6 +10,16 @@ On macOS, do not use `grep -P` (PCRE). Use `grep -E` (extended regex) or `perl -
 When writing or modifying shell scripts, ensure commands are portable such that they work on MacOS and Linux.
 Use bash-specific built-in commands and features, rather than `sed`, `grep`, and `awk`.
 
+## Skill development
+
+Any signficant non-AI work (Bash, CLI commands, enumerate, copy, manifest, delete) should run as a shell or Python script for determinism and manual execution.
+Any AI work will be described in the `SKILL.md` file.
+
+## Naming
+
+* By convention, skill names should use `-` (kebab case) instead of `_` (snake case).
+* Generally, folder and file names should be use snake case. Do not use `-` to avoid misinterpretation as a substraction symbol in calculation expressions.
+
 ## Testing
 
 When fixing transpiler bugs, always run the full test suite (all domains/programs) after each fix — not just the specific failing test. Transpiler changes frequently cause regressions in other modules.

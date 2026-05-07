@@ -118,7 +118,7 @@ setup_xlator_plugin() {
     fi
 
     # Fortunately, we don't need to authenticate claude to add plugins
-    if claude plugins marketplace list --json | grep -q '"lockpicks-marketplace"'; then
+    if claude plugins marketplace list --json | grep -q '"name": "lockpicks-marketplace"'; then
         # Update git repo at ~/.claude/plugins/marketplaces/lockpicks-marketplace
         claude plugin marketplace update lockpicks-marketplace
     else
@@ -133,6 +133,13 @@ setup_xlator_plugin() {
     rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
     # Install the plugin from the marketplace
     claude plugin install --scope project xl@lockpicks-marketplace
+
+    if ! claude plugins marketplace list --json | grep -q '"name": "caveman"'; then
+        claude plugin marketplace add --scope project JuliusBrussee/caveman
+    fi
+    if ! claude plugin list --json | grep -q '"id": "caveman@caveman"'; then
+        claude plugin install --scope project caveman@caveman
+    fi
 
     if ! command -v uv >/dev/null 2>&1; then
         curl -fsSL https://astral.sh/uv/install.sh | sh

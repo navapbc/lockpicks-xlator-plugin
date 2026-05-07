@@ -104,10 +104,10 @@ Additionally, build five in-memory structures from the loaded guidance files:
 
 5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
-If `<filename>` is given, read only `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>`.
-Otherwise, read the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
+If `<filename>` is given, read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<filename>` (translate the index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`).
+Otherwise, read the compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
 
-**If `specs/input-sections.yaml` exists**, use the index as a reading guide: skim the index entries for the selected files to understand their structure before reading the full content. This helps prioritize which sections to extract from when the docs are long.
+**If `policy_facets/input-sections.yaml` exists**, use the index as a reading guide: skim the index entries for the selected files to understand their structure before reading the full content. This helps prioritize which sections to extract from when the docs are long. Index entries reference the source path (`input/policy_docs/<rel>.md`); read the matching compressed file.
 
 Identify:
 
@@ -501,7 +501,8 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
-| `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
