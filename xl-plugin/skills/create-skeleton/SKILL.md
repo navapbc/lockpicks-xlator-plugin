@@ -5,7 +5,7 @@ description: Build Computation Skeleton for a Domain
 
 # Build Computation Skeleton for a Domain
 
-Extract doc signals from `input-sections.yaml` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` and updates `guidance/variables.yaml` and `guidance/prompt-context.yaml`.
+Extract doc signals from the per-file files under `policy_facets/computations/` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` and updates `guidance/variables.yaml` and `guidance/prompt-context.yaml`.
 
 ## Input
 
@@ -45,11 +45,11 @@ Run these checks before doing anything else:
      :::
      Then stop.
 
-4. **`input-sections.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
-   - ABSENT → Print:
+4. **Per-file computations present?**
+   - Check that `$DOMAINS_DIR/<domain>/policy_facets/computations/` exists and contains at least one `*.md.yaml` file (recursive).
+   - ABSENT or empty → Print:
      :::error
-     Input sections not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
+     Per-file computations not found under: $DOMAINS_DIR/<domain>/policy_facets/computations/
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -119,15 +119,17 @@ Steps:
 
 ### Step 2: Extract doc signals and update guidance sections
 
-Read `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`.
-Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — the sections index is the sole source of doc signals.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks.
+Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
+
+Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Strip the trailing `.yaml` from the per-file file's relative path under `policy_facets/computations/` and prefix with `input/policy_docs/` to reconstruct `path:`.
 
 Extract the following signals (hold in memory for Step 3):
 
 - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
 - **Section headings** — collect all `heading:` values; reveals statutory structure (e.g., income tests, deduction chains)
 - **File summaries** — collect all `summary:` values; reveals program scope and terminology
-- **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable (last item in `variables`). If the index has no `computations:` entries, skip this signal.
+- **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable (last item in `variables`). If no entry has `computations:`, skip this signal.
 
 For each of the four guidance sections (`constraints`, `standards`, `guidance`, `edge_cases`), generate proposed additions grounded in these index signals. Use computation hints to enrich `guidance` and `standards` proposals with concrete variable names and formula patterns (e.g., "The CIVIL ruleset should define `earned_income_deduction` as a `computed:` field equal to `earned_income * 0.20`").
 
@@ -258,7 +260,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [UPDATED]
 
 ## Common Mistakes to Avoid
 
-- Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `input-sections.yaml` is the sole source of doc signals
+- Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `policy_facets/computations/` is the sole source of doc signals
 - Do not rewrite sections the user did not change — preserve exact wording of unchanged items; only append new proposals in Step 2
 - Do not write `generated_at` — git tracks version history
 - Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with actual `expr_hint` values get a `computations:` entry
