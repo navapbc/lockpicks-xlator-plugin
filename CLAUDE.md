@@ -20,6 +20,10 @@ Any AI work will be described in the `SKILL.md` file.
 * By convention, skill names should use `-` (kebab case) instead of `_` (snake case).
 * Generally, folder and file names should be use snake case. Do not use `-` to avoid misinterpretation as a substraction symbol in calculation expressions.
 
+## Don't migrate old files
+
+Do not assume code is needed to migrate or handle old files. Ask the user if they want migration code or code that looks in old locations. Reason: this code is not yet in production and still in experimental stages. Such migration code complicates the logic and adds extraneous behavior.
+
 ## Testing
 
 When fixing transpiler bugs, always run the full test suite (all domains/programs) after each fix — not just the specific failing test. Transpiler changes frequently cause regressions in other modules.

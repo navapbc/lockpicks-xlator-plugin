@@ -24,15 +24,11 @@ Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 's
 
 Downstream skills that need the policy doc *content* (e.g., `/extract-ruleset`, `/update-ruleset`) read the caveman-compressed counterpart at `<domain>/policy_facets/compressed/<rel>.md`.
 
-Downstream skills that need the policy doc *structured section data* (e.g., `/suggest-target-ruleset`, `/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`, `/extract-sample-rules`, `/refine-guidance`) glob `<domain>/policy_facets/computations/**/*.md`. Each per-file file is a YAML list of `{heading, summary, tags, computations?}` section blocks. The source path is encoded in the filename — a per-file file at `policy_facets/computations/<rel>.md` describes the source at `input/policy_docs/<rel>.md`. Readers reconstitute the `path:` field from the file's relative path under `policy_facets/computations/`. There is no `path:` field inside the per-file files — derive it from the filename. **`policy_facets/input-sections.yaml` was removed in v3.0.0**; its contents live in the per-file files now.
+Downstream skills that need the policy doc *structured section data* (e.g., `/suggest-target-ruleset`, `/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`, `/extract-sample-rules`, `/refine-guidance`) glob `<domain>/policy_facets/computations/**/*.md`. Each per-file file is a YAML list of `{heading, summary, tags, computations?}` section blocks. The source path is encoded in the filename — a per-file file at `policy_facets/computations/<rel>.md` describes the source at `input/policy_docs/<rel>.md`. Readers reconstitute the `path:` field from the file's relative path under `policy_facets/computations/`.
 
 `/index-inputs` itself continues to scan `input/policy_docs/` for SHA and md_quality scoring — its index reflects the source files, not the compressed copies and not the computations files.
 
 The per-file YAML-in-`.md` shape is intentional: the filename mirrors the source verbatim (`<rel>.md`), even though the file content is YAML. This matches the `policy_facets/compressed/` precedent. Editor syntax highlighting and `find -name '*.yaml'` filters do not pick these files up by default — that is by design.
-
-## Don't migrate old files
-
-Do not assume code is needed to migrate or handle old files. Ask the user if they want migration code or code that looks in old locations. Reason: this code is not yet in production and still in experimental stages. Such migration code complicates the logic and adds extraneous behavior.
 
 ## Output Fencing
 
