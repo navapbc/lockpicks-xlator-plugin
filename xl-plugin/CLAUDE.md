@@ -88,17 +88,17 @@ flowchart TD
     DOCS["policy docs in input/policy_docs/"]
     IDX_CMD["/index-inputs"]
     IDX_META(["input-index.yaml\n(files block: SHAs, md_quality)"])
-    IDX_SECTS(["input-sections.yaml\n(sections block)"])
+    IDX_COMPS(["policy_facets/computations/<rel>.md\n(per-file section data, generated\nby /extract-computations)"])
 
     DOCS --> IDX_CMD --> IDX_META
-    IDX_CMD --> IDX_SECTS
+    IDX_CMD --> IDX_COMPS
 
-    SUG["/suggest-target-ruleset\nenabled: input-sections.yaml exists"]
+    SUG["/suggest-target-ruleset\nenabled: policy_facets/computations/ has ≥1 file"]
     SUG_F(["suggested_targets/*.yaml"])
     DECL["/declare-target-ruleset\nenabled: suggested_targets/ has ≥1 file"]
     GY(["guidance/metadata.yaml\nguidance/prompt-context.yaml\nguidance/variables.yaml"])
 
-    IDX_SECTS --> SUG --> SUG_F --> DECL --> GY
+    IDX_COMPS --> SUG --> SUG_F --> DECL --> GY
 
     SKEL["/create-skeleton\nenabled: guidance/metadata.yaml exists"]
     GY_SKEL(["guidance/skeleton.yaml"])
@@ -109,14 +109,14 @@ flowchart TD
     GY --> SKEL --> GY_SKEL --> GROUPS --> GY_GROUPS --> MODS
 
     GY_MODS(["guidance/ruleset-modules.yaml"])
-    SAMPLERULES["/extract-sample-rules\nbest: guidance/ruleset-modules.yaml present\nmin: guidance/skeleton.yaml present\nenabled: guidance/metadata.yaml + input-sections.yaml exist"]
+    SAMPLERULES["/extract-sample-rules\nbest: guidance/ruleset-modules.yaml present\nmin: guidance/skeleton.yaml present\nenabled: guidance/metadata.yaml + policy_facets/computations/ populated"]
     GY_RULES(["guidance/sample-artifacts.yaml\nwith sample_rules"])
     TAGVARS["/tag-vars-to-include-with-output\nenabled: guidance/variables.yaml exists\n(best after extract-sample-rules)"]
     SAMPLETESTS["/create-sample-tests\nenabled: sample_rules present in ruleset-modules or sample-artifacts"]
     GY_SAMPLETESTS(["guidance/sample-tests.yaml"])
 
     MODS --> GY_MODS --> SAMPLERULES
-    IDX_SECTS --> SAMPLERULES
+    IDX_COMPS --> SAMPLERULES
     SAMPLERULES --> GY_RULES --> TAGVARS
     GY_RULES --> SAMPLETESTS --> GY_SAMPLETESTS
 
