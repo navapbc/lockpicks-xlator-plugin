@@ -223,3 +223,80 @@ def test_read_handles_missing_directory(monkeypatch, tmp_path):
     assert events == []
     # Confirm we did not create any directories as a side-effect of the read.
     assert list(tmp_path.iterdir()) == []
+
+
+# ---------------------------------------------------------------------------
+# handle_stop integration
+# ---------------------------------------------------------------------------
+
+def _read_shared_log(tmp_path) -> list[dict]:
+    log_path = tmp_path / ".shared" / "logs" / "session.jsonl"
+    if not log_path.exists():
+        return []
+    return [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _stop_payload(text: str) -> dict:
+    """Build a minimal Stop hook payload with a single assistant text turn."""
+    return {"transcript": [{"role": "assistant", "content": text}]}
+
+
+def test_handle_stop_emits_assistant_response_turn_and_skill_durations(monkeypatch, tmp_path):
+    """End-to-end: a /-prefixed user_prompt followed by handle_stop appends three
+    .shared events (assistant_response, turn_duration, skill_duration)."""
+    monkeypatch.setattr(observe_hook, "DOMAINS_FULLPATH", tmp_path)
+    monkeypatch.setattr(observe_hook, "_get_session_id", lambda: "S1")
+    # Seed a /-prefixed user_prompt event so handle_stop sees a skill in progress.
+    _write_jsonl(tmp_path / "snap" / "logs" / "session.jsonl", [
+        _ev("2026-05-07T12:00:00Z", "user_prompt", domain="snap", prompt="/foo"),
+    ])
+    # Force the Stop's "now" timestamp 12s after the user_prompt.
+    monkeypatch.setattr(observe_hook, "_ts", lambda: "2026-05-07T12:00:12Z")
+
+    observe_hook.handle_stop(_stop_payload("done"))
+
+    events = _read_shared_log(tmp_path)
+    types = [e["type"] for e in events]
+    assert types == ["assistant_response", "turn_duration", "skill_duration"]
+    assert events[1]["duration_seconds"] == 12
+    assert events[2]["duration_seconds"] == 12
+    assert events[2]["wait_seconds"] == 0
+    assert events[2]["turns"] == 1
+
+
+def test_handle_stop_emits_durations_when_last_response_empty(monkeypatch, tmp_path):
+    """A Stop turn with no assistant text (e.g., turn ended on AskUserQuestion answer)
+    still emits per-turn timing — the early-return guard was removed deliberately."""
+    monkeypatch.setattr(observe_hook, "DOMAINS_FULLPATH", tmp_path)
+    monkeypatch.setattr(observe_hook, "_get_session_id", lambda: "S1")
+    _write_jsonl(tmp_path / "snap" / "logs" / "session.jsonl", [
+        _ev("2026-05-07T12:00:00Z", "user_prompt", domain="snap", prompt="/foo"),
+    ])
+    monkeypatch.setattr(observe_hook, "_ts", lambda: "2026-05-07T12:00:08Z")
+
+    # Empty transcript → no assistant_response logged, but turn/skill_duration still emit.
+    observe_hook.handle_stop({"transcript": []})
+
+    events = _read_shared_log(tmp_path)
+    types = [e["type"] for e in events]
+    assert types == ["turn_duration", "skill_duration"]
+
+
+def test_handle_stop_swallows_exceptions_from_compute(monkeypatch, tmp_path):
+    """If _compute_durations raises, handle_stop returns normally without propagating
+    and without emitting partial duration events."""
+    monkeypatch.setattr(observe_hook, "DOMAINS_FULLPATH", tmp_path)
+    monkeypatch.setattr(observe_hook, "_get_session_id", lambda: "S1")
+    monkeypatch.setattr(observe_hook, "_ts", lambda: "2026-05-07T12:00:12Z")
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("synthetic")
+    monkeypatch.setattr(observe_hook, "_compute_durations", _boom)
+
+    # Should not raise.
+    observe_hook.handle_stop(_stop_payload("done"))
+
+    events = _read_shared_log(tmp_path)
+    # The assistant_response still landed; duration events were skipped.
+    types = [e["type"] for e in events]
+    assert types == ["assistant_response"]

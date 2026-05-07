@@ -167,3 +167,32 @@ def test_run_no_durations_unchanged(monkeypatch, tmp_path):
     assert "### Turn 1 — 2026-05-07T12:00:00Z" in report
     assert "(⏱" not in report
     assert "Skill total" not in report
+
+
+def test_run_renders_skill_total_for_each_back_to_back_skill(monkeypatch, tmp_path):
+    """Two /-prefixed skills in one session each get their own skill total rendered.
+    The mid-loop flush in the pre-pass is what makes the first skill's last
+    skill_duration survive when the second skill's user_prompt arrives."""
+    events = [
+        # Skill /foo: starts, ends at t+10.
+        {"ts": "2026-05-07T12:00:00Z", "session_id": "S1", "type": "user_prompt", "domain": "snap", "prompt": "/foo"},
+        {"ts": "2026-05-07T12:00:10Z", "session_id": "S1", "type": "assistant_response", "domain": ".shared", "response": "foo done"},
+        {"ts": "2026-05-07T12:00:10Z", "session_id": "S1", "type": "turn_duration", "domain": ".shared",
+         "duration_seconds": 10, "from_ts": "2026-05-07T12:00:00Z", "to_ts": "2026-05-07T12:00:10Z"},
+        {"ts": "2026-05-07T12:00:10Z", "session_id": "S1", "type": "skill_duration", "domain": ".shared",
+         "duration_seconds": 10, "from_ts": "2026-05-07T12:00:00Z", "to_ts": "2026-05-07T12:00:10Z",
+         "wait_seconds": 0, "turns": 1},
+        # Skill /bar: starts at t+20 (must trigger mid-loop flush of /foo's last skill_duration), ends at t+30.
+        {"ts": "2026-05-07T12:00:20Z", "session_id": "S1", "type": "user_prompt", "domain": "snap", "prompt": "/bar"},
+        {"ts": "2026-05-07T12:00:30Z", "session_id": "S1", "type": "assistant_response", "domain": ".shared", "response": "bar done"},
+        {"ts": "2026-05-07T12:00:30Z", "session_id": "S1", "type": "turn_duration", "domain": ".shared",
+         "duration_seconds": 10, "from_ts": "2026-05-07T12:00:20Z", "to_ts": "2026-05-07T12:00:30Z"},
+        {"ts": "2026-05-07T12:00:30Z", "session_id": "S1", "type": "skill_duration", "domain": ".shared",
+         "duration_seconds": 10, "from_ts": "2026-05-07T12:00:20Z", "to_ts": "2026-05-07T12:00:30Z",
+         "wait_seconds": 0, "turns": 1},
+    ]
+    _setup_session_log(tmp_path / "snap", events)
+
+    report = _run_and_read(monkeypatch, tmp_path, "snap")
+    # Both skills' totals must render (proving the mid-loop flush survived /bar's user_prompt).
+    assert report.count("⏱ Skill total: 10s (1 turn)") == 2
