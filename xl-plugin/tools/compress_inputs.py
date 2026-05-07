@@ -7,10 +7,12 @@
 xlator compress-inputs: maintain <domain>/policy_facets/compressed/ as a
 caveman-compressed mirror of <domain>/input/policy_docs/.
 
-This tool handles the non-AI half of /compress-inputs: file enumeration,
-copy, manifest read/write, mirror-deletes, and *.original.md cleanup. The
-orchestrating skill invokes the AI half (caveman /compress per file)
-between --plan and --finalize.
+This tool handles the non-AI half of compress work: file enumeration,
+copy, manifest read/write, mirror-deletes, *.original.md cleanup, and
+per-file outcome marker collation. The AI half (caveman compression of
+each file) is invoked by the per-file skill /compress-input, which is
+itself invoked by /index-inputs's unified per-file batch (alongside
+/extract-computations) or standalone by an analyst against a single file.
 
 Usage:
     xlator compress-inputs <domain> --plan

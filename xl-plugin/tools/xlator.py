@@ -352,7 +352,7 @@ def cmd_new_domain(domain):
     _print_info(
         f"\nDomain '{domain}' created. "
         f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs "
-        f"(which will auto-sync /compress-inputs first)."
+        f"(which fans out parallel per-file workers that compress and extract each file)."
     )
 
 

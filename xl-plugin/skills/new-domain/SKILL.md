@@ -31,7 +31,7 @@ xlator new-domain <domain>
 
 This creates `input/policy_docs/`, `policy_facets/`, `specs/`, `specs/guidance/` (with `CLAUDE.md` copied from `core/guidance_claude.md`), and `output/`.
 
-`policy_facets/` is the parent folder for derived views of the domain's policy docs. The `policy_facets/compressed/` subfolder is created on the first `/compress-inputs` run.
+`policy_facets/` is the parent folder for derived views of the domain's policy docs. The `policy_facets/compressed/` and `policy_facets/computations/` subfolders are created on the first `/index-inputs` run, which fans out parallel per-file workers that compress and extract each policy doc.
 
 ### Step 2: Print next steps
 
