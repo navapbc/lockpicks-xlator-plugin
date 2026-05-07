@@ -63,12 +63,17 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, os.path.dirname(__file__))
+
+import outcome_markers  # noqa: E402
+
 
 _POLICY_DOCS = "input/policy_docs"
 _POLICY_FACETS = "policy_facets"
 _COMPRESSED = "policy_facets/compressed"
 _MANIFEST = "policy_facets/.compress-manifest.yaml"
 _PLAN_TMP = "policy_facets/.compress-plan.tmp"
+_PLAN_TMP_DIR = "policy_facets/.compress-plan.d"
 
 _ALLOWED_SUFFIXES = {".md"}
 
@@ -235,8 +240,6 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
         "to_delete": to_delete,
         "noop": noop,
         "skipped": skipped,
-        "succeeded": [],   # mutated by skill as it processes each file
-        "failed": [],      # mutated by skill on per-file caveman failure
     }
 
     # Persist transient plan for --finalize.
@@ -244,6 +247,14 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     with plan_path.open("w", encoding="utf-8") as f:
         json.dump(plan, f, indent=2)
+
+    # Clear and recreate the per-file marker directory. Stale markers from a
+    # prior crashed run are obsolete because --plan reclassifies all sources
+    # by current SHA; collation in --finalize must not pick them up.
+    plan_dir = domain_dir / _PLAN_TMP_DIR
+    if plan_dir.exists():
+        shutil.rmtree(plan_dir)
+    plan_dir.mkdir(parents=True, exist_ok=True)
 
     # Human-readable summary on stderr.
     print(
@@ -272,9 +283,30 @@ def cmd_finalize(domain_dir: Path) -> dict[str, int]:
     with plan_path.open(encoding="utf-8") as f:
         plan = json.load(f)
 
-    succeeded: set[str] = set(plan.get("succeeded") or [])
+    # Defensive schema check: a plan file with non-empty succeeded/failed arrays
+    # is the v3.0.0 schema. Aborting protects against silent dst-deletion when
+    # an analyst upgrades plugin v3.0.0 → v4.0.0 with an in-flight run on disk.
+    if plan.get("succeeded") or plan.get("failed"):
+        raise RuntimeError(
+            f"{_PLAN_TMP} has the v3.0.0 schema (non-empty succeeded/failed arrays). "
+            f"This run was started under an older plugin version. Delete "
+            f"{_PLAN_TMP} and {_PLAN_TMP_DIR} and re-run /index-inputs."
+        )
+
     to_compress: list[dict[str, str]] = plan.get("to_compress") or []
     to_delete: list[str] = plan.get("to_delete") or []
+
+    # Read per-file outcome markers (replaces the v3.0.0 succeeded/failed lists).
+    plan_dir = domain_dir / _PLAN_TMP_DIR
+    markers = outcome_markers.read_markers(plan_dir)
+
+    succeeded: set[str] = {
+        src for src, m in markers.items() if m.get("status") == "succeeded"
+    }
+    failed: list[dict[str, str]] = [
+        {"src": src, "error": str(m.get("error", ""))}
+        for src, m in markers.items() if m.get("status") == "failed"
+    ]
 
     # 1. Remove every *.original.md backup under compressed/.
     backups_removed = 0
@@ -285,13 +317,26 @@ def cmd_finalize(domain_dir: Path) -> dict[str, int]:
                 path.unlink()
                 backups_removed += 1
 
-    # 2. For to_compress entries NOT in succeeded, delete the uncompressed dst
-    #    so the next run reattempts. This prevents an uncompressed copy from
-    #    matching the manifest SHA on next --plan and being skipped.
+    # 2. For to_compress entries NOT in succeeded, delete the (potentially
+    #    partially-mutated) dst so the next run reattempts. A missing marker is
+    #    "no marker written" (worker died before/at marker init); an in_progress
+    #    marker is "action aborted mid-flight" (caveman may have started writing
+    #    dst). Both are unsafe to keep.
     aborted = 0
+    aborted_no_marker = 0
+    aborted_in_progress = 0
     for entry in to_compress:
-        if entry["src"] in succeeded:
+        src = entry["src"]
+        if src in succeeded:
             continue
+        marker = markers.get(src)
+        if marker is None:
+            failed.append({"src": src, "error": "no marker written"})
+            aborted_no_marker += 1
+        elif marker.get("status") == "in_progress":
+            failed.append({"src": src, "error": "action aborted mid-flight"})
+            aborted_in_progress += 1
+        # else: status == "failed" — already in failed list above.
         dst_abs = domain_dir / entry["dst"]
         if dst_abs.exists():
             dst_abs.unlink()
@@ -326,22 +371,23 @@ def cmd_finalize(domain_dir: Path) -> dict[str, int]:
 
     write_manifest(domain_dir, manifest)
 
-    # 5. Remove the transient plan file.
+    # 5. Remove the transient plan file and the marker directory.
     plan_path.unlink()
+    outcome_markers.cleanup_marker_dir(plan_dir)
 
     summary = {
         "compressed": len(succeeded),
         "deleted": deleted,
         "unchanged": len(plan.get("noop") or []),
         "skipped": len(plan.get("skipped") or []),
-        "aborted": aborted,
+        "aborted": aborted_no_marker + aborted_in_progress,
         "backups_removed": backups_removed,
-        "failed": len(plan.get("failed") or []),
+        "failed": len(failed),
     }
     print(
         f"compressed: {summary['compressed']}, deleted: {summary['deleted']}, "
         f"unchanged: {summary['unchanged']}, skipped: {summary['skipped']}, "
-        f"failed: {summary['failed']}"
+        f"aborted: {summary['aborted']}, failed: {summary['failed']}"
     )
     return summary
 
