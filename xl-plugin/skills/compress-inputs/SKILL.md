@@ -82,7 +82,7 @@ The tool emits the work plan as JSON on stdout. Parse it. The shape is:
   "to_compress":     [ {"src": "...", "dst": "...", "source_sha": "..."}, ... ],
   "to_delete":       [ "policy_facets/compressed/<rel>.md", ... ],
   "noop":            [ {"src": "...", "reason": "unchanged"}, ... ],
-  "skipped":         [ {"src": "...", "reason": "sensitive_path"|"not_allowed"}, ... ],
+  "skipped":         [ {"src": "...", "reason": "not_allowed"}, ... ],
   "succeeded":       [],
   "failed":          []
 }

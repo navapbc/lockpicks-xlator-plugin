@@ -202,21 +202,6 @@ def test_filename_with_spaces():
         assert "input/policy_docs/441-1 EARNED INCOME.md" in (data["sources"] or {})
 
 
-def test_sensitive_paths_skipped():
-    """Edge case: file path matching sensitive pattern goes to skipped."""
-    with tempfile.TemporaryDirectory() as tmp:
-        domain = _make_domain(Path(tmp))
-        _write_doc(domain, "secrets/api_key.md")
-        _write_doc(domain, "ok.md")
-        _git_init_and_commit(domain)
-
-        plan = compress_inputs.cmd_plan(domain)
-        skipped_srcs = [e["src"] for e in plan["skipped"]]
-        compressed_srcs = [e["src"] for e in plan["to_compress"]]
-        assert "input/policy_docs/secrets/api_key.md" in skipped_srcs
-        assert "input/policy_docs/ok.md" in compressed_srcs
-
-
 def test_non_md_allowed_skipped():
     """Edge case: .txt and other extensions are reported as skipped."""
     with tempfile.TemporaryDirectory() as tmp:

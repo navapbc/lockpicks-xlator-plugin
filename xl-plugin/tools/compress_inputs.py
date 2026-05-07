@@ -18,7 +18,7 @@ Usage:
 
 --plan:
   - Defensive sweep: remove any stray *.original.md files under compressed/.
-  - Enumerate allowed source files (.md only for v1; sensitive paths skipped).
+  - Enumerate allowed source files (.md only for v1).
   - Compute a work plan {to_compress, to_delete, noop, skipped} by comparing
     each source file's git SHA against the manifest's recorded SHA.
   - Copy each to_compress source to its compressed/ destination.
@@ -43,7 +43,7 @@ Output (JSON, --plan only):
       "to_compress":     [ {src, dst, source_sha}, ... ],
       "to_delete":       [ "policy_facets/compressed/<rel>.md", ... ],
       "noop":            [ {src, reason: "unchanged"}, ... ],
-      "skipped":         [ {src, reason: "sensitive_path"|"not_allowed"}, ... ]
+      "skipped":         [ {src, reason: "not_allowed"}, ... ]
     }
 
 Exit codes:
@@ -56,7 +56,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -72,10 +71,6 @@ _MANIFEST = "policy_facets/.compress-manifest.yaml"
 _PLAN_TMP = "policy_facets/.compress-plan.tmp"
 
 _ALLOWED_SUFFIXES = {".md"}
-_SENSITIVE_PATTERN = re.compile(
-    r"(secret|credential|password|api[_-]?key|token|private[_-]?key)",
-    re.IGNORECASE,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -107,10 +102,6 @@ def sweep_stale_backups(domain_dir: Path) -> int:
 
 def is_allowed(rel_path: Path) -> bool:
     return rel_path.suffix.lower() in _ALLOWED_SUFFIXES
-
-
-def is_sensitive(rel_path: Path) -> bool:
-    return bool(_SENSITIVE_PATTERN.search(str(rel_path)))
 
 
 # ---------------------------------------------------------------------------
@@ -206,9 +197,6 @@ def cmd_plan(domain_dir: Path) -> dict[str, object]:
 
         if not is_allowed(rel):
             skipped.append({"src": rel_str, "reason": "not_allowed"})
-            continue
-        if is_sensitive(rel):
-            skipped.append({"src": rel_str, "reason": "sensitive_path"})
             continue
 
         seen_sources.add(rel_str)
