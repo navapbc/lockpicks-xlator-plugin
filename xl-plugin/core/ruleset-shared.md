@@ -30,9 +30,9 @@ Do not invoke this file directly.
 6. **Multiple input docs + no `<filename>`?**
    - If `$DOMAINS_DIR/<domain>/input/policy_docs/` contains 2+ `.md` files and `<filename>` was **not** given:
 
-   **If `$DOMAINS_DIR/<domain>/specs/input-index.yaml` exists**, read it and display a context-rich selection prompt:
+   **If `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml` exists**, read it and display a context-rich selection prompt:
      ```
-     Multiple policy documents found. Consulting specs/input-index.yaml for context...
+     Multiple policy documents found. Consulting policy_facets/input-index.yaml for context...
 
        1. input/policy_docs/<file1>.md
           Tags: [tag1, tag2, tag3]
@@ -53,10 +53,10 @@ Do not invoke this file directly.
 
    **If `input-index.yaml` does not exist**, ask the user whether to generate it first:
      ```
-     specs/input-index.yaml not found. An index enables faster and richer file selection with summaries and tags.
+     policy_facets/input-index.yaml not found. An index enables faster and richer file selection with summaries and tags.
      Run /index-inputs <domain> now? [y (recommended) / n — continue without index]:
      ```
-   - **y:** Run `/index-inputs <domain>` now (creating `specs/input-index.yaml`), then re-display the selection prompt using the rich indexed format (same as the "exists" path above).
+   - **y:** Run `/index-inputs <domain>` now (creating `policy_facets/input-index.yaml`), then re-display the selection prompt using the rich indexed format (same as the "exists" path above).
    - **n:** Proceed with all files as a unified corpus (unchanged behavior).
 
 ---

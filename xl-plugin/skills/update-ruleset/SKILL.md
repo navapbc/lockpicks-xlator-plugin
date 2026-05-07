@@ -174,7 +174,7 @@ For each changed doc, read the diff and determine which CIVIL sections need upda
 Apply these constraints and standards when re-extracting the affected CIVIL sections.
 ```
 
-For each affected section, re-read the relevant parts of the changed policy doc and re-extract only that section. Do not touch sections not identified in Step 4.
+For each affected section, re-read the relevant parts of the changed policy doc — read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` rather than the raw source under `input/policy_docs/`. The compressed copy is the canonical content for AI consumption (see "Index path keys vs content reads" in `xl-plugin/CLAUDE.md`). Re-extract only that section. Do not touch sections not identified in Step 4.
 
 When re-extracting any section that contains `inputs:` or `computed:` fields, inject the frozen names from `naming-manifest.yaml` into your extraction reasoning: "These fields must keep their exact current names: [list all names from manifest]. Only introduce new field names for policy concepts not in this list, using the 4-step algorithm: (1) exact noun phrase, (2) strip entity-name words, (3) snake_case, (4) disambiguate if needed." **Never rename an existing field.**
 
@@ -276,7 +276,8 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Updated |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 9, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 10; consumed by `/create-tests`) |
-| `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml` | Read-only (if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |

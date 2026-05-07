@@ -210,6 +210,7 @@ xlator rego-pipeline <domain> <module>
   - Always emit `default rule := false` for boolean rules — missing this causes the entire `decision` object to be undefined.
   - CIVIL `max(a, b)` → Rego `max([a, b])`.
 - **Shell environment:** `rm` is aliased to `rm -i` — use `rm -f` in scripts to avoid interactive prompts.
+- **`policy_facets/` folder (per-domain).** Each domain has a `policy_facets/` folder for derived views of its policy docs. The first view is `policy_facets/compressed/`, a caveman-compressed mirror of `input/policy_docs/` produced by `/compress-inputs`. `input-index.yaml` and `input-sections.yaml` also live in `policy_facets/` (moved from `specs/` in xl-plugin 2.7.0). Index path keys still reference `input/policy_docs/<rel>.md` (the canonical source); downstream skills that need content read the matching `policy_facets/compressed/<rel>.md`. Auto-bootstrap on the first `/compress-inputs` (or `/index-inputs`, which calls `/compress-inputs` as a pre-step) creates the folder and moves any legacy `specs/input-{index,sections}.yaml` files into place.
 - **CIVIL DSL version:** Key features by version:
   - v1: Baseline version with minimal features
   - v2: Enable computed/intermediate variables to decompose long formulas into multi-step computations via the `computed:` field

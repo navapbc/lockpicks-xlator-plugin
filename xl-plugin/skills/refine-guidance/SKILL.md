@@ -40,10 +40,10 @@ Run these checks before doing anything else:
      Then stop. Do not scaffold a new domain here — that's `/new-domain`'s job.
 
 3. **Input index required?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
+   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
    - **ABSENT** → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
+     Input index not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
      Run /index-inputs <domain> first, then re-run /refine-guidance <domain>.
      :::
      Stop.

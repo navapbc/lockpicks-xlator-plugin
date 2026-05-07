@@ -48,10 +48,10 @@ Run these checks before doing anything else:
      Then stop.
 
 4. **`input-sections.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
+   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input sections not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
+     Input sections not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -91,7 +91,7 @@ Read:
 - `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` — `ruleset_groups:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` — `intermediate_variables.categories` (for variable names)
-- `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` — re-run Step 2 signal extraction:
+- `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml` — re-run Step 2 signal extraction:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
   - **File summaries** — collect all `summary:` values; reveals program scope and terminology

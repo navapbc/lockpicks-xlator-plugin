@@ -29,7 +29,9 @@ Read `../../core/output-fencing.md` now.
 xlator new-domain <domain>
 ```
 
-This creates `input/policy_docs/`, `specs/`, `specs/guidance/` (with `CLAUDE.md` copied from `core/guidance_claude.md`), and `output/`.
+This creates `input/policy_docs/`, `policy_facets/`, `specs/`, `specs/guidance/` (with `CLAUDE.md` copied from `core/guidance_claude.md`), and `output/`.
+
+`policy_facets/` is the parent folder for derived views of the domain's policy docs. The `policy_facets/compressed/` subfolder is created on the first `/compress-inputs` run.
 
 ### Step 2: Print next steps
 

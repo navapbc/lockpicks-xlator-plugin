@@ -46,10 +46,10 @@ Run these checks before doing anything else:
      Then stop.
 
 4. **`input-sections.yaml` exists?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
+   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input sections not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
+     Input sections not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
      Run /index-inputs <domain> first.
      :::
      Then stop.
@@ -119,7 +119,7 @@ Steps:
 
 ### Step 2: Extract doc signals and update guidance sections
 
-Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`.
+Read `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`.
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — the sections index is the sole source of doc signals.
 
 Extract the following signals (hold in memory for Step 3):

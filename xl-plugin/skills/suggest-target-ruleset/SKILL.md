@@ -5,7 +5,7 @@ description: Suggest Target Rulesets given Policy Documents
 
 # Suggest Target Rulesets given Policy Documents
 
-Analyze a domain's `specs/input-sections.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/declare-target-ruleset`.
+Analyze a domain's `policy_facets/input-sections.yaml` and suggest 1–3 candidate target rulesets based on all its information, including section headings, summary, topic tags, and computation hints. Saves suggestion files to `specs/suggested_targets/`. The user will select one of the suggestion files as the input to `/declare-target-ruleset`.
 
 The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") narrows what kinds of rulesets to suggest — it prioritizes candidates that match the hint phrase but still reads the whole index. When no hint is provided, all distinct policy scopes found in the index are candidates with a preference for rulesets that cover more topics.
 
@@ -40,10 +40,10 @@ Run these checks before doing anything else:
      Then stop.
 
 3. **Input index present?**
-   - Check for `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`
+   - Check for `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`
    - ABSENT → Print:
      :::error
-     Input index not found: $DOMAINS_DIR/<domain>/specs/input-sections.yaml
+     Input index not found: $DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml
      Run /index-inputs <domain> first, then re-run /suggest-target-ruleset <domain>.
      :::
      Then stop.
@@ -54,7 +54,7 @@ Run these checks before doing anything else:
 
 ### Step 1: Analyze index
 
-Read `$DOMAINS_DIR/<domain>/specs/input-sections.yaml`.
+Read `$DOMAINS_DIR/<domain>/policy_facets/input-sections.yaml`.
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `input-sections.yaml` is the sole source of doc signals.
 
