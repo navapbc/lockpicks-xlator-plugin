@@ -65,6 +65,7 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 - **Section headings** → reveals statutory structure and sub-program scope
 - **File summaries** → reveals program scope and terminology
 - **Computation hints** → collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable; collect `preconditions:` expressions keyed by their output variable. Recurring precondition clauses across many entries (e.g., a large cluster of computations all gated on `"applicant is over 65"`) signal a distinct policy scope and should yield a separate candidate ruleset rather than being mixed into a more general one. If the index has no `computations:` entries, skip this signal.
+- **Phase membership** → collect each section's `phase:` value (when present). Apply the same suffix-stripping normalization as `/create-ruleset-groups` (drop a trailing `_test` / `_check` / `_evaluation`). When ≥1 section has a `phase:` value, treat distinct (post-normalization) phases as **primary clustering boundaries** for candidate target rulesets — distinct phases that span large variable counts are strong signals for distinct candidate rulesets, stronger than tag/heading similarity alone. Do not merge candidates across distinct `phase:` values; phase boundaries are explicit doc signals, while tag/heading clusters are inferred. When no section has `phase:`, fall through to existing tag/heading/computation-hint clustering unchanged.
 
 **For each candidate, derive:**
 - `ruleset_name` — snake_case base filename (e.g., `eligibility_check`, `income_calculation`)
@@ -171,3 +172,5 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 - **Do not use block-style lists for `type:` values** — `type: enum` not `type:\n  - approve\n  - deny`
 - **Do not guess domain names or paths** — always expand `$DOMAINS_DIR` from `.xlator.local.env` if the variable is unknown
 - **When hint matches nothing strongly, show all candidates** — do not suppress candidates because they don't match the hint; the hint is a ranking signal only
+- **Do not merge candidates across distinct `phase:` values** — phase is an explicit doc signal; merging two phase-tagged scopes into one candidate ruleset discards information the analyst already encoded in the source
+- **Do not write `phase:` or modify it** — `phase:` is single-owner; only `/extract-computations` writes the field. This skill reads it
