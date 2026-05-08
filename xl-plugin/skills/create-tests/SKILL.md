@@ -39,7 +39,7 @@ After pre-flight, before mode detection, check for input documents and `extracte
 
 ```bash
 ls $DOMAINS_DIR/<domain>/input/**/* 2>/dev/null   # any input docs?
-ls $DOMAINS_DIR/<domain>/specs/extracted-tests.yaml 2>/dev/null
+ls $DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml 2>/dev/null
 ```
 
 **If `extracted-tests.yaml` already exists:**

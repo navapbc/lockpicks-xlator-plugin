@@ -106,7 +106,7 @@ tests:
 
 **Case ID prefix:** `drv_NNN`
 
-Read `$DOMAINS_DIR/<domain>/specs/extracted-tests.yaml`. Mine it for test scenarios even when `extracted_tests: []`:
+Read `$DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml`. Mine it for test scenarios even when `extracted_tests: []`:
 
 - **From list entries with `notes:`** — Unmappable values in `notes:` often describe computed results (e.g., "net income after deductions = $320"). Use them to infer plausible boundary inputs to test.
 - **From `extracted_tests:` entries (non-empty list)** — Each entry is a concrete policy example. If it is not already in `<program>_tests.yaml` (match by `case_id` OR by identical `inputs:` map), include it here as a `drv_*` case, preserving the original `inputs:` and `expected:` values.

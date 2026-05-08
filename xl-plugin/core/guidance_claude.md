@@ -10,7 +10,7 @@ Each domain's ruleset guidance lives in `$DOMAINS_DIR/<domain>/specs/guidance/`.
 
 ```
 guidance/
-  CLAUDE.md                ← copy of this file (placed by /new-domain)
+  CLAUDE.md                ← copy of this file
   metadata.yaml            ← template_id, source_template, display_name, description
   prompt-context.yaml      ← role, scope, constraints, standards, guidance, edge_cases
   variables.yaml           ← input_variables, output_variables, intermediate_variables, constants_and_tables

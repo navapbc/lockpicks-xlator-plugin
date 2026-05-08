@@ -40,7 +40,7 @@ Read `../../core/output-fencing.md` now.
 ## Check State
 
 ```bash
-ls $DOMAINS_DIR/<domain>/specs/extracted-tests.yaml 2>/dev/null
+ls $DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml 2>/dev/null
 ```
 
 **If `extracted-tests.yaml` already exists:**
@@ -83,10 +83,10 @@ Within each relevant file:
 
 ## Output Format
 
-Write to `$DOMAINS_DIR/<domain>/specs/extracted-tests.yaml`:
+Write to `$DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml` (create the `policy_facets/` directory if absent):
 
 :::important
-Created $DOMAINS_DIR/<domain>/specs/extracted-tests.yaml
+Created $DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml
 :::
 
 :::detail
