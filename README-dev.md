@@ -136,7 +136,7 @@ uv run tools/transpile_to_rego.py --spec domains/snap/specs/eligibility.civil.ya
 | `catala-quickref.md` | Catala 1.1.0 syntax patterns |
 | `catala-test-quickref.md` | Catala test annotation patterns |
 | `ruleset.schema.json` | JSON Schema (auto-generated — regenerate via `xlator generate-schema`) |
-| `guidance-templates/` | Template files used to create guidance.yaml for each domain |
+| `guidance-templates/` | Template files used to populate `guidance/` for each domain |
 
 ---
 
@@ -148,7 +148,7 @@ Used for AI-assisted domain work. Run from within Claude Code (VS Code extension
 |---------|---------|
 | `/new-domain` | Scaffold a new domain folder structure |
 | `/index-inputs` | Build a reading index from large policy documents |
-| `/refine-guidance` | Tune AI extraction guidance in `guidance.yaml` |
+| `/refine-guidance` | Tune AI extraction guidance under `guidance/` |
 | `/extract-ruleset` | Extract a CIVIL ruleset from policy docs in `input/policy_docs/` |
 | `/update-ruleset` | Update an existing ruleset with changed policy rules |
 | `/create-tests` | Generate test cases for a CIVIL module |

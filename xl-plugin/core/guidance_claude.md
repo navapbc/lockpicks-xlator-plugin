@@ -1,10 +1,8 @@
 # `guidance/` Folder Reference
 
-Each domain's ruleset guidance lives in `$DOMAINS_DIR/<domain>/specs/guidance/`. This folder replaces the single `guidance.yaml` file. Files are split by skill lifecycle: fields written and read together in the same pipeline phase stay in the same file.
+Each domain's ruleset guidance lives in `$DOMAINS_DIR/<domain>/specs/guidance/`. Files are split by skill lifecycle: fields written and read together in the same pipeline phase stay in the same file.
 
 `CLAUDE.md` in each domain's `guidance/` folder is a copy of this file, placed by `/new-domain`. Reading `CLAUDE.md` here gives a complete picture of the folder without consulting any other reference.
-
-**Existing domains** continue to use `guidance.yaml` until manually migrated. The split structure is for new domains only.
 
 ---
 
@@ -31,7 +29,7 @@ guidance/
 
 **Analyst-authored files** (written by analyst, AI skill, or both): `policy-briefing.yaml`, `scenario-cards.yaml`, `known-pitfalls.yaml`, `source-annotations.yaml`
 
-**Missing file behavior:** A missing guidance file is treated identically to a missing field in the old `guidance.yaml` — skills that need that file proceed with empty/default values rather than failing.
+**Missing file behavior:** A missing guidance file is treated identically to a missing field — skills that need that file proceed with empty/default values rather than failing.
 
 ---
 

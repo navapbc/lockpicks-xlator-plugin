@@ -232,7 +232,7 @@ subgraph Extractor
     claude_guidance(["Claude\n/refine-guidance"]):::claudeShape
     claude_extract(["Claude\n/extract-ruleset"]):::claudeShape
     claude_index --> index[input-index.yaml] --> claude_guidance
-    claude_guidance --> ai_guidance[guidance.yaml]
+    claude_guidance --> ai_guidance[guidance]
     ai_guidance --> claude_extract
 end
 
