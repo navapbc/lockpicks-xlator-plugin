@@ -226,6 +226,11 @@ If any new fact, computed, or outputs fields were added: derive canonical names 
 
 If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after validation.
 
+**`original_name:` annotation (best-effort).** Like `/extract-sample-rules` Step 6, this writer derives names from CIVIL field names rather than from a defaults-provenance link, so the no-copy-back guarantee is best-effort here. Rule:
+
+- Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it disambiguated a derived name before writing). In every other case, omit `original_name:`.
+- Readers (the next `/index-inputs` worker) fall back to the current key when `original_name:` is absent.
+
 ### Step 10: Write Stale-Cases Hint
 
 Write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/create-tests`:

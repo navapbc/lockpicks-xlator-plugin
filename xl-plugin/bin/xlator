@@ -107,6 +107,12 @@ case "$1" in
     extract-computations)
         exec uv run "$TOOLS_DIR/extract_computations.py" "${@:2}"
         ;;
+    emit-per-file-yaml)
+        exec uv run "$TOOLS_DIR/emit_per_file_yaml.py" "${@:2}"
+        ;;
+    naming-defaults)
+        exec uv run "$TOOLS_DIR/naming_defaults.py" "${@:2}"
+        ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
     # without needing to know where xlator.py is or worry about environment variables,

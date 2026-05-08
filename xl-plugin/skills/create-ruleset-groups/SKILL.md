@@ -89,7 +89,7 @@ After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-gr
 
 ### Step 1: Scan for phase signals
 
-Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of phase signals.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map with top-level keys `naming_manifest` and `sections`. Read `data["sections"]` as the list of section blocks (the per-section block shape is unchanged from the prior list-shape — only the wrapping is new). Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of phase signals.
 
 Two signal sources, applied in order:
 

@@ -107,7 +107,7 @@ Additionally, build five in-memory structures from the loaded guidance files:
 If `<filename>` is given, read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<filename>` (translate the index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`).
 Otherwise, read the compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
 
-**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` and skim its section blocks (heading/summary/tags/computations) to understand structure before reading the full compressed content. The source path of each per-file file is encoded in its relative location — strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
+**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` (a YAML map with top-level keys `naming_manifest` and `sections`) and skim `data["sections"]` (heading/summary/tags/computations on each section block) to understand structure before reading the full compressed content. The source path of each per-file file is encoded in its relative location — strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
 
 Identify:
 
@@ -167,19 +167,27 @@ Before drafting any CIVIL YAML, produce the canonical field name for every fact 
 Present the result as a Markdown table:
 
 :::detail
-| Policy Phrase | Entity / Section | Field Name | Source Section |
-|--------------|-----------------|-----------|----------------|
-| gross monthly income | Household | `gross_monthly_income` | §1.2 |
-| number of people in the household | Household | `household_size` | §1.1 |
-| net monthly income after all deductions | computed | `net_income` | §2.4 |
+| Policy Phrase | Entity / Section | Field Name | Source Section | Synonyms |
+|--------------|-----------------|-----------|----------------|----------|
+| gross monthly income | Household | `gross_monthly_income` | §1.2 | monthly_gross |
+| number of people in the household | Household | `household_size` | §1.1 |  |
+| net monthly income after all deductions | computed | `net_income` | §2.4 |  |
 :::
 
-**If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` already exists** (CREATE re-run after a previous successful extraction):
-- Run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). Pre-populate all table columns from the resulting map: Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, and Source Section from `section`.
-- Only derive new names for policy concepts not already listed
+The **Synonyms** column is populated from `policy_facets/naming-defaults.yaml` and shows other field names observed for the same `policy_phrase` across files. When the column is empty for an entry, leave it blank — do not write `—` or `none`. Synonyms are surfaced so the analyst can pick a different canonical at confirm time when the auto-pick is not the best fit.
+
+**Pre-populate from the manifest authority chain (highest → lowest):**
+
+1. **Specs (highest authority):** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists (CREATE re-run after a previous successful extraction), run **SP-LoadNamingManifest** with `schema=entity_grouped` (from `../../core/ruleset-shared.md`). Pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`. Synonyms column is left blank for specs-sourced entries (specs is authoritative; alternatives are no longer relevant once the analyst has confirmed a name).
+
+2. **Defaults (mid authority):** For policy concepts not already covered by specs, if `$DOMAINS_DIR/<domain>/policy_facets/naming-defaults.yaml` exists, run **SP-LoadNamingManifest** with `schema=flat`. Pre-populate Field Name from the canonical key, Policy Phrase from `policy_phrase`, Entity / Section from `role_hint` (or `computed` if absent — the analyst will adjust during confirmation), Source Section from the first entry in `sources`, and Synonyms from the entry's `synonyms` list (joined comma-separated when more than one).
+
+3. **Algorithm-derived (fallback):** For policy concepts not covered by either manifest, derive the name from policy text using the algorithm above. Synonyms column is blank.
+
+When both files have an entry for the same `policy_phrase` but different names, specs wins (it is the analyst-confirmed authority).
 
 :::user_input
-Do the field names in this table match your intent? You may edit any name.
+Do the field names in this table match your intent? You may edit any name. The Synonyms column shows alternatives observed in other files — if one of those reads better than the canonical, you can edit the Field Name to the synonym.
 :::
 If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
 
@@ -447,6 +455,12 @@ Do not proceed to the next file after a validation failure.
 
 Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
 
+**`original_name:` annotation.** For each entry being written, look up the corresponding entry in `policy_facets/naming-defaults.yaml` by `policy_phrase` (Step 3b's join key). Then:
+
+- If the analyst's confirmed Field Name equals the defaults entry's canonical name (analyst kept the default), **omit `original_name:`**.
+- If the analyst's confirmed Field Name differs from the defaults entry's canonical name (analyst renamed it in Step 3b), write `original_name: <defaults-canonical-name>`. The next `/index-inputs` run reads this anchor through the worker authority chain, so analysts never copy renames back manually (the no-copy-back guarantee).
+- If `policy_facets/naming-defaults.yaml` has no entry for the phrase (algorithm-derived path), omit `original_name:` — there is no defaults canonical to anchor against.
+
 **Multi-file:** Write one consolidated `naming-manifest.yaml` covering all `generate` entries in the work-list (sub-modules first, main module last). Merge entries from each module into the appropriate `inputs:`, `computed:`, and `outputs:` sections.
 
 ```yaml
@@ -455,6 +469,7 @@ inputs:
   <EntityName>:
     <field_name>:
       policy_phrase: "<exact policy phrase from Name Inventory>"
+      original_name: <defaults-canonical-name>   # only when analyst renamed in Step 3b
       source_doc: "<source filename>"
       section: "<source title, heading, and paragraph>"
   # repeat for each entity
@@ -471,7 +486,14 @@ outputs:
   # repeat for each outputs: field
 ```
 
-**If `naming-manifest.yaml` already exists** (CREATE re-run): merge — preserve all existing entries unchanged and append only new entries.
+**Re-run merge — replace-on-rename, keyed by `policy_phrase`** (CREATE re-run when the file already exists):
+
+- For each entry being written, normalize its `policy_phrase` (same normalizer as `xlator naming-defaults --build`: lowercase, strip leading `a/an/the`, strip ASCII punctuation, collapse whitespace). Look for an existing entry in the file whose normalized `policy_phrase` matches.
+- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry unchanged, including any `original_name:` already on it.
+- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Set `original_name:` to the **earliest** anchor in the chain: if the existing entry already has `original_name:`, copy that value forward (the chain anchors to the first non-rename name across all rounds, never to the most recent rename). If the existing entry has no `original_name:`, set `original_name:` to the existing entry's key (the previous canonical). Drop the existing entry from the file (no duplicate).
+- **No match (new phrase):** append a new entry. Apply the `original_name:` rule against `policy_facets/naming-defaults.yaml` as described above.
+
+This preserves the no-copy-back guarantee across multiple rename rounds — the chain anchor stays pinned to the original `/index-inputs`-derived name even after several analyst renames.
 
 This file is user-editable. Do **not** add an "auto-generated" comment.
 
