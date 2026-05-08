@@ -465,6 +465,20 @@ def translate_expr_to_catala(
     # must be an enum variant (e.g. "deny" → Deny, "manual_verification" → ManualVerification).
     result = re.sub(r'"([a-zA-Z_][a-zA-Z0-9_]*)"', lambda m: snake_to_pascal(m.group(1)), result)
 
+    # Step 12.5: in(VAR, [V1, V2, V3]) → [V1; V2; V3] contains VAR
+    # CIVIL membership form. Catala has no `in` builtin; the equivalent is a list
+    # literal (with `;` separators, not `,`) followed by `contains` and the value.
+    def _rewrite_in_membership(m):
+        var_expr = m.group(1).strip()
+        items = [item.strip() for item in m.group(2).split(",") if item.strip()]
+        return f"[{'; '.join(items)}] contains {var_expr}"
+
+    result = re.sub(
+        r"\bin\(\s*([a-zA-Z_][\w.]*)\s*,\s*\[([^\[\]]+)\]\s*\)",
+        _rewrite_in_membership,
+        result,
+    )
+
     # Step 13: In money context, coerce bare integers in arithmetic positions to money literals.
     # Handles both left-side (`20 - expr` → `$20 - expr`) and right-side (`expr - 65` → `expr - $65`).
     # Guards: not preceded by $ or , (already a money literal or thousands-separator digit);
@@ -620,17 +634,25 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
 
     # --- Enumeration declarations for string-typed fact fields used as table keys ---
     # Catala has no native text/string type; string fields that serve as table lookup
-    # keys are represented as enumerations with variants derived from table row values.
+    # keys, or carry an explicit values: list, are represented as enumerations.
     _emitted_string_enums: set = set()
     for entity_name, entity_def in facts.items():
         for field_name, field_def in entity_def.get("fields", {}).items():
             if field_def.get("type") == "string" and field_name not in _emitted_string_enums:
-                enum_vals = _collect_string_enum_values(field_name, tables)
-                if enum_vals:
+                table_vals = _collect_string_enum_values(field_name, tables)
+                decl_vals = field_def.get("values") or []
+                if table_vals:
                     enum_name = snake_to_pascal(field_name)
                     lines.append(f"declaration enumeration {enum_name}:")
-                    for v in enum_vals:
+                    for v in table_vals:
                         lines.append(f"  -- {v}")
+                    lines.append("")
+                    _emitted_string_enums.add(field_name)
+                elif decl_vals:
+                    enum_name = snake_to_pascal(field_name)
+                    lines.append(f"declaration enumeration {enum_name}:")
+                    for v in decl_vals:
+                        lines.append(f"  -- {snake_to_pascal(v)}")
                     lines.append("")
                     _emitted_string_enums.add(field_name)
 

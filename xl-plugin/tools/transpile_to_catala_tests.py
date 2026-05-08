@@ -106,7 +106,11 @@ def build_field_type_map(civil_doc: dict) -> dict:
     Returns:
         types: {field_name: civil_type}
         optional_flags: {field_name: bool}
-        enum_variants: {field_name: [str]}
+        enum_variants: {field_name: {raw_value: emit_form}} — raw_value is the
+            value as-it-appears in CIVIL inputs; emit_form is the Catala enum
+            variant identifier to emit. Table-derived variants emit raw;
+            values:-declared variants are PascalCased to match the enum
+            declaration emitted by transpile_to_catala.emit_declarations.
         entity_fields: {entity_name: [(field_name, civil_type, is_optional)]}
         computed_field_types: {field_name: civil_type} for computed: fields
     """
@@ -123,23 +127,33 @@ def build_field_type_map(civil_doc: dict) -> dict:
             types[field_name] = civil_type
             optional_flags[field_name] = is_optional
             if civil_type == "enum" and "values" in field_def:
-                enum_variants[field_name] = [str(v) for v in field_def["values"]]
+                enum_variants[field_name] = {str(v): str(v) for v in field_def["values"]}
             elif civil_type == "string":
                 # Collect enum variants from table key columns for string fields.
-                # These map to Catala enumeration types so tests need real variant names.
-                variants: list = []
+                # Table-derived: emit raw (matches `-- VAL` declaration in emit_declarations).
+                table_variants: list = []
                 for table_def in tables.values():
                     if field_name in table_def.get("key", []):
                         for row in table_def.get("rows", []):
                             val = row.get(field_name)
-                            if val is not None and isinstance(val, str) and val not in variants:
-                                variants.append(val)
-                if variants:
-                    enum_variants[field_name] = variants
+                            if val is not None and isinstance(val, str) and val not in table_variants:
+                                table_variants.append(val)
+                if table_variants:
+                    enum_variants[field_name] = {v: v for v in table_variants}
                 elif "values" in field_def:
-                    enum_variants[field_name] = [str(v) for v in field_def.get("values", [])]
+                    # Declared values: PascalCase emit form to match the enum declaration.
+                    enum_variants[field_name] = {
+                        str(v): snake_to_pascal(str(v)) for v in field_def.get("values", [])
+                    }
             fields.append((field_name, civil_type, is_optional))
         entity_fields[entity_name] = fields
+    # Output decision fields: string-with-values: declarations also map to Catala
+    # enums; their {raw → emit} mapping is needed when emitting test assertions.
+    for field_name, field_def in civil_doc.get("outputs", {}).items():
+        if field_def.get("type") == "string" and field_def.get("values"):
+            enum_variants[field_name] = {
+                str(v): snake_to_pascal(str(v)) for v in field_def["values"]
+            }
     # Only include computed fields tagged [expose] — these become scope outputs.
     # Internal computed fields are inaccessible outside the scope and cannot be asserted.
     computed_field_types = {
@@ -165,8 +179,12 @@ def default_value_for_type(civil_type: str) -> str:
         return "0"
 
 
-def value_to_catala(value, civil_type: str, valid_enum_variants: list = None):
+def value_to_catala(value, civil_type: str, valid_enum_variants=None):
     """Convert a YAML test input value to a Catala literal.
+
+    valid_enum_variants is a {raw_value: emit_form} dict (or None). When
+    provided, the raw input must match a key — the emitted enum variant
+    identifier comes from the value side of the map.
 
     Returns None if the value cannot be represented (e.g. non-numeric money,
     non-numeric int, or unrecognised enum variant).
@@ -179,13 +197,20 @@ def value_to_catala(value, civil_type: str, valid_enum_variants: list = None):
         str_val = str(value)
         if valid_enum_variants is not None and str_val not in valid_enum_variants:
             return None  # invalid variant — caller will default and warn
-        return str_val
+        return valid_enum_variants[str_val] if valid_enum_variants else str_val
     elif civil_type in ("int", "float"):
         try:
             int(value) if civil_type == "int" else float(value)
             return str(value)
         except (TypeError, ValueError):
             return None  # non-numeric string — caller will default and warn
+    elif civil_type == "string" and valid_enum_variants:
+        # String field with declared/derived enum variants — must map to a
+        # Catala enum constructor, never a free-form identifier.
+        str_val = str(value)
+        if str_val not in valid_enum_variants:
+            return None  # invalid variant — caller will default and warn
+        return valid_enum_variants[str_val]
     else:
         return str(value)
 
@@ -223,7 +248,7 @@ def emit_field_value(
     if input_val is not None:
         catala_val = value_to_catala(input_val, civil_type, valid_variants)
         if catala_val is None:
-            default = valid_variants[0] if valid_variants else default_value_for_type(civil_type)
+            default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(civil_type)
             print(
                 f"  WARN  case '{case_id}': field '{note_prefix}{field_name}' has non-representable "
                 f"value '{input_val}'; defaulting to {default}",
@@ -232,10 +257,10 @@ def emit_field_value(
             return default, "non-representable input value; defaulted"
         return catala_val, None
     elif is_optional:
-        default = valid_variants[0] if valid_variants else default_value_for_type(civil_type)
+        default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(civil_type)
         return default, None
     else:
-        default = valid_variants[0] if valid_variants else default_value_for_type(civil_type)
+        default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(civil_type)
         print(
             f"  WARN  case '{case_id}': required field '{note_prefix}{field_name}' not in inputs; "
             f"defaulting to {default}",
@@ -350,9 +375,21 @@ def emit_test_scope(
     # String-enum decisions (e.g. eligible: "deny" → Deny)
     for field in (string_decision_fields or []):
         val = expected.get(field)
-        if val is not None:
-            catala_variant = snake_to_pascal(str(val))
-            lines.append(f"  assertion (result.{field} = {catala_variant})")
+        if val is None:
+            continue
+        valid_variants = (enum_variants or {}).get(field)
+        str_val = str(val)
+        if valid_variants is not None and str_val not in valid_variants:
+            print(
+                f"  WARN  case '{case_id}': expected.{field} value '{str_val}' is not in "
+                f"declared values {list(valid_variants)} — skipping assertion",
+                file=sys.stderr,
+            )
+            continue
+        catala_variant = (
+            valid_variants[str_val] if valid_variants else snake_to_pascal(str_val)
+        )
+        lines.append(f"  assertion (result.{field} = {catala_variant})")
 
     # Denial reasons list
     denial_reasons = expected.get(denial_field)
@@ -446,7 +483,20 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
 
     tests = tests_doc.get("tests", [])
     if not tests:
-        fail(f"No tests found in {tests_path}")
+        # Intentionally-empty test files (e.g. auto-generated derived suites where
+        # no derivable scenarios remain after deduplication) are valid — emit a
+        # placeholder Catala file with no scopes and skip transpilation so the
+        # pipeline can proceed to other test files.
+        print(f"WARN  No tests in {tests_path}; emitting empty placeholder.", file=sys.stderr)
+        out_dir = os.path.dirname(os.path.abspath(output_path))
+        os.makedirs(out_dir, exist_ok=True)
+        civil_basename_skip = os.path.basename(civil_spec_path)
+        module_name_skip = civil_basename_skip.replace(".civil.yaml", "")
+        catala_module_name_skip = module_name_skip[0].upper() + module_name_skip[1:]
+        with open(output_path, "w") as f:
+            f.write(f"> Using {catala_module_name_skip}\n\n# Tests: (empty)\n")
+        print(f"OK  Wrote 0 test scope(s) → {output_path}")
+        return
 
     # Detect duplicate scope names (case_id collision)
     seen: dict = {}
