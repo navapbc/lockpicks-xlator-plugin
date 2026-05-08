@@ -233,44 +233,21 @@ Filter the unified action map (built in Pre-step B) to remove REJECTED sources �
   Skipped (low quality, score=<N>): input/policy_docs/<file>.md
 :::
 
-For the remaining sources, sort by source path for deterministic batch composition. Dispatch in batches of K (the concurrency cap). Each batch is a single assistant turn with K parallel `Agent`-tool calls; wait for the batch to return before issuing the next.
+For the remaining sources, sort by source path for deterministic batch composition. Dispatch in batches of K (the concurrency cap). Each batch is a single assistant turn with K parallel `Agent`-tool calls using `subagent_type: index-inputs-worker` (defined at `xl-plugin/agents/index-inputs-worker.agent.md`); wait for the batch to return before issuing the next.
 
-Each subagent worker receives this prompt template (filled with the worker's source path and action list):
+Each `Agent` call's prompt is the per-invocation context block the worker expects:
 
 ```
-You are a per-file worker for /index-inputs. Process this one source file end-to-end.
-
-Inputs:
-  source_path: <abs path under input/policy_docs/<rel>.md>
-  domain_dir:  <abs path under $DOMAINS_DIR/<domain>>
-  source_sha:  "<sha>" or "untracked"
-  actions: <subset of [
-    {name: "compress", skill: "/compress-input",       marker_path: "<domain_dir>/policy_facets/.compress-plan.d/<rel>.md.outcome.json", dst: "<domain_dir>/policy_facets/compressed/<rel>.md"},
-    {name: "extract",  skill: "/extract-computations", marker_path: "<domain_dir>/policy_facets/.extract-plan.d/<rel>.md.outcome.json",  dst: "<domain_dir>/policy_facets/computations/<rel>.md.yaml"}
-  ]>
-
-For each action in `actions`, in order:
-  1. Use the Write tool to write the marker JSON at <marker_path> with payload
-     {"src": "input/policy_docs/<rel>.md", "status": "in_progress", "source_sha": "<source_sha>"}.
-     Create intermediate directories as needed.
-  2. Invoke <skill> <source_path>. Skip pre-flight inside the child skill — the
-     parent already validated the path.
-  3. If the child skill completes without :::error, atomically update the marker
-     to status: "succeeded" (overwrite the same path).
-  4. If the child skill emits :::error, atomically update the marker to
-     status: "failed" with a short error message in the "error" field, and
-     continue to the next action (do NOT abort the worker).
-
-After all actions complete, return EXACTLY one line per action:
-  succeeded: <action.name> <source_rel>
-  failed: <action.name> <source_rel>: <short reason>
-
-Where <source_rel> is the source path relative to the domain root
-(e.g., input/policy_docs/sub/foo.md).
-
-Do not read or write any files outside <source_path>, the action's <dst>, and
-the action's <marker_path>.
+source_path: <abs path under input/policy_docs/<rel>.md>
+domain_dir:  <abs path under $DOMAINS_DIR/<domain>>
+source_sha:  "<sha>" or "untracked"
+actions: <subset of [
+  {name: "compress", skill: "/compress-input",       marker_path: "<domain_dir>/policy_facets/.compress-plan.d/<rel>.md.outcome.json", dst: "<domain_dir>/policy_facets/compressed/<rel>.md"},
+  {name: "extract",  skill: "/extract-computations", marker_path: "<domain_dir>/policy_facets/.extract-plan.d/<rel>.md.outcome.json",  dst: "<domain_dir>/policy_facets/computations/<rel>.md.yaml"}
+]>
 ```
+
+The agent body owns the per-action loop (write `in_progress` marker → invoke child skill skipping pre-flight → atomically update marker to `succeeded`/`failed` → return one `succeeded:` or `failed:` line per action) and the path-discipline guarantee — see `xl-plugin/agents/index-inputs-worker.agent.md` for the full worker contract.
 
 After each batch returns:
 
