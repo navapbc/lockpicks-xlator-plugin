@@ -6,7 +6,8 @@
 """
 xlator extract-computations: maintain <domain>/policy_facets/computations/ as
 a per-source-file mirror of <domain>/input/policy_docs/, where each output is
-a YAML list of {heading, summary, tags, computations} section blocks.
+a YAML list of {heading, summary, tags, phase?, phase_source?, computations?}
+section blocks.
 
 This tool handles the non-AI half of /extract-computations: file enumeration,
 manifest read/write, mirror-deletes, and the plan/finalize handoff. The

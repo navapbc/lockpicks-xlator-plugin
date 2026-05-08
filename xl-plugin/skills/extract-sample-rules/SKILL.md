@@ -189,6 +189,7 @@ For each `computed-only` entry in the working set, processed in priority order (
 - `expr_hint:` as the `expr:` value, substituting canonical names for any input variable names
 - `source:` from `computations[].description` (if `description` is absent, use `expr: "?"` and add to `missing_info`: `"No description for <variable_name> — expr and source must be confirmed manually"`)
 - If `preconditions:` is present on the entry, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form, or fall back to a `# precondition: <rendered>` comment above the bare `expr:` when no `else` branch is inferable from the index.
+- **`group:` annotation.** If the entry's source section carries a `phase:` value, render the rule's CIVIL `group:` annotation as the (post-normalization) phase identifier — apply the same suffix-stripping normalization as `/create-ruleset-groups` (drop a trailing `_test` / `_check` / `_evaluation`) so the `group:` value matches the canonical name `/create-ruleset-groups` writes to `ruleset-groups.yaml`. When `phase:` is absent on the source section, fall through to existing heading-text-derived `group:` binding logic unchanged. The phase-derived `group:` is the explicit doc signal; heading-text is a derived guess; explicit beats inferred.
 
 **(c) Check heuristic signals.** Scan the entry's `tags:` and `summary:` for these keywords (case-insensitive):
 - Table/schedule keywords: `table`, `schedule`, `threshold`, `limit`
@@ -197,7 +198,8 @@ For each `computed-only` entry in the working set, processed in priority order (
 If any signals are present, add this entry to the Pass 4b queue for `categorical:` and `table-lookup:` rule generation. Do not read the source file now.
 
 **(d) Assign to ruleset module or main.** For each generated rule, determine the best matching entry in `guidance/ruleset-modules.yaml`:
-- Match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`. Only match against sub-module entries (entries where `role:` is absent or `sub`) — do not route to the `role: main` entry during this matching step.
+- **Phase-aware matching when `phase:` is populated on the source section.** Filter sub-module candidates to those whose variables fall within the rule's (post-normalization) `phase:` — the R21 stage-boundary constraint is now extended to `phase:` agreement (see `/create-ruleset-modules` Step 2), so a sub-module is only a valid binding target if its variables share the rule's phase. Among phase-compatible sub-modules, then apply the existing variable name / heading keyword overlap heuristic. This keeps the rule's CIVIL `group:` annotation (set in (b)) consistent with the binding sub-module's stage membership.
+- When `phase:` is absent on the source section, match by variable name overlap (variables in the rule appear in the ruleset module's description) or section heading keyword overlap with the ruleset module's `description:`. Only match against sub-module entries (entries where `role:` is absent or `sub`) — do not route to the `role: main` entry during this matching step.
 - If a clear match is found, assign to that sub-module's `sample_rules:` list in `ruleset-modules.yaml`.
 - If no sub-module match is found: check whether `ruleset-modules.yaml` has an entry with `role: main`. If yes, assign the rule to that entry's `sample_rules:` list (locate the entry by its `name:` value). If no `role: main` entry exists, assign to the top-level `sample_rules:` in `sample-artifacts.yaml` as a fallback.
 
@@ -428,3 +430,5 @@ Next: Run /tag-vars-to-include-with-output <domain> to auto-detect intermediate 
 - **`source:` must be a quoted sentence from the per-file file** — copy from the section's `summary:` or `computations[].description:` in `policy_facets/computations/<rel>.md.yaml`; do not paraphrase
 - **Do not write `generated_at`**
 - **Do not combine Pass 4a and 4b into a single write** — Pass 4a must write files and print its summary before Pass 4b begins; the point is to let the user review index-derived rules while source reads are in progress
+- **When a section has an explicit `phase:` value, bind the rule's CIVIL `group:` annotation to that phase** — apply the same suffix-stripping normalization as `/create-ruleset-groups` so the `group:` value appears in `ruleset_groups[*].name` and `validate_civil.py` accepts the rule. Do not derive `group:` from heading text when `phase:` is present; explicit doc signal beats inference
+- **Do not write `phase:` or modify it** — `phase:` is single-owner; only `/extract-computations` writes the field. This skill reads it
