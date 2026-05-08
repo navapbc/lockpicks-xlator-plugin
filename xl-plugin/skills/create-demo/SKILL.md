@@ -285,7 +285,7 @@ If no test manifest was found, print:
 
 :::next_step
 Next steps:
-  1. Install deps:   pip install -r $DOMAINS_DIR/<domain>/output/demo-catala-<module>/requirements.txt
+  1. Install deps:   uv pip install -r $DOMAINS_DIR/<domain>/output/demo-catala-<module>/requirements.txt
   2. Run the demo:   xlator catala-demo <domain> <module>
   3. Open browser:   http://localhost:8000/static/index.html
   4. API docs:       http://localhost:8000/docs

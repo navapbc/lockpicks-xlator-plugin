@@ -16,6 +16,8 @@ To run Python scripts under the `tools/` folder, use the `xlator` shell script a
 
 Do not run the `python` or `python3`; instead run `uv run python <args>`.
 
+To install Python libraries or dependencies, use `uv pip install`.
+
 ## Project Terminology
 
 Use the project's exact terminology: 'ruleset module' (not 'sub-ruleset', not 'submodule'), 'ruleset group' (not 'workflow stage'), 'CIVIL' for the DSL name. Ask for clarification if domain terminology is ambiguous rather than guessing.
