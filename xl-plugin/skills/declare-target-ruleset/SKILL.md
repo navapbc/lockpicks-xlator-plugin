@@ -62,15 +62,7 @@ Run these checks before doing anything else:
      :::
      Await the user's response and use the resolved file as the ruleset file. Then continue.
 
-5. **`specs/guidance/` folder exists?**
-   - `$DOMAINS_DIR/<domain>/specs/guidance/` absent → Print:
-     :::error
-     guidance/ folder not found: $DOMAINS_DIR/<domain>/specs/guidance/
-     Run /new-domain <domain> first to create the folder scaffold.
-     :::
-     Then stop.
-
-6. **`guidance/metadata.yaml` already exists?**
+5. **`guidance/metadata.yaml` already exists?**
    - `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` present → Prompt:
      :::user_input
      guidance/metadata.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml. Overwrite? [y/n]
@@ -92,7 +84,11 @@ Output: <primary.name> (<primary.type>)
 Secondary: <secondary_decisions names, or "none">
 :::
 
-### Step 2: Create split guidance files
+### Step 2: Ensure guidance folder
+
+Run `xlator ensure-guidance <domain>` to create `$DOMAINS_DIR/<domain>/specs/guidance/` (if absent) and seed `CLAUDE.md` from `core/guidance_claude.md`. This is idempotent — safe to run when the folder already exists.
+
+### Step 3: Create split guidance files
 
 Write three files into `$DOMAINS_DIR/<domain>/specs/guidance/`.
 
@@ -205,4 +201,3 @@ $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [CREATED]
 - `secondary_decisions: []` must be present even when the ruleset had no secondary decisions — never omit the key
 - `examples: []` in each `input_variables` category is intentional — it is a placeholder that `/create-skeleton` will fill in with domain-specific variable names
 - `template_id` is the `ruleset_name` from the ruleset file (snake_case) — not the `display_name`, not a path, not a template id from `guidance-templates/`
-- The skill assumes `specs/guidance/` already exists — it is created by `/new-domain`, not here

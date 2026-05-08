@@ -67,6 +67,8 @@ Steps in this command:
 
 ### Step 1 [CREATE]: Bootstrap guidance files
 
+Run `xlator ensure-guidance <domain>` first to create `$DOMAINS_DIR/<domain>/specs/guidance/` (if absent) and seed `CLAUDE.md` from `core/guidance_claude.md`. This is idempotent.
+
 Two paths are available. Present as options:
 
 **a. Template selection** — Choose a guidance template:

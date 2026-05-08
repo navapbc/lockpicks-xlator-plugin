@@ -12,6 +12,7 @@ Usage:
 Typical user actions (no domain/module):
   list                                 Show all domain/module pairs
   new-domain      <domain>             Scaffold standard domain directory structure
+  ensure-guidance <domain>             Create specs/guidance/ and seed CLAUDE.md (idempotent)
 
   catala-transpile      <domain> <module>   Generate Catala from CIVIL
   catala-test-transpile <domain> <module>   Generate Catala test file from YAML tests
@@ -342,26 +343,42 @@ def cmd_new_domain(domain):
     for d in [
         base / "input" / "policy_docs",
         base / "policy_facets",
-        base / "specs" / "guidance",
+        base / "specs",
         base / "output",
     ]:
         d.mkdir(parents=True, exist_ok=True)
-    guidance_src = SCRIPT_DIR_TOOLS.parent / "core" / "guidance_claude.md"
-    guidance_dest = base / "specs" / "guidance" / "CLAUDE.md"
-    if not guidance_dest.exists():
-        import shutil
-        shutil.copy2(guidance_src, guidance_dest)
     _print_ok(f"{base}/")
     _print_info(f"  input/policy_docs/    ← add .md policy documents here")
     _print_info(f"  policy_facets/        ← derived views of the policy docs (compressed/, etc.)")
-    _print_info(f"  specs/")
-    _print_info(f"  specs/guidance/       ← ruleset guidance files (see guidance/CLAUDE.md)")
+    _print_info(f"  specs/                ← ruleset specs and guidance (guidance/ created on demand)")
     _print_info(f"  output/               ← generated Catala or Rego files and demo folder(s)")
     _print_info(
         f"\nDomain '{domain}' created. "
         f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs "
         f"(which fans out parallel per-file workers that compress and extract each file)."
     )
+
+
+def cmd_ensure_guidance(domain):
+    """Create specs/guidance/ and seed CLAUDE.md from core/guidance_claude.md.
+
+    Idempotent: skips the copy if CLAUDE.md is already present. Called by
+    skills (e.g., /declare-target-ruleset, /refine-guidance) just before they
+    write into specs/guidance/.
+    """
+    base = DOMAINS_FULLPATH / domain
+    if not base.exists():
+        _print_err(f"Domain not found: {base}/")
+        sys.exit(1)
+    guidance_dir = base / "specs" / "guidance"
+    guidance_dir.mkdir(parents=True, exist_ok=True)
+    guidance_src = SCRIPT_DIR_TOOLS.parent / "core" / "guidance_claude.md"
+    guidance_dest = guidance_dir / "CLAUDE.md"
+    if not guidance_dest.exists():
+        shutil.copy2(guidance_src, guidance_dest)
+        _print_ok(f"{guidance_dest.relative_to(DOMAINS_FULLPATH)} (created)")
+    else:
+        _print_ok(f"{guidance_dir.relative_to(DOMAINS_FULLPATH)}/ (already present)")
 
 
 def cmd_preflight(domain, module, backend):
@@ -526,6 +543,7 @@ examples:
     # Domain-only subcommands (no module arg)
     for action, help_text in [
         ("new-domain",      "Scaffold standard domain directory structure"),
+        ("ensure-guidance", "Create specs/guidance/ and seed CLAUDE.md (idempotent)"),
         ("manifest-update", "Refresh git SHAs in extraction-manifest.yaml"),
         ("detect-changes",  "Exit 0 if no source doc changes; exit 1 if changes detected"),
     ]:
@@ -603,6 +621,8 @@ examples:
             cmd_list()
         case "new-domain":
             cmd_new_domain(args.domain)
+        case "ensure-guidance":
+            cmd_ensure_guidance(args.domain)
         case "preflight":
             cmd_preflight(args.domain, args.module, args.backend)
         case "manifest-update":
