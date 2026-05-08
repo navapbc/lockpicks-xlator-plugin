@@ -314,6 +314,11 @@ outputs:
 ```
 Do not modify or remove any existing entries.
 
+**`original_name:` annotation (best-effort).** This writer derives `policy_phrase` from `computations[].description` rather than from the Step 3b ↔ `naming-defaults.yaml` provenance link that `/extract-ruleset` Step 7 enjoys, so the no-copy-back guarantee is best-effort here. Rule:
+
+- Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it derived a candidate name and chose to disambiguate it before writing). In every other case, omit `original_name:`.
+- Readers (the next `/index-inputs` worker) fall back to the current key when `original_name:` is absent — so omission never breaks correctness; it just doesn't anchor the rename for downstream auto-routing.
+
 **If `naming-manifest.yaml` does not exist:**
 Create it with all variable names used in the generated rules, routing each to `computed:` or `outputs:` using the same rule above:
 ```yaml

@@ -529,12 +529,25 @@ Do not advance to SP-Validate until M5 passes.
 - **Use `computed:` for multi-step formulas** — don't reference undefined identifiers in `when:` clauses; if a value needs multiple steps to compute, define it in `computed:` and reference it by name
 - **Don't use `git diff` alone for change detection** — also run `git status` to catch untracked new files not yet committed
 - **Always update the manifest after extraction** — stale git SHAs in `extraction-manifest.yaml` will cause UPDATE mode to miss real changes on the next run
+- **Don't write `original_name:` when the analyst kept the default name** — readers fall back to the current key when `original_name:` is absent. Only emit it when the analyst's confirmed Field Name in Step 3b differs from the `policy_facets/naming-defaults.yaml` canonical for the same `policy_phrase`.
+- **Don't append a duplicate entry on re-run rename** — when a rename lands in `specs/naming-manifest.yaml`, replace the existing `policy_phrase`-matched entry rather than appending. Preserve the **earliest** `original_name:` anchor across the rename chain (copy the existing entry's `original_name:` forward; if absent, use the existing key).
 
 ---
 
 ## SP-LoadNamingManifest
 
-**If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:** Read it. Build a lookup map `{variable_name → manifest_entry}` from all `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>` keys.
+**Signature:** `SP-LoadNamingManifest(path, schema=entity_grouped)`
+
+- `path` — absolute path to a manifest YAML file. Two callers exist:
+  - `specs/naming-manifest.yaml` — analyst-confirmed canonical names (default `schema=entity_grouped`).
+  - `policy_facets/naming-defaults.yaml` — auto-picked canonicals from `xlator naming-defaults --build` (caller passes `schema=flat`).
+- `schema` — `entity_grouped` (default) or `flat`.
+
+**If the file exists:** Read it. Build a lookup map `{variable_name → manifest_entry}` based on `schema`:
+
+- **`schema=entity_grouped`** (the existing `specs/naming-manifest.yaml` shape): collect entries from `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>`. The `manifest_entry` carries `policy_phrase`, `source_doc`, `section`, and (when present) `original_name`. For `inputs:` entries, the entity name is also recorded on the entry so callers that surface the table know which entity each field belongs to.
+
+- **`schema=flat`** (the new `policy_facets/naming-defaults.yaml` shape): collect entries from the top-level `variables.<name>` map. The `manifest_entry` carries `policy_phrase`, `role_hint` (when present — `input` / `computed` / `output`), `synonyms` (list, possibly empty), and `sources` (list of `{file, section}`). The map key is the canonical name. There is no entity grouping in this schema; callers that need an Entity column derive it from `role_hint` or treat it as `computed`/`outputs` per the hint.
 
 **Using the map during rule generation:**
 
@@ -542,8 +555,8 @@ Two operations apply:
 
 1. **Name confirmation (keyed lookup):** When you have already inferred a candidate variable name, look it up directly by key. If found, use that name as-is — do not re-derive it.
 
-2. **Concept matching (value scan):** When you encounter a policy concept in source text and have not yet inferred a variable name, scan map values and compare the concept against each entry's `policy_phrase`. If a close match is found, use that entry's variable name rather than deriving a new one. When multiple entries match, prefer entries whose `source_doc` and `section` match the current policy document being processed; use non-matching entries as fallback only.
+2. **Concept matching (value scan):** When you encounter a policy concept in source text and have not yet inferred a variable name, scan map values and compare the concept against each entry's `policy_phrase`. If a close match is found, use that entry's variable name rather than deriving a new one. When multiple entries match, prefer entries whose `source_doc` and `section` match the current policy document being processed; use non-matching entries as fallback only. (The `flat` schema's entries do not carry `source_doc`; use `sources[*].file` instead, picking the best match.)
 
 In both cases these names are **canonical** — never re-derive or rename a variable that already exists in the manifest.
 
-**If absent:** Proceed with an empty lookup map.
+**If absent or malformed:** Proceed with an empty lookup map. Defensive parsing: an unreadable or invalid YAML file is treated as absent (do not abort the caller).
