@@ -5,7 +5,7 @@ description: Extract Per-File Section/Computation Data Into policy_facets/comput
 
 # Extract Per-File Section/Computation Data
 
-Read one policy doc under `<domain>/input/policy_docs/`, parse its H1–H3 sections, and write a YAML list of `{heading, summary, tags, computations}` blocks to the mirrored destination at `<domain>/policy_facets/computations/<rel>.md.yaml`.
+Read one policy doc under `<domain>/input/policy_docs/`, consult the naming authority chain, parse its H1–H3 sections, and write a YAML map `{naming_manifest, sections}` to the mirrored destination at `<domain>/policy_facets/computations/<rel>.md.yaml`.
 
 This skill is invoked per file by `/index-inputs` (in a loop over REINDEX entries) and may also be invoked standalone by the analyst against a single source file. The non-AI half (file enumeration, manifest sync, mirror-deletes, plan/finalize handoff) lives in `xlator extract-computations <domain> --plan` and `--finalize`; this skill is the AI half that does the per-file content generation.
 
@@ -63,11 +63,12 @@ Run these checks before doing anything else:
 
 ## Process Checklist
 
-This skill has 4 steps:
+This skill has 5 steps:
 - [ ] Step 1: Read source and parse H1–H3 sections
-- [ ] Step 2: Generate per-section `{heading, summary, tags, computations}`
-- [ ] Step 3: Write YAML list to `policy_facets/computations/<rel>.md.yaml`
-- [ ] Step 4: Print summary
+- [ ] Step 2: Consult the naming authority chain
+- [ ] Step 3: Generate per-section data and `naming_manifest:` block
+- [ ] Step 4: Emit `policy_facets/computations/<rel>.md.yaml` via `xlator emit-per-file-yaml`
+- [ ] Step 5: Print summary
 
 ## Step 1: Read source and parse sections
 
@@ -77,7 +78,27 @@ Extract all H1 (`#`), H2 (`##`), and H3 (`###`) headings in document order. For 
 
 If the file has **no H1–H3 headings**, treat the whole file as a single section. The heading for that single section is the filename stem (without `.md`) prefixed with `#`.
 
-## Step 2: Generate per-section data
+## Step 2: Consult the naming authority chain
+
+Read `../../core/naming_guide.md` now — the static plugin-wide style guide consulted on every run.
+
+Then resolve `<domain_dir>` from the source path: walk ancestors of `<path_to_policy_file>` to find `input/policy_docs/`; the directory three levels up is `<domain>`; its parent is `$DOMAINS_DIR`. (The pre-flight already does this lookup; reuse the resolved `<domain_dir>`.)
+
+Build two authority lookup maps from the chain (highest priority first):
+
+1. **Specs (highest authority):** If `<domain_dir>/specs/naming-manifest.yaml` exists, read it and flatten per the plan's Specs-side flattening rule:
+   - Walk `inputs.*.*`, `computed.*`, and `outputs.*`.
+   - For each entry, key by `normalize(policy_phrase)` with value `{name: <leaf_key>, role_hint: <entry.role_hint?>, source_doc, section}`.
+   - On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both with phrase "gross monthly income"), prefer the entry whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name.
+   - Malformed file → log a warning to stderr and treat as empty map. Never block extraction.
+
+2. **Defaults (mid authority):** If `<domain_dir>/policy_facets/naming-defaults.yaml` exists, read it; build `{normalize(policy_phrase) → {name, role_hint?, source_doc, section}}` directly from its flat `variables:` map. Specs entries take priority over defaults entries on conflicting normalized phrases. Malformed file → same warning-and-continue behavior.
+
+The normalizer used here MUST match the merge tool's normalizer in `xlator naming-defaults --build`: lowercase, strip leading articles (`a`, `an`, `the`), strip ASCII punctuation, collapse whitespace.
+
+If neither file exists (first run on a domain), both maps are empty — Step 3 falls back to deriving fresh names from the static guide. This is normal and expected on the first `/index-inputs` run.
+
+## Step 3: Generate per-section data and `naming_manifest:` block
 
 For each section produce:
 
@@ -93,7 +114,7 @@ For each section produce:
 - **`phase_source:`** — required when `phase:` is present, omitted when `phase:` is omitted. Value is the **verbatim source-text phrase** that justified the `phase:` identifier — copied character-for-character from the source `.md`, no paraphrasing, no truncation that breaks substring matching. Downstream consumers run `grep -F "<phase_source>" <input/policy_docs/<rel>.md>` to verify the AI honored the explicit-signal rule. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `phase:` entirely rather than invent or paraphrase.
 - **`computations:`** — *optional* list. Include only if the section contains identifiable rule logic (formulas, arithmetic, table lookups, thresholds, conditional assignments). Each entry has:
   - `description:` — one sentence describing the computation in plain language.
-  - `variables:` — all variable names involved, **inputs first, computed output last**, snake_case, inferred from policy terminology.
+  - `variables:` — all variable names involved, **inputs first, computed output last**, snake_case, decided per the authority-chain rule below. Every name in this list MUST also appear as a key in the top-level `naming_manifest.variables` map (the emitter validates this invariant at write time).
   - `preconditions:` — *optional* boolean expression describing when the `expr_hint:` applies, derived from the section's own heading, its parent headings, and the surrounding text. The value is a list of **terms** joined by implicit AND at the top level. Each term is one of:
     - a string clause — a self-contained predicate in plain language; reference variable names from `variables:` where possible (e.g., `"household contains a working adult"`, `"var2 > 0"`).
     - `{all_of: [<term>, ...]}` — an explicit AND group; useful for nesting inside `any_of`.
@@ -114,56 +135,113 @@ For each section produce:
 
   **Omit the `computations:` field entirely** when no rule logic is present. Do not emit `computations: []` — an empty list is never correct.
 
-## Step 3: Write the YAML list
+### Variable name decision (per concept)
 
-Compute the destination: `<DOMAINS_DIR>/<domain>/policy_facets/computations/<rel>.md.yaml` (where `<rel>.md` mirrors the source filename verbatim, with `.yaml` appended so the file's content type is unambiguous to editors and tooling). Create intermediate directories as needed.
+For each variable a section's `computations:` references:
 
-Write a YAML file with this preamble and shape (use Bash `printf`/heredocs; do not hand-format YAML — use the YAML writer pattern from `xlator print-sections` if writing programmatically):
+1. Compute the variable's `policy_phrase:` per the verbatim rule in `core/naming_guide.md` — a verbatim noun phrase from the source body (or the most specific deterministic anchor when no noun phrase exists). Never paraphrase.
+2. Normalize the phrase (lowercase, strip leading articles, strip ASCII punctuation, collapse whitespace).
+3. **Lookup priority:**
+   - If the normalized phrase matches an entry in the **specs** map (Step 2's highest-priority lookup), use that entry's name verbatim. Done.
+   - Else if it matches an entry in the **defaults** map (Step 2's mid-priority lookup), use that entry's name. Done.
+   - Else derive a fresh name from the static guide's style rules (snake_case, noun phrase, prefer policy term over acronym, strip entity-name words, disambiguate when needed).
+4. Decide `role_hint:` per the trigger table in `core/naming_guide.md`. Omit when no clear signal exists.
+
+### Top-level `naming_manifest:` block
+
+In addition to per-section data, emit a top-level `naming_manifest.variables:` map covering every variable name referenced in any section's `computations[*].variables`. Each entry has:
+
+- **`policy_phrase:`** — the verbatim policy phrase (or deterministic anchor) for the concept.
+- **`role_hint:`** — *optional*, snake_case identifier (`input` | `computed` | `output`). Emit only when the source body carries an unambiguous syntactic signal (see the trigger table in `core/naming_guide.md`). Omit when no clear signal exists — absent is the safe default.
+- **`source_section:`** — the heading or §-citation where the concept first appears, matching the per-section context.
+
+Cross-block invariant: every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. The emitter (`xlator emit-per-file-yaml`) validates this at write time and refuses to produce output otherwise.
+
+## Step 4: Emit the per-file YAML via `xlator emit-per-file-yaml`
+
+Compute the destination: `<DOMAINS_DIR>/<domain>/policy_facets/computations/<rel>.md.yaml` (where `<rel>.md` mirrors the source filename verbatim, with `.yaml` appended so the file's content type is unambiguous to editors and tooling).
+
+**Do NOT hand-format YAML.** Build a JSON payload and pipe it to `xlator emit-per-file-yaml` via stdin. The tool validates the cross-block name-set invariant, omits absent optional fields cleanly, handles quoting hazards in `policy_phrase:` values, and writes the destination atomically (`tmp + os.replace`) with the standard preamble.
+
+JSON payload shape:
+
+```json
+{
+  "destination": "<absolute path to .md.yaml file>",
+  "source_rel":  "input/policy_docs/<rel>.md",
+  "naming_manifest": {
+    "variables": {
+      "<name>": {
+        "policy_phrase":   "...",
+        "role_hint":       "input | computed | output",
+        "source_section":  "..."
+      }
+    }
+  },
+  "sections": [
+    {
+      "heading":      "# Section Title",
+      "summary":      "...",
+      "tags":         ["tag1", "tag2"],
+      "phase":        "initial_screening",
+      "phase_source": "Phase 1 — Initial Screening",
+      "computations": [
+        {
+          "description":   "...",
+          "variables":     ["var1", "var2", "output_var"],
+          "preconditions": [...],
+          "expr_hint":     "var1 * 0.20"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Invocation pattern:
+
+```bash
+echo "$JSON_PAYLOAD" | xlator emit-per-file-yaml
+```
+
+The tool emits the YAML map as:
 
 ```yaml
 # Auto-generated by /extract-computations — do not edit manually
 # Source: input/policy_docs/<rel>.md
 
-- heading: "# Section Title"
-  summary: "One sentence describing what this section covers."
-  tags: [tag1, tag2, tag3]
-  phase: initial_screening
-  phase_source: "Phase 1 — Initial Screening"
-  computations:
-    - description: "..."
-      variables: [var1, var2, output_var]
-      preconditions:
-        - "household contains a working adult"
-        - any_of:
-            - "applicant is over 65"
-            - all_of:
-                - "applicant is married"
-                - "spouse is employed"
-      expr_hint: "var1 * 0.20"
+naming_manifest:
+  variables:
+    gross_income:
+      policy_phrase: "gross monthly income"
+      role_hint: input
+      source_section: "§1.2"
+    # ...
 
-- heading: "## Subsection"
-  summary: "..."
-  tags: [tag4, tag5]
-  # phase / phase_source omitted — no explicit phase signal in or above this section
-  # computations omitted — no rule logic in this section
+sections:
+  - heading: "# Section Title"
+    summary: "..."
+    tags: [tag1, tag2, tag3]
+    phase: initial_screening
+    phase_source: "Phase 1 — Initial Screening"
+    computations:
+      - description: "..."
+        variables: [gross_income, deductions, net_income]
+        # ...
 ```
 
-YAML conventions:
-- Top-level value is a YAML list. There is no wrapping `sections:` or `path:` key — the on-disk filename encodes the source path. Strip the trailing `.yaml` suffix from the destination's relative path under `policy_facets/computations/` to recover `<rel>.md`, then prefix with `input/policy_docs/` to reach the source.
-- Two-space indentation throughout.
-- `heading:` quoted (the value contains `#` characters).
-- `tags:` as an inline bracket list.
-- `phase:` as an unquoted snake_case identifier; `phase_source:` quoted (preserves whitespace and punctuation needed for `grep -F` to match the source verbatim).
-- **List order in `computations:` reflects source order.** Downstream consumers (notably `/create-ruleset-modules`'s `sequential_chain` heuristic) rely on this — within a section, the first computation in the list is the first in document order, the second is next, and so on.
-- One blank line between section entries for readability.
-- **No `path:` field** — the destination filename mirrors `<rel>` exactly.
+Conventions enforced by the emitter:
+- Top-level value is a YAML map with exactly two keys: `naming_manifest` and `sections`. Consumers read `data["sections"]` for section blocks and `data["naming_manifest"]["variables"]` for the per-file naming map.
+- Optional fields (`role_hint:`, `phase:`, `phase_source:`, `preconditions:`, `expr_hint:`, `computations:` when no rule logic) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
+- **Cross-block name-set invariant:** every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. If the JSON violates this, the tool exits non-zero and refuses to write — diagnose the missing entry before retrying.
+- **List order in `sections[*].computations:` reflects source order.** Downstream consumers (notably `/create-ruleset-modules`'s `sequential_chain` heuristic) rely on this — within a section, the first computation in the list is the first in document order, the second is next, and so on. Build the JSON `computations:` array in source order.
 
 Always rewrite the destination file in full; this skill is idempotent at the file level. Per-file caching is the manifest's job (handled by `xlator extract-computations --finalize`), not the skill's.
 
-## Step 4: Print summary
+## Step 5: Print summary
 
 :::important
-✓ Wrote policy_facets/computations/<rel>.md.yaml (<K> section(s)).
+✓ Wrote policy_facets/computations/<rel>.md.yaml (<K> section(s), <V> variable(s) in naming_manifest).
 :::
 
 Do NOT emit `:::next_step` from this skill — it is per-file and is normally invoked from a parent loop. The parent (e.g., `/index-inputs`) emits the workflow's next-step suggestion.
@@ -174,6 +252,10 @@ Do NOT emit `:::next_step` from this skill — it is per-file and is normally in
 - **Don't omit the heading prefix** — `heading: "# Title"` not `heading: "Title"`; the `#` characters encode the level.
 - **Don't merge all sections from a file into one entry** — each H1/H2/H3 heading is its own entry.
 - **Don't emit `computations: []`** for sections with no rule logic — omit the field entirely.
+- **Don't hand-format the YAML output.** Build a JSON payload and pipe to `xlator emit-per-file-yaml`. The tool handles quoting, optional-field omission, and the cross-block invariant. Hand-formatting silently breaks the invariant or quotes `policy_phrase:` values incorrectly.
+- **Don't reference a variable in `sections[*].computations[*].variables` that isn't a key in `naming_manifest.variables`.** The emitter rejects payloads that violate this invariant. Add the entry to `naming_manifest.variables` before emitting.
+- **Don't paraphrase `policy_phrase:`.** Verbatim from the source body. If no noun phrase exists, fall back to a deterministic anchor (the section heading text). Paraphrase drift across re-runs silently breaks the no-copy-back guarantee on subsequent `/index-inputs` runs.
+- **Don't invent `role_hint:`.** Emit it only when policy text gives a clear syntactic signal (formula syntax → `computed`; "applicant provides" → `input`; "determined to be" → `output`). Absent is the safe default — never invented.
 - **Don't update the manifest from this skill** — the manifest is the single responsibility of `xlator extract-computations --finalize`. When invoked standalone (outside `/index-inputs`), the per-file file is written but the manifest is not updated; the next `--plan` will simply re-extract this file (matching destination + missing manifest entry → `to_extract`). This is acceptable best-effort behavior for the standalone path.
 - **Don't write `policy_facets/input-sections.yaml`** — that artifact is removed in v3.0.0. All section data lives in per-file `policy_facets/computations/<rel>.md.yaml` files.
 - **Don't read or mutate any pre-existing `input-sections.yaml`** — leave it on disk untouched. Maintainers delete it manually.
