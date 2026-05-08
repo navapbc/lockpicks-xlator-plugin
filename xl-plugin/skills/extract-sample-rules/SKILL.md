@@ -97,7 +97,7 @@ Steps:
 
 ### Step 2: Load and filter per-file computations
 
-Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML list of section blocks. Concatenate all entries into a single working list, deriving the `path:` field per entry from the file's relative location (a section in `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`). Filter the working list to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map with top-level keys `naming_manifest` and `sections`. Read `data["sections"]` as the list of section blocks (the per-section block shape is unchanged from the prior list-shape — only the wrapping is new). Concatenate all entries into a single working list, deriving the `path:` field per entry from the file's relative location (a section in `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`). Filter the working list to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
 
 **If `<rule_topic>` was provided:** further filter to entries whose `heading:`, `summary:`, or `tags:` contain the topic keywords (case-insensitive). If no entries match the topic, print:
 
@@ -176,7 +176,7 @@ Rules are generated in two passes. **These passes are strictly sequential and mu
 
 **Pass 4a — Index pass**
 
-For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the entry order produced by globbing `policy_facets/computations/**/*.md.yaml` alphabetically and concatenating each file's section list:
+For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the entry order produced by globbing `policy_facets/computations/**/*.md.yaml` alphabetically and concatenating each file's `sections:` list:
 
 **(a) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, apply the two operations from SP-LoadNamingManifest in order: (1) keyed lookup — if the variable name matches a map key, use that manifest name; (2) concept matching — if no keyed match, scan map values for a `policy_phrase` that closely matches the entry's `computations[].description` text, and use that entry's variable name if found. Only if neither operation finds a match, derive a snake_case name from the entry's `computations[].description` text:
 - Extract the noun phrase from the description
@@ -229,7 +229,7 @@ If `index-only`: stop. Do not run Pass 4b.
 
 **Pass 4b — Source pass**
 
-Process all `needs-source` entries, then any `computed-only` entries added to the Pass 4b queue. Within each group, process in priority order (high → normal → low), then in the entry order produced by globbing `policy_facets/computations/**/*.md.yaml` alphabetically and concatenating each file's section list.
+Process all `needs-source` entries, then any `computed-only` entries added to the Pass 4b queue. Within each group, process in priority order (high → normal → low), then in the entry order produced by globbing `policy_facets/computations/**/*.md.yaml` alphabetically and concatenating each file's `sections:` list.
 
 **(a) Read source text.** Locate the source file at `path:` and navigate to the section identified by `heading:`. Read that section's text.
 
