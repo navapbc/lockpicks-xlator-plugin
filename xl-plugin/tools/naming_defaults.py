@@ -62,6 +62,9 @@ _DEFAULTS = "policy_facets/naming-defaults.yaml"
 _SPECS = "specs/naming-manifest.yaml"
 
 _ROLE_RANK = {"computed": 3, "output": 2, "input": 1}
+_TYPE_VOCABULARY = frozenset({
+    "money", "bool", "int", "float", "string", "enum", "list", "date",
+})
 _ARTICLE_RE = re.compile(r"^(?:a|an|the)\s+", re.IGNORECASE)
 _PUNCT_TABLE = str.maketrans({c: " " for c in string.punctuation})
 
@@ -130,6 +133,9 @@ def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) 
                     "source_doc": payload.get("source_doc"),
                     "section": payload.get("section"),
                     "_entity": str(entity),
+                    "description": payload.get("description"),
+                    "type": payload.get("type"),
+                    "values": payload.get("values"),
                 })
 
     for top_key in ("computed", "outputs"):
@@ -149,6 +155,9 @@ def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) 
                 "source_doc": payload.get("source_doc"),
                 "section": payload.get("section"),
                 "_entity": "",  # flat sections have no entity name
+                "description": payload.get("description"),
+                "type": payload.get("type"),
+                "values": payload.get("values"),
             })
 
     # Group by normalized phrase, applying collision rules.
@@ -183,6 +192,9 @@ def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) 
             "source_doc": chosen.get("source_doc"),
             "section": chosen.get("section"),
             "policy_phrase": chosen["policy_phrase"],
+            "description": chosen.get("description"),
+            "type": chosen.get("type"),
+            "values": chosen.get("values"),
         }
     return flattened
 
@@ -374,6 +386,81 @@ def _resolve_role_hint(
     return best[1] if best else None
 
 
+def _resolve_description(
+    canonical_name: str,
+    observations: list[dict],
+    specs_entry: dict | None,
+) -> str | None:
+    """Resolve description per: specs override > canonical-name contributor > any synonym > None.
+
+    Mirrors `_canonical_policy_phrase` ordering for the canonical-contributor preference,
+    then falls back to specific-over-absent (any synonym's description) when the canonical
+    contributor lacks one. Specs override beats both.
+    """
+    if specs_entry is not None and specs_entry.get("description"):
+        return specs_entry["description"]
+    canonical_desc: str | None = None
+    fallback_desc: str | None = None
+    for obs in observations:
+        desc = obs.get("description")
+        if not desc:
+            continue
+        if obs["name"] == canonical_name and canonical_desc is None:
+            canonical_desc = desc
+        elif fallback_desc is None:
+            fallback_desc = desc
+    return canonical_desc or fallback_desc
+
+
+def _resolve_type(
+    canonical_name: str,
+    observations: list[dict],
+    specs_entry: dict | None,
+    errors: list[str],
+) -> str | None:
+    """Resolve type per: specs override > observed agreement > None.
+
+    Specs always wins when present. Otherwise, collect every observation's type and:
+      - If all observations either omit or agree on a single type, use it.
+      - On disagreement, log a warning to errors and omit type from the canonical.
+    """
+    if specs_entry is not None and specs_entry.get("type"):
+        return specs_entry["type"]
+    observed_types = {obs["type"] for obs in observations if obs.get("type")}
+    if not observed_types:
+        return None
+    if len(observed_types) == 1:
+        return next(iter(observed_types))
+    errors.append(
+        f"variable '{canonical_name}': observed types disagree "
+        f"({sorted(observed_types)}); omitting type: in defaults"
+    )
+    return None
+
+
+def _resolve_values(
+    canonical_type: str | None,
+    observations: list[dict],
+    specs_entry: dict | None,
+) -> list[str] | None:
+    """Resolve values per: specs override > sorted union of observed values.
+
+    Only meaningful when `canonical_type == "enum"`. Returns None when no source supplied
+    a values list, in which case the canonical entry has `type: enum` with no `values:` —
+    acceptable shape; the analyst fills via specs override on the next run.
+    """
+    if canonical_type != "enum":
+        return None
+    if specs_entry is not None and specs_entry.get("values"):
+        return list(specs_entry["values"])
+    union: set[str] = set()
+    for obs in observations:
+        vs = obs.get("values")
+        if isinstance(vs, list):
+            union.update(v for v in vs if isinstance(v, str))
+    return sorted(union) if union else None
+
+
 def _canonical_policy_phrase(
     canonical_name: str,
     observations: list[dict],
@@ -466,6 +553,9 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
                 "role_hint": entry.get("role_hint"),
                 "file": rel,
                 "section": entry.get("source_section", ""),
+                "description": entry.get("description"),
+                "type": entry.get("type"),
+                "values": entry.get("values"),
             }
             observations_by_norm.setdefault(norm, []).append(obs)
 
@@ -531,6 +621,9 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
 
         role_hint = _resolve_role_hint(canonical_name, observations)
         policy_phrase = _canonical_policy_phrase(canonical_name, observations, specs_entry)
+        description = _resolve_description(canonical_name, observations, specs_entry)
+        type_value = _resolve_type(canonical_name, observations, specs_entry, errors)
+        values = _resolve_values(type_value, observations, specs_entry)
 
         # sources: list — for every per-file file that contributed any name in this group,
         # alphabetical by file path.
@@ -548,7 +641,16 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
             sources.append(entry)
         sources.sort(key=lambda e: (e["file"], e.get("section", "")))
 
-        out_entry: dict = {"policy_phrase": policy_phrase}
+        # Field order is load-bearing: yaml.safe_dump(sort_keys=False) preserves
+        # insertion order, so this is what readers see in naming-defaults.yaml.
+        out_entry: dict = {}
+        if description:
+            out_entry["description"] = description
+        out_entry["policy_phrase"] = policy_phrase
+        if type_value:
+            out_entry["type"] = type_value
+        if values:
+            out_entry["values"] = values
         if role_hint:
             out_entry["role_hint"] = role_hint
         if synonyms:

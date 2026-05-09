@@ -819,6 +819,378 @@ def test_sources_alphabetical_by_file():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# description / type / values resolution (R1, R2, R4, R5, R8)
+# ---------------------------------------------------------------------------
+
+
+def test_description_round_trips_from_per_file_to_defaults():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§1",
+                "description": "Total monthly household income before any deductions.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        assert defaults["variables"]["gross_income"]["description"] == (
+            "Total monthly household income before any deductions."
+        )
+
+
+def test_type_money_round_trips_from_per_file_to_defaults():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§1",
+                "type": "money",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        assert defaults["variables"]["gross_income"]["type"] == "money"
+        assert "values" not in defaults["variables"]["gross_income"]
+
+
+def test_type_enum_with_values_round_trips_from_single_file():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"eligibility": {
+                "policy_phrase": "eligibility status",
+                "source_section": "§1",
+                "type": "enum",
+                "values": ["approve", "deny", "manual_verification"],
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["eligibility"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["eligibility"]
+        assert entry["type"] == "enum"
+        assert entry["values"] == ["approve", "deny", "manual_verification"]
+
+
+def test_two_files_agree_on_type_money_canonical_carries_it():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        for rel in ("a.md", "b.md"):
+            _write_per_file(
+                domain, rel,
+                naming_manifest={"variables": {"gross_income": {
+                    "policy_phrase": "gross monthly income",
+                    "source_section": "§1",
+                    "type": "money",
+                }}},
+                sections=[{"heading": "# h", "summary": "", "tags": [],
+                           "computations": [{"description": "", "variables": ["gross_income"]}]}],
+            )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        assert defaults["variables"]["gross_income"]["type"] == "money"
+
+
+def test_enum_values_union_across_synonyms_sorted():
+    """Two synonyms each carry overlapping values; canonical's values: is the sorted union."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"status": {
+                "policy_phrase": "decision status",
+                "source_section": "§1",
+                "type": "enum",
+                "values": ["approve", "deny"],
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["status"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"decision": {
+                "policy_phrase": "decision status",
+                "source_section": "§2",
+                "type": "enum",
+                "values": ["deny", "manual_verification"],
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["decision"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        # Canonical winner: "status" (frequency tie 1=1, shortest tie 6=8 → status wins).
+        canonical_name = "decision" if "decision" in defaults["variables"] else "status"
+        assert defaults["variables"][canonical_name]["type"] == "enum"
+        assert defaults["variables"][canonical_name]["values"] == [
+            "approve", "deny", "manual_verification",
+        ]
+
+
+def test_specs_overrides_observed_type_and_description():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§1",
+                "type": "money",
+                "description": "AI-emitted description.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        _write_specs(domain, {
+            "inputs": {
+                "Household": {
+                    "gross_income": {
+                        "policy_phrase": "gross monthly income",
+                        "type": "int",
+                        "description": "Analyst-confirmed override.",
+                    },
+                },
+            },
+        })
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gross_income"]
+        assert entry["type"] == "int"
+        assert entry["description"] == "Analyst-confirmed override."
+
+
+def test_specs_values_override_observed_values():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"status": {
+                "policy_phrase": "decision status",
+                "source_section": "§1",
+                "type": "enum",
+                "values": ["yes", "no"],
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["status"]}]}],
+        )
+        _write_specs(domain, {
+            "outputs": {
+                "status": {
+                    "policy_phrase": "decision status",
+                    "type": "enum",
+                    "values": ["approve", "deny", "pending"],
+                },
+            },
+        })
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        # Specs values override observed values.
+        assert defaults["variables"]["status"]["values"] == ["approve", "deny", "pending"]
+
+
+def test_disagreeing_observed_types_omitted_with_warning():
+    """Two synonyms disagree on type; canonical entry has no type field, errors carries warning."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"amount": {
+                "policy_phrase": "shared phrase",
+                "source_section": "§1",
+                "type": "money",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["amount"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"value": {
+                "policy_phrase": "shared phrase",
+                "source_section": "§2",
+                "type": "int",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["value"]}]}],
+        )
+        summary = naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        # Canonical winner is the alphabetically-first (frequency tie, length tie).
+        canonical = "amount"  # tied freq, shorter len than 'value' (6=5? no, 6>5). Let's check...
+        # Lengths: amount=6, value=5. 'value' wins (shortest).
+        canonical = "value"
+        assert canonical in defaults["variables"]
+        assert "type" not in defaults["variables"][canonical]
+        # Warning surfaces in errors.
+        warnings = [e for e in summary["errors"] if "types disagree" in e]
+        assert len(warnings) == 1
+        assert "money" in warnings[0]
+        assert "int" in warnings[0]
+
+
+def test_description_falls_back_to_synonym_when_canonical_lacks_one():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        # 'gi' wins canonical (shortest), no description; 'gross_income' synonym has description.
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gi": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gi"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§2",
+                "description": "Synonym description filled in.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        assert "gi" in defaults["variables"]
+        assert defaults["variables"]["gi"]["description"] == "Synonym description filled in."
+
+
+def test_canonical_contributor_description_preferred_over_synonym():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        # Both files use the same name 'gross_income' (frequency 2 → wins). The
+        # synonym 'monthly_gross' from a third file has its own description
+        # that should NOT win because the canonical contributor has one.
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§1",
+                "description": "Canonical-side description.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§2",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        _write_per_file(
+            domain, "c.md",
+            naming_manifest={"variables": {"monthly_gross": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§3",
+                "description": "Synonym-side description.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["monthly_gross"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        assert defaults["variables"]["gross_income"]["description"] == "Canonical-side description."
+
+
+def test_legacy_per_file_without_new_fields_merges_cleanly():
+    """R8 regression guard: existing per-file files (no description/type/values) keep working."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income",
+                "source_section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gross_income"]
+        assert "description" not in entry
+        assert "type" not in entry
+        assert "values" not in entry
+        assert entry["policy_phrase"] == "gross monthly income"
+
+
+def test_idempotent_with_new_fields():
+    """Two consecutive --build runs produce byte-identical output even with new fields populated."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"status": {
+                "policy_phrase": "decision status",
+                "source_section": "§1",
+                "type": "enum",
+                "values": ["b", "a", "c"],  # unsorted intentionally
+                "description": "Outcome of the decision rule.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["status"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        first = (domain / "policy_facets" / "naming-defaults.yaml").read_bytes()
+        naming_defaults.cmd_build(domain)
+        second = (domain / "policy_facets" / "naming-defaults.yaml").read_bytes()
+        assert first == second, "non-deterministic output across runs"
+        defaults = _read_defaults(domain)
+        # Values are sorted in output.
+        assert defaults["variables"]["status"]["values"] == ["a", "b", "c"]
+
+
+def test_field_order_in_output_yaml():
+    """Field insertion order: description, policy_phrase, type, values, role_hint, synonyms, sources."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"status": {
+                "policy_phrase": "decision status",
+                "source_section": "§1",
+                "role_hint": "output",
+                "type": "enum",
+                "values": ["a", "b"],
+                "description": "Outcome.",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["status"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        text = (domain / "policy_facets" / "naming-defaults.yaml").read_text()
+        # Within the status: block, find each field's position.
+        positions = {}
+        for field in ("description:", "policy_phrase:", "type:", "values:",
+                      "role_hint:", "sources:"):
+            positions[field] = text.find(field)
+            assert positions[field] != -1, f"field {field!r} missing from output"
+        order = [
+            "description:", "policy_phrase:", "type:", "values:",
+            "role_hint:", "sources:",
+        ]
+        for a, b in zip(order, order[1:]):
+            assert positions[a] < positions[b], (
+                f"field {a!r} at {positions[a]} should precede {b!r} at {positions[b]}"
+            )
+
+
 def main() -> int:
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = []
