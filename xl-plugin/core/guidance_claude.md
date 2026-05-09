@@ -13,8 +13,11 @@ guidance/
   CLAUDE.md                ← copy of this file
   metadata.yaml            ← template_id, source_template, display_name, description
   prompt-context.yaml      ← role, scope, constraints, standards, guidance, edge_cases
-  variables.yaml           ← input_variables, output_variables, intermediate_variables, constants_and_tables
-  skeleton.yaml            ← skeleton
+  output-variables.yaml    ← analyst-curated descriptions/examples for outputs (mirrors specs/naming-manifest.yaml outputs:)
+  input-variables.yaml     ← input categories with descriptions, examples, optional per-category provenance
+  include-with-output.yaml ← flat list of variable names to expose with API output
+  constants-and-tables.yaml ← non-variable named tables/constants
+  skeleton.yaml            ← skeleton + intermediate variables (computations:)
   ruleset-groups.yaml      ← ruleset_groups
   ruleset-modules.yaml     ← ruleset_modules
   sample-artifacts.yaml    ← sample_rules, missing_info, assumptions
@@ -25,7 +28,7 @@ guidance/
   source-annotations.yaml  ← [analyst] important_sections, ignore_or_low_priority
 ```
 
-**Pipeline files** (written by AI skills): `metadata.yaml`, `prompt-context.yaml`, `variables.yaml`, `skeleton.yaml`, `ruleset-groups.yaml`, `ruleset-modules.yaml`, `sample-artifacts.yaml`, `sample-tests.yaml`
+**Pipeline files** (written by AI skills): `metadata.yaml`, `prompt-context.yaml`, `output-variables.yaml`, `input-variables.yaml`, `include-with-output.yaml`, `constants-and-tables.yaml`, `skeleton.yaml`, `ruleset-groups.yaml`, `ruleset-modules.yaml`, `sample-artifacts.yaml`, `sample-tests.yaml`
 
 **Analyst-authored files** (written by analyst, AI skill, or both): `policy-briefing.yaml`, `scenario-cards.yaml`, `known-pitfalls.yaml`, `source-annotations.yaml`
 
@@ -120,93 +123,75 @@ Special populations, exceptional conditions, or policy interactions that overrid
 
 ---
 
-### `variables.yaml`
+### `output-variables.yaml`
 
-Input, output, and intermediate variable declarations. Written initially by `/declare-target-ruleset` or `/refine-guidance`; extended by `/create-skeleton` (fills in `examples`, `computations`); `include_with_output` updated by `/tag-vars-to-include-with-output`.
+Analyst-curated descriptions, examples (sample values), and primary/secondary distinction for outputs. Mirrors `specs/naming-manifest.yaml`'s `outputs:` block — `name_ref` references the manifest entry; structural fields (`type`, `values`) live in the manifest, not here.
 
-**Written by:** `/declare-target-ruleset`, `/refine-guidance` (template-copy path), `/create-skeleton` (updates `examples`, `computations`), `/tag-vars-to-include-with-output` (`include_with_output` only)
-**Read by:** `/create-skeleton`, `/create-ruleset-modules`, `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests`, SP-TagOutputs (`intermediate_variables.include_with_output`), `/extract-ruleset` (Step 1 context injection), `validate_civil.py` (`output_variables.primary`)
+**Written by:** `/refine-guidance` (template-copy path), `/create-skeleton`
+**Read by:** `/extract-ruleset` (Step 1 context, primary identification), `/extract-sample-rules`, `/create-sample-tests`, `/create-ruleset-modules`, `validate_civil.py` (primary identification)
 
 ```yaml
-input_variables:
-  categories:
-    - category: earned_income
-      description: "Total earned income as reported by the client/applicant."
-      examples: [client_gross_earned]
-      source_file: "domains/ak_doh/input/policy_docs/apa_manual/441/441-1 EARNED INCOME.md"
-      source_section: "441-1 EARNED INCOME"
+eligible:
+  name_ref: eligible
+  description: "Eligibility result based on adjusted income and compatibility checks."
+  examples: ["approve", "deny", "manual_verification"]   # sample values
+  primary: true
 
-output_variables:
-  primary:
-    name: eligible
-    type: "enum"
-    values: ["approve", "deny", "manual_verification"]
-    description: "Eligibility result based on adjusted income and compatibility checks."
-  secondary_decisions:
-    - name: denial_reason
-      type: "str"
-      description: "Income-based reason for a 'deny' decision."
+denial_reason:
+  name_ref: denial_reason
+  description: "Income-based reason for a 'deny' decision."
+  examples: ["over_income_limit", "incompatible_household"]
+  primary: false
+```
 
-intermediate_variables:
-  include_with_output: [client_result, dol_result, after_half, is_compatible, income_limit]
-  categories:
-    - category: exclusion_chain_steps
-      description: "10-step sequential earned income exclusion chain (442-4)."
-      examples: [after_federal, after_eitc, after_irregular, after_student, after_general_20,
-                 after_65, after_irwe, after_half, after_blind, adjusted_earned_income]
-      computations:
-        - name: after_federal
-          expr: "gross_earned_income - federal_exclusions"
-        - name: after_half
-          expr: "after_irwe * 0.5"
+### `input-variables.yaml`
 
+Input categories with descriptions, examples (sample values), and optional per-category provenance. Field names are referenced via `name_ref` pointing to `specs/naming-manifest.yaml`'s `inputs.<Entity>.<field>` entries.
+
+**Written by:** `/refine-guidance` (template-copy path), `/create-skeleton`
+**Read by:** `/extract-ruleset` (Step 1 context), `/create-sample-tests`
+
+```yaml
+categories:
+  - category: earned_income
+    description: "Total earned income as reported by the client/applicant."
+    examples: ["1250", "0", "3500"]
+    fields:
+      - name_ref: client_gross_earned
+    source_file: "domains/ak_doh/input/policy_docs/apa_manual/441/441-1 EARNED INCOME.md"
+    source_section: "441-1 EARNED INCOME"
+    exact_phrase: "gross earned income from all sources"
+```
+
+### `include-with-output.yaml`
+
+Flat list of intermediate variable names to expose in the API's `ComputedBreakdown` response alongside the final output. Each name must be a key in `specs/naming-manifest.yaml` (validated by `xlator validate-guidance`).
+
+**Written by:** `/refine-guidance` (template-copy path), `/tag-vars-to-include-with-output`
+**Read by:** `/extract-ruleset` (Step 1 context), `/create-sample-tests`, SP-TagOutputs
+
+```yaml
+- client_result
+- dol_result
+- after_half
+- is_compatible
+- income_limit
+```
+
+### `constants-and-tables.yaml`
+
+Non-variable named constants and lookup tables the ruleset references, with descriptions. These are NOT variables — they don't live in `naming-manifest.yaml`.
+
+**Written by:** `/refine-guidance` (template-copy path), `/create-skeleton`
+**Read by:** `/extract-ruleset` (Step 1 context, table/constant skeleton seeding), `/create-sample-tests`
+
+```yaml
 constants_and_tables:
   - name: expanded_refused_cash_income_limits
     description: "Expanded Refused Cash Income Limits table keyed by household_type and benefit_year."
   - name: student_earned_income_exclusion
     description: "Monthly and annual maximum limits for the student earned income exclusion."
 ```
-
-#### `input_variables`
-
-Describes the categories of inputs the ruleset accepts. Initialized with `examples: []`; populated with domain-specific variable names by `/create-skeleton`.
-
-Each category has:
-- `category` — snake_case name for the input group
-- `description` — what this group of inputs represents
-- `examples` — list of concrete variable names in this category
-- `source_file` _(optional)_ — path to the policy document defining this input
-- `source_section` _(optional)_ — section heading within that document
-- `exact_phrase` _(optional)_ — verbatim policy text the AI should treat as authoritative for this input
-
-#### `output_variables`
-
-Declares the ruleset's outputs.
-
-**`primary`** — the main output, with:
-- `name` — variable name
-- `type` — `bool`, `money`, `int`, `str`, or `enum`
-- `values` _(enum only)_ — list of allowed values
-- `description`
-
-**`secondary_decisions`** — additional outputs returned alongside the primary, each with `name`, `type`, and `description`. Write `secondary_decisions: []` when there are none.
-
-#### `intermediate_variables`
-
-Describes computed variables that sit between inputs and outputs.
-
-**`include_with_output`** — list of intermediate variable names to expose in the API's `ComputedBreakdown` response alongside the final output. Initialized as `[]`; populated by `/tag-vars-to-include-with-output`.
-
-**`categories`** — list of variable groups, each with:
-- `category` — snake_case group name
-- `description` — what this group computes
-- `examples` — list of variable names in this group
-- `computations` _(optional)_ — list of `{name, expr}` pairs for variables with known expression hints
-- `source_file`, `source_section`, `exact_phrase` _(optional)_
-
-#### `constants_and_tables`
-
-Named constants and lookup tables the ruleset references, with descriptions.
 
 ---
 

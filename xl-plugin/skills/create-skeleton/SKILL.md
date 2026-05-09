@@ -160,7 +160,7 @@ Steps:
 
 Build and display the skeleton using:
 
-- **`guidance/variables.yaml`** — `input_variables`, `intermediate_variables`, `output_variables` categories provide structure and group names
+- **`guidance/input-variables.yaml`** — input categories provide structure and group names; **`guidance/output-variables.yaml`** — output entries with primary flag; **`specs/naming-manifest.yaml`** — structural variable data (names + types)
 - **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and `expr_hint` values (show as `≈ <expr_hint>` when available, `= ?` when not inferable); **phase membership drives `category:` assignment when present** — a computation whose source section has `phase:` adopts the (post-normalization) phase value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `phase:` fall through to existing name-pattern categorization unchanged.
 
 Display format:

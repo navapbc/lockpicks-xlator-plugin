@@ -160,7 +160,10 @@ For each changed doc, read the diff and determine which CIVIL sections need upda
 
 ```
 ---
-[content of guidance/metadata.yaml, guidance/prompt-context.yaml, guidance/variables.yaml — paste verbatim as loaded]
+[content of guidance/metadata.yaml, guidance/prompt-context.yaml,
+ guidance/output-variables.yaml, guidance/input-variables.yaml,
+ guidance/include-with-output.yaml, guidance/constants-and-tables.yaml,
+ plus specs/naming-manifest.yaml — paste verbatim as loaded]
 ---
 
 Apply these constraints and standards when re-extracting the affected CIVIL sections.
@@ -279,7 +282,9 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.

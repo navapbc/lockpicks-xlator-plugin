@@ -253,7 +253,7 @@ To extract from all files as a unified corpus, run without specifying a filename
    - **Tier 4:** Sub-steps within a single exclusion stage
 5. Display the ranked list with three pre-selection tiers:
    - **`[REQUIRED]`** — fields whose names appear in the main module's `invoke:` dot-access expressions (sub-module files only); locked, cannot be deselected.
-   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (from `intermediate_variables.include_with_output` in `guidance/variables.yaml`); pre-checked, user may uncheck.
+   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (the flat list in `guidance/include-with-output.yaml`); pre-checked, user may uncheck.
    - *(unlabeled)* — the top 5–8 remaining eligible fields by rank; pre-checked, user may uncheck.
    - Fields already tagged `expose` in the CIVIL YAML are always pre-selected regardless of rank.
    - `[REQUIRED]` fields appear first, then `[GUIDANCE]` fields, then unlabeled fields in rank order.

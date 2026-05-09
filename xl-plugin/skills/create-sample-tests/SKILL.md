@@ -39,11 +39,11 @@ Read `../../core/output-fencing.md` now.
      :::
      Then stop.
 
-3. **`guidance/variables.yaml` exists?**
+3. **`specs/naming-manifest.yaml` exists?**
    - NO → Print:
      :::error
-     guidance/variables.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml
-     Run /suggest-target-ruleset <domain> first.
+     specs/naming-manifest.yaml not found: $DOMAINS_DIR/<domain>/specs/naming-manifest.yaml
+     Run /declare-target-ruleset <domain> first.
      :::
      Stop.
 
@@ -74,21 +74,25 @@ Continue in degraded mode.
 ### Step 1: Derive input and output field names
 
 Read from:
-- `guidance/variables.yaml` — `input_variables`, `output_variables`, `intermediate_variables`, `constants_and_tables`
+- `specs/naming-manifest.yaml` — `inputs.<Entity>.<field>` (input field names + types), `computed.<name>` (computed field names + types), `outputs.<name>` (output names + types + enum values when present)
+- `guidance/output-variables.yaml` — `primary: true|false` flag identifying the primary output among the manifest's outputs
+- `guidance/include-with-output.yaml` — flat list of computed field names to include in `expected` for cases that exercise those paths
+- `guidance/constants-and-tables.yaml` — named tables and constants that might yield concrete boundary values for test inputs
+- `guidance/skeleton.yaml` — `computations:` block (intermediate variable structure)
 - (Non-degraded mode only) `guidance/ruleset-modules.yaml` — `ruleset_modules[].sample_rules[].civil` CIVIL snippets
 - `guidance/sample-artifacts.yaml` — `sample_rules[].civil` CIVIL snippets (top-level)
 - `guidance/prompt-context.yaml` — `edge_cases:` (used in Step 2 for coverage tag applicability)
 
 **Input field names** — collect from two sources:
-1. All names in `input_variables.categories[].examples` lists (flat variable names) from `variables.yaml`
+1. All field names from `naming-manifest.yaml`'s `inputs.<Entity>.<field>` blocks (flatten to a list of bare field names)
 2. (Non-degraded mode only) Variable names used as input bindings in `ruleset_modules[].sample_rules[].civil` CIVIL snippets — parse `inputs:` field names and `with:` binding keys
 
-**Expected field names and value sets** — collect from `variables.yaml`:
-- `output_variables.primary`: name, type, and (if enum) allowed values list
-- `output_variables.secondary_decisions[]`: name and type for each
-- `intermediate_variables.include_with_output`: names of computed fields to include in `expected` for cases that exercise those paths
+**Expected field names and value sets** — collect from `naming-manifest.yaml`'s `outputs:` block plus `guidance/output-variables.yaml`:
+- Primary output: the entry in `output-variables.yaml` with `primary: true`; its type and `values:` (if enum) come from `naming-manifest.yaml`'s `outputs.<name>` entry
+- Secondary outputs: every other entry in `output-variables.yaml` (`primary: false`); types come from manifest
+- Include-with-output: names listed in `guidance/include-with-output.yaml` (flat list)
 
-**Thresholds and constants** — scan `constants_and_tables:` in `variables.yaml` for named tables or constants that might yield concrete boundary values for test inputs.
+**Thresholds and constants** — scan `guidance/constants-and-tables.yaml`'s `constants_and_tables:` list for named tables or constants that might yield concrete boundary values for test inputs.
 
 Show step checklist:
 :::progress

@@ -81,26 +81,29 @@ The guidance files were loaded in pre-flight. Internalize the following before r
 
 ```
 ---
-[content of guidance/metadata.yaml, guidance/prompt-context.yaml, guidance/variables.yaml,
- guidance/skeleton.yaml — paste verbatim as loaded]
+[content of guidance/metadata.yaml, guidance/prompt-context.yaml,
+ guidance/output-variables.yaml, guidance/input-variables.yaml,
+ guidance/include-with-output.yaml, guidance/constants-and-tables.yaml,
+ guidance/skeleton.yaml — paste verbatim as loaded.
+ Plus specs/naming-manifest.yaml for structural variable data.]
 ---
 
 Use this goal to scope your reading:
-- Prioritize policy sections relevant to the input_variables categories listed above.
-- Watch for intermediate values matching the intermediate_variables categories.
-- Target a <output_variables.primary.type> primary output (mapped to CIVIL decisions[0]).
+- Prioritize policy sections relevant to the input categories listed in `guidance/input-variables.yaml`.
+- Watch for intermediate values referenced in `guidance/skeleton.yaml`'s `computations:` block.
+- Target the primary output (the entry with `primary: true` in `guidance/output-variables.yaml`); its type comes from `specs/naming-manifest.yaml`'s `outputs:` block (mapped to CIVIL decisions[0]).
 - Apply all constraints and standards listed above throughout Steps 1–7.
 ```
 
 Additionally, build five in-memory structures from the loaded guidance files:
 
-1. **Confirmed exprs map** `{variable_name → expr}`: For each category in `intermediate_variables`, read its `computations:` list (if present). For each entry, add `name → expr` to the map. If a category has no `computations:`, no entries are added. This map is used in Step 4.
+1. **Confirmed exprs map** `{variable_name → expr}`: Read `guidance/skeleton.yaml`'s `computations:` block. For each category, iterate its `exprs:` map and add `name → expr` to the map. This map is used in Step 4.
 
 2. **Example rules list**: Read the top-level `sample_rules:` section from `guidance/sample-artifacts.yaml` (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
 
-3. **Guidance output set** `{variable_name}`: Read `intermediate_variables.include_with_output` from `guidance/variables.yaml` (if present). If the key is absent or `intermediate_variables` does not exist, use an empty set. This set is used in Step 4 and SP-TagOutputs.
+3. **Guidance output set** `{variable_name}`: Read `guidance/include-with-output.yaml` (if present). It is a flat list of variable name strings; treat it as the include set. If the file is absent or empty, use an empty set. This set is used in Step 4 and SP-TagOutputs.
 
-4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/variables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the key is absent or empty, the list is empty. This list is used in Step 4.
+4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the file is absent or empty, the list is empty. This list is used in Step 4.
 
 5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
@@ -256,13 +259,13 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 
 **When emitting `tables:` and `constants:` sections**, if the constants/tables seed list (from Step 1) is non-empty, begin with the seeded entries before drafting from policy text:
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
-- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/variables.yaml constants_and_tables` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
-- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/variables.yaml constants_and_tables`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
+- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
+- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
 - After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
-**Before drafting `outputs:`,** check `output_variables.primary.type` in `guidance/variables.yaml`:
+**Before drafting `outputs:`,** identify the primary output (the entry with `primary: true` in `guidance/output-variables.yaml`) and read its `type:` from `specs/naming-manifest.yaml`'s `outputs.<primary_name>.type`:
 - **`bool`** (default) — use `type: bool` with `expr: "count(reasons) == 0"`
 - **`enum`** — use `type: string` + `values:` + `conditional:` (see template below); `enum` maps to `string` in CIVIL
 - **other scalar** (`money`, `int`, `float`) — use a typed output decision with `expr:` instead of `computed:` + `tags: [expose]`
@@ -569,7 +572,10 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` | Read (if present) |

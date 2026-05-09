@@ -90,7 +90,7 @@ After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-mo
 Read:
 - `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` — `ruleset_groups:` key
-- `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` — `intermediate_variables.categories` (for variable names)
+- `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton.computations[]` block carries intermediate variable names (replaces former `variables.yaml intermediate_variables.categories`)
 - Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map with top-level keys `naming_manifest` and `sections`. Read `data["sections"]` as the list of section blocks (the per-section block shape is unchanged from the prior list-shape — only the wrapping is new). Re-run Step 2 signal extraction across all entries:
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
@@ -166,7 +166,7 @@ No new ruleset modules identified.
 
 Otherwise, derive the main module name automatically — no prompt:
 
-1. Check `output_variables.primary.name` in `guidance/variables.yaml`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the value and use the result.
+1. Identify the primary output: read `guidance/output-variables.yaml` and find the entry with `primary: true`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the entry's name and use the result.
 2. If no primary output variable is declared, take the last hyphen-segment of `template_id` from `guidance/metadata.yaml` and strip leading generic prefixes (`calculate-`, `determine-`, `check-`, `compute-`).
 
 Examples:
