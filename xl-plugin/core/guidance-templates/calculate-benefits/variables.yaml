@@ -1,49 +1,38 @@
 input_variables:
-  categories:
-    - category: household_composition
-      description: "Who is in the household — size for table lookups."
-      examples: [household_size, member_count]
+  household_size:
+    description: "Who is in the household — size for table lookups."
 
-    - category: income
-      description: "Net income used in benefit calculation formula."
-      examples: [net_income, adjusted_net_income]
+  net_income:
+    description: "Net income used in benefit calculation formula."
 
-    - category: expenses
-      description: "Out-of-pocket costs that may affect benefit formula."
-      examples: [shelter_costs, utility_costs]
+  out_of_pocket_costs:
+    description: "Out-of-pocket costs that may affect benefit formula."
 
-    - category: benefit_history
-      description: "Prior benefit amounts or participation flags relevant to calculation."
-      examples: [prior_benefit_amount, is_new_applicant]
+  prior_benefit_amount:
+    description: "Prior benefit amounts relevant to calculation."
 
 output_variables:
-  primary:
+  benefit_amount:
     type: "money"
     description: "Dollar amount of benefits the qualifying household receives."
-  secondary_decisions:
-    - name: receives_minimum_benefit
-      type: "bool"
-      description: "Flag indicating the household receives the minimum benefit floor."
+  receives_minimum_benefit:
+    type: "bool"
+    description: "Flag indicating the household receives the minimum benefit floor."
 
 intermediate_variables:
-  include_with_output: []
-  categories:
-    - category: maximum_allotment
+    maximum_allotment:
       description: "Table-derived ceiling for benefit amount by household size."
-      examples: [maximum_allotment, thrifty_food_plan_amount]
 
-    - category: benefit_reduction
+    benefit_reduction:
       description: "Calculated reduction applied to the maximum allotment."
-      examples: [income_reduction, net_income_share]
 
-    - category: proration
+    proration_factor:
       description: "Partial-month or partial-period adjustment factors."
-      examples: [proration_factor, days_in_period]
 
 constants_and_tables:
-  - name: maximum_allotment
+  maximum_allotment:
     description: "Maximum monthly benefit by household size."
-  - name: minimum_benefit
+  minimum_benefit:
     description: "Minimum monthly benefit floor (if applicable)."
-  - name: income_reduction_rate
+  income_reduction_rate:
     description: "Percentage of net income used to reduce the maximum allotment."
