@@ -3,9 +3,13 @@
 Plugin-wide style rules for variable names extracted from policy documents.
 Consulted on every run by `/extract-computations` (per-file workers) and by
 `xlator naming-defaults --build` (the cross-file merge tool). Authority on
-re-runs flows through a chain: `specs/naming-manifest.yaml` (highest, analyst
-renames) → `policy_facets/naming-defaults.yaml` (mid, auto-picked canonicals)
-→ this guide (lowest, style rules only).
+re-runs flows through a chain: `specs/naming-manifest.yaml` (highest,
+**analyst-authoritative** — confirmed against a doc OR seeded pre-extraction
+by `/declare-target-ruleset`; provenance fields are nullable on seeded entries
+and gap-fill from observations via `/extract-ruleset` Step 7) →
+`policy_facets/naming-defaults.yaml` (mid, auto-picked canonicals; the merge
+tool runs a two-pass merge so phraseless seeded entries surface as first-class
+canonicals here too) → this guide (lowest, style rules only).
 
 ## Variable name style
 

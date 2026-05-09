@@ -81,26 +81,29 @@ The guidance files were loaded in pre-flight. Internalize the following before r
 
 ```
 ---
-[content of guidance/metadata.yaml, guidance/prompt-context.yaml, guidance/variables.yaml,
- guidance/skeleton.yaml — paste verbatim as loaded]
+[content of guidance/metadata.yaml, guidance/prompt-context.yaml,
+ guidance/output-variables.yaml, guidance/input-variables.yaml,
+ guidance/include-with-output.yaml, guidance/constants-and-tables.yaml,
+ guidance/skeleton.yaml — paste verbatim as loaded.
+ Plus specs/naming-manifest.yaml for structural variable data.]
 ---
 
 Use this goal to scope your reading:
-- Prioritize policy sections relevant to the input_variables categories listed above.
-- Watch for intermediate values matching the intermediate_variables categories.
-- Target a <output_variables.primary.type> primary output (mapped to CIVIL decisions[0]).
+- Prioritize policy sections relevant to the input categories listed in `guidance/input-variables.yaml`.
+- Watch for intermediate values referenced in `guidance/skeleton.yaml`'s `computations:` block.
+- Target the primary output (the entry with `primary: true` in `guidance/output-variables.yaml`); its type comes from `specs/naming-manifest.yaml`'s `outputs:` block (mapped to CIVIL decisions[0]).
 - Apply all constraints and standards listed above throughout Steps 1–7.
 ```
 
 Additionally, build five in-memory structures from the loaded guidance files:
 
-1. **Confirmed exprs map** `{variable_name → expr}`: For each category in `intermediate_variables`, read its `computations:` list (if present). For each entry, add `name → expr` to the map. If a category has no `computations:`, no entries are added. This map is used in Step 4.
+1. **Confirmed exprs map** `{variable_name → expr}`: Read `guidance/skeleton.yaml`'s `computations:` block. For each category, iterate its `exprs:` map and add `name → expr` to the map. This map is used in Step 4.
 
 2. **Example rules list**: Read the top-level `sample_rules:` section from `guidance/sample-artifacts.yaml` (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
 
-3. **Guidance output set** `{variable_name}`: Read `intermediate_variables.include_with_output` from `guidance/variables.yaml` (if present). If the key is absent or `intermediate_variables` does not exist, use an empty set. This set is used in Step 4 and SP-TagOutputs.
+3. **Guidance output set** `{variable_name}`: Read `guidance/include-with-output.yaml` (if present). It is a flat list of variable name strings; treat it as the include set. If the file is absent or empty, use an empty set. This set is used in Step 4 and SP-TagOutputs.
 
-4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/variables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the key is absent or empty, the list is empty. This list is used in Step 4.
+4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the file is absent or empty, the list is empty. This list is used in Step 4.
 
 5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
@@ -164,25 +167,37 @@ Before drafting any CIVIL YAML, produce the canonical field name for every fact 
 4. Convert to **`snake_case`**
 5. If the result would be **ambiguous** with another field in the same entity, append a disambiguating qualifier from the policy text
 
-Present the result as a Markdown table:
+Present the result as a Markdown table with a **Source** column distinguishing seeded / observed / algorithm-derived entries:
 
 :::detail
-| Policy Phrase | Entity / Section | Field Name | Source Section | Synonyms |
-|--------------|-----------------|-----------|----------------|----------|
-| gross monthly income | Household | `gross_monthly_income` | §1.2 | monthly_gross |
-| number of people in the household | Household | `household_size` | §1.1 |  |
-| net monthly income after all deductions | computed | `net_income` | §2.4 |  |
+| Policy Phrase | Entity / Section | Field Name | Source Section | Source | Synonyms |
+|--------------|-----------------|-----------|----------------|--------|----------|
+| gross monthly income | Household | `gross_monthly_income` | §1.2 | observed | monthly_gross |
+| number of people in the household | Household | `household_size` | §1.1 | observed |  |
+| net monthly income after all deductions | computed | `net_income` | §2.4 | observed |  |
+| eligibility status | outputs | `eligibility_status` |  | seeded |  |
 :::
+
+The **Source** column distinguishes three values:
+- **`seeded`**: from `specs/naming-manifest.yaml` with no `policy_phrase` (analyst declared via `/declare-target-ruleset`; provenance is null pre-extraction). Source Section column is blank.
+- **`observed`**: from `policy_facets/naming-defaults.yaml` with a populated `policy_phrase` (canonical surfaced from per-file `naming_manifest:` blocks). Source Section comes from the top-level `section:` field.
+- **`algorithm-derived`**: no prior entry; derived from policy text via the algorithm above.
 
 The **Synonyms** column is populated from `policy_facets/naming-defaults.yaml` and shows other field names observed for the same `policy_phrase` across files. When the column is empty for an entry, leave it blank — do not write `—` or `none`. Synonyms are surfaced so the analyst can pick a different canonical at confirm time when the auto-pick is not the best fit.
 
 **Pre-populate from the manifest authority chain (highest → lowest):**
 
-1. **Specs (highest authority):** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists (CREATE re-run after a previous successful extraction), run **SP-LoadNamingManifest** with `schema=entity_grouped` (from `../../core/ruleset-shared.md`). Pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`. Synonyms column is left blank for specs-sourced entries (specs is authoritative; alternatives are no longer relevant once the analyst has confirmed a name).
+1. **Specs (highest authority):** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists, run **SP-LoadNamingManifest** with `schema=entity_grouped` (from `../../core/ruleset-shared.md`). For each entry:
+   - **Confirmed entries** (have `policy_phrase`): pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`, **Source = `observed`** (was confirmed against a doc in a prior run). Synonyms column blank.
+   - **Seeded entries** (no `policy_phrase`): pre-populate Field Name from the variable name key, Entity / Section from the entity key, **Source = `seeded`**. Source Section is blank (provenance not yet filled). Policy Phrase column shows `<seeded>` placeholder.
 
-2. **Defaults (mid authority):** For policy concepts not already covered by specs, if `$DOMAINS_DIR/<domain>/policy_facets/naming-defaults.yaml` exists, run **SP-LoadNamingManifest** with `schema=flat`. Pre-populate Field Name from the canonical key, Policy Phrase from `policy_phrase`, Entity / Section from `role_hint` (or `computed` if absent — the analyst will adjust during confirmation), Source Section from the top-level `section:` field (omit when absent), and Synonyms from the entry's `synonyms` list — extract `synonyms[*].name`, dedup, and join comma-separated when more than one. Each row's `source_doc:` / `section:` is informational provenance; the table column shows names only.
+2. **Defaults (mid authority):** For policy concepts not already covered by specs, if `$DOMAINS_DIR/<domain>/policy_facets/naming-defaults.yaml` exists, run **SP-LoadNamingManifest** with `schema=flat`. For each entry:
+   - **Observed entries** (have `policy_phrase`): pre-populate Field Name from the canonical key, Policy Phrase from `policy_phrase`, Entity / Section from `role_hint` (or `computed` if absent), Source Section from the top-level `section:` field, **Source = `observed`**, and Synonyms from the entry's `synonyms` list — extract `synonyms[*].name`, dedup, join comma-separated when more than one.
+   - **Standalone seeded entries** (no `policy_phrase`, no top-level `source_doc:` / `section:` / `synonyms:`, surfaced via the merge tool's two-pass logic from a phraseless manifest entry): pre-populate Field Name from the canonical key, Entity / Section from `role_hint`, **Source = `seeded`**. Source Section is blank.
 
-3. **Algorithm-derived (fallback):** For policy concepts not covered by either manifest, derive the name from policy text using the algorithm above. Synonyms column is blank.
+3. **Algorithm-derived (fallback):** For policy concepts not covered by either manifest, derive the name from policy text using the algorithm above. **Source = `algorithm-derived`**, Synonyms column is blank.
+
+**Convergence-warning footnote:** when the merge tool emitted a "similar names" warning (a seeded standalone canonical near-matched an observed canonical), annotate the matching rows in the inventory table with a footnote — e.g., `[similar to seeded 'gross_income']` — so the analyst notices the pair and can decide whether to rename one to merge them.
 
 When both files have an entry for the same `policy_phrase` but different names, specs wins (it is the analyst-confirmed authority).
 
@@ -244,13 +259,13 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 
 **When emitting `tables:` and `constants:` sections**, if the constants/tables seed list (from Step 1) is non-empty, begin with the seeded entries before drafting from policy text:
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
-- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/variables.yaml constants_and_tables` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
-- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/variables.yaml constants_and_tables`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
+- **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
+- **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
 - After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
-**Before drafting `outputs:`,** check `output_variables.primary.type` in `guidance/variables.yaml`:
+**Before drafting `outputs:`,** identify the primary output (the entry with `primary: true` in `guidance/output-variables.yaml`) and read its `type:` from `specs/naming-manifest.yaml`'s `outputs.<primary_name>.type`:
 - **`bool`** (default) — use `type: bool` with `expr: "count(reasons) == 0"`
 - **`enum`** — use `type: string` + `values:` + `conditional:` (see template below); `enum` maps to `string` in CIVIL
 - **other scalar** (`money`, `int`, `float`) — use a typed output decision with `expr:` instead of `computed:` + `tags: [expose]`
@@ -455,6 +470,13 @@ Do not proceed to the next file after a validation failure.
 
 Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
 
+**Seeded-entry handling.** When the Name Inventory's Source column for an entry is `seeded`, the entry already exists in `specs/naming-manifest.yaml` with nullable provenance (no `policy_phrase`, no `source_doc`, no `section`). For each such entry the analyst confirmed against an observed phrase in Step 3b:
+- Fill `policy_phrase:` from the observed entry's policy phrase (the Source Section column's policy_phrase value, joined to the seeded entry by name-equality).
+- Fill `source_doc:` and `section:` from the observed entry's provenance.
+- Apply the preserve-non-null rule below: existing analyst-supplied fields on the seeded entry (description, type, values) are preserved; null/absent fields gap-fill from the matched defaults entry.
+
+For seeded entries the analyst did NOT match against an observation in Step 3b (still standalone after confirmation), leave provenance fields null. They remain seeded-but-unobserved; the next `/index-inputs` run may surface a matching observation and a future Step 7 will fill provenance retroactively.
+
 **`original_name:` annotation.** For each entry being written, look up the corresponding entry in `policy_facets/naming-defaults.yaml` by `policy_phrase` (Step 3b's join key). Then:
 
 - If the analyst's confirmed Field Name equals the defaults entry's canonical name (analyst kept the default), **omit `original_name:`**.
@@ -512,7 +534,7 @@ outputs:
 **Re-run merge — replace-on-rename, keyed by `policy_phrase`** (CREATE re-run when the file already exists):
 
 - For each entry being written, normalize its `policy_phrase` (same normalizer as `xlator naming-defaults --build`: lowercase, strip leading `a/an/the`, strip ASCII punctuation, collapse whitespace). Look for an existing entry in the file whose normalized `policy_phrase` matches.
-- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry unchanged, including any `original_name:` already on it. **Defaults-field propagation does NOT refresh on a name-match re-run** — analyst edits to `description:` / `type:` / `values:` / `synonyms:` survive. To force re-propagation, the analyst deletes the field from specs and re-runs `/extract-ruleset`.
+- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry's populated fields, including any `original_name:` already on it. **Preserve-non-null rule (v7.0.0 amendment of v6.1.0 preserve-verbatim):** on a name-match re-run, propagation preserves a field's value when present (non-null), and fills it from defaults when null or absent. This carveout cleanly composes seed-time analyst values (preserved when supplied) with defaults gap-fill (when seed left the field blank). Existing fully-confirmed entries (no null fields) behave identically to v6.1.0 — preserve-non-null is a strict superset of preserve-verbatim. Provenance fields (`policy_phrase`, `source_doc`, `section`) are gap-fillable when null, which is exactly what seeded entries arriving at Step 7 with provenance still null require. To force re-propagation of an analyst-supplied value, delete the field from specs and re-run `/extract-ruleset`.
 - **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Set `original_name:` to the **earliest** anchor in the chain: if the existing entry already has `original_name:`, copy that value forward (the chain anchors to the first non-rename name across all rounds, never to the most recent rename). If the existing entry has no `original_name:`, set `original_name:` to the existing entry's key (the previous canonical). Drop the existing entry from the file (no duplicate). **Re-propagate `description:` / `type:` / `values:` / `synonyms:` from the current defaults entry** alongside the new `original_name:` chain anchor.
 - **No match (new phrase):** append a new entry. Apply the `original_name:` rule against `policy_facets/naming-defaults.yaml` as described above, plus the defaults field propagation rule.
 
@@ -550,7 +572,10 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` | Read (if present) |

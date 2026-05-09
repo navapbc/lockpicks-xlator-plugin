@@ -1,0 +1,25 @@
+# Input variables — descriptive guidance for inputs declared in
+# specs/naming-manifest.yaml's inputs.<Entity>.<field> blocks.
+#
+# Schema: list of categories. Each category carries:
+#   category       — snake_case category name
+#   description    — analyst-readable description
+#   examples       — optional list of sample VALUES (concrete instance data)
+#   fields         — list of {name_ref} objects referencing naming-manifest entries
+#   source_file    — optional per-category provenance: source policy doc filename
+#   source_section — optional per-category provenance: heading or §-citation
+#   exact_phrase   — optional per-category provenance: verbatim phrase from source
+
+categories:
+  - category: household
+    description: "Who is in the household — size, relationships, ages."
+    fields: []  # populate with {name_ref: ...} entries from naming-manifest.yaml inputs
+  - category: income
+    description: "All income for the benefit unit."
+    fields: []
+  - category: assets
+    description: "Countable resources and property."
+    fields: []
+  - category: program_history
+    description: "Prior program participation, disqualifications, or time limits."
+    fields: []

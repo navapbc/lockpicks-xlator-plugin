@@ -114,7 +114,7 @@ Show updated step checklist (as `:::progress`).
 
 ### Step 3: Read guidance context and classify entries
 
-Read `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` (`role:`), `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` (`output_variables`), and optionally `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` and `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` to produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with entries clearly unrelated to the ruleset's purpose removed and logged before further processing.
+Read `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` (`role:`), `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` (`outputs:`) plus `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` (for the `primary: true` flag), and optionally `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` and `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` to produce a **prioritized working set** of entries for Step 4. The working set is an ordered list derived from the qualifying entries found in Step 2, with entries clearly unrelated to the ruleset's purpose removed and logged before further processing.
 
 Check for missing context and print warnings if applicable:
 
@@ -296,9 +296,9 @@ Add new unique strings to the `assumptions:` list. Place after `missing_info:`. 
 > This schema is applied from within Step 4 after each pass. It is documented here as the canonical reference.
 
 **If `naming-manifest.yaml` already exists:**
-Read it. For each variable name used in the generated rules, route by whether the variable appears in `guidance/variables.yaml`'s `output_variables` list:
-- **Output variable** (name is in `guidance/variables.yaml` `output_variables`): if not already present in the `outputs:` block, append a new entry there.
-- **Computed variable** (name is not in `guidance/variables.yaml` `output_variables`): if not already present in the `computed:` block, append a new entry there.
+Read it. For each variable name used in the generated rules, route by whether the variable appears in the manifest's `outputs:` block:
+- **Output variable** (name is a key in `naming-manifest.yaml`'s `outputs:`): if not already present, append a new entry to `outputs:`.
+- **Computed variable** (name is not a key in `outputs:`): if not already present in the `computed:` block, append a new entry there.
 
 ```yaml
 computed:
@@ -340,7 +340,7 @@ outputs:
 
 Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance/ruleset-modules.yaml`. If `ruleset-modules.yaml` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /extract-ruleset Step 7b`.
 
-Omit the `outputs:` block if no generated variables are in `guidance/variables.yaml`'s `output_variables` list.
+Omit the `outputs:` block if no generated variables are recognized as outputs (per the prior `naming-manifest.yaml` `outputs:` keys, when the file existed; first-time generation defaults to no outputs unless the working set includes them).
 
 Do not add an auto-generated comment. The file is user-editable.
 

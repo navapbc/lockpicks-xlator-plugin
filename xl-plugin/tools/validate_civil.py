@@ -57,31 +57,56 @@ def _collect_expressions(doc: dict) -> list[str]:
 
 
 def validate_enum_decisions(path: str, data: dict) -> tuple[list[str], list[str]]:
-    """Warn when CIVIL primary decision type mismatches guidance/variables.yaml declaration."""
+    """Warn when CIVIL primary decision type mismatches the type declared in
+    `specs/naming-manifest.yaml` for the primary output. The primary output is
+    identified via `specs/guidance/output-variables.yaml`'s `primary: true` flag;
+    the type itself is read from `specs/naming-manifest.yaml`'s `outputs:` block.
+    """
     warnings = []
     specs_dir = pathlib.Path(path).parent
-    guidance_path = specs_dir / "guidance" / "variables.yaml"
-    if not guidance_path.exists():
+
+    # Identify the primary output name from output-variables.yaml.
+    output_vars_path = specs_dir / "guidance" / "output-variables.yaml"
+    if not output_vars_path.exists():
         return [], []
     try:
-        with open(guidance_path) as f:
-            guidance = yaml.safe_load(f)
+        with open(output_vars_path) as f:
+            output_vars = yaml.safe_load(f) or {}
     except Exception:
         return [], []
-    primary = (guidance.get("output_variables") or {}).get("primary") or {}
-    declared_name = primary.get("name")
-    declared_type = primary.get("type")
-    if not declared_name or not declared_type:
+    primary_name = None
+    if isinstance(output_vars, dict):
+        for name, entry in output_vars.items():
+            if isinstance(entry, dict) and entry.get("primary") is True:
+                primary_name = name
+                break
+    if not primary_name:
         return [], []
+
+    # Read the declared type from naming-manifest.yaml's outputs block.
+    manifest_path = specs_dir / "naming-manifest.yaml"
+    if not manifest_path.exists():
+        return [], []
+    try:
+        with open(manifest_path) as f:
+            manifest = yaml.safe_load(f) or {}
+    except Exception:
+        return [], []
+    outputs = manifest.get("outputs") or {}
+    declared_entry = outputs.get(primary_name) or {}
+    declared_type = declared_entry.get("type")
+    if not declared_type:
+        return [], []
+
     decisions = data.get("outputs") or {}
-    if declared_name not in decisions:
+    if primary_name not in decisions:
         return [], []
-    actual_type = (decisions[declared_name] or {}).get("type", "")
+    actual_type = (decisions[primary_name] or {}).get("type", "")
     if declared_type in ("enum", "string") and actual_type == "bool":
         warnings.append(
-            f"decisions → {declared_name}: type is 'bool' but guidance/variables.yaml "
-            f"output_variables.primary.type is '{declared_type}' — "
-            f"consider using type: string with values: {primary.get('values', [])}"
+            f"decisions → {primary_name}: type is 'bool' but specs/naming-manifest.yaml "
+            f"outputs.{primary_name}.type is '{declared_type}' — "
+            f"consider using type: string with values: {declared_entry.get('values', [])}"
         )
     return [], warnings
 

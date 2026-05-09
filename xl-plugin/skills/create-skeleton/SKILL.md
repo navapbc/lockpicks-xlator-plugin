@@ -5,7 +5,7 @@ description: Build Computation Skeleton for a Domain
 
 # Build Computation Skeleton for a Domain
 
-Extract doc signals from the per-file files under `policy_facets/computations/` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` and updates `guidance/variables.yaml` and `guidance/prompt-context.yaml`.
+Extract doc signals from the per-file files under `policy_facets/computations/` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` (computation structure including intermediate variables) plus three descriptive guidance files: `guidance/output-variables.yaml`, `guidance/input-variables.yaml`, and `guidance/constants-and-tables.yaml`. **Does not write `guidance/variables.yaml`** — that file is gone in v7.0.0; structural data lives in `specs/naming-manifest.yaml`.
 
 ## Input
 
@@ -160,7 +160,7 @@ Steps:
 
 Build and display the skeleton using:
 
-- **`guidance/variables.yaml`** — `input_variables`, `intermediate_variables`, `output_variables` categories provide structure and group names
+- **`guidance/input-variables.yaml`** — input categories provide structure and group names; **`guidance/output-variables.yaml`** — output entries with primary flag; **`specs/naming-manifest.yaml`** — structural variable data (names + types)
 - **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and `expr_hint` values (show as `≈ <expr_hint>` when available, `= ?` when not inferable); **phase membership drives `category:` assignment when present** — a computation whose source section has `phase:` adopts the (post-normalization) phase value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `phase:` fall through to existing name-pattern categorization unchanged.
 
 Display format:
@@ -199,9 +199,9 @@ Steps:
 
 ---
 
-### Step 4: Write computation skeleton
+### Step 4: Write computation skeleton + descriptive guidance files
 
-Write to the `guidance/` folder:
+Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
 
 1. **Write `guidance/skeleton.yaml`** — schema:
    ```yaml
@@ -210,7 +210,7 @@ Write to the `guidance/` folder:
      outputs: [<flat list of confirmed output variable names>]
      computations:
        - category: <category_name>
-         variables: [<variable1>, <variable2>, ...]
+         variables: [<variable1>, <variable2>, ...]    # intermediate variables in this category
          exprs:
            <variable>: "<expr_hint>"
            # (only variables with non-null expr_hints; = ? variables are omitted)
@@ -218,19 +218,52 @@ Write to the `guidance/` folder:
        # (ASCII computation flow diagram)
    ```
 
-2. **Update `guidance/variables.yaml`** — update these sections in place, preserving all other fields:
-   - **`input_variables`**: for each category, rewrite `examples:` with the confirmed variable names from the skeleton display, in display order.
-   - **`output_variables`**: rewrite `primary` and `secondary_decisions` with confirmed output variable names and types.
-   - **`intermediate_variables`**: for each category, rewrite `examples:` with confirmed names; write `computations:` list (one entry per variable with a non-null expr hint). Variables shown as `= ?` are omitted from `computations:`.
-   - **Table lookup format:** `expr:` uses `table('table_name', key_var).value_col` — do **not** use bracket subscript notation (`table_name[key]`).
+   **Intermediate variables live here, not in a separate file.** Their structure (which variables are computed, their expression hints, their category grouping) IS the computation skeleton. There is no `guidance/intermediate-variables.yaml`.
 
-3. **Update `guidance/prompt-context.yaml`** is not written in Step 4 — Step 2 already wrote it. Do not touch it here.
+2. **Write `guidance/output-variables.yaml`** — flat keyed by name, mirroring `specs/naming-manifest.yaml`'s `outputs:` shape:
+   ```yaml
+   <output_name>:
+     name_ref: <output_name>          # always equals the key; explicit for validate-guidance to scan
+     description: "<analyst-curated description>"
+     examples: ["<sample value 1>", "<sample value 2>"]   # optional; sample values, not synonym names
+     primary: true | false             # exactly one entry has primary: true per ruleset
+   # repeat for each output (primary + secondaries)
+   ```
+   `examples:` carries **sample values** (concrete instance data), NOT synonym names. Synonyms live in `naming-manifest.yaml`'s `synonyms:` row list.
+
+3. **Write `guidance/input-variables.yaml`** — input categories with descriptive metadata + per-category provenance:
+   ```yaml
+   categories:
+     - category: <category_name>
+       description: "<category description>"
+       examples: ["<sample value 1>", "<sample value 2>"]   # optional; sample values
+       fields:
+         - name_ref: <field_name>      # references inputs.<Entity>.<field_name> in naming-manifest.yaml
+         - name_ref: <field_name>
+       # optional per-category provenance:
+       source_file: "<rel>.md"
+       source_section: "<heading or §-citation>"
+       exact_phrase: "<verbatim phrase>"
+   ```
+
+4. **Write `guidance/constants-and-tables.yaml`** — non-variable named tables/constants:
+   ```yaml
+   constants_and_tables:
+     - name: <constant_or_table_name>
+       description: "<analyst-readable description>"
+   ```
+   Skill extracts candidate constants/tables from per-file YAML and writes a draft. Analyst refines.
+
+5. **Update `guidance/prompt-context.yaml`** is not written in Step 4 — Step 2 already wrote it. Do not touch it here.
+
+**Re-run preservation:** when any of the four files already exists with analyst edits (descriptions, examples, names), preserve the existing content unchanged — only fill in fields the analyst left blank or empty. Same preserve-non-null discipline as `/extract-ruleset` Step 7.
 
 Print:
 :::important
 $DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml [CREATED]
-$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml [UPDATED]
-$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml [CREATED]
 :::
 
 Then show the final step checklist (all steps checked):
@@ -254,9 +287,11 @@ Next: Run /create-ruleset-groups <domain> to propose ruleset groups.
 ## Output
 
 ```
-$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml       [CREATED]
-$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [UPDATED]
-$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml             [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml     [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml      [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml [CREATED]
+$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [UPDATED in Step 2]
 ```
 
 ## Common Mistakes to Avoid
@@ -269,7 +304,9 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [UPDATED]
 - Step 2 runs in both CREATE and UPDATE mode (when `[b] replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
 - Show the step checklist after EVERY step (4 steps total) — do not skip it
 - When `[c] revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
-- Step 2 writes `prompt-context.yaml`; Step 4 writes `skeleton.yaml` and `variables.yaml` — do not conflate them
-- `intermediate_variables.categories` in `variables.yaml` must be updated with the new category structure from the skeleton — if categories were empty before, populate them; if they existed, rewrite `examples:` with confirmed names
+- Step 2 writes `prompt-context.yaml`; Step 4 writes `skeleton.yaml`, `output-variables.yaml`, `input-variables.yaml`, and `constants-and-tables.yaml` — do not conflate them
+- **Do not write `guidance/variables.yaml`** — that file is gone in v7.0.0. Intermediate variables live in `skeleton.yaml`'s `computations:` block; output descriptions live in `output-variables.yaml`; input descriptions live in `input-variables.yaml`; constants/tables live in `constants-and-tables.yaml`.
+- **`output-variables.yaml`'s `examples:` carries sample values, not synonym names** — synonyms are tracked in `naming-manifest.yaml`'s `synonyms:` row list. Do not duplicate.
+- Re-runs preserve analyst edits — only fill in fields the analyst left blank. Match `/extract-ruleset` Step 7's preserve-non-null discipline.
 - **When a section has an explicit `phase:` value, that phase wins over name-pattern categorization** — do not override an explicit doc signal with a heuristic guess. Apply the same suffix-stripping normalization as `/create-ruleset-groups` so categories match `ruleset_groups[*].name` exactly
 - **Do not write `phase:` or modify it** — `phase:` is single-owner; only `/extract-computations` writes the field. This skill reads it

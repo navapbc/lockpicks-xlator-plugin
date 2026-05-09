@@ -80,18 +80,26 @@ Scan `../../core/guidance-templates/*/metadata.yaml` and `$DOMAINS_DIR/guidance-
 
 Print a summary of the selected template's `metadata.yaml` content for the user to review.
 
-After the user confirms the selected guidance template, write three files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
+After the user confirms the selected guidance template, copy the template's files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
 
 1. Copy `<template_folder>/metadata.yaml` to `guidance/metadata.yaml` and insert `source_template: <template_folder_name>` immediately after `template_id:`.
 2. Copy `<template_folder>/prompt-context.yaml` to `guidance/prompt-context.yaml` verbatim.
-3. Copy `<template_folder>/variables.yaml` to `guidance/variables.yaml` verbatim.
+3. Copy `<template_folder>/output-variables.yaml` to `guidance/output-variables.yaml` verbatim.
+4. Copy `<template_folder>/input-variables.yaml` to `guidance/input-variables.yaml` verbatim.
+5. Copy `<template_folder>/include-with-output.yaml` to `guidance/include-with-output.yaml` verbatim.
+6. Copy `<template_folder>/constants-and-tables.yaml` to `guidance/constants-and-tables.yaml` verbatim.
+
+**Do NOT copy `variables.yaml`** — that file is gone in v7.0.0 and no longer exists in any template directory. Structural variable data lives in `specs/naming-manifest.yaml` (written by `/declare-target-ruleset` or seeded pre-extraction); descriptive guidance is split across the four files above.
 
 **Never write `generated_at`** in any of these files.
 
 :::important
 Created $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml
 Created $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml
-Created $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml
+Created $DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml
 :::
 
 **b. AI-suggest** — Let the AI propose candidate rulesets based on the index:
@@ -146,9 +154,12 @@ Run `/create-sample-tests <domain>`. Skip pre-flight — already verified above.
 ## Output
 
 ```
-$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml      [CREATED or UPDATED]
-$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [CREATED or UPDATED]
-$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [CREATED or UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml             [CREATED or UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [CREATED or UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml     [CREATED or UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml      [CREATED or UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml  [CREATED or UPDATED]
+$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml [CREATED or UPDATED]
 ```
 
 ## Common Mistakes to Avoid
@@ -157,5 +168,6 @@ $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml      [CREATED or UPDATED]
 - `source_template` is never updated after initial creation — it records which guidance template the folder was originally created from
 - Do not write `generated_at` in any guidance file — git tracks version history; this field is dropped
 - Do not create or scaffold a domain folder here — if the domain doesn't exist, stop and refer to `/new-domain`
+- **Do not copy `variables.yaml`** — that file is gone in v7.0.0 and no longer exists in any guidance-templates subdirectory. Structural data lives in `specs/naming-manifest.yaml`; descriptive guidance is split across the four new files above.
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `policy_facets/computations/` is the sole source of doc signals
 - `guidance/metadata.yaml` is created in Step 1 [CREATE], not deferred to later steps — it always exists before Step 2 begins

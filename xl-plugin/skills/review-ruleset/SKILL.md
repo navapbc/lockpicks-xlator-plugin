@@ -223,5 +223,7 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 1) / Refreshed (Step 3) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
-| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Read (if present) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
