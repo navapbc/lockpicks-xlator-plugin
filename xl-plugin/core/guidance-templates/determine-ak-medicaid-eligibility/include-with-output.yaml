@@ -1,0 +1,7 @@
+# Variables to expose alongside the final decision in the API response.
+#
+# Schema: flat YAML list of variable name strings. Each entry must be a key in
+# specs/naming-manifest.yaml (validated by `xlator validate-guidance`).
+#
+# Populated by /tag-vars-to-include-with-output. Hand-edits welcome.
+[]

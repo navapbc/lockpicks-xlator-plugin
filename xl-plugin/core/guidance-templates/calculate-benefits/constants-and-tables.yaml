@@ -1,0 +1,18 @@
+# Non-variable named tables and constants referenced by the ruleset.
+#
+# These are NOT variables (they don't live in specs/naming-manifest.yaml).
+# Each entry is a table or constant the policy text references — e.g., FPL
+# multipliers, income-limit lookup tables, standard deduction amounts.
+#
+# Schema:
+#   constants_and_tables:
+#     - name: <snake_case_name>
+#       description: "<analyst-readable description>"
+
+constants_and_tables:
+  - name: income_limits
+    description: "Gross and net income thresholds by household size."
+  - name: standard_deduction
+    description: "Fixed deduction amount by household size or program category."
+  - name: asset_limits
+    description: "Maximum countable resources by eligibility category."

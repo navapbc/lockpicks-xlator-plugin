@@ -1,0 +1,23 @@
+# Output variables — descriptive guidance for outputs declared in
+# specs/naming-manifest.yaml's outputs: block.
+#
+# Schema: flat keyed by name. Each entry carries:
+#   name_ref     — references naming-manifest.yaml outputs.<name> (always equals the key)
+#   description  — analyst-curated description
+#   examples     — optional list of sample VALUES (concrete instance data, not synonym names)
+#   primary      — true | false; exactly one entry must be primary: true per ruleset
+#
+# Synonyms (alternative variable names observed in policy text) live in
+# specs/naming-manifest.yaml's synonyms: row list. Do not duplicate them here.
+
+eligibility:
+  name_ref: eligibility
+  description: "Binary pass/fail eligibility determination."
+  examples: ["true", "false"]
+  primary: true
+
+manual_review_required:
+  name_ref: manual_review_required
+  description: "Flag for cases requiring human review before determination."
+  examples: ["true", "false"]
+  primary: false
