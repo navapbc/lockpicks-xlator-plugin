@@ -92,11 +92,14 @@ Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
    - If SP-ResolveRulesetModules emits an abort signal (new `ruleset_modules:` entries not in manifest): stop with SP-ResolveRulesetModules's message.
    - Otherwise, store the returned work-list for use in Steps 2 and 9.
 
+**After Step 0 multi-file validation:** Run **SP-LoadInputIndex** (from `../../core/ruleset-shared.md`) with `domain=<domain>`, `mode=batch`, and `paths=[]` (request the entire filtered `files:` map). Store the returned `{path → sha}` map for use in Steps 1, 2, and 7.
+- If SP-LoadInputIndex emits an abort signal → stop with the message it printed. Do not advance to Step 1.
+
 Proceed to Step 1.
 
 ### Step 1: Load Baseline
 
-Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the recorded blob SHA for each source doc. Each entry's `git_sha` is a blob SHA (`git hash-object`) of the source doc's content at the time of the last extraction.
+Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the recorded blob SHA for each source doc. Each entry's `git_sha` is the source doc's blob SHA at the time of the last extraction (recorded by `/extract-ruleset` or a prior `/update-ruleset` run from the index value at that time). The drift check inside `SP-LoadInputIndex` (run in pre-flight) guarantees the current index `sha:` values reflect the source doc's working-tree bytes — so comparing the manifest's `git_sha` against the SP-loaded map is equivalent to comparing the prior extracted bytes against the current bytes.
 
 **Fallback (if manifest absent):** there is no baseline to compare against, so re-extraction must be unconditional — stop and run `/extract-ruleset <domain>` instead.
 
@@ -106,14 +109,9 @@ Before change detection, remove stale entries from `extraction-manifest.yaml` fo
 
 ### Step 2: Detect Changes
 
-For every source doc to be checked, compute its current blob SHA and compare against the SHA stored in the manifest. A mismatch (or a source doc absent from the manifest) means the file changed and must be re-extracted.
+For every source doc to be checked, look up its current blob SHA in the `{path → sha}` map produced by **SP-LoadInputIndex** in pre-flight (the SP already filtered rejected entries and ran the working-tree drift check). Compare against the SHA stored in the manifest. A mismatch (or a source doc absent from the manifest) means the file changed and must be re-extracted.
 
-```bash
-# For each source doc <path>:
-git hash-object $DOMAINS_DIR/<domain>/<path>
-```
-
-`git hash-object` reflects the file's current working-tree bytes, so both committed AND uncommitted edits are caught by the same comparison — no separate `git diff` / `git status` step is needed.
+The SP-loaded map is the canonical SHA source — do not run `git hash-object` here. The drift check inside the SP guarantees the index value reflects current working-tree bytes, so committed AND uncommitted edits are caught by the same lookup.
 
 **Multi-file (SP-ResolveRulesetModules work-list has more than one entry):**
 
@@ -123,13 +121,9 @@ The main module is re-extracted if its own source docs changed. If only sub-modu
 
 **Single-file (SP-ResolveRulesetModules work-list has one entry):**
 
-If `<filename>` is given, scope the comparison to that file only:
+If `<filename>` is given, scope the comparison to that file only: look up `input/policy_docs/<filename>` in the SP-loaded map and compare against the manifest entry's `git_sha`.
 
-```bash
-git hash-object $DOMAINS_DIR/<domain>/input/policy_docs/<filename>
-```
-
-When `<filename>` is not given, run the comparison for every entry in the manifest's `source_docs:` and additionally check `$DOMAINS_DIR/<domain>/input/policy_docs/` for files that exist on disk but are absent from the manifest (treat them as added). Collect the list of changed/added/deleted input docs.
+When `<filename>` is not given, compare every entry in the manifest's `source_docs:` against the SP-loaded map, and additionally enumerate the SP-loaded map's keys for paths that are present in the index but absent from the manifest (treat them as added). The SP already filtered out entries with `md_quality.score < 40`, so rejected source files (moved to `input/rejected/`) do not surface as false additions. Collect the list of changed/added/deleted input docs.
 
 ### Step 3: No Changes — Exit Early
 
@@ -205,7 +199,7 @@ Proceed to Step 7 only after SP-MaintainabilityReview passes (no blocking failur
 
 ### Step 7: Update Manifest
 
-Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`. Each `git_sha:` value is the source doc's blob SHA — recompute it with `git hash-object <path>` for every entry being written/refreshed.
+Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`. Each `git_sha:` value is the source doc's blob SHA — read it from the `{path → sha}` map produced by **SP-LoadInputIndex** in pre-flight (already loaded; do not run `git hash-object` here). Field-name translation: the index field is `sha:`, the manifest field is `git_sha:`; the value is identical.
 
 **Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated).
 
