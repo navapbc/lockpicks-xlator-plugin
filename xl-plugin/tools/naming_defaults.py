@@ -547,12 +547,51 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
             if not norm:
                 errors.append(f"{path}: variables.{name} empty after normalization; skipping")
                 continue
+            # Detect legacy `source_section:` field — renamed to `section:`.
+            # When present without the new `section:` key, surface an
+            # actionable warning telling the analyst to regenerate the
+            # per-file file. The merge tool continues with empty `section`.
+            legacy_source_section = entry.get("source_section")
+            new_section = entry.get("section")
+            if legacy_source_section is not None and new_section is None:
+                errors.append(
+                    f"{path}: per-file file uses legacy 'source_section:' schema "
+                    f"on variable '{name}' — delete and re-run /extract-computations "
+                    f"to regenerate."
+                )
+            section_value = new_section if new_section is not None else ""
+
+            # Read source_doc verbatim from the per-file entry (no path-derivation).
+            # Drift sanity check: when the worker-written source_doc disagrees
+            # with the file-location-derived equivalent, surface a warning;
+            # use the worker's value verbatim regardless.
+            entry_source_doc = entry.get("source_doc")
+            if entry_source_doc and isinstance(entry_source_doc, str):
+                if entry_source_doc != rel:
+                    errors.append(
+                        f"{path}: variable '{name}' source_doc '{entry_source_doc}' "
+                        f"disagrees with file location '{rel}'"
+                    )
+                obs_source_doc = entry_source_doc
+            else:
+                # Missing source_doc on a legacy file — fall back to the path-derived
+                # equivalent so output stays well-formed; warning already emitted by
+                # legacy-source_section detection above when applicable.
+                if legacy_source_section is None and new_section is None:
+                    # Not a legacy file — explicit missing source_doc is its own issue.
+                    errors.append(
+                        f"{path}: variable '{name}' missing 'source_doc:' field; "
+                        f"falling back to file location"
+                    )
+                obs_source_doc = rel
+
             obs = {
                 "name": str(name),
                 "policy_phrase": phrase,
                 "role_hint": entry.get("role_hint"),
                 "file": rel,
-                "section": entry.get("source_section", ""),
+                "source_doc": obs_source_doc,
+                "section": section_value,
                 "description": entry.get("description"),
                 "type": entry.get("type"),
                 "values": entry.get("values"),
@@ -634,7 +673,7 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
 
         if canonical_obs_index is not None:
             canonical_obs = sorted_obs[canonical_obs_index]
-            canonical_source_doc = canonical_obs["file"]
+            canonical_source_doc = canonical_obs["source_doc"]
             canonical_section = canonical_obs.get("section", "")
             synonym_obs = [
                 o for i, o in enumerate(sorted_obs) if i != canonical_obs_index
@@ -654,11 +693,11 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
         synonym_rows: list[dict] = []
         seen_triples: set[tuple[str, str, str]] = set()
         for obs in synonym_obs:
-            triple = (obs["name"], obs["file"], obs.get("section", ""))
+            triple = (obs["name"], obs["source_doc"], obs.get("section", ""))
             if triple in seen_triples:
                 continue
             seen_triples.add(triple)
-            row: dict = {"name": obs["name"], "source_doc": obs["file"]}
+            row: dict = {"name": obs["name"], "source_doc": obs["source_doc"]}
             section = obs.get("section")
             if section:
                 row["section"] = section

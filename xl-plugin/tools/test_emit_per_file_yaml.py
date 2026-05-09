@@ -46,7 +46,8 @@ def _payload_with_one_variable(dst: Path) -> dict:
                 "gross_income": {
                     "policy_phrase": "gross monthly income",
                     "role_hint": "input",
-                    "source_section": "§1.2",
+                    "source_doc": "input/policy_docs/a.md",
+                    "section": "§1.2",
                 },
             },
         },
@@ -148,7 +149,8 @@ def test_quotes_policy_phrase_with_special_characters():
         payload = _minimal_payload(dst)
         payload["naming_manifest"]["variables"]["foo"] = {
             "policy_phrase": "applicant's gross income: monthly",
-            "source_section": "§1",
+            "source_doc": "input/policy_docs/a.md",
+            "section": "§1",
         }
         # No section reference required if sections is empty
         emit_per_file_yaml.emit(payload)
@@ -168,7 +170,8 @@ def test_role_hint_omitted_when_absent_from_input():
         payload = _minimal_payload(dst)
         payload["naming_manifest"]["variables"]["foo"] = {
             "policy_phrase": "the foo amount",
-            "source_section": "§1",
+            "source_doc": "input/policy_docs/a.md",
+            "section": "§1",
         }
         emit_per_file_yaml.emit(payload)
         text = dst.read_text()
@@ -379,6 +382,119 @@ def test_all_eight_types_in_vocabulary_pass_validation():
         emit_per_file_yaml.emit(payload)
         loaded = yaml.safe_load(dst.read_text())
         assert loaded["naming_manifest"]["variables"]["gross_income"]["type"] == "enum"
+
+
+# ---------------------------------------------------------------------------
+# source_doc / section schema (R1)
+# ---------------------------------------------------------------------------
+
+
+def test_source_doc_required_on_variable_entry():
+    """source_doc is a required string field per R1."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        del payload["naming_manifest"]["variables"]["gross_income"]["source_doc"]
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "source_doc" in str(exc)
+            assert "required" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for missing source_doc")
+
+
+def test_source_doc_empty_string_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["source_doc"] = ""
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "source_doc" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for empty source_doc")
+
+
+def test_legacy_source_section_field_is_rejected():
+    """Variables using the legacy `source_section:` field name are rejected
+    with a rename-instruction error."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        # Replace the new fields with the legacy field
+        del payload["naming_manifest"]["variables"]["gross_income"]["section"]
+        del payload["naming_manifest"]["variables"]["gross_income"]["source_doc"]
+        payload["naming_manifest"]["variables"]["gross_income"]["source_section"] = "§1.2"
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            msg = str(exc)
+            assert "source_section" in msg
+            assert "legacy" in msg
+            assert "section" in msg
+        else:
+            raise AssertionError("expected ValidationError for legacy source_section")
+
+
+def test_dual_legacy_and_new_section_field_is_rejected():
+    """When both `source_section:` (legacy) and `section:` (new) are present,
+    the emitter rejects with an actionable error."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["source_section"] = "§legacy"
+        # Keep the new section field too — both present
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            msg = str(exc)
+            assert "source_section" in msg
+            assert "section" in msg
+            assert "drop" in msg
+        else:
+            raise AssertionError("expected ValidationError for dual fields")
+
+
+def test_section_optional_when_omitted():
+    """section is optional — omitting it is fine as long as source_doc is present."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        del payload["naming_manifest"]["variables"]["gross_income"]["section"]
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert entry["source_doc"] == "input/policy_docs/a.md"
+        assert "section" not in entry
+
+
+def test_section_empty_string_is_rejected():
+    """When section is present, it must be a non-empty string."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["section"] = ""
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "section" in str(exc)
+            assert "non-empty" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for empty section")
+
+
+def test_section_null_treated_as_absent():
+    """None-valued section is stripped silently (consistent with role_hint behavior)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["section"] = None
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert "section" not in entry
 
 
 # ---------------------------------------------------------------------------
