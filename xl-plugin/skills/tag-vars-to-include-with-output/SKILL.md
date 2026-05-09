@@ -5,7 +5,7 @@ description: Tag Variables to Include with Output
 
 # Tag Variables to Include with Output
 
-Identify which intermediate computed variables should be exposed in the API's `ComputedBreakdown` response and merge them into `guidance/variables.yaml` under `intermediate_variables.include_with_output`. Runs non-interactively — no mid-run prompting.
+Identify which intermediate computed variables should be exposed in the API's `ComputedBreakdown` response and write them to `guidance/include-with-output.yaml`. Runs non-interactively — no mid-run prompting.
 
 ## Purpose
 
@@ -50,11 +50,11 @@ Await the user's response and use it as `<domain>`. Then continue.
      :::
      Then stop.
 
-3. **`guidance/variables.yaml` exists?**
+3. **`specs/naming-manifest.yaml` exists?**
    - NO → Print:
      :::error
-     guidance/variables.yaml not found: $DOMAINS_DIR/<domain>/specs/guidance/variables.yaml
-     Run /suggest-target-ruleset <domain> first.
+     specs/naming-manifest.yaml not found: $DOMAINS_DIR/<domain>/specs/naming-manifest.yaml
+     Run /declare-target-ruleset <domain> first.
      :::
      Stop.
 
@@ -64,7 +64,7 @@ Await the user's response and use it as `<domain>`. Then continue.
 
 ### Detection pass 1 — invoke-derived variables (skeleton computations)
 
-Scan all `computations:` entries across every `intermediate_variables.categories[]` entry in `guidance/variables.yaml`. For each entry whose `expr:` value contains dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot.
+Scan all `computations:` entries across every `skeleton.computations[]` entry in `guidance/skeleton.yaml`. For each `exprs:` value containing dot-notation (`<identifier>.<identifier>`), collect the **base name** — the portion before the first dot.
 
 Example: `expr: "client_result.adjusted_earned_income"` → base name `client_result`.
 
@@ -84,37 +84,49 @@ Collect all such names as `auto_tagged_2`.
 
 ### Detection pass 3 — declared output variables
 
-Collect `output_variables.primary.name` and all `output_variables.secondary_decisions[].name` values from `guidance/variables.yaml`. These are the primary decision outputs the module is designed to produce.
+Collect every output name from `specs/naming-manifest.yaml`'s top-level `outputs:` block. These are the primary decision outputs the module is designed to produce.
 
 Collect all such names as `output_declared`.
 
 ### Merge and write
 
-Compute: `new_include_with_output` = `auto_tagged_1` ∪ `auto_tagged_2` ∪ `output_declared` ∪ existing `intermediate_variables.include_with_output` values (if any).
+Compute: `new_include_with_output` = `auto_tagged_1` ∪ `auto_tagged_2` ∪ `output_declared` ∪ existing entries in `guidance/include-with-output.yaml` (if the file already exists).
 
 Deduplicate. Preserve all existing names — never remove entries.
 
-Write the merged list to `guidance/variables.yaml` under `intermediate_variables.include_with_output`. Do not modify any other field in `variables.yaml`.
+Write the merged list to `guidance/include-with-output.yaml` as a flat YAML list of name strings:
+
+```yaml
+- client_result
+- dol_result
+- is_compatible
+- income_limit
+- eligible
+- denial_reason
+- after_half
+```
+
+The file is created on first run if absent. Re-runs replace the file (existing entries are preserved via the merge above; manual analyst edits to remove entries require deleting the file or hand-editing it after this skill runs).
 
 ### Print result
 
-Print one line per name in the final `include_with_output` list, labeled with its detection reason:
+Print one line per name in the final include-with-output list, labeled with its detection reason:
 
 :::important
-include_with_output written to guidance/variables.yaml:
+include-with-output written to guidance/include-with-output.yaml:
   client_result   (invoke-derived: skeleton computations)
   dol_result      (invoke-derived: sample rule CIVIL snippet)
   is_compatible   (decision condition: when: clause in categorical rule)
   income_limit    (decision condition: when: clause in categorical rule)
-  eligible        (output variable: output_variables.primary)
-  denial_reason   (output variable: output_variables.secondary_decisions)
+  eligible        (output variable: naming-manifest.yaml outputs)
+  denial_reason   (output variable: naming-manifest.yaml outputs)
   after_half      (existing)
 :::
 
 If no variables were detected and no existing values were present, print:
 
 :::important
-No variables auto-detected. include_with_output: [] written to guidance/variables.yaml.
+No variables auto-detected. Empty list written to guidance/include-with-output.yaml.
 :::
 
 Then suggest next steps:
@@ -129,14 +141,15 @@ Next: Run /create-sample-tests <domain> to generate sample test cases used to as
 
 | File | Action |
 |------|--------|
-| `$DOMAINS_DIR/<domain>/specs/guidance/variables.yaml` | Updated — `intermediate_variables.include_with_output` merged |
+| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Created (first run) or merged (subsequent runs) |
 
 ---
 
 ## Common Mistakes to Avoid
 
 - **Tag for explainability, not completeness** — the goal is to surface variables that help callers understand the decision; not every computed variable needs to be exposed
-- **Do not remove existing entries** from `include_with_output` — this command only adds; removal is a manual edit
-- **Do not modify any field other than `intermediate_variables.include_with_output`** — preserve all other `variables.yaml` content verbatim
+- **Do not remove existing entries** from `include-with-output.yaml` — this command only adds; removal is a manual edit
+- **Do not write `guidance/variables.yaml`** — that file is gone in v7.0.0. The dedicated `guidance/include-with-output.yaml` carries the include list.
+- **Read declared outputs from `specs/naming-manifest.yaml`'s `outputs:` block** — not from a `variables.yaml` `output_variables` section.
 - **Base name only for dot-notation** — collect the identifier before the first dot (e.g., `client_result` from `client_result.adjusted_earned_income`), not the full expression
 - **Idempotent** — running this command twice must produce no duplicates and no changes on the second run
