@@ -461,6 +461,8 @@ Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-
 - If the analyst's confirmed Field Name differs from the defaults entry's canonical name (analyst renamed it in Step 3b), write `original_name: <defaults-canonical-name>`. The next `/index-inputs` run reads this anchor through the worker authority chain, so analysts never copy renames back manually (the no-copy-back guarantee).
 - If `policy_facets/naming-defaults.yaml` has no entry for the phrase (algorithm-derived path), omit `original_name:` — there is no defaults canonical to anchor against.
 
+**Defaults field propagation.** Using the same `policy_phrase`-keyed lookup against `policy_facets/naming-defaults.yaml`, propagate the following optional fields from the matched defaults entry into the specs entry: `description:`, `type:`, `values:`, and `synonyms:` (the v6.0.0 row list `[{name, source_doc, section}, ...]`, copied verbatim). Omit any field that is absent from the defaults entry — never write a key as null or empty. `role_hint:` is intentionally excluded because specs encodes role via the section placement (`inputs.<Entity>` vs `computed:` vs `outputs:`). When `policy_facets/naming-defaults.yaml` has no entry for the phrase (algorithm-derived path), propagation no-ops — only `policy_phrase`/`source_doc`/`section` are written.
+
 **Multi-file:** Write one consolidated `naming-manifest.yaml` covering all `generate` entries in the work-list (sub-modules first, main module last). Merge entries from each module into the appropriate `inputs:`, `computed:`, and `outputs:` sections.
 
 ```yaml
@@ -470,28 +472,49 @@ inputs:
     <field_name>:
       policy_phrase: "<exact policy phrase from Name Inventory>"
       original_name: <defaults-canonical-name>   # only when analyst renamed in Step 3b
+      description: "<from defaults entry>"        # optional; omitted when absent
+      type: "<money|bool|int|float|string|enum|list|date>"  # optional; omitted when absent
+      values: ["<a>", "<b>"]                      # optional; only when type: enum
       source_doc: "<source filename>"
       section: "<source title, heading, and paragraph>"
+      synonyms:                                   # optional; omitted when absent or empty
+        - name: <alt-name>
+          source_doc: <input/policy_docs/...>
+          section: "<...>"
   # repeat for each entity
 computed:
   <field_name>:
     policy_phrase: "<exact policy phrase>"
+    description: "<from defaults entry>"          # optional
+    type: "<...>"                                 # optional
+    values: ["<...>"]                             # optional; only when type: enum
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
+    synonyms:                                     # optional
+      - name: <alt-name>
+        source_doc: <input/policy_docs/...>
+        section: "<...>"
 outputs:
   <field_name>:
     policy_phrase: "<exact policy phrase from Name Inventory>"
+    description: "<from defaults entry>"          # optional
+    type: "<...>"                                 # optional
+    values: ["<...>"]                             # optional; only when type: enum
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
+    synonyms:                                     # optional
+      - name: <alt-name>
+        source_doc: <input/policy_docs/...>
+        section: "<...>"
   # repeat for each outputs: field
 ```
 
 **Re-run merge — replace-on-rename, keyed by `policy_phrase`** (CREATE re-run when the file already exists):
 
 - For each entry being written, normalize its `policy_phrase` (same normalizer as `xlator naming-defaults --build`: lowercase, strip leading `a/an/the`, strip ASCII punctuation, collapse whitespace). Look for an existing entry in the file whose normalized `policy_phrase` matches.
-- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry unchanged, including any `original_name:` already on it.
-- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Set `original_name:` to the **earliest** anchor in the chain: if the existing entry already has `original_name:`, copy that value forward (the chain anchors to the first non-rename name across all rounds, never to the most recent rename). If the existing entry has no `original_name:`, set `original_name:` to the existing entry's key (the previous canonical). Drop the existing entry from the file (no duplicate).
-- **No match (new phrase):** append a new entry. Apply the `original_name:` rule against `policy_facets/naming-defaults.yaml` as described above.
+- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry unchanged, including any `original_name:` already on it. **Defaults-field propagation does NOT refresh on a name-match re-run** — analyst edits to `description:` / `type:` / `values:` / `synonyms:` survive. To force re-propagation, the analyst deletes the field from specs and re-runs `/extract-ruleset`.
+- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Set `original_name:` to the **earliest** anchor in the chain: if the existing entry already has `original_name:`, copy that value forward (the chain anchors to the first non-rename name across all rounds, never to the most recent rename). If the existing entry has no `original_name:`, set `original_name:` to the existing entry's key (the previous canonical). Drop the existing entry from the file (no duplicate). **Re-propagate `description:` / `type:` / `values:` / `synonyms:` from the current defaults entry** alongside the new `original_name:` chain anchor.
+- **No match (new phrase):** append a new entry. Apply the `original_name:` rule against `policy_facets/naming-defaults.yaml` as described above, plus the defaults field propagation rule.
 
 This preserves the no-copy-back guarantee across multiple rename rounds — the chain anchor stays pinned to the original `/index-inputs`-derived name even after several analyst renames.
 

@@ -231,6 +231,8 @@ If no manifest exists yet, create it now from all current CIVIL field names. No 
 - Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it disambiguated a derived name before writing). In every other case, omit `original_name:`.
 - Readers (the next `/index-inputs` worker) fall back to the current key when `original_name:` is absent.
 
+**Defaults field propagation (best-effort).** When appending a new entry (or replacing on rename), apply the same `description:` / `type:` / `values:` / `synonyms:` propagation rule defined in `/extract-ruleset` Step 7 — join to `policy_facets/naming-defaults.yaml` by normalized `policy_phrase` and copy any present optional fields verbatim. `role_hint:` is excluded; entity grouping encodes role. The best-effort caveat applies: when this writer cannot match a CIVIL field back to a defaults entry by `policy_phrase`, propagation no-ops and only the existing fields (`policy_phrase`, `source_doc`, `section`) are written. Existing entries that Step 9 preserves verbatim are unaffected — analyst edits to propagated fields survive across UPDATE runs.
+
 ### Step 10: Write Stale-Cases Hint
 
 Write `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` for use by `/create-tests`:
