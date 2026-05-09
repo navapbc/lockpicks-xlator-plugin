@@ -74,6 +74,55 @@ _PUNCT_TABLE = str.maketrans({c: " " for c in string.punctuation})
 # ---------------------------------------------------------------------------
 
 
+def _set_in_order(d: dict, key: str, value, before: tuple[str, ...]) -> None:
+    """Insert/replace `key=value` in dict `d` while keeping `key` ordered before
+    any of the keys in `before` that are already present. Preserves the
+    insertion-order convention used for naming-defaults.yaml output entries.
+    """
+    if key in d:
+        d[key] = value
+        return
+    # Build a new dict with `key` inserted in the right position.
+    new = {}
+    inserted = False
+    for k, v in d.items():
+        if not inserted and k in before:
+            new[key] = value
+            inserted = True
+        new[k] = v
+    if not inserted:
+        new[key] = value
+    d.clear()
+    d.update(new)
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Compute Levenshtein edit distance between two strings.
+
+    Used by the convergence-warning surface to detect seeded names that are
+    similar (but not identical) to auto-picked canonicals.
+    """
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    # Standard DP table; small strings (variable names), O(len(a)*len(b)) is fine.
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            curr[j] = min(
+                prev[j] + 1,        # deletion
+                curr[j - 1] + 1,    # insertion
+                prev[j - 1] + cost, # substitution
+            )
+        prev = curr
+    return prev[-1]
+
+
 def normalize_phrase(phrase: str) -> str:
     """Canonicalize a policy phrase for synonym grouping.
 
@@ -102,18 +151,53 @@ def normalize_phrase(phrase: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) -> dict[str, dict]:
+def _flatten_specs(
+    specs: dict,
+    per_file_relpaths: set[str],
+    errors: list[str],
+) -> tuple[dict[str, dict], dict[str, dict]]:
     """Walk inputs.<Entity>.<field>, computed.<name>, outputs.<name> and produce
-    a `{normalized_phrase → {name, role_hint?, source_doc, section, _entity?}}` map.
+    two maps:
+      * `specs_lookup` — phrase-keyed `{normalized_phrase → {name, role_hint?,
+        source_doc, section, _entity?, description?, type?, values?}}` for
+        entries that carry a `policy_phrase` (collision-resolved per the
+        existing tiebreak rules).
+      * `seeded_unobserved` — name-keyed `{name → payload}` for phraseless
+        seeded entries — entries the analyst declared via /declare-target-ruleset
+        before extraction surfaced any observation. These are routed through
+        pass 2 of the merge in cmd_build.
 
-    On collision, prefer entries whose source_doc is referenced by a per-file file
-    in the glob; deterministic alphabetical-by-entity tiebreak after that.
+    On phrase collision, prefer entries whose source_doc is referenced by a
+    per-file file in the glob; deterministic alphabetical-by-entity tiebreak
+    after that.
     """
     if not isinstance(specs, dict):
         errors.append("specs/naming-manifest.yaml: not a map; ignoring")
-        return {}
+        return {}, {}
 
     entries: list[dict] = []
+    seeded_unobserved: dict[str, dict] = {}
+
+    def _classify(name: str, payload: dict, entity: str) -> None:
+        """Route a payload to either `entries` (phrased) or `seeded_unobserved`
+        (phraseless seeded)."""
+        phrase = payload.get("policy_phrase", "")
+        common = {
+            "name": name,
+            "role_hint": payload.get("role_hint"),
+            "source_doc": payload.get("source_doc"),
+            "section": payload.get("section"),
+            "_entity": entity,
+            "description": payload.get("description"),
+            "type": payload.get("type"),
+            "values": payload.get("values"),
+        }
+        if isinstance(phrase, str) and phrase:
+            entries.append({**common, "policy_phrase": phrase})
+        else:
+            # Phraseless seeded entry. Last-write-wins on duplicate names
+            # (rare; specs schema has each name unique within its block).
+            seeded_unobserved[name] = {**common, "policy_phrase": ""}
 
     inputs = specs.get("inputs") or {}
     if isinstance(inputs, dict):
@@ -123,20 +207,7 @@ def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) 
             for field_name, payload in fields.items():
                 if not isinstance(payload, dict):
                     continue
-                phrase = payload.get("policy_phrase", "")
-                if not isinstance(phrase, str) or not phrase:
-                    continue
-                entries.append({
-                    "name": str(field_name),
-                    "policy_phrase": phrase,
-                    "role_hint": payload.get("role_hint"),
-                    "source_doc": payload.get("source_doc"),
-                    "section": payload.get("section"),
-                    "_entity": str(entity),
-                    "description": payload.get("description"),
-                    "type": payload.get("type"),
-                    "values": payload.get("values"),
-                })
+                _classify(str(field_name), payload, str(entity))
 
     for top_key in ("computed", "outputs"):
         block = specs.get(top_key) or {}
@@ -145,22 +216,9 @@ def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) 
         for name, payload in block.items():
             if not isinstance(payload, dict):
                 continue
-            phrase = payload.get("policy_phrase", "")
-            if not isinstance(phrase, str) or not phrase:
-                continue
-            entries.append({
-                "name": str(name),
-                "policy_phrase": phrase,
-                "role_hint": payload.get("role_hint"),
-                "source_doc": payload.get("source_doc"),
-                "section": payload.get("section"),
-                "_entity": "",  # flat sections have no entity name
-                "description": payload.get("description"),
-                "type": payload.get("type"),
-                "values": payload.get("values"),
-            })
+            _classify(str(name), payload, "")  # flat sections have no entity name
 
-    # Group by normalized phrase, applying collision rules.
+    # Group phrased entries by normalized phrase, applying collision rules.
     grouped: dict[str, list[dict]] = {}
     for entry in entries:
         key = normalize_phrase(entry["policy_phrase"])
@@ -196,7 +254,7 @@ def _flatten_specs(specs: dict, per_file_relpaths: set[str], errors: list[str]) 
             "type": chosen.get("type"),
             "values": chosen.get("values"),
         }
-    return flattened
+    return flattened, seeded_unobserved
 
 
 # ---------------------------------------------------------------------------
@@ -627,6 +685,7 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
     # 3. Read specs (after we know per_file_relpaths for the collision rule).
     specs_path = domain_dir / _SPECS
     specs_lookup: dict[str, dict] = {}
+    seeded_unobserved: dict[str, dict] = {}
     if specs_path.exists():
         try:
             with specs_path.open(encoding="utf-8") as f:
@@ -635,7 +694,9 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
             errors.append(f"{specs_path}: malformed; treating as empty: {exc}")
             specs_data = None
         if specs_data is not None:
-            specs_lookup = _flatten_specs(specs_data, per_file_relpaths, errors)
+            specs_lookup, seeded_unobserved = _flatten_specs(
+                specs_data, per_file_relpaths, errors
+            )
 
     # 4. Read prior naming-defaults for stability heuristic + churn.
     prior = _read_prior_defaults(domain_dir)
@@ -739,6 +800,72 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
         for obs in observations:
             if obs["name"] != canonical_name:
                 rename_map.setdefault(obs["file"], {})[obs["name"]] = canonical_name
+
+    # 5b. Pass 2: phraseless seeded entries.
+    # Each name in seeded_unobserved either matches a pass-1 canonical (merge
+    # seed-supplied type/values/description into the existing entry, with the
+    # seeded value winning on conflict per the three-tier authority rule) or
+    # surfaces as a standalone canonical with no top-level provenance and no
+    # synonyms list (R6).
+    for seeded_name, seed_payload in sorted(seeded_unobserved.items()):
+        if seeded_name in variables_out:
+            existing = variables_out[seeded_name]
+            # Seeded values win when the seed supplied them.
+            seed_type = seed_payload.get("type")
+            seed_values = seed_payload.get("values")
+            seed_description = seed_payload.get("description")
+            if seed_type:
+                if existing.get("type") and existing["type"] != seed_type:
+                    errors.append(
+                        f"variable '{seeded_name}': seeded type '{seed_type}' "
+                        f"overrides observed type '{existing['type']}'"
+                    )
+                # Insert/replace `type` while preserving relative field order
+                # (description, policy_phrase, type, values, role_hint, source_doc, section, synonyms).
+                _set_in_order(existing, "type", seed_type, before=("values", "role_hint", "source_doc", "section", "synonyms"))
+            if seed_values and seed_type == "enum":
+                _set_in_order(existing, "values", list(seed_values), before=("role_hint", "source_doc", "section", "synonyms"))
+            if seed_description and not existing.get("description"):
+                _set_in_order(existing, "description", seed_description, before=("policy_phrase", "type", "values", "role_hint", "source_doc", "section", "synonyms"))
+        else:
+            # New standalone canonical: no top-level provenance, no synonyms.
+            out_entry: dict = {}
+            if seed_payload.get("description"):
+                out_entry["description"] = seed_payload["description"]
+            # `policy_phrase` is empty for seeded-unobserved; omit the key entirely.
+            if seed_payload.get("type"):
+                out_entry["type"] = seed_payload["type"]
+            if seed_payload.get("values") and seed_payload.get("type") == "enum":
+                out_entry["values"] = list(seed_payload["values"])
+            if seed_payload.get("role_hint"):
+                out_entry["role_hint"] = seed_payload["role_hint"]
+            variables_out[seeded_name] = out_entry
+
+    # 5c. Convergence warning: when a seeded standalone name is similar to a
+    # pass-1 auto-picked canonical (Levenshtein distance ≤ 2, OR ≤ 25% of name
+    # length when the longer name has more than 8 characters), surface a
+    # warning so the analyst can confirm or rename in /extract-ruleset Step 3b.
+    standalone_seeded_names = {
+        name for name in seeded_unobserved
+        # Only standalone (not merged into a pass-1 canonical) trigger warnings.
+        if name in variables_out and variables_out[name].get("source_doc") is None
+        and variables_out[name].get("section") is None
+        and variables_out[name].get("synonyms") is None
+    }
+    pass1_canonical_names = set(variables_out.keys()) - standalone_seeded_names
+    for seed_name in sorted(standalone_seeded_names):
+        for canonical_name in pass1_canonical_names:
+            if canonical_name == seed_name:
+                continue
+            distance = _levenshtein(seed_name, canonical_name)
+            longer_len = max(len(seed_name), len(canonical_name))
+            threshold = max(2, longer_len // 4) if longer_len > 8 else 2
+            if 0 < distance <= threshold:
+                errors.append(
+                    f"seeded '{seed_name}' has no observation; observed canonical "
+                    f"'{canonical_name}' is similar (edit distance {distance}) — "
+                    f"confirm or rename in /extract-ruleset Step 3b"
+                )
 
     # 6. Sort variables alphabetically by canonical name.
     sorted_variables = {k: variables_out[k] for k in sorted(variables_out.keys())}

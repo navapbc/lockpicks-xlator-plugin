@@ -1762,6 +1762,213 @@ def test_missing_source_doc_without_legacy_emits_warning():
         assert entry["source_doc"] == "input/policy_docs/incomplete.md"
 
 
+# ---------------------------------------------------------------------------
+# Two-pass merge: phraseless seeded entries (R6, R7, R8)
+# ---------------------------------------------------------------------------
+
+
+def test_seeded_only_entry_surfaces_as_standalone_canonical():
+    """Specs has a phraseless seeded `outputs.eligibility_status` with type/values.
+    No per-file observation. Output entry has type/values but no source_doc, no
+    section, no synonyms list."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "outputs": {
+                "eligibility_status": {
+                    "type": "enum",
+                    "values": ["pass", "fail"],
+                },
+            },
+        })
+        # No per-file files for this name.
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["eligibility_status"]
+        assert entry["type"] == "enum"
+        assert entry["values"] == ["pass", "fail"]
+        assert "source_doc" not in entry
+        assert "section" not in entry
+        assert "synonyms" not in entry
+        assert "policy_phrase" not in entry
+
+
+def test_seeded_name_matches_pass1_canonical_seed_type_wins():
+    """Specs seeds `adjusted_income` with type=money. Per-file observes same name
+    with no type. Output: single entry with type=money from seed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "adjusted_income": {
+                    "type": "money",
+                },
+            },
+        })
+        _write_per_file(
+            domain, "income.md",
+            naming_manifest={"variables": {"adjusted_income": {
+                "policy_phrase": "adjusted income", "section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["adjusted_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["adjusted_income"]
+        assert entry["type"] == "money"
+        # Pass-1 supplied source_doc/section from observation.
+        assert entry["source_doc"] == "input/policy_docs/income.md"
+
+
+def test_seeded_type_conflicts_with_observed_emits_warning():
+    """Specs seeds `gross_income` with type=money. Per-file observes same name
+    with type=int. Seed wins; conflict warning emitted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "gross_income": {
+                    "type": "money",
+                },
+            },
+        })
+        _write_per_file(
+            domain, "income.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross income", "section": "§1",
+                "type": "int",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        summary = naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gross_income"]
+        assert entry["type"] == "money"  # seed wins
+        conflict_warnings = [
+            e for e in summary["errors"]
+            if "seeded type" in e and "overrides observed" in e
+        ]
+        assert len(conflict_warnings) == 1
+        assert "money" in conflict_warnings[0]
+        assert "int" in conflict_warnings[0]
+
+
+def test_convergence_warning_when_seeded_name_similar_to_observed():
+    """Specs seeds `gros_income` (typo). Per-file observes `gross_income`.
+    Two separate canonicals (single-character edit distance); convergence
+    warning surfaces. Threshold is conservative — names with larger differences
+    (e.g., `gross_income` vs `monthly_gross_income`) do NOT warn, since the
+    risk of false positives outweighs the convergence-detection value."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "gros_income": {  # one-char typo of "gross_income"
+                    "type": "money",
+                },
+            },
+        })
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross income", "section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        summary = naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        # Both canonicals exist.
+        assert "gros_income" in defaults["variables"]
+        assert "gross_income" in defaults["variables"]
+        # Convergence warning emitted.
+        convergence_warnings = [
+            e for e in summary["errors"]
+            if "is similar" in e and "edit distance" in e
+        ]
+        assert len(convergence_warnings) >= 1
+        # gros_income is the seeded name; warning mentions it.
+        assert any("gros_income" in w for w in convergence_warnings)
+
+
+def test_convergence_warning_skipped_when_names_identical():
+    """When seed and observation share the same name (canonical merge), no
+    convergence warning fires — they collapsed into one entry."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "adjusted_income": {
+                    "type": "money",
+                },
+            },
+        })
+        _write_per_file(
+            domain, "income.md",
+            naming_manifest={"variables": {"adjusted_income": {
+                "policy_phrase": "adjusted income", "section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["adjusted_income"]}]}],
+        )
+        summary = naming_defaults.cmd_build(domain)
+        convergence_warnings = [
+            e for e in summary["errors"] if "is similar" in e
+        ]
+        assert convergence_warnings == []
+
+
+def test_synonyms_collapsed_unaffected_by_standalone_seeded():
+    """Standalone seeded entries contribute zero to the synonyms_collapsed
+    metric — they have no observed synonyms."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "outputs": {
+                "eligibility_status": {"type": "enum", "values": ["pass", "fail"]},
+            },
+        })
+        summary = naming_defaults.cmd_build(domain)
+        assert summary["synonyms_collapsed"] == 0
+
+
+def test_two_pass_determinism():
+    """Two consecutive cmd_build runs over identical specs+per-file fixtures
+    produce byte-identical output, including pass-2 standalone seeded entries."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "outputs": {
+                "eligibility_status": {"type": "enum", "values": ["pass", "fail"]},
+            },
+            "computed": {
+                "adjusted_income": {"type": "money"},
+            },
+        })
+        _write_per_file(
+            domain, "income.md",
+            naming_manifest={"variables": {"adjusted_income": {
+                "policy_phrase": "adjusted income", "section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["adjusted_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        first = (domain / "policy_facets" / "naming-defaults.yaml").read_bytes()
+        naming_defaults.cmd_build(domain)
+        second = (domain / "policy_facets" / "naming-defaults.yaml").read_bytes()
+        assert first == second
+
+
 def main() -> int:
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = []
