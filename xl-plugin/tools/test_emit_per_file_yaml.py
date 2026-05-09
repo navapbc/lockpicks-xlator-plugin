@@ -184,6 +184,204 @@ def test_role_hint_emitted_when_present():
 
 
 # ---------------------------------------------------------------------------
+# New optional fields: description, type, values
+# ---------------------------------------------------------------------------
+
+
+def test_description_field_round_trips_when_present():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["description"] = (
+            "Total monthly household income before any deductions."
+        )
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert entry["description"] == (
+            "Total monthly household income before any deductions."
+        )
+
+
+def test_type_money_round_trips_without_values():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "money"
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert entry["type"] == "money"
+        assert "values" not in entry
+
+
+def test_type_enum_with_values_round_trips():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "enum"
+        payload["naming_manifest"]["variables"]["gross_income"]["values"] = [
+            "approve",
+            "deny",
+            "manual_verification",
+        ]
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert entry["type"] == "enum"
+        assert entry["values"] == ["approve", "deny", "manual_verification"]
+
+
+def test_legacy_payload_without_new_fields_still_emits_cleanly():
+    """R8 regression guard: existing per-file files without description/type/values
+    continue to validate and emit as before."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        emit_per_file_yaml.emit(_payload_with_one_variable(dst))
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert "description" not in entry
+        assert "type" not in entry
+        assert "values" not in entry
+
+
+def test_description_null_is_treated_as_absent():
+    """None-valued description is stripped silently (consistent with role_hint behavior)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["description"] = None
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        entry = loaded["naming_manifest"]["variables"]["gross_income"]
+        assert "description" not in entry
+
+
+def test_description_empty_string_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["description"] = ""
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "description" in str(exc)
+            assert "non-empty" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for empty description")
+
+
+def test_description_whitespace_only_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["description"] = "   "
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "description" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for whitespace-only description")
+
+
+def test_type_str_is_rejected_with_helpful_vocabulary_message():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "str"
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            msg = str(exc)
+            assert "type" in msg
+            assert "string" in msg  # tells the caller the right value
+            assert "money" in msg
+        else:
+            raise AssertionError("expected ValidationError for type: str")
+
+
+def test_type_enum_without_values_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "enum"
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "enum" in str(exc)
+            assert "values" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for enum without values")
+
+
+def test_values_without_enum_type_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "string"
+        payload["naming_manifest"]["variables"]["gross_income"]["values"] = ["a"]
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "values" in str(exc)
+            assert "enum" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for values without enum")
+
+
+def test_values_empty_list_with_enum_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "enum"
+        payload["naming_manifest"]["variables"]["gross_income"]["values"] = []
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "values" in str(exc)
+            assert "non-empty" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for empty values list")
+
+
+def test_values_non_string_elements_are_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "enum"
+        payload["naming_manifest"]["variables"]["gross_income"]["values"] = [1, 2, 3]
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "values" in str(exc)
+            assert "string" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for non-string values")
+
+
+def test_all_eight_types_in_vocabulary_pass_validation():
+    """Each of the eight CIVIL types is accepted (with values when enum)."""
+    for t in ("money", "bool", "int", "float", "string", "list", "date"):
+        with tempfile.TemporaryDirectory() as tmp:
+            dst = Path(tmp) / "out.md.yaml"
+            payload = _payload_with_one_variable(dst)
+            payload["naming_manifest"]["variables"]["gross_income"]["type"] = t
+            emit_per_file_yaml.emit(payload)
+            loaded = yaml.safe_load(dst.read_text())
+            assert loaded["naming_manifest"]["variables"]["gross_income"]["type"] == t
+
+    # enum requires values
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_variable(dst)
+        payload["naming_manifest"]["variables"]["gross_income"]["type"] = "enum"
+        payload["naming_manifest"]["variables"]["gross_income"]["values"] = ["a", "b"]
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        assert loaded["naming_manifest"]["variables"]["gross_income"]["type"] == "enum"
+
+
+# ---------------------------------------------------------------------------
 # Atomic write
 # ---------------------------------------------------------------------------
 

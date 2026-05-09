@@ -25,7 +25,10 @@ Input JSON shape:
           "<name>": {
             "policy_phrase": "...",
             "role_hint": "input|computed|output",   # optional
-            "source_section": "..."
+            "source_section": "...",
+            "description": "...",                   # optional
+            "type": "money|bool|int|float|string|enum|list|date",  # optional
+            "values": ["..."]                       # required iff type=enum
           }
         }
       },
@@ -58,6 +61,11 @@ import yaml
 
 class ValidationError(Exception):
     """Raised when the input payload violates an invariant."""
+
+
+_TYPE_VOCABULARY = frozenset({
+    "money", "bool", "int", "float", "string", "enum", "list", "date",
+})
 
 
 def _collect_section_variables(sections: list) -> set[str]:
@@ -97,6 +105,54 @@ def _validate(payload: dict) -> None:
         raise ValidationError(
             "section variables missing from naming_manifest.variables: "
             + ", ".join(missing)
+        )
+
+    for name, entry in variables.items():
+        if isinstance(entry, dict):
+            _validate_variable_entry(name, entry)
+
+
+def _validate_variable_entry(name: str, entry: dict) -> None:
+    """Check the optional description/type/values fields per R7.
+
+    Treats keys whose value is None as absent (matches the _strip_none
+    normalization on the write path).
+    """
+    description = entry.get("description")
+    if description is not None:
+        if not isinstance(description, str) or not description.strip():
+            raise ValidationError(
+                f"naming_manifest.variables.{name}.description must be a non-empty string"
+            )
+
+    type_value = entry.get("type")
+    values = entry.get("values")
+
+    if type_value is not None and type_value not in _TYPE_VOCABULARY:
+        raise ValidationError(
+            f"naming_manifest.variables.{name}.type must be one of "
+            f"{sorted(_TYPE_VOCABULARY)}; got {type_value!r}"
+        )
+
+    if values is not None:
+        if type_value != "enum":
+            raise ValidationError(
+                f"naming_manifest.variables.{name}.values requires type: enum "
+                f"(got type={type_value!r})"
+            )
+        if not isinstance(values, list) or not values:
+            raise ValidationError(
+                f"naming_manifest.variables.{name}.values must be a non-empty list "
+                f"when type is enum"
+            )
+        if not all(isinstance(v, str) for v in values):
+            raise ValidationError(
+                f"naming_manifest.variables.{name}.values must be a list of strings"
+            )
+
+    if type_value == "enum" and values is None:
+        raise ValidationError(
+            f"naming_manifest.variables.{name}.type=enum requires a values list"
         )
 
 
