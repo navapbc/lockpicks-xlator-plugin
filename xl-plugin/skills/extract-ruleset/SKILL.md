@@ -71,6 +71,14 @@ Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
 - If the work-list has exactly one entry (ruleset_modules: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
 
+**After Check 6 (in-scope source set resolved):** Run **SP-LoadInputIndex** (from `../../core/ruleset-shared.md`) with `domain=<domain>`, `mode=batch`, and `paths` set to the in-scope source set:
+- If `<filename>` was given: `paths = ["input/policy_docs/<filename>"]` (with `.md` already appended by Check 4).
+- Else if Check 6 fired (2+ files): `paths` is the list of `input/policy_docs/<rel>.md` keys the user selected (a single number, comma-separated numbers, or every file when `a` was chosen).
+- Else (1 file): `paths = ["input/policy_docs/<the-file>.md"]`.
+
+Store the returned `{path → sha}` map for use in Step 5 (Write Extraction Manifest).
+- If SP-LoadInputIndex emits an abort signal → stop with the message it printed. Do not advance to Step 1.
+
 ---
 
 ## Process
@@ -448,11 +456,7 @@ programs:
 
 **Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
 
-Get each doc's git blob SHA (working-tree content hash) — this is what `/update-ruleset` later compares against to detect changes:
-```bash
-git hash-object $DOMAINS_DIR/<domain>/input/policy_docs/<filename>.md
-```
-`git hash-object` reflects the file's current bytes, so the recorded SHA matches whatever was actually extracted — even if the source doc has uncommitted edits at extraction time. Use `"untracked"` only if `git hash-object` itself fails.
+For each `source_docs:` entry being written, read the SHA from the `{path → sha}` map produced by **SP-LoadInputIndex** in pre-flight, keyed on the entry's `path:` (`input/policy_docs/<rel>.md`). Write that value verbatim into the entry's `git_sha:` field. Do not run `git hash-object` here — the SP already computed the working-tree drift check, so the indexed SHA is guaranteed to match the bytes being extracted. Field-name translation: the index field is `sha:`, the manifest field is `git_sha:`; the value is identical (see `../../core/ruleset-shared.md` SP-LoadInputIndex "Field-name translation contract").
 
 ### Step 6: Validate CIVIL files
 

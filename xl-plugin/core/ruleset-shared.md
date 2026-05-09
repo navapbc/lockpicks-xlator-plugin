@@ -560,3 +560,80 @@ Two operations apply:
 In both cases these names are **canonical** — never re-derive or rename a variable that already exists in the manifest.
 
 **If absent or malformed:** Proceed with an empty lookup map. Defensive parsing: an unreadable or invalid YAML file is treated as absent (do not abort the caller).
+
+---
+
+## SP-LoadInputIndex
+
+**Signature:** `SP-LoadInputIndex(domain, paths, mode=batch)`
+
+- `domain` — the domain name; resolves to `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml`.
+- `paths` — list of `input/policy_docs/<rel>.md` keys to load. Pass a single-element list when scoping to one file, the full in-scope set when scoping to a multi-doc selection, or `[]` to request the entire (filtered) `files:` map (used by `/update-ruleset` Step 2 to enumerate added files).
+- `mode` — `batch` (default; filter rejected entries with `md_quality.score < 40`) or `strict` (no filtering — caller has already constrained `paths` to known-eligible entries).
+
+**Output:** map `{path → sha}` for the requested paths (or for every eligible entry when `paths == []`), or an abort signal with the `:::error` text the caller should print verbatim.
+
+**When to call:**
+- `/extract-ruleset`: in pre-flight, immediately after Pre-flight Check 6 returns. Pass the in-scope source set (single `<filename>` or the multi-doc selection chosen in Check 6).
+- `/update-ruleset`: in pre-flight, immediately after Step 0 (naming-manifest divergence + multi-file validation). Pass `paths == []` so the full filtered `files:` map is loaded for use in Steps 1, 2, and 7.
+
+**Procedure:**
+
+```
+1. Resolve and load.
+   Read $DOMAINS_DIR/<domain>/policy_facets/input-index.yaml.
+   If the file is absent or unreadable:
+     → Emit abort signal:
+       :::error
+       policy_facets/input-index.yaml is missing or unreadable for <domain>.
+       Run `/index-inputs <domain>` first to build the input index.
+       :::
+     → Caller stops.
+
+2. Parse files: block.
+   Extract the files: map. Path keys are input/policy_docs/<rel>.md strings.
+   Each entry has shape: { sha: "<40-hex>" | "untracked", md_quality: { score: <int>, flags?: [...] } }.
+
+3. Filter rejected entries (batch mode only).
+   When mode == batch, drop entries where md_quality.score < 40.
+   /index-inputs moved these source files from input/policy_docs/<rel>.md to input/rejected/<rel>.md;
+   their input-index.yaml entry persists but the source is no longer at the index key's path.
+
+4. Materialize requested paths.
+   If paths == []: requested_paths = the full set of keys remaining after step 3.
+   Else: requested_paths = paths.
+
+   For each <path> in requested_paths:
+     If the entry is missing from the (filtered) files: map:
+       → Emit abort signal:
+         :::error
+         no input-index.yaml entry for <path> in <domain> (or the entry is rejected).
+         Run `/index-inputs <domain>` to refresh the index.
+         :::
+       → Caller stops.
+
+5. Drift check.
+   For each <path> in requested_paths, compute:
+     git hash-object $DOMAINS_DIR/<domain>/<path>
+   Compare the result against the index entry's sha: value.
+   If the values differ:
+     → Emit abort signal:
+       :::error
+       policy_facets/input-index.yaml is stale for <path> in <domain> (working tree differs from indexed SHA).
+       Run `/index-inputs <domain>` first to refresh the index, then re-run this skill.
+       :::
+     → Caller stops.
+
+   If git hash-object itself fails (e.g., git unavailable) or the index entry's sha: equals "untracked",
+   skip the drift comparison for that path — the index's sha: value is still returned to the caller as-is.
+
+6. Return.
+   Return the map { <path>: <sha> } covering every path in requested_paths.
+   Each <sha> is the verbatim value from the index's files.<path>.sha field.
+```
+
+**Field-name translation contract.** The index's per-file SHA lives at `files.<path>.sha`. The `extraction-manifest.yaml` field is named `git_sha:`. Callers write the SHA value returned by this SP directly into the manifest's `git_sha:` field — no recomputation, no rename of the field. Only the wire-format field name differs; the value is identical.
+
+**Why the drift check.** Before this SP, callers ran `git hash-object` against the source at extract/update time, so the recorded `git_sha` was guaranteed to match the bytes that were actually extracted — even when source files had uncommitted edits between `/index-inputs` and the calling skill. After this SP, callers consume the index value rather than recomputing; the drift check preserves that guarantee by hard-failing when the index lags the working tree, and directs the analyst to re-run `/index-inputs` rather than silently recording a stale SHA.
+
+**Relationship to Pre-flight Check 6.** Check 6 has its own "input-index.yaml does not exist" branch that allows the caller to proceed without an index (the `n` option). For callers that subsequently invoke `SP-LoadInputIndex` (`/extract-ruleset`, `/update-ruleset`), the SP's hard-fail in step 1 will abort the run regardless. For callers that do not invoke this SP (`/extract-sample-rules`), Check 6's soft fallback continues to apply.

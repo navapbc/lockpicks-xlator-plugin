@@ -36,6 +36,8 @@ Downstream skills that need the policy doc *structured section data* (e.g., `/su
 
 `/index-inputs` itself continues to scan `input/policy_docs/` for SHA and md_quality scoring — its index reflects the source files, not the compressed copies and not the computations files.
 
+**Third role: `input-index.yaml` vends the canonical SHA-of-source for `/extract-ruleset` and `/update-ruleset`.** Both skills consume the per-file `sha:` value from `policy_facets/input-index.yaml` (via `SP-LoadInputIndex` in `core/ruleset-shared.md`) when writing or comparing `extraction-manifest.yaml`'s `git_sha:` field — they no longer call `git hash-object` against `input/policy_docs/<rel>.md` themselves. The `sha:` (in the index) and `git_sha:` (in the manifest) field names differ for historical reasons; the value is identical. `SP-LoadInputIndex` runs a one-shot working-tree drift check on every load: if the source bytes differ from the indexed SHA, the skill aborts and directs the analyst to re-run `/index-inputs`. This preserves the previous "recorded SHA matches what was actually extracted" guarantee that direct `git hash-object` calls used to provide. Source files remain the analyst-authored canonical truth; the index is the SHA cache layered on top.
+
 The per-file `<rel>.md.yaml` filename is intentional: the source filename (including its `.md` extension) is preserved verbatim and `.yaml` is appended so editor syntax highlighting and `find -name '*.yaml'` filters pick the files up as YAML.
 
 ## Output Fencing
