@@ -614,10 +614,6 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
         prior_canonical = prior_entry["canonical"] if prior_entry else None
 
         canonical_name, _source_kind = _pick_canonical(observations, specs_entry, prior_canonical)
-        synonyms = sorted({o["name"] for o in observations} - {canonical_name})
-        # Drop the specs name from synonyms in case it didn't appear in any
-        # per-file file (synonyms are observed alternatives in per-file files).
-        # (No-op when specs_entry is None; harmless when present.)
 
         role_hint = _resolve_role_hint(canonical_name, observations)
         policy_phrase = _canonical_policy_phrase(canonical_name, observations, specs_entry)
@@ -625,21 +621,51 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
         type_value = _resolve_type(canonical_name, observations, specs_entry, errors)
         values = _resolve_values(type_value, observations, specs_entry)
 
-        # sources: list — for every per-file file that contributed any name in this group,
-        # alphabetical by file path.
-        seen_sources: set[tuple[str, str]] = set()
-        sources: list[dict] = []
-        for obs in observations:
-            key = (obs["file"], obs.get("section", ""))
-            if key in seen_sources:
+        # Pick the canonical's source row and build synonym rows.
+        # Sort observations by (file, section) so the first matching the canonical
+        # name wins the top-level source_doc/section deterministically.
+        sorted_obs = sorted(
+            observations, key=lambda o: (o["file"], o.get("section", ""))
+        )
+        canonical_obs_index = next(
+            (i for i, o in enumerate(sorted_obs) if o["name"] == canonical_name),
+            None,
+        )
+
+        if canonical_obs_index is not None:
+            canonical_obs = sorted_obs[canonical_obs_index]
+            canonical_source_doc = canonical_obs["file"]
+            canonical_section = canonical_obs.get("section", "")
+            synonym_obs = [
+                o for i, o in enumerate(sorted_obs) if i != canonical_obs_index
+            ]
+        else:
+            # Specs-picked canonical never observed in a per-file file. Fall back
+            # to the specs entry's source_doc/section. R6 mandates full paths;
+            # specs convention is a bare basename like "eligibility.md", so
+            # prepend input/policy_docs/ when no slash is present.
+            specs_source_doc = (specs_entry or {}).get("source_doc") or ""
+            if specs_source_doc and "/" not in specs_source_doc:
+                specs_source_doc = f"input/policy_docs/{specs_source_doc}"
+            canonical_source_doc = specs_source_doc
+            canonical_section = (specs_entry or {}).get("section") or ""
+            synonym_obs = list(sorted_obs)
+
+        synonym_rows: list[dict] = []
+        seen_triples: set[tuple[str, str, str]] = set()
+        for obs in synonym_obs:
+            triple = (obs["name"], obs["file"], obs.get("section", ""))
+            if triple in seen_triples:
                 continue
-            seen_sources.add(key)
-            entry = {"file": obs["file"]}
+            seen_triples.add(triple)
+            row: dict = {"name": obs["name"], "source_doc": obs["file"]}
             section = obs.get("section")
             if section:
-                entry["section"] = section
-            sources.append(entry)
-        sources.sort(key=lambda e: (e["file"], e.get("section", "")))
+                row["section"] = section
+            synonym_rows.append(row)
+        synonym_rows.sort(
+            key=lambda r: (r["name"], r["source_doc"], r.get("section", ""))
+        )
 
         # Field order is load-bearing: yaml.safe_dump(sort_keys=False) preserves
         # insertion order, so this is what readers see in naming-defaults.yaml.
@@ -653,9 +679,12 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
             out_entry["values"] = values
         if role_hint:
             out_entry["role_hint"] = role_hint
-        if synonyms:
-            out_entry["synonyms"] = synonyms
-        out_entry["sources"] = sources
+        if canonical_source_doc:
+            out_entry["source_doc"] = canonical_source_doc
+        if canonical_section:
+            out_entry["section"] = canonical_section
+        if synonym_rows:
+            out_entry["synonyms"] = synonym_rows
         variables_out[canonical_name] = out_entry
 
         # Churn detection (only when prior file existed).
@@ -705,8 +734,12 @@ def cmd_build(domain_dir: Path, dry_run: bool = False) -> dict:
         )
 
     # 9. Build summary.
+    # Count unique non-canonical names per entry (not row count): self-synonym
+    # rows and multi-source synonym duplicates would inflate a row-based count
+    # and break comparability across schemas. (R10)
     synonyms_collapsed = sum(
-        len(entry.get("synonyms", [])) for entry in sorted_variables.values()
+        len({row["name"] for row in entry.get("synonyms", [])} - {canonical})
+        for canonical, entry in sorted_variables.items()
     )
     summary = {
         "merged": len(sorted_variables),

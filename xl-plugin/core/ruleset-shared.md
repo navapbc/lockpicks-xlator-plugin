@@ -547,7 +547,7 @@ Do not advance to SP-Validate until M5 passes.
 
 - **`schema=entity_grouped`** (the existing `specs/naming-manifest.yaml` shape): collect entries from `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>`. The `manifest_entry` carries `policy_phrase`, `source_doc`, `section`, and (when present) `original_name`. For `inputs:` entries, the entity name is also recorded on the entry so callers that surface the table know which entity each field belongs to.
 
-- **`schema=flat`** (the new `policy_facets/naming-defaults.yaml` shape): collect entries from the top-level `variables.<name>` map. The `manifest_entry` carries `policy_phrase`, `role_hint` (when present — `input` / `computed` / `output`), `synonyms` (list, possibly empty), and `sources` (list of `{file, section}`). The map key is the canonical name. There is no entity grouping in this schema; callers that need an Entity column derive it from `role_hint` or treat it as `computed`/`outputs` per the hint.
+- **`schema=flat`** (the new `policy_facets/naming-defaults.yaml` shape): collect entries from the top-level `variables.<name>` map. The `manifest_entry` carries `policy_phrase`, `role_hint` (when present — `input` / `computed` / `output`), `source_doc` (string), `section` (string, optional), and `synonyms` (list of `{name, source_doc, section}` rows, possibly empty). The map key is the canonical name. There is no entity grouping in this schema; callers that need an Entity column derive it from `role_hint` or treat it as `computed`/`outputs` per the hint.
 
 **Using the map during rule generation:**
 
@@ -555,7 +555,7 @@ Two operations apply:
 
 1. **Name confirmation (keyed lookup):** When you have already inferred a candidate variable name, look it up directly by key. If found, use that name as-is — do not re-derive it.
 
-2. **Concept matching (value scan):** When you encounter a policy concept in source text and have not yet inferred a variable name, scan map values and compare the concept against each entry's `policy_phrase`. If a close match is found, use that entry's variable name rather than deriving a new one. When multiple entries match, prefer entries whose `source_doc` and `section` match the current policy document being processed; use non-matching entries as fallback only. (The `flat` schema's entries do not carry `source_doc`; use `sources[*].file` instead, picking the best match.)
+2. **Concept matching (value scan):** When you encounter a policy concept in source text and have not yet inferred a variable name, scan map values and compare the concept against each entry's `policy_phrase`. If a close match is found, use that entry's variable name rather than deriving a new one. When multiple entries match, prefer entries whose `source_doc` and `section` match the current policy document being processed; use non-matching entries as fallback only. (The `flat` schema's entry carries `source_doc:` directly at the top level; the `synonyms[*].source_doc` rows are also candidates when the canonical's `source_doc` does not match the current policy doc.)
 
 In both cases these names are **canonical** — never re-derive or rename a variable that already exists in the manifest.
 
