@@ -154,8 +154,28 @@ In addition to per-section data, emit a top-level `naming_manifest.variables:` m
 - **`policy_phrase:`** — the verbatim policy phrase (or deterministic anchor) for the concept.
 - **`role_hint:`** — *optional*, snake_case identifier (`input` | `computed` | `output`). Emit only when the source body carries an unambiguous syntactic signal (see the trigger table in `core/naming_guide.md`). Omit when no clear signal exists — absent is the safe default.
 - **`source_section:`** — the heading or §-citation where the concept first appears, matching the per-section context.
+- **`description:`** — *optional*, one concise sentence (analyst-readable prose) explaining what the concept represents in the source's own framing. Emit only when the source contains a definitional sentence about the concept; never paraphrase to fit a template. Absent is the safe default.
+- **`type:`** — *optional*, one of `money | bool | int | float | string | enum | list | date`. Emit only when the source body carries a clear signal (see "Type inference triggers" below). Never infer from the variable name alone — `gross_income` does not become `money` just because the name contains "income"; the source must say so. Absent is safer than wrong.
+- **`values:`** — *required when* `type: enum`, *omitted otherwise*. List of allowed string values; populate from a bulleted enumeration or comma-separated list of allowed outcomes in the source. The emitter rejects payloads with `type: enum` and no `values:` (or `values:` without `type: enum`).
 
-Cross-block invariant: every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. The emitter (`xlator emit-per-file-yaml`) validates this at write time and refuses to produce output otherwise.
+#### Type inference triggers
+
+Emit `type:` only when the source surfaces one of these signals:
+
+| Type     | Signal in source text                                                              |
+|----------|------------------------------------------------------------------------------------|
+| `money`  | currency markers (`$`, `USD`, "dollars"), "per month", "annual income", monetary thresholds |
+| `bool`   | "yes/no", "true/false", "is/is not eligible", binary flags                          |
+| `int`    | counts ("number of household members"), age in years, integer thresholds            |
+| `float`  | percentages (`20%`, `0.20`), ratios, multipliers                                    |
+| `string` | free-form identifier (case number, applicant name)                                  |
+| `enum`   | bulleted/comma-separated list of allowed outcomes ("approve, deny, manual review")  |
+| `list`   | "list of …", repeating-collection phrasing ("each member …")                        |
+| `date`   | dates, "as of", "effective date", calendar references                               |
+
+When the signal is ambiguous or absent, omit `type:`. A hallucinated type pollutes the authority chain — downstream consumers act on it.
+
+Cross-block invariant: every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. The emitter (`xlator emit-per-file-yaml`) validates this at write time and refuses to produce output otherwise. The emitter also enforces the `type` vocabulary, the `type: enum` ↔ `values:` dependency, and the non-empty-string rule for `description:`.
 
 ## Step 4: Emit the per-file YAML via `xlator emit-per-file-yaml`
 
@@ -174,7 +194,10 @@ JSON payload shape:
       "<name>": {
         "policy_phrase":   "...",
         "role_hint":       "input | computed | output",
-        "source_section":  "..."
+        "source_section":  "...",
+        "description":     "...",
+        "type":            "money | bool | int | float | string | enum | list | date",
+        "values":          ["..."]
       }
     }
   },
@@ -216,6 +239,14 @@ naming_manifest:
       policy_phrase: "gross monthly income"
       role_hint: input
       source_section: "§1.2"
+      description: "Total monthly household income before any deductions."
+      type: money
+    eligibility:
+      policy_phrase: "eligibility status"
+      role_hint: output
+      source_section: "§3.1"
+      type: enum
+      values: [approve, deny, manual_verification]
     # ...
 
 sections:
@@ -232,8 +263,11 @@ sections:
 
 Conventions enforced by the emitter:
 - Top-level value is a YAML map with exactly two keys: `naming_manifest` and `sections`. Consumers read `data["sections"]` for section blocks and `data["naming_manifest"]["variables"]` for the per-file naming map.
-- Optional fields (`role_hint:`, `phase:`, `phase_source:`, `preconditions:`, `expr_hint:`, `computations:` when no rule logic) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
+- Optional fields (`role_hint:`, `phase:`, `phase_source:`, `preconditions:`, `expr_hint:`, `computations:` when no rule logic, `description:`, `type:`, `values:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
 - **Cross-block name-set invariant:** every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. If the JSON violates this, the tool exits non-zero and refuses to write — diagnose the missing entry before retrying.
+- **`type:` vocabulary:** must be one of `money | bool | int | float | string | enum | list | date` when present. The emitter rejects any other value (including `str`).
+- **`type: enum` ↔ `values:` dependency:** the emitter rejects payloads that have `type: enum` without a non-empty `values:` list, or `values:` with any other `type:`.
+- **`description:` non-empty:** when present, must be a non-empty string. Pass `null` or omit the key to mean "absent".
 - **List order in `sections[*].computations:` reflects source order.** Downstream consumers (notably `/create-ruleset-modules`'s `sequential_chain` heuristic) rely on this — within a section, the first computation in the list is the first in document order, the second is next, and so on. Build the JSON `computations:` array in source order.
 
 Always rewrite the destination file in full; this skill is idempotent at the file level. Per-file caching is the manifest's job (handled by `xlator extract-computations --finalize`), not the skill's.
@@ -256,6 +290,10 @@ Do NOT emit `:::next_step` from this skill — it is per-file and is normally in
 - **Don't reference a variable in `sections[*].computations[*].variables` that isn't a key in `naming_manifest.variables`.** The emitter rejects payloads that violate this invariant. Add the entry to `naming_manifest.variables` before emitting.
 - **Don't paraphrase `policy_phrase:`.** Verbatim from the source body. If no noun phrase exists, fall back to a deterministic anchor (the section heading text). Paraphrase drift across re-runs silently breaks the no-copy-back guarantee on subsequent `/index-inputs` runs.
 - **Don't invent `role_hint:`.** Emit it only when policy text gives a clear syntactic signal (formula syntax → `computed`; "applicant provides" → `input`; "determined to be" → `output`). Absent is the safe default — never invented.
+- **Don't infer `type:` from the variable name alone.** `gross_income` is not automatically `money`; the source must contain a currency marker, monetary threshold, or other explicit signal. Naming heuristics produce silent type pollution that flows through the authority chain into downstream skills.
+- **Don't use `type: str` or `type: text`.** The vocabulary is exactly `money | bool | int | float | string | enum | list | date`. The emitter rejects anything else.
+- **Don't emit `values:` without `type: enum`.** And don't emit `type: enum` without `values:`. The two ship together or both are absent. The emitter rejects either alone.
+- **Don't paraphrase `description:` to fit a template.** One sentence anchored to a definitional sentence in the source. If the source has no definitional framing, omit the field.
 - **Don't update the manifest from this skill** — the manifest is the single responsibility of `xlator extract-computations --finalize`. When invoked standalone (outside `/index-inputs`), the per-file file is written but the manifest is not updated; the next `--plan` will simply re-extract this file (matching destination + missing manifest entry → `to_extract`). This is acceptable best-effort behavior for the standalone path.
 - **Don't write `policy_facets/input-sections.yaml`** — that artifact is removed in v3.0.0. All section data lives in per-file `policy_facets/computations/<rel>.md.yaml` files.
 - **Don't read or mutate any pre-existing `input-sections.yaml`** — leave it on disk untouched. Maintainers delete it manually.

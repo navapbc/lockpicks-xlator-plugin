@@ -49,6 +49,59 @@ across re-runs of the same source** so the join doesn't drift.
   `specs/naming-manifest.yaml` fails on a different paraphrase, the analyst's
   rename is silently ignored, and the merge tool produces a fresh canonical.
 
+## `type:` — controlled vocabulary, inference on signal
+
+`type:` is **optional** and emitted only when the source body carries a clear
+signal. Absent is the safe default. The vocabulary is exactly:
+
+`money | bool | int | float | string | enum | list | date`
+
+The emitter (`xlator emit-per-file-yaml`) rejects any other value, including
+`str` and `text`.
+
+| Type     | Trigger phrases / patterns                                                          |
+|----------|--------------------------------------------------------------------------------------|
+| `money`  | currency markers (`$`, `USD`, "dollars"), "per month", "annual income", monetary thresholds |
+| `bool`   | "yes/no", "true/false", "is/is not eligible", binary flags                           |
+| `int`    | counts ("number of household members"), age in years, integer thresholds             |
+| `float`  | percentages (`20%`, `0.20`), ratios, multipliers                                     |
+| `string` | free-form identifier (case number, applicant name)                                   |
+| `enum`   | bulleted/comma-separated list of allowed outcomes ("approve, deny, manual review")   |
+| `list`   | "list of …", repeating-collection phrasing ("each member …")                         |
+| `date`   | dates, "as of", "effective date", calendar references                                |
+
+Never infer `type:` from the variable name alone — `gross_income` does not
+become `money` just because the name contains "income"; the source body must
+say so. A hallucinated type pollutes the authority chain and downstream skills
+act on it.
+
+## `description:` — concise prose, optional
+
+`description:` is **optional** and emitted only when the source contains a
+definitional sentence about the concept. One sentence, anchored to the source's
+own framing — never paraphrased to fit a template, never invented to fill the
+field. The merge tool prefers the canonical-name contributor's description and
+falls back to a synonym contributor's only when the canonical lacks one;
+analyst overrides via `specs/naming-manifest.yaml` beat both.
+
+When present it must be a non-empty string; the emitter rejects empty or
+whitespace-only descriptions. Pass `null` (or omit the key) to mean "absent".
+
+## `values:` — required for enum, omitted otherwise
+
+`values:` is a list of allowed string values for an `enum`-typed concept.
+**Required when `type: enum`, MUST be omitted otherwise.** The emitter rejects
+both directions of the violation: `type: enum` without `values:`, and `values:`
+with any other `type:`.
+
+The source signal is a bulleted enumeration or comma-separated list of allowed
+outcomes ("approve, deny, manual review"). Each list element is a string;
+the emitter rejects non-string entries.
+
+When two synonyms each carry their own `values:`, the merge tool emits the
+**sorted union** as the canonical's values (deterministic across re-runs).
+Analyst override via `specs/naming-manifest.yaml` replaces the union entirely.
+
 ## `role_hint:` — optional signal hint, only on clear evidence
 
 `role_hint:` is **optional** and emitted only when the source body carries an
@@ -69,11 +122,15 @@ preempts analyst judgment.
 When in doubt, **omit the field**. An absent `role_hint:` is stronger than a
 hallucinated one.
 
-## Merge-time `role_hint:` resolution
+## Merge-time resolution
 
 When `xlator naming-defaults --build` groups synonyms into a single canonical
-entry, the synonyms may carry different (or absent) `role_hint:` values. The
-merge tool resolves them with these rules:
+entry, the synonyms may carry different (or absent) values for `role_hint:`,
+`description:`, `type:`, and `values:`. The merge tool resolves each field
+with the rules below. **In every case, `specs/naming-manifest.yaml` overrides
+all observed values when the specs entry supplies the field.**
+
+### `role_hint:`
 
 - **Prefer specific over absent.** If the canonical entry omits `role_hint:`
   but a synonym carries one, copy the synonym's hint onto the canonical.
@@ -85,6 +142,37 @@ merge tool resolves them with these rules:
 - **Tie within rank → omit.** If multiple synonyms tie on the highest rank
   with conflicting evidence (rare), omit `role_hint:` from the canonical and
   let the analyst supply it in `/extract-ruleset` Step 3b.
+
+### `description:`
+
+- **Canonical contributor preferred.** If the per-file file whose name became
+  the canonical has a `description:`, it wins.
+- **Fall back to any synonym.** If the canonical contributor has no
+  `description:` but a synonym does, copy the synonym's onto the canonical.
+- **Otherwise omit.** No descriptions anywhere → absent.
+
+### `type:`
+
+- **Agreement wins.** If every synonym that supplies `type:` agrees on a
+  single value, use it. Synonyms that omit `type:` do not count as
+  disagreement.
+- **Disagreement → omit and warn.** If two synonyms supply different `type:`
+  values, omit `type:` from the canonical and surface a warning in the merge
+  tool's `errors:` array (and on stderr). The analyst resolves via specs
+  override on the next run; silent guess-on-disagreement would propagate
+  hallucinated types.
+- **No type signal anywhere → omit.** Absent is the safe default.
+
+### `values:`
+
+- **Only meaningful when canonical `type: enum`.** When the resolved type is
+  not `enum`, the canonical entry has no `values:` field.
+- **Sorted union of observed values.** When multiple synonyms supply
+  `values:`, the canonical's `values:` is the alphabetically-sorted union of
+  every observation's values. This is deterministic across re-runs.
+- **Specs override replaces, not unions.** When `specs/naming-manifest.yaml`
+  supplies `values:`, the canonical uses the specs list verbatim — observed
+  values are dropped.
 
 ## Worker decision flow
 
@@ -100,8 +188,13 @@ For each variable a per-file worker extracts:
    `policy_facets/naming-defaults.yaml`, use that entry's name. Done.
 6. Else derive a fresh name from the style rules above.
 7. Decide `role_hint:` per the trigger table above. Omit if no clear signal.
-8. Emit `naming_manifest.variables.<name>` with `policy_phrase:`,
-   `role_hint?`, `source_section:`.
+8. Decide `type:` per the trigger table above; emit only on clear signal.
+   When `type: enum`, also emit `values:` from the source's enumeration of
+   allowed outcomes.
+9. Emit `description:` only when the source contains a definitional sentence
+   about the concept; one sentence, anchored to the source's framing.
+10. Emit `naming_manifest.variables.<name>` with `policy_phrase:`,
+   `role_hint?`, `source_section:`, `description?`, `type?`, `values?`.
 
 ## Common mistakes
 
@@ -116,3 +209,11 @@ For each variable a per-file worker extracts:
 - **Don't pluralize scalars.** `dependent_count` not `dependents_count`.
 - **Don't use abbreviations the source doesn't.** If the source spells it
   out, the variable name spells it out too.
+- **Don't infer `type:` from variable-name shape.** `gross_income` does not
+  imply `money` and `is_eligible` does not imply `bool` from the name alone —
+  the source body must carry an explicit signal from the trigger table.
+- **Don't write `values:` without `type: enum`.** And don't write `type: enum`
+  without `values:`. The two ship together.
+- **Don't paraphrase `description:` to fit a template.** One sentence anchored
+  to a definitional sentence in the source. If the source has no definitional
+  framing, omit the field.
