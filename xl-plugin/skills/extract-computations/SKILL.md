@@ -153,7 +153,8 @@ In addition to per-section data, emit a top-level `naming_manifest.variables:` m
 
 - **`policy_phrase:`** — the verbatim policy phrase (or deterministic anchor) for the concept.
 - **`role_hint:`** — *optional*, snake_case identifier (`input` | `computed` | `output`). Emit only when the source body carries an unambiguous syntactic signal (see the trigger table in `core/naming_guide.md`). Omit when no clear signal exists — absent is the safe default.
-- **`source_section:`** — the heading or §-citation where the concept first appears, matching the per-section context.
+- **`source_doc:`** — *required*, the full `input/policy_docs/<rel>.md` path of the policy doc this variable was extracted from. **Worker invariant:** `source_doc:` MUST equal `input/policy_docs/<rel>.md` for the per-file file at `policy_facets/computations/<rel>.md.yaml` (i.e., it must equal `source_rel` in the JSON payload). The merge tool sanity-checks this; mismatches surface as warnings in the `xlator naming-defaults --build` JSON summary.
+- **`section:`** — *optional*, the heading or §-citation where the concept first appears, matching the per-section context. Replaces the legacy `source_section:` field name. Omit when no clear section signal exists.
 - **`description:`** — *optional*, one concise sentence (analyst-readable prose) explaining what the concept represents in the source's own framing. Emit only when the source contains a definitional sentence about the concept; never paraphrase to fit a template. Absent is the safe default.
 - **`type:`** — *optional*, one of `money | bool | int | float | string | enum | list | date`. Emit only when the source body carries a clear signal (see "Type inference triggers" below). Never infer from the variable name alone — `gross_income` does not become `money` just because the name contains "income"; the source must say so. Absent is safer than wrong.
 - **`values:`** — *required when* `type: enum`, *omitted otherwise*. List of allowed string values; populate from a bulleted enumeration or comma-separated list of allowed outcomes in the source. The emitter rejects payloads with `type: enum` and no `values:` (or `values:` without `type: enum`).
@@ -175,7 +176,7 @@ Emit `type:` only when the source surfaces one of these signals:
 
 When the signal is ambiguous or absent, omit `type:`. A hallucinated type pollutes the authority chain — downstream consumers act on it.
 
-Cross-block invariant: every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. The emitter (`xlator emit-per-file-yaml`) validates this at write time and refuses to produce output otherwise. The emitter also enforces the `type` vocabulary, the `type: enum` ↔ `values:` dependency, and the non-empty-string rule for `description:`.
+Cross-block invariant: every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. The emitter (`xlator emit-per-file-yaml`) validates this at write time and refuses to produce output otherwise. The emitter also enforces: required `source_doc:` (non-empty string per variable); rejection of legacy `source_section:` field; the `type` vocabulary; the `type: enum` ↔ `values:` dependency; and the non-empty-string rule for `description:` and `section:` when present.
 
 ## Step 4: Emit the per-file YAML via `xlator emit-per-file-yaml`
 
@@ -194,7 +195,8 @@ JSON payload shape:
       "<name>": {
         "policy_phrase":   "...",
         "role_hint":       "input | computed | output",
-        "source_section":  "...",
+        "source_doc":      "input/policy_docs/<rel>.md",
+        "section":         "...",
         "description":     "...",
         "type":            "money | bool | int | float | string | enum | list | date",
         "values":          ["..."]
@@ -238,13 +240,15 @@ naming_manifest:
     gross_income:
       policy_phrase: "gross monthly income"
       role_hint: input
-      source_section: "§1.2"
+      source_doc: "input/policy_docs/<rel>.md"
+      section: "§1.2"
       description: "Total monthly household income before any deductions."
       type: money
     eligibility:
       policy_phrase: "eligibility status"
       role_hint: output
-      source_section: "§3.1"
+      source_doc: "input/policy_docs/<rel>.md"
+      section: "§3.1"
       type: enum
       values: [approve, deny, manual_verification]
     # ...

@@ -194,7 +194,8 @@ For each variable a per-file worker extracts:
 9. Emit `description:` only when the source contains a definitional sentence
    about the concept; one sentence, anchored to the source's framing.
 10. Emit `naming_manifest.variables.<name>` with `policy_phrase:`,
-   `role_hint?`, `source_section:`, `description?`, `type?`, `values?`.
+   `source_doc:` (required; full `input/policy_docs/<rel>.md` path matching the per-file file's location),
+   and optional `role_hint?`, `section?` (renamed from legacy `source_section:`), `description?`, `type?`, `values?`.
 
 ## Common mistakes
 

@@ -25,7 +25,8 @@ Input JSON shape:
           "<name>": {
             "policy_phrase": "...",
             "role_hint": "input|computed|output",   # optional
-            "source_section": "...",
+            "source_doc": "input/policy_docs/<rel>.md",  # required; worker invariant: equals source_rel
+            "section": "...",                       # optional; replaces legacy source_section
             "description": "...",                   # optional
             "type": "money|bool|int|float|string|enum|list|date",  # optional
             "values": ["..."]                       # required iff type=enum
@@ -113,11 +114,43 @@ def _validate(payload: dict) -> None:
 
 
 def _validate_variable_entry(name: str, entry: dict) -> None:
-    """Check the optional description/type/values fields per R7.
+    """Check the optional description/type/values fields per R7, plus required
+    source_doc and the section/source_section rename.
 
     Treats keys whose value is None as absent (matches the _strip_none
     normalization on the write path).
     """
+    # Reject legacy `source_section:` field — renamed to `section:`.
+    if "source_section" in entry and entry["source_section"] is not None:
+        if "section" in entry and entry["section"] is not None:
+            raise ValidationError(
+                f"naming_manifest.variables.{name} has both 'source_section' (legacy) "
+                f"and 'section' (new) — drop 'source_section'"
+            )
+        raise ValidationError(
+            f"naming_manifest.variables.{name} uses legacy 'source_section' field — "
+            f"rename to 'section' and add 'source_doc'"
+        )
+
+    # source_doc is required and must be a non-empty string.
+    source_doc = entry.get("source_doc")
+    if source_doc is None or source_doc == "":
+        raise ValidationError(
+            f"naming_manifest.variables.{name}.source_doc is required (non-empty string)"
+        )
+    if not isinstance(source_doc, str):
+        raise ValidationError(
+            f"naming_manifest.variables.{name}.source_doc must be a string"
+        )
+
+    # section is optional but, when present, must be a non-empty string.
+    section = entry.get("section")
+    if section is not None:
+        if not isinstance(section, str) or not section.strip():
+            raise ValidationError(
+                f"naming_manifest.variables.{name}.section must be a non-empty string when present"
+            )
+
     description = entry.get("description")
     if description is not None:
         if not isinstance(description, str) or not description.strip():
