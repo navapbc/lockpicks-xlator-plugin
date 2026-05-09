@@ -4,7 +4,7 @@
 # Schema: flat keyed by name. Each entry carries:
 #   name_ref     — references naming-manifest.yaml outputs.<name> (always equals the key)
 #   description  — analyst-curated description
-#   examples     — optional list of sample VALUES (concrete instance data, not synonym names)
+#   type         — one of: money | bool | int | float | string | enum | list | date
 #   primary      — true | false; exactly one entry must be primary: true per ruleset
 #
 # Synonyms (alternative variable names observed in policy text) live in
@@ -13,11 +13,11 @@
 eligibility:
   name_ref: eligibility
   description: "Binary pass/fail eligibility determination."
-  examples: ["true", "false"]
+  type: bool
   primary: true
 
 manual_review_required:
   name_ref: manual_review_required
   description: "Flag for cases requiring human review before determination."
-  examples: ["true", "false"]
+  type: bool
   primary: false

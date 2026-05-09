@@ -4,8 +4,8 @@
 # Schema: list of categories. Each category carries:
 #   category       — snake_case category name
 #   description    — analyst-readable description
-#   examples       — optional list of sample VALUES (concrete instance data)
-#   fields         — list of {name_ref} objects referencing naming-manifest entries
+#   fields         — list of {name_ref, type} objects referencing naming-manifest entries
+#                    (type — one of: money | bool | int | float | string | enum | list | date)
 #   source_file    — optional per-category provenance: source policy doc filename
 #   source_section — optional per-category provenance: heading or §-citation
 #   exact_phrase   — optional per-category provenance: verbatim phrase from source
