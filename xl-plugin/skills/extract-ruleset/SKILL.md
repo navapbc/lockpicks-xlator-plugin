@@ -164,25 +164,37 @@ Before drafting any CIVIL YAML, produce the canonical field name for every fact 
 4. Convert to **`snake_case`**
 5. If the result would be **ambiguous** with another field in the same entity, append a disambiguating qualifier from the policy text
 
-Present the result as a Markdown table:
+Present the result as a Markdown table with a **Source** column distinguishing seeded / observed / algorithm-derived entries:
 
 :::detail
-| Policy Phrase | Entity / Section | Field Name | Source Section | Synonyms |
-|--------------|-----------------|-----------|----------------|----------|
-| gross monthly income | Household | `gross_monthly_income` | §1.2 | monthly_gross |
-| number of people in the household | Household | `household_size` | §1.1 |  |
-| net monthly income after all deductions | computed | `net_income` | §2.4 |  |
+| Policy Phrase | Entity / Section | Field Name | Source Section | Source | Synonyms |
+|--------------|-----------------|-----------|----------------|--------|----------|
+| gross monthly income | Household | `gross_monthly_income` | §1.2 | observed | monthly_gross |
+| number of people in the household | Household | `household_size` | §1.1 | observed |  |
+| net monthly income after all deductions | computed | `net_income` | §2.4 | observed |  |
+| eligibility status | outputs | `eligibility_status` |  | seeded |  |
 :::
+
+The **Source** column distinguishes three values:
+- **`seeded`**: from `specs/naming-manifest.yaml` with no `policy_phrase` (analyst declared via `/declare-target-ruleset`; provenance is null pre-extraction). Source Section column is blank.
+- **`observed`**: from `policy_facets/naming-defaults.yaml` with a populated `policy_phrase` (canonical surfaced from per-file `naming_manifest:` blocks). Source Section comes from the top-level `section:` field.
+- **`algorithm-derived`**: no prior entry; derived from policy text via the algorithm above.
 
 The **Synonyms** column is populated from `policy_facets/naming-defaults.yaml` and shows other field names observed for the same `policy_phrase` across files. When the column is empty for an entry, leave it blank — do not write `—` or `none`. Synonyms are surfaced so the analyst can pick a different canonical at confirm time when the auto-pick is not the best fit.
 
 **Pre-populate from the manifest authority chain (highest → lowest):**
 
-1. **Specs (highest authority):** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists (CREATE re-run after a previous successful extraction), run **SP-LoadNamingManifest** with `schema=entity_grouped` (from `../../core/ruleset-shared.md`). Pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`. Synonyms column is left blank for specs-sourced entries (specs is authoritative; alternatives are no longer relevant once the analyst has confirmed a name).
+1. **Specs (highest authority):** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists, run **SP-LoadNamingManifest** with `schema=entity_grouped` (from `../../core/ruleset-shared.md`). For each entry:
+   - **Confirmed entries** (have `policy_phrase`): pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`, **Source = `observed`** (was confirmed against a doc in a prior run). Synonyms column blank.
+   - **Seeded entries** (no `policy_phrase`): pre-populate Field Name from the variable name key, Entity / Section from the entity key, **Source = `seeded`**. Source Section is blank (provenance not yet filled). Policy Phrase column shows `<seeded>` placeholder.
 
-2. **Defaults (mid authority):** For policy concepts not already covered by specs, if `$DOMAINS_DIR/<domain>/policy_facets/naming-defaults.yaml` exists, run **SP-LoadNamingManifest** with `schema=flat`. Pre-populate Field Name from the canonical key, Policy Phrase from `policy_phrase`, Entity / Section from `role_hint` (or `computed` if absent — the analyst will adjust during confirmation), Source Section from the top-level `section:` field (omit when absent), and Synonyms from the entry's `synonyms` list — extract `synonyms[*].name`, dedup, and join comma-separated when more than one. Each row's `source_doc:` / `section:` is informational provenance; the table column shows names only.
+2. **Defaults (mid authority):** For policy concepts not already covered by specs, if `$DOMAINS_DIR/<domain>/policy_facets/naming-defaults.yaml` exists, run **SP-LoadNamingManifest** with `schema=flat`. For each entry:
+   - **Observed entries** (have `policy_phrase`): pre-populate Field Name from the canonical key, Policy Phrase from `policy_phrase`, Entity / Section from `role_hint` (or `computed` if absent), Source Section from the top-level `section:` field, **Source = `observed`**, and Synonyms from the entry's `synonyms` list — extract `synonyms[*].name`, dedup, join comma-separated when more than one.
+   - **Standalone seeded entries** (no `policy_phrase`, no top-level `source_doc:` / `section:` / `synonyms:`, surfaced via the merge tool's two-pass logic from a phraseless manifest entry): pre-populate Field Name from the canonical key, Entity / Section from `role_hint`, **Source = `seeded`**. Source Section is blank.
 
-3. **Algorithm-derived (fallback):** For policy concepts not covered by either manifest, derive the name from policy text using the algorithm above. Synonyms column is blank.
+3. **Algorithm-derived (fallback):** For policy concepts not covered by either manifest, derive the name from policy text using the algorithm above. **Source = `algorithm-derived`**, Synonyms column is blank.
+
+**Convergence-warning footnote:** when the merge tool emitted a "similar names" warning (a seeded standalone canonical near-matched an observed canonical), annotate the matching rows in the inventory table with a footnote — e.g., `[similar to seeded 'gross_income']` — so the analyst notices the pair and can decide whether to rename one to merge them.
 
 When both files have an entry for the same `policy_phrase` but different names, specs wins (it is the analyst-confirmed authority).
 
@@ -454,6 +466,13 @@ Do not proceed to the next file after a validation failure.
 ### Step 7: Write Naming Manifest
 
 Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
+
+**Seeded-entry handling.** When the Name Inventory's Source column for an entry is `seeded`, the entry already exists in `specs/naming-manifest.yaml` with nullable provenance (no `policy_phrase`, no `source_doc`, no `section`). For each such entry the analyst confirmed against an observed phrase in Step 3b:
+- Fill `policy_phrase:` from the observed entry's policy phrase (the Source Section column's policy_phrase value, joined to the seeded entry by name-equality).
+- Fill `source_doc:` and `section:` from the observed entry's provenance.
+- Apply the preserve-non-null rule below: existing analyst-supplied fields on the seeded entry (description, type, values) are preserved; null/absent fields gap-fill from the matched defaults entry.
+
+For seeded entries the analyst did NOT match against an observation in Step 3b (still standalone after confirmation), leave provenance fields null. They remain seeded-but-unobserved; the next `/index-inputs` run may surface a matching observation and a future Step 7 will fill provenance retroactively.
 
 **`original_name:` annotation.** For each entry being written, look up the corresponding entry in `policy_facets/naming-defaults.yaml` by `policy_phrase` (Step 3b's join key). Then:
 
