@@ -92,7 +92,7 @@ Build two authority lookup maps from the chain (highest priority first):
    - On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both with phrase "gross monthly income"), prefer the entry whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name.
    - Malformed file → log a warning to stderr and treat as empty map. Never block extraction.
 
-2. **Defaults (mid authority):** If `<domain_dir>/policy_facets/naming-defaults.yaml` exists, read it; build `{normalize(policy_phrase) → {name, role_hint?, source_doc, section}}` directly from its flat `variables:` map. Specs entries take priority over defaults entries on conflicting normalized phrases. Malformed file → same warning-and-continue behavior.
+2. **Defaults (mid authority):** If `<domain_dir>/policy_facets/naming-defaults.yaml` exists, read it; build `{normalize(policy_phrase) → {name, role_hint?, source_doc, section}}` from its flat `variables:` map — `name` is the variable key, `source_doc` and `section` come from the entry's top-level `source_doc:` / `section:` fields (no longer dug out of a `sources:` list). Specs entries take priority over defaults entries on conflicting normalized phrases. Malformed file → same warning-and-continue behavior.
 
 The normalizer used here MUST match the merge tool's normalizer in `xlator naming-defaults --build`: lowercase, strip leading articles (`a`, `an`, `the`), strip ASCII punctuation, collapse whitespace.
 

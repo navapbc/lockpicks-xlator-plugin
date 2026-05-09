@@ -146,8 +146,15 @@ def test_ae1_two_files_disagree_shortest_wins():
 
         defaults = _read_defaults(domain)
         assert "gross_income" in defaults["variables"]
-        assert defaults["variables"]["gross_income"]["synonyms"] == ["monthly_gross"]
-        assert defaults["variables"]["gross_income"]["policy_phrase"] == "gross monthly income"
+        entry = defaults["variables"]["gross_income"]
+        assert entry["source_doc"] == "input/policy_docs/eligibility.md"
+        assert entry["section"] == "§1.2"
+        assert entry["synonyms"] == [{
+            "name": "monthly_gross",
+            "source_doc": "input/policy_docs/income.md",
+            "section": "§2.1",
+        }]
+        assert entry["policy_phrase"] == "gross monthly income"
         # File B's variables list rewritten to canonical.
         b = _read_per_file(domain, "income.md")
         assert b["sections"][0]["computations"][0]["variables"] == ["gross_income"]
@@ -216,15 +223,33 @@ def test_ae2_specs_overrides_frequency():
         defaults = _read_defaults(domain)
         assert "monthly_gross_income" in defaults["variables"]
         entry = defaults["variables"]["monthly_gross_income"]
-        assert entry["synonyms"] == ["gross_income", "monthly_gross"]
+        # Specs-picked canonical never observed in any per-file file → fall back
+        # to specs source_doc/section (basename normalized to full path).
+        assert entry["source_doc"] == "input/policy_docs/eligibility.md"
+        assert entry["section"] == "§1.2"
+        # Specs-fallback branch: every observation becomes a synonym row.
+        assert entry["synonyms"] == [
+            {
+                "name": "gross_income",
+                "source_doc": "input/policy_docs/eligibility.md",
+                "section": "§1.2",
+            },
+            {
+                "name": "monthly_gross",
+                "source_doc": "input/policy_docs/income.md",
+                "section": "§2.1",
+            },
+        ]
         a = _read_per_file(domain, "eligibility.md")
         b = _read_per_file(domain, "income.md")
         assert a["sections"][0]["computations"][0]["variables"] == ["monthly_gross_income"]
         assert b["sections"][0]["computations"][0]["variables"] == ["monthly_gross_income"]
 
 
-def test_three_files_agree_no_synonyms_no_rewrites():
-    """Three files agree on the same name — no synonyms, no rewrites needed."""
+def test_three_files_agree_self_synonyms_no_rewrites():
+    """Three files agree on the canonical name — top-level source from the first
+    (alphabetical) observation; the other two become self-synonym rows. No
+    file rewrites; synonyms_collapsed stays 0 (zero non-canonical names)."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         for rel in ("a.md", "b.md", "c.md"):
@@ -239,8 +264,16 @@ def test_three_files_agree_no_synonyms_no_rewrites():
         summary = naming_defaults.cmd_build(domain)
         defaults = _read_defaults(domain)
         entry = defaults["variables"]["gross_income"]
-        assert "synonyms" not in entry  # empty omitted
+        assert entry["source_doc"] == "input/policy_docs/a.md"
+        assert entry["section"] == "§1"
+        # Other two observations of the same canonical name → self-synonym rows.
+        assert entry["synonyms"] == [
+            {"name": "gross_income", "source_doc": "input/policy_docs/b.md", "section": "§1"},
+            {"name": "gross_income", "source_doc": "input/policy_docs/c.md", "section": "§1"},
+        ]
         assert summary["files_rewritten"] == 0
+        # Zero unique non-canonical names → synonyms_collapsed = 0 even though
+        # synonyms list has 2 self-synonym rows.
         assert summary["synonyms_collapsed"] == 0
 
 
@@ -625,9 +658,8 @@ def test_stability_heuristic_prefers_prior_canonical_on_tie():
             "variables:\n"
             "  beta_nn:\n"
             "    policy_phrase: \"the concept\"\n"
-            "    sources:\n"
-            "      - file: a.md\n"
-            "        section: '§1'\n",
+            "    source_doc: input/policy_docs/a.md\n"
+            "    section: '§1'\n",
             encoding="utf-8",
         )
         _write_per_file(
@@ -650,7 +682,11 @@ def test_stability_heuristic_prefers_prior_canonical_on_tie():
         defaults = _read_defaults(domain)
         # Stability heuristic kept beta_nn even though alpha_n is alphabetically first.
         assert "beta_nn" in defaults["variables"]
-        assert defaults["variables"]["beta_nn"]["synonyms"] == ["alpha_n"]
+        assert defaults["variables"]["beta_nn"]["synonyms"] == [{
+            "name": "alpha_n",
+            "source_doc": "input/policy_docs/a.md",
+            "section": "§1",
+        }]
 
 
 def test_no_prior_file_uses_alphabetical_tiebreak():
@@ -757,7 +793,11 @@ def test_synonyms_persist_in_output():
         )
         naming_defaults.cmd_build(domain)
         defaults = _read_defaults(domain)
-        assert defaults["variables"]["gross_income"]["synonyms"] == ["monthly_gross"]
+        assert defaults["variables"]["gross_income"]["synonyms"] == [{
+            "name": "monthly_gross",
+            "source_doc": "input/policy_docs/b.md",
+            "section": "§2",
+        }]
 
 
 def test_dry_run_writes_nothing():
@@ -791,12 +831,13 @@ def test_dry_run_writes_nothing():
 
 
 # ---------------------------------------------------------------------------
-# Sources ordering
+# Synonym row ordering
 # ---------------------------------------------------------------------------
 
 
-def test_sources_alphabetical_by_file():
-    """sources: list is sorted alphabetically by file path."""
+def test_synonym_rows_sorted_by_name_source_doc_section():
+    """Self-synonym rows are sorted by (name, source_doc, section). Canonical's
+    source_doc/section come from the alphabetically-first observation."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         for rel in ("z_last.md", "a_first.md", "m_mid.md"):
@@ -810,8 +851,24 @@ def test_sources_alphabetical_by_file():
             )
         naming_defaults.cmd_build(domain)
         defaults = _read_defaults(domain)
-        files = [s["file"] for s in defaults["variables"]["gross_income"]["sources"]]
-        assert files == sorted(files)
+        entry = defaults["variables"]["gross_income"]
+        # Top-level: alphabetically-first observation wins.
+        assert entry["source_doc"] == "input/policy_docs/a_first.md"
+        assert entry["section"] == "§1"
+        # Remaining observations of the canonical name become self-synonym rows,
+        # sorted by (name, source_doc, section). Same name → sort by source_doc.
+        assert entry["synonyms"] == [
+            {
+                "name": "gross_income",
+                "source_doc": "input/policy_docs/m_mid.md",
+                "section": "§1",
+            },
+            {
+                "name": "gross_income",
+                "source_doc": "input/policy_docs/z_last.md",
+                "section": "§1",
+            },
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -1157,7 +1214,7 @@ def test_idempotent_with_new_fields():
 
 
 def test_field_order_in_output_yaml():
-    """Field insertion order: description, policy_phrase, type, values, role_hint, synonyms, sources."""
+    """Field insertion order: description, policy_phrase, type, values, role_hint, source_doc, section, synonyms."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_per_file(
@@ -1173,22 +1230,363 @@ def test_field_order_in_output_yaml():
             sections=[{"heading": "# h", "summary": "", "tags": [],
                        "computations": [{"description": "", "variables": ["status"]}]}],
         )
+        # Add a synonym observation so synonyms: appears in output.
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"decision_status": {
+                "policy_phrase": "decision status",
+                "source_section": "§2",
+                "type": "enum",
+                "values": ["a", "b"],
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["decision_status"]}]}],
+        )
         naming_defaults.cmd_build(domain)
         text = (domain / "policy_facets" / "naming-defaults.yaml").read_text()
-        # Within the status: block, find each field's position.
+        # Within the canonical's block, find each field's position.
         positions = {}
         for field in ("description:", "policy_phrase:", "type:", "values:",
-                      "role_hint:", "sources:"):
+                      "role_hint:", "source_doc:", "section:", "synonyms:"):
             positions[field] = text.find(field)
             assert positions[field] != -1, f"field {field!r} missing from output"
         order = [
             "description:", "policy_phrase:", "type:", "values:",
-            "role_hint:", "sources:",
+            "role_hint:", "source_doc:", "section:", "synonyms:",
         ]
         for a, b in zip(order, order[1:]):
             assert positions[a] < positions[b], (
                 f"field {a!r} at {positions[a]} should precede {b!r} at {positions[b]}"
             )
+        # `sources:` is gone from the schema entirely.
+        assert "sources:" not in text
+
+
+# ---------------------------------------------------------------------------
+# New schema: self-synonyms, multi-source synonyms, specs fallback, metrics
+# ---------------------------------------------------------------------------
+
+
+def test_canonical_appearing_in_multiple_files_emits_self_synonyms():
+    """R3: canonical observed in 2 (file, section) pairs → first wins top-level,
+    extras become self-synonym rows (name == canonical)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "§A",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "§B",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gross_income"]
+        assert entry["source_doc"] == "input/policy_docs/a.md"
+        assert entry["section"] == "§A"
+        assert entry["synonyms"] == [{
+            "name": "gross_income",
+            "source_doc": "input/policy_docs/b.md",
+            "section": "§B",
+        }]
+
+
+def test_multi_source_synonym_emits_one_row_per_observation():
+    """R4: a single synonym name observed in two distinct (file, section) pairs
+    produces two synonym rows (no dedup of distinct sources)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        # Anchor the canonical pick via specs so it doesn't depend on a freq
+        # distribution that loses to the multi-source synonym.
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "gi": {
+                    "policy_phrase": "gross monthly income",
+                    "source_doc": "canonical.md",
+                    "section": "§1",
+                },
+            },
+        })
+        # Canonical 'gi' (specs-anchored) appears once in observations.
+        _write_per_file(
+            domain, "canonical.md",
+            naming_manifest={"variables": {"gi": {
+                "policy_phrase": "gross monthly income", "source_section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gi"]}]}],
+        )
+        # Synonym 'gross_income' in two distinct (file, section) pairs.
+        _write_per_file(
+            domain, "syn_a.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "§A",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        _write_per_file(
+            domain, "syn_b.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "§B",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gi"]
+        assert entry["synonyms"] == [
+            {
+                "name": "gross_income",
+                "source_doc": "input/policy_docs/syn_a.md",
+                "section": "§A",
+            },
+            {
+                "name": "gross_income",
+                "source_doc": "input/policy_docs/syn_b.md",
+                "section": "§B",
+            },
+        ]
+
+
+def test_canonical_source_picks_first_alphabetical_observation():
+    """When the canonical name has multiple observations, the (file, section)
+    sort key picks deterministically — file first, then section."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        # Same file, two sections — section sort key picks §1 over §2.
+        _write_per_file(
+            domain, "shared.md",
+            naming_manifest={"variables": {"gi": {
+                "policy_phrase": "gross monthly income", "source_section": "§2",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gi"]}]}],
+        )
+        # Lower-alphabet file beats higher even when section is "later".
+        _write_per_file(
+            domain, "alpha.md",
+            naming_manifest={"variables": {"gi": {
+                "policy_phrase": "gross monthly income", "source_section": "§99",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gi"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gi"]
+        assert entry["source_doc"] == "input/policy_docs/alpha.md"
+        assert entry["section"] == "§99"
+
+
+def test_specs_picked_canonical_with_no_observation_falls_back_to_specs_source():
+    """Specs supplies the canonical name; no per-file file observes it. Top-level
+    source_doc/section come from specs; synonyms list every observation (no
+    canonical-observation to exclude)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "specs_only_canonical": {
+                    "policy_phrase": "the concept",
+                    "source_doc": "input/policy_docs/spec_doc.md",
+                    "section": "§spec",
+                },
+            },
+        })
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"alt_one": {
+                "policy_phrase": "the concept", "source_section": "§A",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["alt_one"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"alt_two": {
+                "policy_phrase": "the concept", "source_section": "§B",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["alt_two"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["specs_only_canonical"]
+        assert entry["source_doc"] == "input/policy_docs/spec_doc.md"
+        assert entry["section"] == "§spec"
+        assert entry["synonyms"] == [
+            {"name": "alt_one", "source_doc": "input/policy_docs/a.md", "section": "§A"},
+            {"name": "alt_two", "source_doc": "input/policy_docs/b.md", "section": "§B"},
+        ]
+
+
+def test_specs_basename_normalized_to_full_path():
+    """Specs `source_doc:` is conventionally a basename like 'eligibility.md'.
+    R6 mandates full-path everywhere → prepend input/policy_docs/."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "concept_canonical": {
+                    "policy_phrase": "some concept",
+                    "source_doc": "eligibility.md",  # bare basename
+                    "section": "§1",
+                },
+            },
+        })
+        _write_per_file(
+            domain, "other.md",
+            naming_manifest={"variables": {"observed_alt": {
+                "policy_phrase": "some concept", "source_section": "§other",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["observed_alt"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["concept_canonical"]
+        # Bare basename gets prepended with input/policy_docs/.
+        assert entry["source_doc"] == "input/policy_docs/eligibility.md"
+
+
+def test_synonyms_collapsed_metric_counts_unique_names_not_rows():
+    """R10: synonyms_collapsed counts unique non-canonical names per entry,
+    not synonym row count. Self-synonym rows + multi-source duplicates of one
+    name must not inflate the count."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        # Canonical 'gi' observed in 3 files (1 wins top-level + 2 self-synonyms).
+        for rel, sect in (("a.md", "§1"), ("b.md", "§2"), ("c.md", "§3")):
+            _write_per_file(
+                domain, rel,
+                naming_manifest={"variables": {"gi": {
+                    "policy_phrase": "gross monthly income", "source_section": sect,
+                }}},
+                sections=[{"heading": "# h", "summary": "", "tags": [],
+                           "computations": [{"description": "", "variables": ["gi"]}]}],
+            )
+        # Synonym 'gross_income' observed in 3 distinct files.
+        for rel, sect in (("d.md", "§1"), ("e.md", "§2"), ("f.md", "§3")):
+            _write_per_file(
+                domain, rel,
+                naming_manifest={"variables": {"gross_income": {
+                    "policy_phrase": "gross monthly income", "source_section": sect,
+                }}},
+                sections=[{"heading": "# h", "summary": "", "tags": [],
+                           "computations": [{"description": "", "variables": ["gross_income"]}]}],
+            )
+        summary = naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gi"]
+        # 5 synonym rows total: 2 self-synonyms + 3 alternate-name rows.
+        assert len(entry["synonyms"]) == 5
+        # But synonyms_collapsed counts unique non-canonical names → 1 ('gross_income').
+        assert summary["synonyms_collapsed"] == 1
+
+
+def test_section_omitted_when_empty_top_level_and_in_synonym_row():
+    """Empty source_section in observations → no section: key emitted (top-level
+    or inside a synonym row). source_doc: still present."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_per_file(
+            domain, "a.md",
+            naming_manifest={"variables": {"gi": {
+                "policy_phrase": "gross monthly income", "source_section": "",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gi"]}]}],
+        )
+        _write_per_file(
+            domain, "b.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gi"]
+        # Top-level: source_doc present, section absent.
+        assert entry["source_doc"] == "input/policy_docs/a.md"
+        assert "section" not in entry
+        # Synonym row: source_doc present, section absent.
+        assert entry["synonyms"] == [
+            {"name": "gross_income", "source_doc": "input/policy_docs/b.md"},
+        ]
+
+
+def test_same_name_distinct_empty_vs_present_section_yields_two_rows():
+    """Two observations of the same synonym name in the same file — one empty
+    section, one populated. The dedup key is (name, source_doc, section), so
+    these are distinct rows."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        # Anchor canonical 'gi' via specs (synonym 'gross_income' observed twice
+        # would otherwise win frequency).
+        _write_specs(domain, {
+            "version": "1.0",
+            "computed": {
+                "gi": {
+                    "policy_phrase": "gross monthly income",
+                    "source_doc": "canon.md",
+                    "section": "§canon",
+                },
+            },
+        })
+        # Canonical from a different file.
+        _write_per_file(
+            domain, "canon.md",
+            naming_manifest={"variables": {"gi": {
+                "policy_phrase": "gross monthly income", "source_section": "§canon",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gi"]}]}],
+        )
+        # The per-file YAML schema has one variable name per map entry, so
+        # the duplicate-name-with-different-section case has to come from
+        # separate per-file files — feed two files that share a name and
+        # differ only in section.
+        # File with empty section:
+        _write_per_file(
+            domain, "syn_empty.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        # File with populated section:
+        _write_per_file(
+            domain, "syn_filled.md",
+            naming_manifest={"variables": {"gross_income": {
+                "policy_phrase": "gross monthly income", "source_section": "§1",
+            }}},
+            sections=[{"heading": "# h", "summary": "", "tags": [],
+                       "computations": [{"description": "", "variables": ["gross_income"]}]}],
+        )
+        naming_defaults.cmd_build(domain)
+        defaults = _read_defaults(domain)
+        entry = defaults["variables"]["gi"]
+        # Two distinct synonym rows (empty section vs §1).
+        assert len(entry["synonyms"]) == 2
+        names = sorted({r["name"] for r in entry["synonyms"]})
+        assert names == ["gross_income"]
 
 
 def main() -> int:
