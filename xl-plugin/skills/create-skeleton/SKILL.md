@@ -130,7 +130,7 @@ Extract the following signals (hold in memory for Step 3):
 - **Section headings** — collect all `heading:` values; reveals statutory structure (e.g., income tests, deduction chains)
 - **File summaries** — collect all `summary:` values; reveals program scope and terminology
 - **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable (last item in `variables`); collect `preconditions:` expressions keyed by their output variable. A variable with non-empty `preconditions:` is a **conditional computation** — when emitting it in Step 4's `skeleton.computations[].exprs:` map, prefer the form `"if <rendered preconditions> then <expr_hint> else ?"` over a bare `expr_hint` so the conditional gating is preserved into `/extract-ruleset`. The rendering rule for `preconditions:` is: top-level list joins with AND; `{all_of: [...]}` joins with AND; `{any_of: [...]}` joins with OR; nesting permitted. If no entry has `computations:`, skip this signal.
-- **Phase membership** — collect each section's `phase:` value (when present); index every computation in that section under the section's `phase:`. Apply the same suffix-stripping normalization as `/create-ruleset-groups` (drop a trailing `_test` / `_check` / `_evaluation`) so phase identifiers match the canonical names that `/create-ruleset-groups` writes to `ruleset-groups.yaml`. The phase index drives Step 4's `skeleton.computations[].category:` field — a computation whose source section has `phase: deductions` is categorized under `deductions`. This keeps `skeleton.computations[*].category` consistent with `ruleset_groups[*].name` so that `/create-ruleset-modules`'s R21 stage-boundary check (now extended to require `phase:` agreement) doesn't disagree with skeleton categorization. If no section has `phase:`, skip this signal and fall back to existing name-pattern-based categorization unchanged.
+- **Stage membership** — collect each section's `stage:` value (when present); index every computation in that section under the section's `stage:`. Apply the same suffix-stripping normalization as `/create-ruleset-groups` (drop a trailing `_test` / `_check` / `_evaluation`) so stage identifiers match the canonical names that `/create-ruleset-groups` writes to `ruleset-groups.yaml`. The stage index drives Step 4's `skeleton.computations[].stage:` field — a computation whose source section has `stage: deductions` is categorized under `deductions`. This keeps `skeleton.computations[*].stage` consistent with `ruleset_groups[*].name` so that `/create-ruleset-modules`'s R21 stage-boundary check (now extended to require `stage:` agreement) doesn't disagree with skeleton categorization. If no section has `stage:`, skip this signal and fall back to existing name-pattern-based categorization unchanged.
 
 For each of the four guidance sections (`constraints`, `standards`, `guidance`, `edge_cases`), generate proposed additions grounded in these index signals. Use computation hints to enrich `guidance` and `standards` proposals with concrete variable names and formula patterns (e.g., "The CIVIL ruleset should define `earned_income_deduction` as a `computed:` field equal to `earned_income * 0.20`").
 
@@ -161,7 +161,7 @@ Steps:
 Build and display the skeleton using:
 
 - **`guidance/input-variables.yaml`** — input categories provide structure and group names; **`guidance/output-variables.yaml`** — output entries with primary flag; **`specs/naming-manifest.yaml`** — structural variable data (names + types)
-- **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and `expr_hint` values (show as `≈ <expr_hint>` when available, `= ?` when not inferable); **phase membership drives `category:` assignment when present** — a computation whose source section has `phase:` adopts the (post-normalization) phase value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `phase:` fall through to existing name-pattern categorization unchanged.
+- **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and `expr_hint` values (show as `≈ <expr_hint>` when available, `= ?` when not inferable); **stage membership drives `stage:` assignment when present** — a computation whose source section has `stage:` adopts the (post-normalization) stage value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `stage:` fall through to existing name-pattern categorization unchanged.
 
 Display format:
 
@@ -178,11 +178,11 @@ Display format:
 
 **Computed:** *(how to get the Output from the Inputs)*
 
-*[category name — category description]:*
+*[stage name — stage description]:*
 - `[variable]` = [expression hint, or `= ?` if not inferable]
 - ...
 
-[repeat for each intermediate_variables category]
+[repeat for each intermediate_variables stage]
 :::
 
 Include an ASCII computation flow diagram.
@@ -209,8 +209,8 @@ Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
      inputs: [<flat list of confirmed input variable names>]
      outputs: [<flat list of confirmed output variable names>]
      computations:
-       - category: <category_name>
-         variables: [<variable1>, <variable2>, ...]    # intermediate variables in this category
+       - stage: <stage_name>
+         variables: [<variable1>, <variable2>, ...]    # intermediate variables in this stage
          exprs:
            <variable>: "<expr_hint>"
            # (only variables with non-null expr_hints; = ? variables are omitted)
@@ -218,7 +218,7 @@ Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
        # (ASCII computation flow diagram)
    ```
 
-   **Intermediate variables live here, not in a separate file.** Their structure (which variables are computed, their expression hints, their category grouping) IS the computation skeleton. There is no `guidance/intermediate-variables.yaml`.
+   **Intermediate variables live here, not in a separate file.** Their structure (which variables are computed, their expression hints, their stage grouping) IS the computation skeleton. There is no `guidance/intermediate-variables.yaml`.
 
 2. **Write `guidance/output-variables.yaml`** — flat keyed by name, mirroring `specs/naming-manifest.yaml`'s `outputs:` shape:
    ```yaml
@@ -308,5 +308,5 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [UPDATED in Step 
 - **Do not write `guidance/variables.yaml`** — that file is gone in v7.0.0. Intermediate variables live in `skeleton.yaml`'s `computations:` block; output descriptions live in `output-variables.yaml`; input descriptions live in `input-variables.yaml`; constants/tables live in `constants-and-tables.yaml`.
 - **`output-variables.yaml`'s `examples:` carries sample values, not synonym names** — synonyms are tracked in `naming-manifest.yaml`'s `synonyms:` row list. Do not duplicate.
 - Re-runs preserve analyst edits — only fill in fields the analyst left blank. Match `/extract-ruleset` Step 7's preserve-non-null discipline.
-- **When a section has an explicit `phase:` value, that phase wins over name-pattern categorization** — do not override an explicit doc signal with a heuristic guess. Apply the same suffix-stripping normalization as `/create-ruleset-groups` so categories match `ruleset_groups[*].name` exactly
-- **Do not write `phase:` or modify it** — `phase:` is single-owner; only `/extract-computations` writes the field. This skill reads it
+- **When a section has an explicit `stage:` value, that stage wins over name-pattern categorization** — do not override an explicit doc signal with a heuristic guess. Apply the same suffix-stripping normalization as `/create-ruleset-groups` so stages match `ruleset_groups[*].name` exactly
+- **Do not write `stage:` or modify it** — `stage:` is single-owner; only `/extract-computations` writes the field. This skill reads it

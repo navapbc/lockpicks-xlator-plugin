@@ -105,7 +105,7 @@ Use this goal to scope your reading:
 
 Additionally, build five in-memory structures from the loaded guidance files:
 
-1. **Confirmed exprs map** `{variable_name → expr}`: Read `guidance/skeleton.yaml`'s `computations:` block. For each category, iterate its `exprs:` map and add `name → expr` to the map. This map is used in Step 4.
+1. **Confirmed exprs map** `{variable_name → expr}`: Read `guidance/skeleton.yaml`'s `computations:` block. For each stage, iterate its `exprs:` map and add `name → expr` to the map. This map is used in Step 4.
 
 2. **Example rules list**: Read the top-level `sample_rules:` section from `guidance/sample-artifacts.yaml` (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
 

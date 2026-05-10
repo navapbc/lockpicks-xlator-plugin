@@ -207,11 +207,11 @@ skeleton:
   inputs: [client_gross_earned, dol_quarterly_earnings, household_type, benefit_year]
   outputs: [eligible, denial_reason]
   computations:
-    - category: dol_preprocessing
+    - stage: dol_preprocessing
       variables: [dol_avg_monthly_income]
       exprs:
         dol_avg_monthly_income: "dol_quarterly_earnings / 3"
-    - category: exclusion_chain_steps
+    - stage: exclusion_chain_steps
       variables: [after_federal, after_eitc, after_half, adjusted_earned_income]
       exprs:
         after_half: "after_irwe * 0.5"
@@ -221,7 +221,7 @@ skeleton:
     client_result, dol_result ──► is_compatible ──► eligible
 ```
 
-Sub-fields: `inputs` (flat list of confirmed input variable names), `outputs` (flat list of confirmed output variable names), `computations` (list of `{category, variables[], exprs}` entries), `flow_diagram` (ASCII diagram of computation flow).
+Sub-fields: `inputs` (flat list of confirmed input variable names), `outputs` (flat list of confirmed output variable names), `computations` (list of `{stage, variables[], exprs}` entries), `flow_diagram` (ASCII diagram of computation flow).
 
 ---
 

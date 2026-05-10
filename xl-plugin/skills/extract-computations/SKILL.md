@@ -105,13 +105,13 @@ For each section produce:
 - **`heading:`** — verbatim heading text including the `#` / `##` / `###` prefix. The prefix encodes the level; do NOT strip it.
 - **`summary:`** — one sentence describing what this section covers, in the policy's own terminology.
 - **`tags:`** — 3–5 short noun-phrase tags (lowercase, hyphenated or single-word). These are downstream filtering signals.
-- **`phase:`** — *optional* snake_case identifier naming the phase or stage of analysis the section belongs to. Populate ONLY when the source doc surfaces an explicit phase or stage signal — examples that justify a `phase:`:
+- **`stage:`** — *optional* snake_case identifier naming the stage of analysis the section belongs to. Populate ONLY when the source doc surfaces an explicit phase or stage signal — examples that justify a `stage:`:
   - A heading like `# Phase 1 — Initial Screening` (the heading itself is the signal).
-  - A parent heading several levels above the current section (e.g., the section's H3 sits under an H1 `Phase 2: Detailed Eligibility` — the phase label is attributable to the ancestor).
-  - A body sentence like *"the computations below run as Phase 2 of the eligibility test"* — explicit phase wording in prose, anchored to the section.
+  - A parent heading several levels above the current section (e.g., the section's H3 sits under an H1 `Phase 2: Detailed Eligibility` — the stage label is attributable to the ancestor).
+  - A body sentence like *"the computations below run as Phase 2 of the eligibility test"* — explicit stage wording in prose, anchored to the section.
 
-  Convert the surfaced label to a snake_case identifier (`Phase 1 — Initial Screening` → `initial_screening`). Omit the field entirely when no such signal exists in or above the section. **Inventing a `phase:` when the source has no signal degrades downstream defaults — an absent field is stronger than a hallucinated one.**
-- **`phase_source:`** — required when `phase:` is present, omitted when `phase:` is omitted. Value is the **verbatim source-text phrase** that justified the `phase:` identifier — copied character-for-character from the source `.md`, no paraphrasing, no truncation that breaks substring matching. Downstream consumers run `grep -F "<phase_source>" <input/policy_docs/<rel>.md>` to verify the AI honored the explicit-signal rule. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `phase:` entirely rather than invent or paraphrase.
+  Convert the surfaced label to a snake_case identifier (`Phase 1 — Initial Screening` → `initial_screening`). Omit the field entirely when no such signal exists in or above the section. **Inventing a `stage:` when the source has no signal degrades downstream defaults — an absent field is stronger than a hallucinated one.**
+- **`stage_source:`** — required when `stage:` is present, omitted when `stage:` is omitted. Value is the **verbatim source-text phrase** that justified the `stage:` identifier — copied character-for-character from the source `.md`, no paraphrasing, no truncation that breaks substring matching. Downstream consumers run `grep -F "<stage_source>" <input/policy_docs/<rel>.md>` to verify the AI honored the explicit-signal rule. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `stage:` entirely rather than invent or paraphrase.
 - **`computations:`** — *optional* list. Include only if the section contains identifiable rule logic (formulas, arithmetic, table lookups, thresholds, conditional assignments). Each entry has:
   - `description:` — one sentence describing the computation in plain language.
   - `variables:` — all variable names involved, **inputs first, computed output last**, snake_case, decided per the authority-chain rule below. Every name in this list MUST also appear as a key in the top-level `naming_manifest.variables` map (the emitter validates this invariant at write time).
@@ -208,8 +208,8 @@ JSON payload shape:
       "heading":      "# Section Title",
       "summary":      "...",
       "tags":         ["tag1", "tag2"],
-      "phase":        "initial_screening",
-      "phase_source": "Phase 1 — Initial Screening",
+      "stage":        "initial_screening",
+      "stage_source": "Phase 1 — Initial Screening",
       "computations": [
         {
           "description":   "...",
@@ -257,8 +257,8 @@ sections:
   - heading: "# Section Title"
     summary: "..."
     tags: [tag1, tag2, tag3]
-    phase: initial_screening
-    phase_source: "Phase 1 — Initial Screening"
+    stage: initial_screening
+    stage_source: "Phase 1 — Initial Screening"
     computations:
       - description: "..."
         variables: [gross_income, deductions, net_income]
@@ -267,7 +267,7 @@ sections:
 
 Conventions enforced by the emitter:
 - Top-level value is a YAML map with exactly two keys: `naming_manifest` and `sections`. Consumers read `data["sections"]` for section blocks and `data["naming_manifest"]["variables"]` for the per-file naming map.
-- Optional fields (`role_hint:`, `phase:`, `phase_source:`, `preconditions:`, `expr_hint:`, `computations:` when no rule logic, `description:`, `type:`, `values:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
+- Optional fields (`role_hint:`, `stage:`, `stage_source:`, `preconditions:`, `expr_hint:`, `computations:` when no rule logic, `description:`, `type:`, `values:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
 - **Cross-block name-set invariant:** every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. If the JSON violates this, the tool exits non-zero and refuses to write — diagnose the missing entry before retrying.
 - **`type:` vocabulary:** must be one of `money | bool | int | float | string | enum | list | date` when present. The emitter rejects any other value (including `str`).
 - **`type: enum` ↔ `values:` dependency:** the emitter rejects payloads that have `type: enum` without a non-empty `values:` list, or `values:` with any other `type:`.
@@ -302,6 +302,6 @@ Do NOT emit `:::next_step` from this skill — it is per-file and is normally in
 - **Don't write `policy_facets/input-sections.yaml`** — that artifact is removed in v3.0.0. All section data lives in per-file `policy_facets/computations/<rel>.md.yaml` files.
 - **Don't read or mutate any pre-existing `input-sections.yaml`** — leave it on disk untouched. Maintainers delete it manually.
 - **Don't run this skill on a low-md_quality source** — the pre-flight gate refuses files whose `md_quality.score < 40`. If the gate fires, fix the source or remove it from `input/policy_docs/`.
-- **Don't invent a `phase:` value when the source has no explicit signal** — phases must be anchored to a heading, body sentence, or attributable ancestor heading. An absent `phase:` is the safe default; hallucinated phases flow through `/create-ruleset-groups` into `guidance/ruleset-groups.yaml` and ultimately produce `validate_civil.py` rejection at the `/extract-ruleset` stage.
-- **Don't paraphrase `phase_source:`** — it must be a verbatim substring of the source `.md` so `grep -F "<phase_source>" <source>` matches. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `phase:` entirely rather than invent or paraphrase.
-- **Don't emit `phase:` without `phase_source:`** (or vice versa) — the two fields ship together. The quote is the proof that the AI honored the explicit-signal rule.
+- **Don't invent a `stage:` value when the source has no explicit signal** — stages must be anchored to a heading, body sentence, or attributable ancestor heading. An absent `stage:` is the safe default; hallucinated stages flow through `/create-ruleset-groups` into `guidance/ruleset-groups.yaml` and ultimately produce `validate_civil.py` rejection at the `/extract-ruleset` stage.
+- **Don't paraphrase `stage_source:`** — it must be a verbatim substring of the source `.md` so `grep -F "<stage_source>" <source>` matches. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `stage:` entirely rather than invent or paraphrase.
+- **Don't emit `stage:` without `stage_source:`** (or vice versa) — the two fields ship together. The quote is the proof that the AI honored the explicit-signal rule.

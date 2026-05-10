@@ -35,7 +35,7 @@ Input JSON shape:
       },
       "sections": [
         { "heading": "...", "summary": "...", "tags": [...],
-          "phase": "...", "phase_source": "...",
+          "stage": "...", "stage_source": "...",
           "computations": [
             { "description": "...", "variables": ["..."],
               "preconditions": [...], "expr_hint": "..." }
