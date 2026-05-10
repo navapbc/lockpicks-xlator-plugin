@@ -179,7 +179,7 @@ Created $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml
 Then suggest the next step:
 
 :::next_step
-Next: Run /index-inputs <domain> to extract per-file naming_manifest blocks and merge them with the seeded manifest. Then /create-skeleton to populate descriptive guidance files.
+Next: Run /index-inputs <domain> to extract per-file section data from policy docs. Then /create-skeleton to populate descriptive guidance files.
 :::
 
 ## Output
