@@ -223,12 +223,12 @@ If any new fact, computed, or outputs fields were added: derive canonical names 
 
 If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after validation.
 
-**`original_name:` annotation (best-effort).** Like `/extract-sample-rules` Step 6, this writer derives names from CIVIL field names rather than from a defaults-provenance link, so the no-copy-back guarantee is best-effort here. Rule:
+**`original_name:` annotation (best-effort).** Like `/extract-sample-rules` Step 6, this writer derives names from CIVIL field names. Rule:
 
 - Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it disambiguated a derived name before writing). In every other case, omit `original_name:`.
-- Readers (the next `/index-inputs` worker) fall back to the current key when `original_name:` is absent.
+- Readers fall back to the current key when `original_name:` is absent.
 
-**Defaults field propagation (best-effort).** When appending a new entry (or replacing on rename), apply the same `description:` / `type:` / `values:` / `synonyms:` propagation rule defined in `/extract-ruleset` Step 7 — join to `policy_facets/naming-defaults.yaml` by normalized `policy_phrase` and copy any present optional fields verbatim. `role_hint:` is excluded; entity grouping encodes role. The best-effort caveat applies: when this writer cannot match a CIVIL field back to a defaults entry by `policy_phrase`, propagation no-ops and only the existing fields (`policy_phrase`, `source_doc`, `section`) are written. Existing entries that Step 9 preserves verbatim are unaffected — analyst edits to propagated fields survive across UPDATE runs.
+**Optional fields.** `description:` / `type:` / `values:` / `synonyms:` are no longer auto-propagated from any external file. New entries written by Step 9 carry only the existing fields (`policy_phrase`, `source_doc`, `section`) plus any optional fields the analyst supplied inline or that are AI-inferable from policy text. Existing entries that Step 9 preserves verbatim are unaffected — analyst edits to optional fields survive across UPDATE runs per the preserve-non-null rule shared with `/extract-ruleset` Step 7.
 
 ### Step 10: Write Stale-Cases Hint
 
