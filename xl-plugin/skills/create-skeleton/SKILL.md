@@ -119,17 +119,19 @@ Steps:
 
 ### Step 2: Extract doc signals and update guidance sections
 
-Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map with top-level keys `naming_manifest` and `sections`. Read `data["sections"]` as the list of section blocks (the per-section block shape is unchanged from the prior list-shape — only the wrapping is new).
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of section blocks. Legacy on-disk files may carry a top-level `naming_manifest:` key and per-computation `variables:` lists from prior versions; both are silently ignored — this skill reads `data["sections"]` only.
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 
 Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Strip the trailing `.yaml` from the per-file file's relative path under `policy_facets/computations/` and prefix with `input/policy_docs/` to reconstruct `path:`.
+
+**`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation) or carries the legacy bare-expression form (no `=`), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
 
 Extract the following signals (hold in memory for Step 3):
 
 - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
 - **Section headings** — collect all `heading:` values; reveals statutory structure (e.g., income tests, deduction chains)
 - **File summaries** — collect all `summary:` values; reveals program scope and terminology
-- **Computation hints** — collect all `computations:` entries from sections that have the field; trace variable chains (a variable that is the last item in one entry's `variables` list and appears earlier in another entry's `variables` list is an intermediate computed variable); collect `expr_hint` values keyed by their output variable (last item in `variables`); collect `preconditions:` expressions keyed by their output variable. A variable with non-empty `preconditions:` is a **conditional computation** — when emitting it in Step 4's `skeleton.computations[].exprs:` map, prefer the form `"if <rendered preconditions> then <expr_hint> else ?"` over a bare `expr_hint` so the conditional gating is preserved into `/extract-ruleset`. The rendering rule for `preconditions:` is: top-level list joins with AND; `{all_of: [...]}` joins with AND; `{any_of: [...]}` joins with OR; nesting permitted. If no entry has `computations:`, skip this signal.
+- **Computation hints** — collect all `computations:` entries from sections that have the field; for each entry apply the `expr_hint:` parse rule above to recover (output name, input names). A variable that is the LHS output of one entry and appears as an RHS input of another entry is an **intermediate computed variable**. Collect `expr_hint:` RHS values keyed by their LHS output name (the bare expression for that computation, with the `<output> =` prefix stripped); collect `preconditions:` expressions keyed by their computation's output name. A computation with non-empty `preconditions:` is a **conditional computation** — when emitting it in Step 4's `skeleton.computations[].exprs:` map, prefer the form `"if <rendered preconditions> then <expr_hint RHS> else ?"` over a bare expression so the conditional gating is preserved into `/extract-ruleset`. The rendering rule for `preconditions:` is: top-level list joins with AND; `{all_of: [...]}` joins with AND; `{any_of: [...]}` joins with OR; nesting permitted. If no entry has `computations:`, skip this signal.
 - **Stage membership** — collect each section's `stage:` value (when present); index every computation in that section under the section's `stage:`. Apply the same suffix-stripping normalization as `/create-ruleset-groups` (drop a trailing `_test` / `_check` / `_evaluation`) so stage identifiers match the canonical names that `/create-ruleset-groups` writes to `ruleset-groups.yaml`. The stage index drives Step 4's `skeleton.computations[].stage:` field — a computation whose source section has `stage: deductions` is categorized under `deductions`. This keeps `skeleton.computations[*].stage` consistent with `ruleset_groups[*].name` so that `/create-ruleset-modules`'s R21 stage-boundary check (now extended to require `stage:` agreement) doesn't disagree with skeleton categorization. If no section has `stage:`, skip this signal and fall back to existing name-pattern-based categorization unchanged.
 
 For each of the four guidance sections (`constraints`, `standards`, `guidance`, `edge_cases`), generate proposed additions grounded in these index signals. Use computation hints to enrich `guidance` and `standards` proposals with concrete variable names and formula patterns (e.g., "The CIVIL ruleset should define `earned_income_deduction` as a `computed:` field equal to `earned_income * 0.20`").
@@ -161,7 +163,7 @@ Steps:
 Build and display the skeleton using:
 
 - **`guidance/input-variables.yaml`** — input categories provide structure and group names; **`guidance/output-variables.yaml`** — output entries with primary flag; **`specs/naming-manifest.yaml`** — structural variable data (names + types)
-- **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and `expr_hint` values (show as `≈ <expr_hint>` when available, `= ?` when not inferable); **stage membership drives `stage:` assignment when present** — a computation whose source section has `stage:` adopts the (post-normalization) stage value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `stage:` fall through to existing name-pattern categorization unchanged.
+- **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and bare-expression values (the `expr_hint:` RHS with the `<output> =` prefix stripped — show as `≈ <expression>` when available, `= ?` when not inferable); **stage membership drives `stage:` assignment when present** — a computation whose source section has `stage:` adopts the (post-normalization) stage value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `stage:` fall through to existing name-pattern categorization unchanged.
 
 Display format:
 
@@ -212,8 +214,11 @@ Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
        - stage: <stage_name>
          variables: [<variable1>, <variable2>, ...]    # intermediate variables in this stage
          exprs:
-           <variable>: "<expr_hint>"
-           # (only variables with non-null expr_hints; = ? variables are omitted)
+           <variable>: "<expression>"
+           # The key is the computation's output variable (the LHS of expr_hint:);
+           # the value is the bare expression (the RHS of expr_hint: with the
+           # `<output> =` prefix stripped). Only variables with non-null
+           # expressions are listed; `= ?` variables are omitted.
      flow_diagram: |
        # (ASCII computation flow diagram)
    ```
@@ -299,7 +304,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [UPDATED in Step 
 - Do not read files under `$DOMAINS_DIR/<domain>/input/` at any step — `policy_facets/computations/` is the sole source of doc signals
 - Do not rewrite sections the user did not change — preserve exact wording of unchanged items; only append new proposals in Step 2
 - Do not write `generated_at` — git tracks version history
-- Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with actual `expr_hint` values get a `computations:` entry
+- Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with a non-null bare expression (derived from the `expr_hint:` RHS) get a `computations:` entry
 - In UPDATE mode "accept", exit without writing — do not overwrite any existing content
 - Step 2 runs in both CREATE and UPDATE mode (when `[b] replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
 - Show the step checklist after EVERY step (4 steps total) — do not skip it

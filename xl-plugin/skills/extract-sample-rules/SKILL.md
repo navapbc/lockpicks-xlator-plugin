@@ -97,7 +97,9 @@ Steps:
 
 ### Step 2: Load and filter per-file computations
 
-Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map with top-level keys `naming_manifest` and `sections`. Read `data["sections"]` as the list of section blocks (the per-section block shape is unchanged from the prior list-shape — only the wrapping is new). Concatenate all entries into a single working list, deriving the `path:` field per entry from the file's relative location (a section in `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`). Filter the working list to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of section blocks. Legacy on-disk files may carry a top-level `naming_manifest:` key and per-computation `variables:` lists from prior versions; both are silently ignored — this skill reads `data["sections"]` only. Concatenate all entries into a single working list, deriving the `path:` field per entry from the file's relative location (a section in `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`). Filter the working list to entries that have a non-empty `computations:` field (at least one computation entry). Proceed regardless.
+
+**`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the bare expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation) or carries the legacy bare-expression form (no `=`), fall back to scanning `description:` prose for variable names mentioned in the source's terminology. The bare-expression value used downstream (in `expr:` substitution and `categorical:` rendering) is the RHS with the `<output> =` prefix stripped.
 
 **If `<rule_topic>` was provided:** further filter to entries whose `heading:`, `summary:`, or `tags:` contain the topic keywords (case-insensitive). If no entries match the topic, print:
 
@@ -132,8 +134,8 @@ Print only the warnings that apply. Proceed regardless.
 
 If `role:` is absent, keep all qualifying entries in the working set.
 
-**`skeleton:`** — The ordered list of computation categories and their members. For each entry remaining in the working set:
-- If the entry's `computations[].variables[]` include one or more variables mentioned in `skeleton:`, mark it **high priority**.
+**`skeleton:`** — The ordered list of computation categories and their members. For each entry remaining in the working set, derive the entry's variable inventory by applying the `expr_hint:` parse rule (Step 2) to every `computations[]` entry — the LHS is the output name and the RHS tokens are the input names; for descriptive-only computations, scan `description:` prose. Then:
+- If any of the entry's derived variable names appear in `skeleton:`, mark it **high priority**.
 - If none of the entry's variables appear in `skeleton:`, mark it **low priority** — it may represent auxiliary or supporting policy text.
 
 Use the skeleton category labels (e.g., `income`, `deductions`, `benefit_amount`) in Step 4 to focus `categorical:` and `table-lookup:` rule drafting on the correct domain concepts.
@@ -144,8 +146,8 @@ If `skeleton:` is absent, mark all working set entries as normal priority.
 
 For each entry remaining in the working set, classify based solely on `expr_hint:` completeness in the index:
 
-- **`computed-only`**: all `computations[]` entries have `expr_hint:` present. Rules can be generated from index data alone in Pass 4a, without reading the source policy document.
-- **`needs-source`**: any `computations[]` entry is missing `expr_hint:`, or `computations[]` is empty. These entries require reading the source policy document in Pass 4b.
+- **`computed-only`**: all `computations[]` entries have `expr_hint:` present in the new assignment form (`output_name = <expression>`). Rules can be generated from index data alone in Pass 4a, without reading the source policy document.
+- **`needs-source`**: any `computations[]` entry is missing `expr_hint:`, has a legacy bare-expression `expr_hint:` (no `=`), or `computations[]` is empty. These entries require reading the source policy document in Pass 4b.
 
 Tag each entry in the working set with its class. Classification runs regardless of whether `role:` or `skeleton:` is present — it depends only on index data.
 
@@ -178,15 +180,15 @@ Rules are generated in two passes. **These passes are strictly sequential and mu
 
 For each `computed-only` entry in the working set, processed in priority order (high → low when `skeleton:` is present, or in index order when it is absent), then within each priority group in the entry order produced by globbing `policy_facets/computations/**/*.md.yaml` alphabetically and concatenating each file's `sections:` list:
 
-**(a) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, apply the two operations from SP-LoadNamingManifest in order: (1) keyed lookup — if the variable name matches a map key, use that manifest name; (2) concept matching — if no keyed match, scan map values for a `policy_phrase` that closely matches the entry's `computations[].description` text, and use that entry's variable name if found. Only if neither operation finds a match, derive a snake_case name from the entry's `computations[].description` text:
+**(a) Determine canonical variable names.** For each variable name surfaced by applying the `expr_hint:` parse rule (Step 2) to the entry's `computations[]` (LHS output names plus RHS input tokens), apply the keyed lookup from SP-LoadNamingManifest: if the variable name matches a map key in `specs/naming-manifest.yaml`, use that manifest name. Only if no keyed match is found, derive a snake_case name from the entry's `computations[].description` text:
 - Extract the noun phrase from the description
 - Strip entity prefixes (ClientData, DOLRecord, etc.) if present
 - Convert to snake_case
 - Disambiguate if a name would collide with an existing name
 
 **(b) Generate `computed:` rules.** For each `computations[]` entry, produce a `computed:` rule snippet using:
-- Canonical output variable name
-- `expr_hint:` as the `expr:` value, substituting canonical names for any input variable names
+- Canonical output variable name (the `expr_hint:` LHS, resolved through (a))
+- The bare expression (the `expr_hint:` RHS with the `<output> =` prefix stripped) as the `expr:` value, substituting canonical names for any input variable tokens
 - `source:` from `computations[].description` (if `description` is absent, use `expr: "?"` and add to `missing_info`: `"No description for <variable_name> — expr and source must be confirmed manually"`)
 - If `preconditions:` is present on the entry, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form, or fall back to a `# precondition: <rendered>` comment above the bare `expr:` when no `else` branch is inferable from the index.
 - **`group:` annotation.** If the entry's source section carries a `stage:` value, render the rule's CIVIL `group:` annotation as the (post-normalization) stage identifier — apply the same suffix-stripping normalization as `/create-ruleset-groups` (drop a trailing `_test` / `_check` / `_evaluation`) so the `group:` value matches the canonical name `/create-ruleset-groups` writes to `ruleset-groups.yaml`. When `stage:` is absent on the source section, fall through to existing heading-text-derived `group:` binding logic unchanged. The stage-derived `group:` is the explicit doc signal; heading-text is a derived guess; explicit beats inferred.
@@ -236,7 +238,7 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 - If the file at `path:` does not exist: log `⚠ Source not found: <path> — skipping entry` and add to `missing_info`. Continue to the next entry.
 - If the heading cannot be located in the file: log `⚠ Heading not found: "<heading>" in <path> — skipping entry` and add to `missing_info`. Continue.
 
-**(b) Determine canonical variable names.** For each variable name in the entry's `computations[].variables[]` list, apply the two operations from SP-LoadNamingManifest in order: (1) keyed lookup — if the variable name matches a map key, use that manifest name; (2) concept matching — if no keyed match, scan map values for a `policy_phrase` that closely matches the policy text, preferring entries whose `source_doc` and `section` match the current document, and use that entry's variable name if found. Only if neither operation finds a match, derive a snake_case name from the policy text using the Name Inventory algorithm:
+**(b) Determine canonical variable names.** For each variable name surfaced by applying the `expr_hint:` parse rule (Step 2) to the entry's `computations[]` (LHS output names plus RHS input tokens, or `description:` prose for descriptive-only computations), apply the keyed lookup from SP-LoadNamingManifest: if the variable name matches a map key in `specs/naming-manifest.yaml`, use that manifest name. Only if no keyed match is found, derive a snake_case name from the policy text using the Name Inventory algorithm:
 - Extract the exact noun phrase from the policy text
 - Strip entity prefixes (ClientData, DOLRecord, etc.) if present
 - Convert to snake_case
@@ -244,8 +246,8 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 
 **(c) Generate rules.** For each computation hint in the entry, produce one or more CIVIL rule snippets:
 
-- **`computed:` rule** — for `needs-source` entries with an `expr_hint:`: produce a `computed:` snippet using the canonical output variable name and the expr_hint as the `expr:` value. If the entry has `preconditions:`, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form; refine the rendered preconditions against the source text from sub-step (a) — clauses that the index pass could not translate cleanly may translate now using source-text variable names. For `computed-only` entries in the Pass 4b queue: **skip `computed:` rules** — already written in Pass 4a.
-- **`computed:` rule (no expr_hint)** — for `needs-source` entries where no `expr_hint:` is given: produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No expr_hint available for `<name>` — expr must be confirmed manually"). If the entry has `preconditions:`, still render them as a `# precondition: <rendered>` comment above the placeholder so the analyst can see the gating intent.
+- **`computed:` rule** — for `needs-source` entries with a well-formed `expr_hint:` (assignment form): produce a `computed:` snippet using the canonical output variable name (LHS) and the bare expression (RHS with the `<output> =` prefix stripped) as the `expr:` value. If the entry has `preconditions:`, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form; refine the rendered preconditions against the source text from sub-step (a) — clauses that the index pass could not translate cleanly may translate now using source-text variable names. For `computed-only` entries in the Pass 4b queue: **skip `computed:` rules** — already written in Pass 4a.
+- **`computed:` rule (no expr_hint or legacy bare-expression form)** — for `needs-source` entries where `expr_hint:` is absent or carries the legacy bare-expression form (no `=`): produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No assignment-form expr_hint available for `<name>` — expr must be confirmed manually"). If the entry has `preconditions:`, still render them as a `# precondition: <rendered>` comment above the placeholder so the analyst can see the gating intent.
 - **`categorical:` rules** — scan the source text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names. If the originating index entry has `preconditions:`, seed the `when:` clause from the rendered preconditions (per the rendering rule above) and append source-text-derived conditions joined with AND.
 - **`table-lookup:` rule** — if the source text references a table or schedule of thresholds, draft a `computed:` entry using `table_lookup:` syntax with `table:` and `key:` fields.
 - **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance/ruleset-modules.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
@@ -314,10 +316,10 @@ outputs:
 ```
 Do not modify or remove any existing entries.
 
-**`original_name:` annotation (best-effort).** This writer derives `policy_phrase` from `computations[].description` rather than from the Step 3b ↔ `naming-defaults.yaml` provenance link that `/extract-ruleset` Step 7 enjoys, so the no-copy-back guarantee is best-effort here. Rule:
+**`original_name:` annotation (best-effort).** This writer derives `policy_phrase` from `computations[].description` rather than from analyst confirmation. Rule:
 
 - Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it derived a candidate name and chose to disambiguate it before writing). In every other case, omit `original_name:`.
-- Readers (the next `/index-inputs` worker) fall back to the current key when `original_name:` is absent — so omission never breaks correctness; it just doesn't anchor the rename for downstream auto-routing.
+- Readers fall back to the current key when `original_name:` is absent — so omission never breaks correctness; it just doesn't anchor the rename for downstream consumers.
 
 **If `naming-manifest.yaml` does not exist:**
 Create it with all variable names used in the generated rules, routing each to `computed:` or `outputs:` using the same rule above:
