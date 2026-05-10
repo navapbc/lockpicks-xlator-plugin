@@ -100,7 +100,9 @@ If neither file exists (first run on a domain), both maps are empty — Step 3 f
 
 ## Step 3: Generate per-section data and `naming_manifest:` block
 
-For each section produce:
+**Section filter:** Only sections that contain identifiable rule logic (i.e., would carry a non-empty `computations:` field) are emitted. Sections with no rule logic — narrative, definitions-only prose, intro/overview text, table of contents, etc. — are dropped from the output entirely. Parse all H1–H3 sections internally so you can attribute `stage:` ancestors and surface variables, but the output `sections:` list contains only the surviving sections.
+
+For each surviving section produce:
 
 - **`heading:`** — verbatim heading text including the `#` / `##` / `###` prefix. The prefix encodes the level; do NOT strip it.
 - **`summary:`** — one sentence describing what this section covers, in the policy's own terminology.
@@ -112,7 +114,7 @@ For each section produce:
 
   Convert the surfaced label to a snake_case identifier (`Phase 1 — Initial Screening` → `initial_screening`). Omit the field entirely when no such signal exists in or above the section. **Inventing a `stage:` when the source has no signal degrades downstream defaults — an absent field is stronger than a hallucinated one.**
 - **`stage_source:`** — required when `stage:` is present, omitted when `stage:` is omitted. Value is the **verbatim source-text phrase** that justified the `stage:` identifier — copied character-for-character from the source `.md`, no paraphrasing, no truncation that breaks substring matching. Downstream consumers run `grep -F "<stage_source>" <input/policy_docs/<rel>.md>` to verify the AI honored the explicit-signal rule. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `stage:` entirely rather than invent or paraphrase.
-- **`computations:`** — *optional* list. Include only if the section contains identifiable rule logic (formulas, arithmetic, table lookups, thresholds, conditional assignments). Each entry has:
+- **`computations:`** — required, non-empty list. Every emitted section has at least one entry; sections that would carry an empty list are filtered out per the section-filter rule above. Each entry has:
   - `description:` — one sentence describing the computation in plain language.
   - `variables:` — all variable names involved, **inputs first, computed output last**, snake_case, decided per the authority-chain rule below. Every name in this list MUST also appear as a key in the top-level `naming_manifest.variables` map (the emitter validates this invariant at write time).
   - `preconditions:` — *optional* boolean expression describing when the `expr_hint:` applies, derived from the section's own heading, its parent headings, and the surrounding text. The value is a list of **terms** joined by implicit AND at the top level. Each term is one of:
@@ -133,7 +135,7 @@ For each section produce:
     Omit the field when the computation applies unconditionally within the section.
   - `expr_hint:` — *optional* short formula or expression fragment. Include when a formula or condition is stated or clearly implied; omit when the logic is descriptive only.
 
-  **Omit the `computations:` field entirely** when no rule logic is present. Do not emit `computations: []` — an empty list is never correct.
+  **Drop the section entirely** when no rule logic is present — do not emit it in `sections:`. Never emit `computations: []` and never emit a section without a `computations:` field.
 
 ### Variable name decision (per concept)
 
@@ -267,7 +269,8 @@ sections:
 
 Conventions enforced by the emitter:
 - Top-level value is a YAML map with exactly two keys: `naming_manifest` and `sections`. Consumers read `data["sections"]` for section blocks and `data["naming_manifest"]["variables"]` for the per-file naming map.
-- Optional fields (`role_hint:`, `stage:`, `stage_source:`, `preconditions:`, `expr_hint:`, `computations:` when no rule logic, `description:`, `type:`, `values:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
+- Optional fields (`role_hint:`, `stage:`, `stage_source:`, `preconditions:`, `expr_hint:`, `description:`, `type:`, `values:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
+- `computations:` is required on every emitted section. Sections lacking rule logic are filtered out upstream (see Step 3) — they never appear in the JSON payload at all.
 - **Cross-block name-set invariant:** every name in `sections[*].computations[*].variables` MUST appear as a key in `naming_manifest.variables`. If the JSON violates this, the tool exits non-zero and refuses to write — diagnose the missing entry before retrying.
 - **`type:` vocabulary:** must be one of `money | bool | int | float | string | enum | list | date` when present. The emitter rejects any other value (including `str`).
 - **`type: enum` ↔ `values:` dependency:** the emitter rejects payloads that have `type: enum` without a non-empty `values:` list, or `values:` with any other `type:`.
@@ -289,7 +292,7 @@ Do NOT emit `:::next_step` from this skill — it is per-file and is normally in
 - **Don't include a `path:` field** — the destination filename encodes the source path; `path:` is redundant and was removed in this version.
 - **Don't omit the heading prefix** — `heading: "# Title"` not `heading: "Title"`; the `#` characters encode the level.
 - **Don't merge all sections from a file into one entry** — each H1/H2/H3 heading is its own entry.
-- **Don't emit `computations: []`** for sections with no rule logic — omit the field entirely.
+- **Don't emit a section with no rule logic.** Sections without a `computations:` block are dropped from the output — narrative, definitions-only prose, intros, and TOC sections are excluded from `sections:`. Never emit `computations: []`, and never emit a section without a `computations:` field.
 - **Don't hand-format the YAML output.** Build a JSON payload and pipe to `xlator emit-per-file-yaml`. The tool handles quoting, optional-field omission, and the cross-block invariant. Hand-formatting silently breaks the invariant or quotes `policy_phrase:` values incorrectly.
 - **Don't reference a variable in `sections[*].computations[*].variables` that isn't a key in `naming_manifest.variables`.** The emitter rejects payloads that violate this invariant. Add the entry to `naming_manifest.variables` before emitting.
 - **Don't paraphrase `policy_phrase:`.** Verbatim from the source body. If no noun phrase exists, fall back to a deterministic anchor (the section heading text). Paraphrase drift across re-runs silently breaks the no-copy-back guarantee on subsequent `/index-inputs` runs.
