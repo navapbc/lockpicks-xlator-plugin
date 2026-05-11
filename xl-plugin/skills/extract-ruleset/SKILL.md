@@ -12,16 +12,13 @@ Create a CIVIL DSL ruleset for a domain from documents in its `input/policy_docs
 ```
 /extract-ruleset <domain>                          # auto-detect program or prompt if ambiguous
 /extract-ruleset <domain> <program>                # target a specific <program>.civil.yaml
-/extract-ruleset <domain> <program> <filename>     # scope extraction to one input file
 ```
-
-`<filename>` is the basename of a `.md` file in `$DOMAINS_DIR/<domain>/input/policy_docs/` (e.g., `APA.md`). The `.md` extension is appended automatically if omitted. When given, `<filename>` scopes the full pipeline: only that file is read as the policy corpus, and only its manifest entry is updated.
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories and prompt the user to choose.
 
 ---
 
-Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
+Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–5),
 the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeGraph, SP-GuidanceCapture, and others), and common mistakes.
 
 ---
@@ -65,15 +62,14 @@ Run these checks before doing anything else:
        :::
        Then stop.
 
-Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
+Run shared pre-flight checks 3–5 from `../../core/ruleset-shared.md`.
 
-**After Check 5 (guidance files loaded):** Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
+**After Check 4 (guidance files loaded):** Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
 - If the work-list has exactly one entry (ruleset_modules: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
 
-**After Check 6 (in-scope source set resolved):** Run **SP-LoadInputIndex** (from `../../core/ruleset-shared.md`) with `domain=<domain>`, `mode=batch`, and `paths` set to the in-scope source set:
-- If `<filename>` was given: `paths = ["input/policy_docs/<filename>"]` (with `.md` already appended by Check 4).
-- Else if Check 6 fired (2+ files): `paths` is the list of `input/policy_docs/<rel>.md` keys the user selected (a single number, comma-separated numbers, or every file when `a` was chosen).
+**After Check 5 (in-scope source set resolved):** Run **SP-LoadInputIndex** (from `../../core/ruleset-shared.md`) with `domain=<domain>`, `mode=batch`, and `paths` set to the in-scope source set:
+- If Check 5 fired (2+ files): `paths` is the list of `input/policy_docs/<rel>.md` keys the user selected (a single number, comma-separated numbers, or every file when `a` was chosen).
 - Else (1 file): `paths = ["input/policy_docs/<the-file>.md"]`.
 
 Store the returned `{path → sha}` map for use in Step 5 (Write Extraction Manifest).
@@ -115,8 +111,7 @@ Additionally, build five in-memory structures from the loaded guidance files:
 
 5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
-If `<filename>` is given, read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<filename>` (translate the index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`).
-Otherwise, read the compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
+Read the caveman-compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number). Translate each index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`.
 
 **If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` (a YAML map with one top-level key `sections`) and skim `data["sections"]` (heading/summary/tags/computations on each section block) to understand structure before reading the full compressed content. The source path of each per-file file is encoded in its relative location — strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
 
@@ -458,7 +453,7 @@ programs:
     civil_file: $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
     extracted_at: "YYYY-MM-DD"
     source_docs:
-      - { path: "input/policy_docs/<filename>.md", git_sha: "<sha>" }
+      - { path: "input/policy_docs/<rel>.md", git_sha: "<sha>" }
 ```
 
 **Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.

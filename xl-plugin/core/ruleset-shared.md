@@ -5,17 +5,12 @@ Do not invoke this file directly.
 
 ---
 
-## Pre-flight Checks 3–6
+## Pre-flight Checks 3–5
 
 3. **Input docs present?**
    - `$DOMAINS_DIR/<domain>/input/policy_docs/` missing or empty → Print: no input documents found, suggest adding `.md` files. Stop.
 
-4. **`<filename>` valid (if given)?**
-   - If `<filename>` has no `.md` extension, append it automatically (e.g., `APA` → `APA.md`)
-   - Verify `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>` exists on disk
-   - If not found: print file not found, list available `.md` files, then stop.
-
-5. **Load guidance files**
+4. **Load guidance files**
 
    Check for `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`:
 
@@ -27,8 +22,8 @@ Do not invoke this file directly.
    **If `guidance/metadata.yaml` does not exist:**
    - Print: no guidance found for this domain, suggest running `/refine-guidance <domain>` then re-running. Stop.
 
-6. **Multiple input docs + no `<filename>`?**
-   - If `$DOMAINS_DIR/<domain>/input/policy_docs/` contains 2+ `.md` files and `<filename>` was **not** given:
+5. **Multiple input docs?**
+   - If `$DOMAINS_DIR/<domain>/input/policy_docs/` contains 2+ `.md` files:
 
    **If `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml` exists**, read it and display a context-rich selection prompt:
      ```
@@ -225,12 +220,12 @@ Then proceed to SP-CompleteExtraction.
 
 **Extraction complete.**
 
-If `<filename>` was given and other `.md` files exist in `$DOMAINS_DIR/<domain>/input/policy_docs/` that were not processed, print:
+If the caller's in-scope source set selected only a subset of the available `.md` files in `$DOMAINS_DIR/<domain>/input/policy_docs/`, print:
 ```
 Note: this domain has other policy docs not included in this run:
   - <other_file>.md
   ...
-To extract from all files as a unified corpus, run without specifying a filename.
+To extract from all files as a unified corpus, re-run and select all files at the multi-doc prompt.
 ```
 
 ---
@@ -569,7 +564,7 @@ In both cases these names are **canonical** — never re-derive or rename a vari
 **Output:** map `{path → sha}` for the requested paths (or for every eligible entry when `paths == []`), or an abort signal with the `:::error` text the caller should print verbatim.
 
 **When to call:**
-- `/extract-ruleset`: in pre-flight, immediately after Pre-flight Check 6 returns. Pass the in-scope source set (single `<filename>` or the multi-doc selection chosen in Check 6).
+- `/extract-ruleset`: in pre-flight, immediately after Pre-flight Check 5 returns. Pass the in-scope source set (the single available `.md` file or the multi-doc selection chosen in Check 5).
 - `/update-ruleset`: in pre-flight, immediately after Step 0 (naming-manifest divergence + multi-file validation). Pass `paths == []` so the full filtered `files:` map is loaded for use in Steps 1, 2, and 7.
 
 **Procedure:**
@@ -631,4 +626,4 @@ In both cases these names are **canonical** — never re-derive or rename a vari
 
 **Why the drift check.** Before this SP, callers ran `git hash-object` against the source at extract/update time, so the recorded `git_sha` was guaranteed to match the bytes that were actually extracted — even when source files had uncommitted edits between `/index-inputs` and the calling skill. After this SP, callers consume the index value rather than recomputing; the drift check preserves that guarantee by hard-failing when the index lags the working tree, and directs the analyst to re-run `/index-inputs` rather than silently recording a stale SHA.
 
-**Relationship to Pre-flight Check 6.** Check 6 has its own "input-index.yaml does not exist" branch that allows the caller to proceed without an index (the `n` option). For callers that subsequently invoke `SP-LoadInputIndex` (`/extract-ruleset`, `/update-ruleset`), the SP's hard-fail in step 1 will abort the run regardless. For callers that do not invoke this SP (`/extract-sample-rules`), Check 6's soft fallback continues to apply.
+**Relationship to Pre-flight Check 5.** Check 5 has its own "input-index.yaml does not exist" branch that allows the caller to proceed without an index (the `n` option). For callers that subsequently invoke `SP-LoadInputIndex` (`/extract-ruleset`, `/update-ruleset`), the SP's hard-fail in step 1 will abort the run regardless. For callers that do not invoke this SP (`/extract-sample-rules`), Check 5's soft fallback continues to apply.

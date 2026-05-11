@@ -12,16 +12,13 @@ Update an existing CIVIL DSL ruleset for a domain when input policy documents ha
 ```
 /update-ruleset <domain>                          # auto-detect program or prompt if ambiguous
 /update-ruleset <domain> <program>                # target a specific <program>.civil.yaml
-/update-ruleset <domain> <program> <filename>     # scope update to one input file
 ```
-
-`<filename>` is the basename of a `.md` file in `$DOMAINS_DIR/<domain>/input/policy_docs/` (e.g., `APA.md`). The `.md` extension is appended automatically if omitted. When given, `<filename>` scopes the full pipeline: only that file is read as the policy corpus, and only its manifest entry is updated.
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories and prompt the user to choose.
 
 ---
 
-Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
+Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–5),
 the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeGraph, SP-GuidanceCapture, and others), and common mistakes.
 
 ---
@@ -46,7 +43,7 @@ Run these checks before doing anything else:
      :::
      Stop.
 
-Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
+Run shared pre-flight checks 3–5 from `../../core/ruleset-shared.md`.
 
 ---
 
@@ -124,9 +121,7 @@ The main module is re-extracted if its own source docs changed. If only sub-modu
 
 **Single-file (SP-ResolveRulesetModules work-list has one entry):**
 
-If `<filename>` is given, scope the comparison to that file only: look up `input/policy_docs/<filename>` in the SP-loaded map and compare against the manifest entry's `git_sha`.
-
-When `<filename>` is not given, compare every entry in the manifest's `source_docs:` against the SP-loaded map, and additionally enumerate the SP-loaded map's keys for paths that are present in the index but absent from the manifest (treat them as added). The SP already filtered out entries with `md_quality.score < 40`, so rejected source files (moved to `input/rejected/`) do not surface as false additions. Collect the list of changed/added/deleted input docs.
+Compare every entry in the manifest's `source_docs:` against the SP-loaded map, and additionally enumerate the SP-loaded map's keys for paths that are present in the index but absent from the manifest (treat them as added). The SP already filtered out entries with `md_quality.score < 40`, so rejected source files (moved to `input/rejected/`) do not surface as false additions. Collect the list of changed/added/deleted input docs.
 
 ### Step 3: No Changes — Exit Early
 
@@ -206,13 +201,7 @@ Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`. Each `git_sha:` v
 
 **Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated).
 
-**Single-file, `<filename>` given (partial update):**
-- Update `extracted_at` to today's date
-- In `source_docs:`, find the entry for `<filename>` and update its `git_sha` and `last_extracted`
-- If no entry exists yet for `<filename>`, add one
-- Preserve all other `source_docs:` entries verbatim (files not processed this run keep their existing SHA)
-
-**Single-file, `<filename>` not given (full update):**
+**Single-file:**
 - Update `git_sha` for each changed source doc
 - Update `extracted_at` to today's date
 
