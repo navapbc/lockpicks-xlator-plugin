@@ -316,10 +316,10 @@ outputs:
 ```
 Do not modify or remove any existing entries.
 
-**`original_name:` annotation (best-effort).** This writer derives `policy_phrase` from `computations[].description` rather than from analyst confirmation. Rule:
+**Rename anchor via `synonyms:` (best-effort).** This writer derives `policy_phrase` from `computations[].description` rather than from analyst confirmation. Rule:
 
-- Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it derived a candidate name and chose to disambiguate it before writing). In every other case, omit `original_name:`.
-- Readers fall back to the current key when `original_name:` is absent — so omission never breaks correctness; it just doesn't anchor the rename for downstream consumers.
+- Append `{name: <prior-name>}` to the entry's `synonyms:` list **only** when this writer renames a name it just emitted with a known provenance (e.g., it derived a candidate name and chose to disambiguate it before writing). In every other case, do not touch `synonyms:`.
+- Readers resolve historical names by scanning `synonyms[].name` across entries — when no rename happened, omission is harmless; the canonical key is the only name in play.
 
 **If `naming-manifest.yaml` does not exist:**
 Create it with all variable names used in the generated rules, routing each to `computed:` or `outputs:` using the same rule above:

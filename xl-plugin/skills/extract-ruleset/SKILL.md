@@ -192,7 +192,7 @@ The **Source** column distinguishes three values:
 - **`extracted`**: surfaced from per-file `*.md.yaml` files via the aggregation algorithm below — names from `expr_hint:` LHSes plus AI-scanned `description:` prose for descriptive-only computations. Source Section is the per-file section's `heading:` value; the per-file file's source_doc (reconstituted from its relative path) provides per-row provenance.
 - **`algorithm-derived`**: no prior entry and no per-file extraction surfaced the concept; derived directly from policy text via the algorithm above.
 
-When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 as `original_name:` against the prior specs key.
+When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 by appending the prior specs key to the entry's `synonyms:` list.
 
 **Pre-populate the table from three sources:**
 
@@ -218,7 +218,7 @@ Do the field names in this table match your intent? You may edit any name.
 :::
 If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
 
-When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it becomes `original_name:` on the rewritten entry). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
+When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it is appended to the rewritten entry's `synonyms:` list). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
 
 **`source:` population:** In Step 4, populate `source:` on every `FactField`, `ComputedField`, `TableDef`, and `Rule` using the "Source Section" value from the Name Inventory table above, *combined* with the surrounding document heading:
 
@@ -493,18 +493,18 @@ For seeded entries the analyst did NOT match against an observation in Step 3b (
 - For rows with Source = `extracted` (surfaced by per-file aggregation): read the caveman-compressed source doc at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` (where `<rel>.md` is reconstituted from the per-file file's relative path under `policy_facets/computations/`). Scope the scan to the section the name was observed in by using the per-file section's `heading:` value as a boundary marker — locate the heading in the compressed source and read text up to the next heading of equal or higher level. Within that scoped text, extract the verbatim noun phrase per the rule in `core/naming_guide.md` lines 34–54. If the section heading cannot be located in the compressed source (boundary edge case at start or end of doc), fall back to scanning the whole file but log a `policy_phrase:` derivation warning.
 - For rows with Source = `algorithm-derived`: derive `policy_phrase:` from the policy text directly per the same verbatim rule, using the heading and surrounding paragraph the analyst pointed to during Step 3b confirmation.
 
-**`original_name:` annotation.** Re-anchor against the existing specs entry rather than against any external file:
+**Rename tracking via `synonyms:`.** Rename anchoring re-uses the existing `synonyms:` list rather than a dedicated `original_name:` field:
 
-- If the analyst's confirmed Field Name equals the existing specs entry's key (analyst kept the same name), **omit `original_name:`**.
-- If the analyst's confirmed Field Name differs from the existing specs entry's key (analyst renamed it in Step 3b), record the rename via the chain rule in the Re-run merge section below — the chain anchors to the **earliest** non-rename name across all rounds, never to the most recent rename.
-- If the entry is new (Source = `extracted` or `algorithm-derived` with no matching prior specs entry), omit `original_name:` — there is no prior canonical to anchor against.
+- If the analyst's confirmed Field Name equals the existing specs entry's key (analyst kept the same name), **do not append anything to `synonyms:`** for this entry.
+- If the analyst's confirmed Field Name differs from the existing specs entry's key (analyst renamed it in Step 3b), append `{name: <prior-specs-key>}` to the new entry's `synonyms:` list — the prior key joins the rename chain as a rename-anchor synonym (no `source_doc:` or `section:`, since the prior name was the analyst's prior choice, not an observed phrasing).
+- If the entry is new (Source = `extracted` or `algorithm-derived` with no matching prior specs entry), do not append anything — there is no prior canonical to record.
 
 **Optional fields.** `description:`, `type:`, `values:`, and `synonyms:` are no longer auto-propagated from any external file. Sources for these fields:
 - Analyst-supplied during Step 3b confirmation, or already present on a prior `confirmed` specs entry (preserved per the preserve-non-null rule below).
 - AI-inferred from policy text when the source carries an unambiguous signal — `type:` from a currency marker / yes-no phrasing / bulleted enum / etc.; `description:` from a definitional sentence in the source; `values:` from an enumerated list when `type: enum` is inferred.
 - Otherwise omitted (specs entries' optional fields are nullable per the existing schema).
 
-`role_hint:` is intentionally excluded because specs encodes role via the section placement (`inputs.<Entity>` vs `computed:` vs `outputs:`). `synonyms:` is no longer surfaced by an upstream merge tool; analysts may add it manually post-Step-7 when distinct phrasing across files is worth recording.
+`role_hint:` is intentionally excluded because specs encodes role via the section placement (`inputs.<Entity>` vs `computed:` vs `outputs:`). `synonyms:` carries two kinds of entries: **observed-phrasing synonyms** (curated by the analyst, with `source_doc:` and `section:` populated to anchor the alternative name in policy text) and **rename-anchor synonyms** (appended by Step 7 on each rename round, with `source_doc:` and `section:` omitted).
 
 **Multi-file:** Write one consolidated `naming-manifest.yaml` covering all `generate` entries in the work-list (sub-modules first, main module last). Merge entries from each module into the appropriate `inputs:`, `computed:`, and `outputs:` sections.
 
@@ -514,16 +514,16 @@ inputs:
   <EntityName>:
     <field_name>:
       policy_phrase: "<exact policy phrase derived per Step 7 rule>"
-      original_name: <prior-specs-key>            # only when analyst renamed in Step 3b
       description: "<analyst- or AI-inferred>"    # optional; omitted when absent
       type: "<money|bool|int|float|string|enum|list|date>"  # optional; omitted when absent
       values: ["<a>", "<b>"]                      # optional; only when type: enum
       source_doc: "<source filename>"
       section: "<source title, heading, and paragraph>"
-      synonyms:                                   # optional; analyst-curated
-        - name: <alt-name>
+      synonyms:                                   # optional; observed-phrasing entries plus rename-anchor entries
+        - name: <alt-name>                        # observed in policy text
           source_doc: <input/policy_docs/...>
           section: "<...>"
+        - name: <prior-specs-key>                 # rename-anchor (Step 7 append; no source_doc/section)
   # repeat for each entity
 computed:
   <field_name>:
@@ -533,10 +533,11 @@ computed:
     values: ["<...>"]                             # optional; only when type: enum
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
-    synonyms:                                     # optional; analyst-curated
+    synonyms:                                     # optional; observed-phrasing + rename-anchor
       - name: <alt-name>
         source_doc: <input/policy_docs/...>
         section: "<...>"
+      - name: <prior-specs-key>                   # rename-anchor (no source_doc/section)
 outputs:
   <field_name>:
     policy_phrase: "<exact policy phrase from Name Inventory>"
@@ -545,21 +546,22 @@ outputs:
     values: ["<...>"]                             # optional; only when type: enum
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
-    synonyms:                                     # optional; analyst-curated
+    synonyms:                                     # optional; observed-phrasing + rename-anchor
       - name: <alt-name>
         source_doc: <input/policy_docs/...>
         section: "<...>"
+      - name: <prior-specs-key>                   # rename-anchor (no source_doc/section)
   # repeat for each outputs: field
 ```
 
 **Re-run merge — replace-on-rename, keyed by entry identity** (CREATE re-run when the file already exists):
 
 - For each entry being written, identify its prior specs counterpart by **field-name match** against the existing specs entries. (When a confirmed entry's name is unchanged, the new and prior keys match. When the analyst renamed in Step 3b, the rename anchor is the prior specs key carried alongside the row.)
-- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry's populated fields, including any `original_name:` already on it. **Preserve-non-null rule:** on a name-match re-run, the writer preserves a field's value when present (non-null), and fills it only when null or absent. This composes cleanly with seed-time analyst values (preserved when supplied) and AI-inferred or analyst-confirmed values (filled when blank). Provenance fields (`policy_phrase`, `source_doc`, `section`) are gap-fillable when null, which is exactly what seeded entries arriving at Step 7 with provenance still null require. To force re-derivation of an analyst-supplied value, delete the field from specs and re-run `/extract-ruleset`.
-- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Set `original_name:` to the **earliest** anchor in the chain: if the existing entry already has `original_name:`, copy that value forward (the chain anchors to the first non-rename name across all rounds, never to the most recent rename). If the existing entry has no `original_name:`, set `original_name:` to the existing entry's key (the previous canonical). Drop the existing entry from the file (no duplicate). Optional fields (`description:` / `type:` / `values:` / `synonyms:`) are carried forward from the existing entry under the preserve-non-null rule above.
-- **No match (new entry):** append a new entry. New entries surfaced via the per-file aggregation or algorithm-derived path do not carry `original_name:` — there is no prior specs canonical to anchor against.
+- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry's populated fields, including any `synonyms:` already on it. **Preserve-non-null rule:** on a name-match re-run, the writer preserves a field's value when present (non-null), and fills it only when null or absent. This composes cleanly with seed-time analyst values (preserved when supplied) and AI-inferred or analyst-confirmed values (filled when blank). Provenance fields (`policy_phrase`, `source_doc`, `section`) are gap-fillable when null, which is exactly what seeded entries arriving at Step 7 with provenance still null require. To force re-derivation of an analyst-supplied value, delete the field from specs and re-run `/extract-ruleset`.
+- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Carry the existing entry's `synonyms:` list forward, then append `{name: <existing-key>}` to it as a new rename-anchor synonym (no `source_doc:`/`section:`). Skip the append when `<existing-key>` is already present in the carried list (idempotent on re-runs that don't actually rename). The full rename chain accumulates in `synonyms:` across rounds. Drop the existing entry from the file (no duplicate). Optional fields (`description:` / `type:` / `values:`) are carried forward from the existing entry under the preserve-non-null rule above.
+- **No match (new entry):** append a new entry. New entries surfaced via the per-file aggregation or algorithm-derived path do not carry rename-anchor synonyms — there is no prior specs canonical to anchor against.
 
-This preserves rename-chain integrity across multiple rename rounds — the chain anchor stays pinned to the original confirmed name even after several analyst renames.
+This preserves rename-chain integrity across multiple rename rounds — every prior canonical name accumulates as a synonym, so downstream consumers can resolve any historical name to the current canonical by scanning `synonyms[].name`.
 
 This file is user-editable. Do **not** add an "auto-generated" comment.
 

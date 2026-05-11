@@ -226,10 +226,10 @@ If any new fact, computed, or outputs fields were added: derive canonical names 
 
 If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after validation.
 
-**`original_name:` annotation (best-effort).** Like `/extract-sample-rules` Step 6, this writer derives names from CIVIL field names. Rule:
+**Rename anchor via `synonyms:` (best-effort).** Like `/extract-sample-rules` Step 6, this writer derives names from CIVIL field names. Rule:
 
-- Set `original_name: <prior-name>` **only** when this writer renames a name it just emitted with a known provenance (e.g., it disambiguated a derived name before writing). In every other case, omit `original_name:`.
-- Readers fall back to the current key when `original_name:` is absent.
+- Append `{name: <prior-name>}` to the entry's `synonyms:` list **only** when this writer renames a name it just emitted with a known provenance (e.g., it disambiguated a derived name before writing). In every other case, do not touch `synonyms:`.
+- Readers resolve historical names by scanning `synonyms[].name` across entries — when no rename happened, the canonical key is the only name in play.
 
 **Optional fields.** `description:` / `type:` / `values:` / `synonyms:` are no longer auto-propagated from any external file. New entries written by Step 9 carry only the existing fields (`policy_phrase`, `source_doc`, `section`) plus any optional fields the analyst supplied inline or that are AI-inferable from policy text. Existing entries that Step 9 preserves verbatim are unaffected — analyst edits to optional fields survive across UPDATE runs per the preserve-non-null rule shared with `/extract-ruleset` Step 7.
 
