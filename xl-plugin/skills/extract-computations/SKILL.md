@@ -5,7 +5,7 @@ description: Extract Per-File Section/Computation Data Into policy_facets/comput
 
 # Extract Per-File Section/Computation Data
 
-Read one policy doc under `<domain>/input/policy_docs/`, consult the naming authority chain, parse its H1–H3 sections, and write a YAML map `{sections}` to the mirrored destination at `<domain>/policy_facets/computations/<rel>.md.yaml`.
+Read one policy doc under `<domain>/input/policy_docs/`, load the naming manifest, parse its H1–H3 sections, and write a YAML map `{sections}` to the mirrored destination at `<domain>/policy_facets/computations/<rel>.md.yaml`.
 
 This skill is invoked per file by `/index-inputs` (in a loop over REINDEX entries) and may also be invoked standalone by the analyst against a single source file. The non-AI half (file enumeration, manifest sync, mirror-deletes, plan/finalize handoff) lives in `xlator extract-computations <domain> --plan` and `--finalize`; this skill is the AI half that does the per-file content generation.
 
@@ -65,7 +65,7 @@ Run these checks before doing anything else:
 
 This skill has 5 steps:
 - [ ] Step 1: Read source and parse H1–H3 sections
-- [ ] Step 2: Consult the naming authority chain
+- [ ] Step 2: Load the naming manifest
 - [ ] Step 3: Generate per-section data
 - [ ] Step 4: Emit `policy_facets/computations/<rel>.md.yaml` via `xlator emit-per-file-yaml`
 - [ ] Step 5: Print summary
@@ -78,23 +78,22 @@ Extract all H1 (`#`), H2 (`##`), and H3 (`###`) headings in document order. For 
 
 If the file has **no H1–H3 headings**, treat the whole file as a single section. The heading for that single section is the filename stem (without `.md`) prefixed with `#`.
 
-## Step 2: Consult the naming authority chain
+## Step 2: Load the naming manifest
 
 Read `../../core/naming_guide.md` now — the static plugin-wide style guide consulted on every run.
 
 Then resolve `<domain_dir>` from the source path: walk ancestors of `<path_to_policy_file>` to find `input/policy_docs/`; the directory three levels up is `<domain>`; its parent is `$DOMAINS_DIR`. (The pre-flight already does this lookup; reuse the resolved `<domain_dir>`.)
 
-Build the authority lookup map (the only tier above the static guide):
+If `<domain_dir>/specs/naming-manifest.yaml` exists, build a `{normalize(policy_phrase) → {name, source_doc, section}}` lookup map by walking `inputs.*.*`, `computed.*`, and `outputs.*`:
 
-**Specs (highest authority):** If `<domain_dir>/specs/naming-manifest.yaml` exists, read it and flatten per the plan's Specs-side flattening rule:
-- Walk `inputs.*.*`, `computed.*`, and `outputs.*`.
-- For each entry, key by `normalize(policy_phrase)` with value `{name: <leaf_key>, source_doc, section}`.
+- Each entry is keyed by `normalize(policy_phrase)` with value `{name: <leaf_key>, source_doc, section}`.
 - On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both with phrase "gross monthly income"), prefer the entry whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name.
+- Entries with no `policy_phrase` (seeded but not yet confirmed) are skipped — they have no key to match observations against.
 - Malformed file → log a warning to stderr and treat as empty map. Never block extraction.
 
 The normalizer used here: lowercase, strip leading articles (`a`, `an`, `the`), strip ASCII punctuation, collapse whitespace.
 
-If specs does not exist (first run on a domain), the lookup map is empty — Step 3 falls back to deriving fresh names from the static guide. This is normal and expected on the first `/index-inputs` run.
+If the manifest does not exist (first run on a domain), the lookup map is empty — Step 3 derives fresh names from the static guide. This is normal and expected on the first `/index-inputs` run.
 
 ## Step 3: Generate per-section data
 
@@ -149,9 +148,7 @@ For each variable a section's `computations:` references (whether on the LHS or 
 
 1. Compute the variable's `policy_phrase:` per the verbatim rule in `core/naming_guide.md` — a verbatim noun phrase from the source body (or the most specific deterministic anchor when no noun phrase exists). Never paraphrase.
 2. Normalize the phrase (lowercase, strip leading articles, strip ASCII punctuation, collapse whitespace).
-3. **Lookup priority:**
-   - If the normalized phrase matches an entry in the **specs** map (Step 2's lookup), use that entry's name verbatim. Done.
-   - Else derive a fresh name from the static guide's style rules (snake_case, noun phrase, prefer policy term over acronym, strip entity-name words, disambiguate when needed).
+3. If the normalized phrase matches an entry in the manifest lookup map (Step 2), use that entry's name verbatim. Otherwise, derive a fresh name from the static guide's style rules (snake_case, noun phrase, prefer policy term over acronym, strip entity-name words, disambiguate when needed).
 
 Use the resolved snake_case name on both sides of `expr_hint:` (LHS for the computed output, RHS for inputs) and in any `description:` mentions.
 
@@ -214,8 +211,7 @@ Conventions enforced by the emitter:
 - Top-level value is a YAML map with exactly one key: `sections`. Consumers read `data["sections"]` for section blocks.
 - Optional fields (`stage:`, `stage_source:`, `preconditions:`, `expr_hint:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
 - `computations:` is required on every emitted section. Sections lacking rule logic are filtered out upstream (see Step 3) — they never appear in the JSON payload at all.
-- **`expr_hint:` shape:** when present, must match `<snake_case_identifier> = <non-empty expression>`. The emitter rejects bare-expression payloads (legacy form, no `=`), empty LHS, empty RHS, and non-snake_case LHS.
-- **Removed surfaces:** the emitter rejects payloads carrying a top-level `naming_manifest:` key or a per-computation `variables:` list — these were removed in v9.0.0.
+- **`expr_hint:` shape:** when present, must match `<snake_case_identifier> = <non-empty expression>`. The emitter rejects payloads with no `=`, empty LHS, empty RHS, or non-snake_case LHS.
 - **List order in `sections[*].computations:` reflects source order.** Downstream consumers (notably `/create-ruleset-modules`'s `sequential_chain` heuristic) rely on this — within a section, the first computation in the list is the first in document order, the second is next, and so on. Build the JSON `computations:` array in source order.
 
 Always rewrite the destination file in full; this skill is idempotent at the file level. Per-file caching is the manifest's job (handled by `xlator extract-computations --finalize`), not the skill's.
@@ -235,13 +231,9 @@ Do NOT emit `:::next_step` from this skill — it is per-file and is normally in
 - **Don't merge all sections from a file into one entry** — each H1/H2/H3 heading is its own entry.
 - **Don't emit a section with no rule logic.** Sections without a `computations:` block are dropped from the output — narrative, definitions-only prose, intros, and TOC sections are excluded from `sections:`. Never emit `computations: []`, and never emit a section without a `computations:` field.
 - **Don't hand-format the YAML output.** Build a JSON payload and pipe to `xlator emit-per-file-yaml`. The tool handles quoting, optional-field omission, and the `expr_hint:` shape check.
-- **Don't emit `expr_hint:` as a bare expression** — it must be `output_name = <expression>`. The emitter rejects bare-expression payloads. For descriptive-only computations, omit `expr_hint:` entirely; downstream consumers fall back to `description:` prose.
+- **Don't emit `expr_hint:` as a bare expression** — it must be `output_name = <expression>`. The emitter rejects payloads with no `=`. For descriptive-only computations, omit `expr_hint:` entirely; downstream consumers fall back to `description:` prose.
 - **Don't paraphrase `policy_phrase:`** when consulting the specs lookup. Verbatim from the source body. If no noun phrase exists, fall back to a deterministic anchor (the section heading text). Paraphrase drift across re-runs silently breaks alignment with confirmed specs entries.
-- **Don't emit a top-level `naming_manifest:` block** — that field was removed in v9.0.0. The emitter rejects payloads carrying it. Variable identification is downstream consumers' responsibility, parsing `expr_hint:` and `description:` per skill.
-- **Don't emit `variables:` inside a computation** — that field was removed in v9.0.0. Inputs and outputs are derived from `expr_hint:` (LHS = output, RHS tokens = inputs) or, for descriptive-only computations, from `description:` prose.
 - **Don't update the manifest from this skill** — the manifest is the single responsibility of `xlator extract-computations --finalize`. When invoked standalone (outside `/index-inputs`), the per-file file is written but the manifest is not updated; the next `--plan` will simply re-extract this file (matching destination + missing manifest entry → `to_extract`). This is acceptable best-effort behavior for the standalone path.
-- **Don't write `policy_facets/input-sections.yaml`** — that artifact is removed in v3.0.0. All section data lives in per-file `policy_facets/computations/<rel>.md.yaml` files.
-- **Don't read or mutate any pre-existing `input-sections.yaml`** — leave it on disk untouched. Maintainers delete it manually.
 - **Don't run this skill on a low-md_quality source** — the pre-flight gate refuses files whose `md_quality.score < 40`. If the gate fires, fix the source or remove it from `input/policy_docs/`.
 - **Don't invent a `stage:` value when the source has no explicit signal** — stages must be anchored to a heading, body sentence, or attributable ancestor heading. An absent `stage:` is the safe default; hallucinated stages flow through `/create-ruleset-groups` into `guidance/ruleset-groups.yaml` and ultimately produce `validate_civil.py` rejection at the `/extract-ruleset` stage.
 - **Don't paraphrase `stage_source:`** — it must be a verbatim substring of the source `.md` so `grep -F "<stage_source>" <source>` matches. If you cannot find a verbatim quote in the source, the signal is not explicit — omit `stage:` entirely rather than invent or paraphrase.

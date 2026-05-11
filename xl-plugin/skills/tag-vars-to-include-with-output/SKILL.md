@@ -149,7 +149,6 @@ Next: Run /create-sample-tests <domain> to generate sample test cases used to as
 
 - **Tag for explainability, not completeness** — the goal is to surface variables that help callers understand the decision; not every computed variable needs to be exposed
 - **Do not remove existing entries** from `include-with-output.yaml` — this command only adds; removal is a manual edit
-- **Do not write `guidance/variables.yaml`** — that file is gone in v7.0.0. The dedicated `guidance/include-with-output.yaml` carries the include list.
-- **Read declared outputs from `specs/naming-manifest.yaml`'s `outputs:` block** — not from a `variables.yaml` `output_variables` section.
+- **Read declared outputs from `specs/naming-manifest.yaml`'s `outputs:` block.**
 - **Base name only for dot-notation** — collect the identifier before the first dot (e.g., `client_result` from `client_result.adjusted_earned_income`), not the full expression
 - **Idempotent** — running this command twice must produce no duplicates and no changes on the second run

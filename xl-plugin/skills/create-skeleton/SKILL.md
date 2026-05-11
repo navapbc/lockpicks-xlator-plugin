@@ -5,7 +5,7 @@ description: Build Computation Skeleton for a Domain
 
 # Build Computation Skeleton for a Domain
 
-Extract doc signals from the per-file files under `policy_facets/computations/` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` (computation structure including intermediate variables) plus three descriptive guidance files: `guidance/output-variables.yaml`, `guidance/input-variables.yaml`, and `guidance/constants-and-tables.yaml`. **Does not write `guidance/variables.yaml`** — that file is gone in v7.0.0; structural data lives in `specs/naming-manifest.yaml`.
+Extract doc signals from the per-file files under `policy_facets/computations/` and merge proposals into the four guidance sections of `guidance/prompt-context.yaml`, then build and confirm the computation skeleton. Writes `guidance/skeleton.yaml` (computation structure including intermediate variables) plus three descriptive guidance files: `guidance/output-variables.yaml`, `guidance/input-variables.yaml`, and `guidance/constants-and-tables.yaml`. Structural variable data lives in `specs/naming-manifest.yaml`.
 
 ## Input
 
@@ -94,7 +94,7 @@ Read `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` and `$DOMAINS_DIR/<dom
 
 ```
 Folder: $DOMAINS_DIR/<domain>/specs/guidance/
-Current guidance: <display_name> (source: <source_template>)
+Current guidance: <display_name>
 Sections: constraints (<N> items), standards (<N> items), guidance (<N> items), edge_cases (<N> items)
 Skeleton: none
 ```
@@ -119,12 +119,12 @@ Steps:
 
 ### Step 2: Extract doc signals and update guidance sections
 
-Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of section blocks. Legacy on-disk files may carry a top-level `naming_manifest:` key and per-computation `variables:` lists from prior versions; both are silently ignored — this skill reads `data["sections"]` only.
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of section blocks.
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 
 Source-path mapping: a section appearing in `policy_facets/computations/<rel>.md.yaml` describes the source at `input/policy_docs/<rel>.md`. Strip the trailing `.yaml` from the per-file file's relative path under `policy_facets/computations/` and prefix with `input/policy_docs/` to reconstruct `path:`.
 
-**`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation) or carries the legacy bare-expression form (no `=`), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
+**`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
 
 Extract the following signals (hold in memory for Step 3):
 
@@ -310,7 +310,6 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [UPDATED in Step 
 - Show the step checklist after EVERY step (4 steps total) — do not skip it
 - When `[c] revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
 - Step 2 writes `prompt-context.yaml`; Step 4 writes `skeleton.yaml`, `output-variables.yaml`, `input-variables.yaml`, and `constants-and-tables.yaml` — do not conflate them
-- **Do not write `guidance/variables.yaml`** — that file is gone in v7.0.0. Intermediate variables live in `skeleton.yaml`'s `computations:` block; output descriptions live in `output-variables.yaml`; input descriptions live in `input-variables.yaml`; constants/tables live in `constants-and-tables.yaml`.
 - **`output-variables.yaml`'s `examples:` carries sample values, not synonym names** — synonyms are tracked in `naming-manifest.yaml`'s `synonyms:` row list. Do not duplicate.
 - Re-runs preserve analyst edits — only fill in fields the analyst left blank. Match `/extract-ruleset` Step 7's preserve-non-null discipline.
 - **When a section has an explicit `stage:` value, that stage wins over name-pattern categorization** — do not override an explicit doc signal with a heuristic guess. Apply the same suffix-stripping normalization as `/create-ruleset-groups` so stages match `ruleset_groups[*].name` exactly

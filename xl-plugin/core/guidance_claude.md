@@ -11,7 +11,7 @@ Each domain's ruleset guidance lives in `$DOMAINS_DIR/<domain>/specs/guidance/`.
 ```
 guidance/
   CLAUDE.md                ← copy of this file
-  metadata.yaml            ← template_id, source_template, display_name, description
+  metadata.yaml            ← display_name, description
   prompt-context.yaml      ← role, scope, constraints, standards, guidance, edge_cases
   output-variables.yaml    ← analyst-curated descriptions/examples for outputs (mirrors specs/naming-manifest.yaml outputs:)
   input-variables.yaml     ← input categories with descriptions, examples, optional per-category provenance
@@ -40,25 +40,15 @@ guidance/
 
 ### `metadata.yaml`
 
-Identifies the ruleset type and display metadata. Written once by `/declare-target-ruleset` or `/refine-guidance`; never updated after initial creation.
+Identifies the ruleset's display metadata. Written once by `/declare-target-ruleset`; never updated after initial creation.
 
-**Written by:** `/declare-target-ruleset`, `/refine-guidance` (template-copy path)
-**Read by:** `/create-ruleset-groups` (`display_name`), `/create-ruleset-modules` (`template_id`), `/extract-sample-rules` (`display_name`), pre-flight Check 5 (`display_name`)
+**Written by:** `/declare-target-ruleset`
+**Read by:** `/create-ruleset-groups` (`display_name`), `/extract-sample-rules` (`display_name`), pre-flight Check 5 (`display_name`)
 
 ```yaml
-template_id: calculate-earned-income-after-exclusions
-source_template: suggestion--eligibility_check
 display_name: "Determine Medicaid Eligibility based on Reported Income after Exclusions (Alaska)"
 description: "Assess eligibility for Medicaid based on the adjusted monthly earned income amount."
 ```
-
-#### `template_id`
-
-Identifies the ruleset type in snake_case. Set to the `ruleset_name` from the suggestion file (when bootstrapped via `/declare-target-ruleset`) or the template's own `template_id` (when copied from a guidance template via `/refine-guidance`).
-
-#### `source_template`
-
-Records which source produced the file. For `/declare-target-ruleset`, uses the sentinel `suggestion--<ruleset_name>`. For `/refine-guidance`, uses the guidance template filename (without extension). Never updated after initial creation.
 
 #### `display_name`
 
@@ -72,9 +62,9 @@ One-sentence description of what the ruleset computes.
 
 ### `prompt-context.yaml`
 
-The AI persona and extraction directives. Written initially by `/declare-target-ruleset` or `/refine-guidance`; extended by `/create-skeleton` (constraints/standards/guidance/edge_cases) and SP-GuidanceCapture (same sections).
+The AI persona and extraction directives. Written initially by `/declare-target-ruleset`; extended by `/create-skeleton` (constraints/standards/guidance/edge_cases) and SP-GuidanceCapture (same sections).
 
-**Written by:** `/declare-target-ruleset`, `/refine-guidance` (template-copy path), `/create-skeleton` (appends to constraints/standards/guidance/edge_cases), SP-GuidanceCapture (appends to same)
+**Written by:** `/declare-target-ruleset`, `/create-skeleton` (appends to constraints/standards/guidance/edge_cases), SP-GuidanceCapture (appends to same)
 **Read by:** `/create-skeleton`, `/create-sample-tests` (`edge_cases`), `/extract-sample-rules` (`role`), SP-GuidanceCapture, `/extract-ruleset` (Step 1 context injection)
 
 ```yaml
@@ -119,7 +109,7 @@ Miscellaneous guidance: non-obvious rule patterns, formula structures, and domai
 
 #### `edge_cases`
 
-Special populations, exceptional conditions, or policy interactions that override the general rules. Initialized as `[]` at creation; populated by `/create-skeleton` or via `/refine-guidance`. Module-scoped edge cases use the prefix `[module: <ruleset_module_name>]`.
+Special populations, exceptional conditions, or policy interactions that override the general rules. Initialized as `[]` at creation; populated by `/create-skeleton` (and SP-GuidanceCapture). Module-scoped edge cases use the prefix `[module: <ruleset_module_name>]`.
 
 ---
 
@@ -127,7 +117,7 @@ Special populations, exceptional conditions, or policy interactions that overrid
 
 Analyst-curated descriptions, examples (sample values), and primary/secondary distinction for outputs. Mirrors `specs/naming-manifest.yaml`'s `outputs:` block — `name_ref` references the manifest entry; structural fields (`type`, `values`) live in the manifest, not here.
 
-**Written by:** `/refine-guidance` (template-copy path), `/create-skeleton`
+**Written by:** `/create-skeleton`
 **Read by:** `/extract-ruleset` (Step 1 context, primary identification), `/extract-sample-rules`, `/create-sample-tests`, `/create-ruleset-modules`, `validate_civil.py` (primary identification)
 
 ```yaml
@@ -148,7 +138,7 @@ denial_reason:
 
 Input categories with descriptions, examples (sample values), and optional per-category provenance. Field names are referenced via `name_ref` pointing to `specs/naming-manifest.yaml`'s `inputs.<Entity>.<field>` entries.
 
-**Written by:** `/refine-guidance` (template-copy path), `/create-skeleton`
+**Written by:** `/create-skeleton`
 **Read by:** `/extract-ruleset` (Step 1 context), `/create-sample-tests`
 
 ```yaml
@@ -167,7 +157,7 @@ categories:
 
 Flat list of intermediate variable names to expose in the API's `ComputedBreakdown` response alongside the final output. Each name must be a key in `specs/naming-manifest.yaml` (validated by `xlator validate-guidance`).
 
-**Written by:** `/refine-guidance` (template-copy path), `/tag-vars-to-include-with-output`
+**Written by:** `/tag-vars-to-include-with-output`
 **Read by:** `/extract-ruleset` (Step 1 context), `/create-sample-tests`, SP-TagOutputs
 
 ```yaml
@@ -182,7 +172,7 @@ Flat list of intermediate variable names to expose in the API's `ComputedBreakdo
 
 Non-variable named constants and lookup tables the ruleset references, with descriptions. These are NOT variables — they don't live in `naming-manifest.yaml`.
 
-**Written by:** `/refine-guidance` (template-copy path), `/create-skeleton`
+**Written by:** `/create-skeleton`
 **Read by:** `/extract-ruleset` (Step 1 context, table/constant skeleton seeding), `/create-sample-tests`
 
 ```yaml

@@ -62,7 +62,7 @@ Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/comput
 
 Cluster the index signals to identify 1–5 distinct policy scopes. For each scope, derive a candidate target ruleset:
 
-**`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation) or carries the legacy bare-expression form (no `=`), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
+**`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
 
 **Signals to extract:**
 - **Topic tags** across all sections → cluster to find prominent domain areas (e.g., "income", "eligibility", "household")
@@ -189,7 +189,6 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 - **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `policy_facets/computations/` is the sole source of doc signals
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
-- **Do not emit `input_variables.categories`, `output_variables.primary`, or `output_variables.secondary_decisions`** — those legacy keys are gone. Use `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>` (with `primary:` flag) instead.
 - **Do not omit the `primary:` flag from any `outputs.<field>` entry** — every output entry must have `primary: true|false`, and exactly one per file must be `true`.
 - **Do not guess `type:` when no signal exists** — omit the field instead. Same for `description:`.
 - **Do not invent a one-off entity per variable to avoid the `Case` fallback** — `Case` is the correct entity for input fields with no clear conceptual owner. Splintering into `Misc1`, `Misc2`, etc. is worse than using `Case`.

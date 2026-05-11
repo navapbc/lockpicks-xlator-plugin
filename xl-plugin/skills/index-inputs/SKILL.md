@@ -429,7 +429,6 @@ Next step: `/refine-guidance <domain>` to set extraction goals and ruleset guida
 
 ## Common Mistakes to Avoid
 
-- **Don't write `policy_facets/input-sections.yaml`** — that artifact is removed in v3.0.0. Per-file section data lives at `policy_facets/computations/<rel>.md.yaml`. Pre-existing `input-sections.yaml` files (from prior versions) are ignored by the new flow; maintainers delete them manually.
 - **Don't manually edit `policy_facets/computations/<rel>.md.yaml` or `policy_facets/compressed/<rel>.md`** — they are derived. Edit the source under `input/policy_docs/` and re-run `/index-inputs`.
 - **Don't skip `xlator <tool> --finalize`** — without it, the per-action manifest is not updated and the next run re-runs every per-file action.
 - **Don't use absolute paths in the index** — `files:` keys must start with `input/policy_docs/`, not `/Users/...` or `$DOMAINS_DIR/<domain>/`.

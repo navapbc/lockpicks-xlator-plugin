@@ -20,8 +20,8 @@ Do not invoke this file directly.
    Check for `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`:
 
    **If it exists:**
-   - Read `guidance/metadata.yaml` — load `display_name`, `source_template`, `template_id`
-   - Print: `Using goal: <display_name> (source: <source_template>)`
+   - Read `guidance/metadata.yaml` — load `display_name`
+   - Print: `Using goal: <display_name>`
    - Each calling skill loads only the additional guidance files it needs (see per-skill file lists). Missing optional files are silently treated as empty.
 
    **If `guidance/metadata.yaml` does not exist:**

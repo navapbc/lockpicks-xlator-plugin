@@ -73,11 +73,14 @@ Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 
    Do not continue until there are no mismatches.
 
-**If the manifest does not exist** (domain was extracted before this feature was added):
+**If the manifest does not exist:**
 
-:::important
-⚠️ No naming manifest found. Field names will not be enforced this run. A manifest will be created after this UPDATE completes.
+:::error
+specs/naming-manifest.yaml not found at $DOMAINS_DIR/<domain>/specs/naming-manifest.yaml.
+Run /extract-ruleset <domain> first to create it.
 :::
+
+Stop.
 
 **Multi-file validation (if `extraction-manifest.yaml` exists):**
 
