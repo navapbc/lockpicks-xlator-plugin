@@ -5,18 +5,20 @@
 # ///
 """
 xlator validate-guidance: assert every name_ref in `<domain>/specs/guidance/`
-files resolves to an entry in `<domain>/specs/naming-manifest.yaml`, and that
-any `type:`/`values:` field on a guidance entry agrees with the same field on
-the corresponding manifest entry.
+files resolves to an entry in `<domain>/specs/naming-manifest.yaml`, that any
+`type:`/`values:` field on a guidance entry agrees with the same field on the
+corresponding manifest entry, and that every `constants_and_tables[]` entry
+carries `source_file:` and `source_section:`.
 
-Reads the manifest and every guidance file with name-ref content
-(`output-variables.yaml`, `input-variables.yaml`, `include-with-output.yaml`)
-and reports:
+Reads the manifest and every guidance file with name-ref or provenance content
+(`output-variables.yaml`, `input-variables.yaml`, `include-with-output.yaml`,
+`constants-and-tables.yaml`) and reports:
   - missing name-refs (referenced in a guidance file but absent from manifest)
   - type/values mismatches (guidance entry contradicts manifest entry)
+  - missing required provenance fields on `constants-and-tables.yaml` entries
   - orphan manifest entries (in manifest but not referenced anywhere)
 
-Exits 0 on clean alignment, 1 on alignment failure.
+Exits 0 on clean alignment, 1 on any failure.
 
 Usage:
     xlator validate-guidance <domain>
@@ -34,6 +36,7 @@ Output (--json):
       "missing": [{"file": "...", "name_ref": "..."}],
       "mismatches": [{"file": "...", "name_ref": "...", "field": "type",
                       "guidance": "...", "manifest": "..."}],
+      "missing_fields": [{"file": "...", "entry": "<name>", "field": "source_file"}],
       "orphans": ["<name>", ...]
     }
 """
@@ -53,6 +56,8 @@ import yaml
 _OUTPUT_VARIABLES_FILE = "output-variables.yaml"
 _INPUT_VARIABLES_FILE = "input-variables.yaml"
 _INCLUDE_WITH_OUTPUT_FILE = "include-with-output.yaml"
+_CONSTANTS_AND_TABLES_FILE = "constants-and-tables.yaml"
+_CONSTANTS_AND_TABLES_REQUIRED = ("source_file", "source_section")
 
 
 def _load_yaml(path: Path) -> Any:
@@ -223,6 +228,32 @@ def _check_input_variables(
             _check_field_agreement(field, manifest_entry, name_ref, file_rel, mismatches)
 
 
+def _check_constants_and_tables(
+    data: Any,
+    file_rel: str,
+    missing_fields: list[dict],
+) -> None:
+    """Every `constants_and_tables[]` entry must carry `source_file:` and
+    `source_section:` as non-empty strings."""
+    if not isinstance(data, dict):
+        return
+    entries = data.get("constants_and_tables") or []
+    if not isinstance(entries, list):
+        return
+    for idx, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        entry_name = entry.get("name", f"<index {idx}>")
+        for field in _CONSTANTS_AND_TABLES_REQUIRED:
+            value = entry.get(field)
+            if not isinstance(value, str) or not value.strip():
+                missing_fields.append({
+                    "file": file_rel,
+                    "entry": str(entry_name),
+                    "field": field,
+                })
+
+
 def cmd_validate(domain_dir: Path) -> dict:
     """Validate alignment between specs/naming-manifest.yaml and
     specs/guidance/ name-ref-bearing files. Returns a summary dict."""
@@ -231,6 +262,7 @@ def cmd_validate(domain_dir: Path) -> dict:
         "ok": True,
         "missing": [],
         "mismatches": [],
+        "missing_fields": [],
         "orphans": [],
         "errors": [],
     }
@@ -306,7 +338,22 @@ def cmd_validate(domain_dir: Path) -> dict:
                 if ref not in manifest_entries:
                     summary["missing"].append({"file": file_rel, "name_ref": ref})
 
-    if summary["missing"] or summary["mismatches"]:
+    # constants-and-tables.yaml — required provenance fields per entry.
+    cat_path = guidance_dir / _CONSTANTS_AND_TABLES_FILE
+    if cat_path.exists():
+        data = _load_yaml(cat_path)
+        if data is None:
+            summary["errors"].append(
+                f"{cat_path.relative_to(domain_dir)}: malformed or unreadable; skipping"
+            )
+        else:
+            _check_constants_and_tables(
+                data,
+                str(cat_path.relative_to(domain_dir)),
+                summary["missing_fields"],
+            )
+
+    if summary["missing"] or summary["mismatches"] or summary["missing_fields"]:
         summary["ok"] = False
 
     # Orphans: names in manifest but never referenced. Non-fatal at v1.
@@ -316,7 +363,12 @@ def cmd_validate(domain_dir: Path) -> dict:
 
 
 def _print_human(summary: dict, quiet: bool) -> None:
-    if summary["ok"] and not summary["missing"] and not summary["mismatches"]:
+    if (
+        summary["ok"]
+        and not summary["missing"]
+        and not summary["mismatches"]
+        and not summary["missing_fields"]
+    ):
         if not quiet:
             print(f"validate-guidance: OK ({summary['domain']})")
             if summary["orphans"]:
@@ -339,6 +391,12 @@ def _print_human(summary: dict, quiet: bool) -> None:
             f"  {mm['file']}: name_ref '{mm['name_ref']}' "
             f"{mm['field']}={mm['guidance']!r} disagrees with "
             f"manifest {mm['field']}={mm['manifest']!r}",
+            file=sys.stderr,
+        )
+    for mf in summary["missing_fields"]:
+        print(
+            f"  {mf['file']}: entry '{mf['entry']}' is missing required field "
+            f"'{mf['field']}'",
             file=sys.stderr,
         )
     for err in summary["errors"]:

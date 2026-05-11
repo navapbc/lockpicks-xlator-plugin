@@ -256,8 +256,12 @@ Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
    constants_and_tables:
      - name: <constant_or_table_name>
        description: "<analyst-readable description>"
+       source_file: "input/policy_docs/<rel>.md"
+       source_section: "<heading or §-citation>"
    ```
    Skill extracts candidate constants/tables from per-file YAML and writes a draft. Analyst refines.
+
+   **`source_file:` and `source_section:` are required on every entry.** `source_file:` is the per-file YAML file's reconstituted source path (`policy_facets/computations/<rel>.md.yaml` → `input/policy_docs/<rel>.md`), and `source_section:` is the surfacing section's `heading:` value. When the same constant/table is surfaced from multiple per-file sections, point both fields at the section that principally defines the value (typically the first occurrence or the section that introduces it as a named concept). Do not emit an entry without both fields — drop the candidate instead and log a warning so the analyst can confirm the source manually.
 
 5. **Update `guidance/prompt-context.yaml`** is not written in Step 4 — Step 2 already wrote it. Do not touch it here.
 

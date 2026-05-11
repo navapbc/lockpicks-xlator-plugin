@@ -266,6 +266,98 @@ def test_values_mismatch_caught():
         assert any(m["field"] == "values" for m in summary["mismatches"])
 
 
+def test_constants_and_tables_ok_when_provenance_present():
+    """Every entry has source_file and source_section → OK."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        _write_yaml(domain / "specs" / "guidance" / "constants-and-tables.yaml", {
+            "constants_and_tables": [
+                {
+                    "name": "income_limits",
+                    "description": "Income thresholds.",
+                    "source_file": "input/policy_docs/manual/income.md",
+                    "source_section": "1.2 Income Limits",
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is True
+        assert summary["missing_fields"] == []
+
+
+def test_constants_and_tables_missing_source_file_caught():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        _write_yaml(domain / "specs" / "guidance" / "constants-and-tables.yaml", {
+            "constants_and_tables": [
+                {
+                    "name": "income_limits",
+                    "description": "Income thresholds.",
+                    "source_section": "1.2 Income Limits",
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert len(summary["missing_fields"]) == 1
+        mf = summary["missing_fields"][0]
+        assert mf["entry"] == "income_limits"
+        assert mf["field"] == "source_file"
+
+
+def test_constants_and_tables_empty_string_treated_as_missing():
+    """An empty source_section: '' counts as missing."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        _write_yaml(domain / "specs" / "guidance" / "constants-and-tables.yaml", {
+            "constants_and_tables": [
+                {
+                    "name": "income_limits",
+                    "description": "Income thresholds.",
+                    "source_file": "input/policy_docs/manual/income.md",
+                    "source_section": "   ",
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert any(mf["field"] == "source_section" for mf in summary["missing_fields"])
+
+
+def test_constants_and_tables_missing_file_not_an_error():
+    """When constants-and-tables.yaml does not exist, validation skips it
+    (consistent with other guidance files)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is True
+        assert summary["missing_fields"] == []
+
+
 def test_input_variables_type_mismatch_caught():
     """input-variables.yaml field type disagrees with manifest → FAIL."""
     with tempfile.TemporaryDirectory() as tmp:

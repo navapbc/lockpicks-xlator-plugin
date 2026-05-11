@@ -179,9 +179,15 @@ Non-variable named constants and lookup tables the ruleset references, with desc
 constants_and_tables:
   - name: expanded_refused_cash_income_limits
     description: "Expanded Refused Cash Income Limits table keyed by household_type and benefit_year."
+    source_file: "input/policy_docs/adltc_manual/Addendum 1 — Expanded Refused Cash Income Limits.md"
+    source_section: "Addendum 1 — Expanded Refused Cash Income Limits"
   - name: student_earned_income_exclusion
     description: "Monthly and annual maximum limits for the student earned income exclusion."
+    source_file: "input/policy_docs/apa_manual/442/442-2 EARNED INCOME EXCLUSIONS.md"
+    source_section: "442-2 C — Student Earned Income Exclusion"
 ```
+
+`source_file:` and `source_section:` are **required** on every entry: `source_file:` is the path under the domain root (e.g., `input/policy_docs/<rel>.md`) and `source_section:` is the heading text or §-citation of the section where the constant or table is defined. When a constant or table is referenced in multiple sections, point both fields at the section that principally defines it (typically the first occurrence or the section that introduces the value).
 
 ---
 

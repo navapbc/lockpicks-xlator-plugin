@@ -111,7 +111,7 @@ Additionally, build five in-memory structures from the loaded guidance files:
 
 3. **Guidance output set** `{variable_name}`: Read `guidance/include-with-output.yaml` (if present). It is a flat list of variable name strings; treat it as the include set. If the file is absent or empty, use an empty set. This set is used in Step 4 and SP-TagOutputs.
 
-4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the file is absent or empty, the list is empty. This list is used in Step 4.
+4. **Constants/tables seed list** `[{name, description, source_file, source_section}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:`, `description:`, `source_file:`, and `source_section:` — all four are required on every guidance entry. If the file is absent or empty, the list is empty. This list is used in Step 4.
 
 5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
@@ -275,6 +275,7 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
 - **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
 - **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
+- **`source:` population from seed provenance:** populate the table or constant's `source:` field as `"<source_section> — <source_file basename without .md>"` (matching the `"<§ citation> — <heading>"` format used elsewhere in this step) directly from the seed entry's `source_file:` and `source_section:` — both are guaranteed present by `/create-skeleton`. Do not re-derive `source:` from policy text for seeded entries.
 - After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
