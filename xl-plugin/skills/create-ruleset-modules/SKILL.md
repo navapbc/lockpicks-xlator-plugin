@@ -90,9 +90,9 @@ After pre-flight, check whether `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-mo
 Read:
 - `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton:` key
 - `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` — `ruleset_groups:` key
-- `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton.computations[]` block carries intermediate variable names (replaces former `variables.yaml intermediate_variables.categories`)
-- Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of section blocks. Legacy on-disk files may carry a top-level `naming_manifest:` key and per-computation `variables:` lists from prior versions; both are silently ignored — this skill reads `data["sections"]` only. Re-run Step 2 signal extraction across all entries:
-  - **`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation) or carries the legacy bare-expression form (no `=`), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
+- `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` — `skeleton.computations[]` block carries intermediate variable names
+- Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of section blocks. Re-run Step 2 signal extraction across all entries:
+  - **`expr_hint:` parse rule** (uniform across consumer skills): when a computation carries `expr_hint:`, split on the first `=`; the LHS (whitespace-trimmed) is the snake_case **output name** for that computation, and the RHS is the expression. Tokenize the RHS for snake_case identifiers (skipping numeric literals, string literals, and built-in keywords like `if`, `else`, `and`, `or`, `not`, `min`, `max`, `sum`) — those identifiers are the **input names**. When `expr_hint:` is absent (descriptive-only computation), fall back to scanning `description:` prose for variable names mentioned in the source's terminology.
   - **Topic tags** — collect all `tags:` values across all sections; cluster to find prominent domain areas
   - **Section headings** — collect all `heading:` values; reveals statutory structure
   - **File summaries** — collect all `summary:` values; reveals program scope and terminology
@@ -168,11 +168,13 @@ No new ruleset modules identified.
 Otherwise, derive the main module name automatically — no prompt:
 
 1. Identify the primary output: read `guidance/output-variables.yaml` and find the entry with `primary: true`. If present, strip trailing `_check`, `_determination`, `_result`, `_outcome`, or `_eligibility` from the entry's name and use the result.
-2. If no primary output variable is declared, take the last hyphen-segment of `template_id` from `guidance/metadata.yaml` and strip leading generic prefixes (`calculate-`, `determine-`, `check-`, `compute-`).
+2. If no primary output variable is declared, prompt:
+   :::user_input
+   No primary output found in guidance/output-variables.yaml. What should the main module be named? (e.g., `eligibility`, `income_test`)
+   :::
 
-Examples:
+Example:
 - `primary.name: eligibility_determination` → `eligibility`
-- `template_id: calculate-earned-income-after-exclusions`, no primary name → `exclusions`
 
 Print the derived name so the user can see what was chosen:
 

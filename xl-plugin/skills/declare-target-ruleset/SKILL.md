@@ -5,7 +5,7 @@ description: Declare Ruleset Input-Output from a Suggestion File
 
 # Declare Ruleset Input-Output from a Suggestion File
 
-Bootstrap the `guidance/` folder for a domain from a ruleset file produced by `/suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.
+Bootstrap the `guidance/` folder for a domain from a ruleset file produced by `/suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope.
 
 ## Input
 
@@ -91,9 +91,9 @@ Run `xlator ensure-guidance <domain>` to create `$DOMAINS_DIR/<domain>/specs/gui
 
 ### Step 3: Seed `specs/naming-manifest.yaml` and create guidance files
 
-Write three files: the seeded manifest at `specs/naming-manifest.yaml` and two guidance files at `specs/guidance/`. **Do NOT write `guidance/variables.yaml`** — that file no longer exists; structural variable data lives in `specs/naming-manifest.yaml`, descriptive guidance lives in dedicated `guidance/<concern>.yaml` files written by `/create-skeleton` and `/tag-vars-to-include-with-output`.
+Write three files: the seeded manifest at `specs/naming-manifest.yaml` and two guidance files at `specs/guidance/`. Structural variable data lives in `specs/naming-manifest.yaml`; descriptive guidance lives in dedicated `guidance/<concern>.yaml` files written by `/create-skeleton` and `/tag-vars-to-include-with-output`.
 
-**`specs/naming-manifest.yaml`** (seeded entries — provenance fields are nullable per the v7.0.0 schema; populate them later via `/extract-ruleset` Step 7):
+**`specs/naming-manifest.yaml`** (seeded entries — provenance fields are nullable; populate them later via `/extract-ruleset` Step 7):
 
 ```yaml
 version: "1.0"
@@ -117,13 +117,11 @@ outputs:
     # guidance/output-variables.yaml when /create-skeleton runs.
 ```
 
-Provenance fields (`policy_phrase:`, `source_doc:`, `section:`) and propagated metadata (`synonyms:`) are omitted at seed time (R5 nullable). They fill in via the merge tool's two-pass logic and `/extract-ruleset` Step 7.
+Provenance fields (`policy_phrase:`, `source_doc:`, `section:`) and `synonyms:` are omitted at seed time. They fill in via `/extract-ruleset` Step 7.
 
 **`guidance/metadata.yaml`:**
 
 ```yaml
-template_id: <ruleset_name from ruleset>
-source_template: suggestion--<ruleset_name>
 display_name: "<display_name from ruleset>"
 description: "<description from ruleset>"
 ```
@@ -155,12 +153,10 @@ edge_cases: []
 
 **Field population rules:**
 
-- `template_id`: the `ruleset_name` field from the ruleset file (snake_case, e.g., `eligibility_check`)
-- `source_template`: `suggestion--<ruleset_name>` (e.g., `suggestion--eligibility_check`) — never a template filename, never just `suggestion-`
 - `display_name`, `description`, `role`, `scope`: copied verbatim from the ruleset file as quoted strings
 - `constraints`, `standards`, `guidance`: copy all entries from `xl-plugin/core/guidance-templates/assess-eligibility/prompt-context.yaml` exactly as listed — do not summarize or reword
 - `edge_cases: []`: always empty at creation; `/create-skeleton`'s Step 2 pass will populate
-- **`naming-manifest.yaml` `inputs:` block:** copy `inputs.<EntityName>.<field>` from the ruleset file directly; carry `type:` and `description:` when the ruleset supplied them; omit them otherwise (R5 nullable)
+- **`naming-manifest.yaml` `inputs:` block:** copy `inputs.<EntityName>.<field>` from the ruleset file directly; carry `type:` and `description:` when the ruleset supplied them; omit them otherwise
 - **`naming-manifest.yaml` `computed:` block:** copy `computed.<field>` from the ruleset file; carry `type:` and `description:` when present
 - **`naming-manifest.yaml` `outputs:` block:** copy `outputs.<field>` from the ruleset file; carry `type:` and `description:`. **Do NOT copy the `primary: true|false` flag** — primary distinction lives in `guidance/output-variables.yaml` (written by `/create-skeleton`)
 - **Provenance fields** (`policy_phrase:`, `source_doc:`, `section:`): always omitted at seed time. Filled in via `/extract-ruleset` Step 7 when the analyst confirms a seeded name against an observed phrase
@@ -192,12 +188,8 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml [CREATED]
 
 ## Common Mistakes to Avoid
 
-- `source_template` must be `suggestion--<ruleset_name>` — never a template filename (e.g., not `assess-eligibility`), never just `suggestion-`
-- `source_template` is never updated after creation — do not modify it on re-runs or updates
 - Do not write `generated_at` — git tracks version history; this field is dropped
-- **Do not write `guidance/variables.yaml`** — the file is gone in v7.0.0. Structural data lives in `specs/naming-manifest.yaml`; descriptive guidance is split across `output-variables.yaml`, `input-variables.yaml`, `include-with-output.yaml`, `constants-and-tables.yaml`.
 - **Do not write `policy_phrase:`, `source_doc:`, or `section:` on seeded `naming-manifest.yaml` entries** — these provenance fields are nullable at seed time. Populating them now would falsify pre-extraction provenance; `/extract-ruleset` Step 7 fills them in once the analyst confirms a seeded name against an observed phrase.
 - **Do not propagate the `primary: true|false` flag** from `suggested_targets/*.yaml` into `naming-manifest.yaml` — primary distinction lives in `guidance/output-variables.yaml` (written by `/create-skeleton`).
 - Do not include `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, or `sample_rules:` in any guidance file — those are written by later AI skills
 - Do not add `edge_cases:` content here — `edge_cases: []` is always empty at creation; `/create-skeleton` populates it
-- `template_id` is the `ruleset_name` from the ruleset file (snake_case) — not the `display_name`, not a path, not a template id from `guidance-templates/`

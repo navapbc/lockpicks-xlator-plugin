@@ -1,12 +1,13 @@
 # Naming Guide
 
 Plugin-wide style rules for variable names extracted from policy documents.
-Consulted on every run by `/extract-computations` (per-file workers). Authority
-on re-runs flows through a two-tier chain: `specs/naming-manifest.yaml`
-(highest, **analyst-authoritative** — confirmed against a doc OR seeded
-pre-extraction by `/declare-target-ruleset`; provenance fields are nullable on
-seeded entries and gap-fill from observations via `/extract-ruleset` Step 7) →
-this guide (lowest, style rules only).
+Consulted on every run by `/extract-computations` (per-file workers).
+
+The **analyst-authoritative** source of canonical names is `specs/naming-manifest.yaml` —
+entries are confirmed against a doc OR seeded pre-extraction by `/declare-target-ruleset`;
+provenance fields are nullable on seeded entries and gap-fill from observations
+via `/extract-ruleset` Step 7. This guide supplies the style rules used to derive
+fresh names when no manifest entry covers a concept.
 
 ## Variable name style
 
@@ -30,8 +31,8 @@ this guide (lowest, style rules only).
 
 ## `policy_phrase:` — verbatim rule
 
-`policy_phrase:` is the join key the authority chain uses to reconcile the
-same concept across re-runs. It must be **stable across re-runs of the same
+`policy_phrase:` is the join key that reconciles the same concept against the
+manifest across re-runs. It must be **stable across re-runs of the same
 source** so the join doesn't drift.
 
 - **Copy a verbatim noun phrase from the source body.** Not paraphrased, not
@@ -94,8 +95,8 @@ The vocabulary is exactly:
 
 Never infer `type:` from the variable name alone — `gross_income` does not
 become `money` just because the name contains "income"; the source body must
-say so. A hallucinated type pollutes the authority chain and downstream skills
-act on it.
+say so. A hallucinated type pollutes the manifest and downstream skills act
+on it.
 
 ## `description:` — concise prose, optional
 

@@ -34,16 +34,9 @@ Input JSON shape:
 
 `expr_hint:` shape (when present): "<output_name> = <expression>" — single `=`
 separator; LHS must be a non-empty snake_case identifier (lowercase letters,
-digits, underscores; first char a letter or underscore); RHS is the prior
-bare-expression form. Computations without an expression omit `expr_hint:`
-entirely (descriptive-only path; consumers fall back to `description:` prose).
-
-Emit-strict / read-silent asymmetry: the emitter rejects payloads carrying
-a bare-expression `expr_hint:` (no `=`), or any legacy top-level
-`naming_manifest:` key, or any per-computation `variables:` list — these
-fields were removed in v9.0.0. Legacy on-disk files containing these keys
-are NOT re-validated by this tool; consumer skills tolerate them silently
-per the v9.0.0 Key Technical Decisions.
+digits, underscores; first char a letter or underscore); RHS is the
+expression. Computations without an expression omit `expr_hint:` entirely
+(descriptive-only path; consumers fall back to `description:` prose).
 """
 
 from __future__ import annotations
@@ -72,12 +65,6 @@ def _validate(payload: dict) -> None:
         if required not in payload:
             raise ValidationError(f"missing required field: {required}")
 
-    if "naming_manifest" in payload:
-        raise ValidationError(
-            "top-level 'naming_manifest:' field has been removed in v9.0.0; "
-            "drop it from the payload"
-        )
-
     sections = payload["sections"]
     if not isinstance(sections, list):
         raise ValidationError("sections must be an array")
@@ -97,14 +84,8 @@ def _validate(payload: dict) -> None:
 
 
 def _validate_computation(computation: dict, s_idx: int, c_idx: int) -> None:
-    """Validate per-computation invariants for the post-v9.0.0 schema."""
+    """Validate per-computation invariants."""
     where = f"sections[{s_idx}].computations[{c_idx}]"
-
-    if "variables" in computation and computation["variables"] is not None:
-        raise ValidationError(
-            f"{where}.variables has been removed in v9.0.0; "
-            f"drop the field — input/output names are derived from expr_hint:"
-        )
 
     expr_hint = computation.get("expr_hint")
     if expr_hint is None:

@@ -43,7 +43,7 @@ def test_clean_alignment_returns_ok():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "primary": {"name_ref": "gross_income", "description": "Total income."},
+            "gross_income": {"description": "Total income."},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is True
@@ -63,7 +63,7 @@ def test_typo_in_name_ref_reported():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "primary": {"name_ref": "gross_inocme", "description": "typo"},
+            "gross_inocme": {"description": "typo"},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is False
@@ -178,6 +178,209 @@ def test_input_variables_with_name_refs():
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is True
+
+
+def test_type_agreement_ok_when_matching():
+    """Guidance type matches manifest type → OK."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "outputs": {
+                "eligibility": {"policy_phrase": "eligible", "type": "bool"},
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
+            "eligibility": {"type": "bool", "primary": True},
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is True
+        assert summary["mismatches"] == []
+
+
+def test_type_mismatch_caught():
+    """Guidance type 'string' contradicts manifest type 'bool' → FAIL."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "outputs": {
+                "eligibility": {"policy_phrase": "eligible", "type": "bool"},
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
+            "eligibility": {"type": "string", "primary": True},
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert len(summary["mismatches"]) == 1
+        mm = summary["mismatches"][0]
+        assert mm["name_ref"] == "eligibility"
+        assert mm["field"] == "type"
+        assert mm["guidance"] == "string"
+        assert mm["manifest"] == "bool"
+
+
+def test_type_absent_on_guidance_is_not_mismatch():
+    """Guidance entry without type: is allowed (manifest is authority)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "outputs": {
+                "eligibility": {"policy_phrase": "eligible", "type": "bool"},
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
+            "eligibility": {"primary": True},
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is True
+        assert summary["mismatches"] == []
+
+
+def test_values_mismatch_caught():
+    """Guidance values disagree with manifest values → FAIL."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "outputs": {
+                "decision": {
+                    "policy_phrase": "decision",
+                    "type": "enum",
+                    "values": ["approve", "deny"],
+                },
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
+            "decision": {
+                "type": "enum",
+                "values": ["approve", "deny", "manual"],
+                "primary": True,
+            },
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert any(m["field"] == "values" for m in summary["mismatches"])
+
+
+def test_constants_and_tables_ok_when_provenance_present():
+    """Every entry has source_file and source_section → OK."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        _write_yaml(domain / "specs" / "guidance" / "constants-and-tables.yaml", {
+            "constants_and_tables": [
+                {
+                    "name": "income_limits",
+                    "description": "Income thresholds.",
+                    "source_file": "input/policy_docs/manual/income.md",
+                    "source_section": "1.2 Income Limits",
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is True
+        assert summary["missing_fields"] == []
+
+
+def test_constants_and_tables_missing_source_file_caught():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        _write_yaml(domain / "specs" / "guidance" / "constants-and-tables.yaml", {
+            "constants_and_tables": [
+                {
+                    "name": "income_limits",
+                    "description": "Income thresholds.",
+                    "source_section": "1.2 Income Limits",
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert len(summary["missing_fields"]) == 1
+        mf = summary["missing_fields"][0]
+        assert mf["entry"] == "income_limits"
+        assert mf["field"] == "source_file"
+
+
+def test_constants_and_tables_empty_string_treated_as_missing():
+    """An empty source_section: '' counts as missing."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        _write_yaml(domain / "specs" / "guidance" / "constants-and-tables.yaml", {
+            "constants_and_tables": [
+                {
+                    "name": "income_limits",
+                    "description": "Income thresholds.",
+                    "source_file": "input/policy_docs/manual/income.md",
+                    "source_section": "   ",
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert any(mf["field"] == "source_section" for mf in summary["missing_fields"])
+
+
+def test_constants_and_tables_missing_file_not_an_error():
+    """When constants-and-tables.yaml does not exist, validation skips it
+    (consistent with other guidance files)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {},
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is True
+        assert summary["missing_fields"] == []
+
+
+def test_input_variables_type_mismatch_caught():
+    """input-variables.yaml field type disagrees with manifest → FAIL."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {
+                "Applicant": {
+                    "applicant_age": {"policy_phrase": "age", "type": "int"},
+                },
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "input-variables.yaml", {
+            "categories": [
+                {
+                    "category": "demographics",
+                    "fields": [{"name_ref": "applicant_age", "type": "string"}],
+                },
+            ],
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert len(summary["mismatches"]) == 1
+        assert summary["mismatches"][0]["field"] == "type"
 
 
 def main() -> int:

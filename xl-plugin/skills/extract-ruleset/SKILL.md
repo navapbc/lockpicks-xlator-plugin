@@ -111,14 +111,14 @@ Additionally, build five in-memory structures from the loaded guidance files:
 
 3. **Guidance output set** `{variable_name}`: Read `guidance/include-with-output.yaml` (if present). It is a flat list of variable name strings; treat it as the include set. If the file is absent or empty, use an empty set. This set is used in Step 4 and SP-TagOutputs.
 
-4. **Constants/tables seed list** `[{name, description}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:` and `description:`. If the file is absent or empty, the list is empty. This list is used in Step 4.
+4. **Constants/tables seed list** `[{name, description, source_file, source_section}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:`, `description:`, `source_file:`, and `source_section:` — all four are required on every guidance entry. If the file is absent or empty, the list is empty. This list is used in Step 4.
 
 5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
 
 If `<filename>` is given, read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<filename>` (translate the index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`).
 Otherwise, read the compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number).
 
-**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` (a YAML map with one top-level key `sections`) and skim `data["sections"]` (heading/summary/tags/computations on each section block) to understand structure before reading the full compressed content. Legacy on-disk files may carry a top-level `naming_manifest:` key and per-computation `variables:` lists from prior versions; both are silently ignored — read `data["sections"]` only. The source path of each per-file file is encoded in its relative location — strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
+**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` (a YAML map with one top-level key `sections`) and skim `data["sections"]` (heading/summary/tags/computations on each section block) to understand structure before reading the full compressed content. The source path of each per-file file is encoded in its relative location — strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
 
 Identify:
 
@@ -192,16 +192,16 @@ The **Source** column distinguishes three values:
 - **`extracted`**: surfaced from per-file `*.md.yaml` files via the aggregation algorithm below — names from `expr_hint:` LHSes plus AI-scanned `description:` prose for descriptive-only computations. Source Section is the per-file section's `heading:` value; the per-file file's source_doc (reconstituted from its relative path) provides per-row provenance.
 - **`algorithm-derived`**: no prior entry and no per-file extraction surfaced the concept; derived directly from policy text via the algorithm above.
 
-When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 as `original_name:` against the prior specs key.
+When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 by appending the prior specs key to the entry's `synonyms:` list.
 
-**Pre-populate from the manifest authority chain (highest → lowest):**
+**Pre-populate the table from three sources:**
 
-1. **Specs (highest authority):** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists, run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). For each entry:
+1. **Manifest entries:** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists, run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). For each entry:
    - **Confirmed entries** (have `policy_phrase`): pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`, **Source = `confirmed`**.
    - **Seeded entries** (no `policy_phrase`): pre-populate Field Name from the variable name key, Entity / Section from the entity key, **Source = `seeded`**. Source Section is blank (provenance not yet filled). Policy Phrase column shows `<seeded>` placeholder.
 
-2. **Per-file aggregation (`extracted`):** For policy concepts not already covered by specs, walk every `*.md.yaml` under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and extract candidate names per the aggregation algorithm:
-   - For each `sections[*].computations[*]` entry: if `expr_hint:` is present and well-formed (`output_name = <expression>`), the LHS is the computation's output name and the RHS is tokenized for snake_case identifier inputs (skip numeric/string literals and built-in keywords). For descriptive-only computations or legacy bare-expression `expr_hint:` (no `=`), AI-scan the entry's `description:` prose for variable names that mirror the source's verbatim noun phrases.
+2. **Per-file aggregation (`extracted`):** For policy concepts not already covered by the manifest, walk every `*.md.yaml` under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and extract candidate names per the aggregation algorithm:
+   - For each `sections[*].computations[*]` entry: if `expr_hint:` is present and well-formed (`output_name = <expression>`), the LHS is the computation's output name and the RHS is tokenized for snake_case identifier inputs (skip numeric/string literals and built-in keywords). For descriptive-only computations (no `expr_hint:`), AI-scan the entry's `description:` prose for variable names that mirror the source's verbatim noun phrases.
    - Each surfaced name is recorded with its provenance: the per-file file's `source_doc` (reconstituted as `input/policy_docs/<rel>.md` from the per-file file's relative path under `policy_facets/computations/`) and the enclosing section's `heading:` value (used as Source Section).
    - **Determinism rules** (apply uniformly across the aggregation, so re-runs produce stable inventories):
      - Dedup case-insensitively on the candidate Field Name.
@@ -209,16 +209,16 @@ When the analyst-confirmed Field Name in Step 3b differs from a previously confi
      - Within each `source_doc`, order rows alphabetically by canonical Field Name.
    - For each surfaced name not already covered by a specs entry, populate the row with **Source = `extracted`**, Field Name = the snake_case name, Entity / Section = inferred from the per-file section's heading/summary plus the variable name itself (use the same heuristics as `/suggest-target-ruleset`'s entity-inference rule; fall back to `Case` when ambiguous).
 
-3. **Algorithm-derived (fallback):** For policy concepts not covered by specs and not surfaced by the per-file aggregation, derive the name from policy text using the algorithm above. **Source = `algorithm-derived`**.
+3. **Algorithm-derived (fallback):** For policy concepts not covered by the manifest and not surfaced by the per-file aggregation, derive the name from policy text using the algorithm above. **Source = `algorithm-derived`**.
 
-When specs and the per-file aggregation both surface the same concept (matched case-insensitively by name), specs wins — it is the analyst-confirmed authority. The per-file row is suppressed.
+When the manifest and the per-file aggregation both surface the same concept (matched case-insensitively by name), the manifest wins — it is the analyst-confirmed authority. The per-file row is suppressed.
 
 :::user_input
 Do the field names in this table match your intent? You may edit any name.
 :::
 If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
 
-When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it becomes `original_name:` on the rewritten entry). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
+When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it is appended to the rewritten entry's `synonyms:` list). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
 
 **`source:` population:** In Step 4, populate `source:` on every `FactField`, `ComputedField`, `TableDef`, and `Rule` using the "Source Section" value from the Name Inventory table above, *combined* with the surrounding document heading:
 
@@ -275,6 +275,7 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
 - **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
 - **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
+- **`source:` population from seed provenance:** populate the table or constant's `source:` field as `"<source_section> — <source_file basename without .md>"` (matching the `"<§ citation> — <heading>"` format used elsewhere in this step) directly from the seed entry's `source_file:` and `source_section:` — both are guaranteed present by `/create-skeleton`. Do not re-derive `source:` from policy text for seeded entries.
 - After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
@@ -492,18 +493,18 @@ For seeded entries the analyst did NOT match against an observation in Step 3b (
 - For rows with Source = `extracted` (surfaced by per-file aggregation): read the caveman-compressed source doc at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` (where `<rel>.md` is reconstituted from the per-file file's relative path under `policy_facets/computations/`). Scope the scan to the section the name was observed in by using the per-file section's `heading:` value as a boundary marker — locate the heading in the compressed source and read text up to the next heading of equal or higher level. Within that scoped text, extract the verbatim noun phrase per the rule in `core/naming_guide.md` lines 34–54. If the section heading cannot be located in the compressed source (boundary edge case at start or end of doc), fall back to scanning the whole file but log a `policy_phrase:` derivation warning.
 - For rows with Source = `algorithm-derived`: derive `policy_phrase:` from the policy text directly per the same verbatim rule, using the heading and surrounding paragraph the analyst pointed to during Step 3b confirmation.
 
-**`original_name:` annotation.** Re-anchor against the existing specs entry rather than against any external file:
+**Rename tracking via `synonyms:`.** Rename anchoring re-uses the existing `synonyms:` list rather than a dedicated `original_name:` field:
 
-- If the analyst's confirmed Field Name equals the existing specs entry's key (analyst kept the same name), **omit `original_name:`**.
-- If the analyst's confirmed Field Name differs from the existing specs entry's key (analyst renamed it in Step 3b), record the rename via the chain rule in the Re-run merge section below — the chain anchors to the **earliest** non-rename name across all rounds, never to the most recent rename.
-- If the entry is new (Source = `extracted` or `algorithm-derived` with no matching prior specs entry), omit `original_name:` — there is no prior canonical to anchor against.
+- If the analyst's confirmed Field Name equals the existing specs entry's key (analyst kept the same name), **do not append anything to `synonyms:`** for this entry.
+- If the analyst's confirmed Field Name differs from the existing specs entry's key (analyst renamed it in Step 3b), append `{name: <prior-specs-key>}` to the new entry's `synonyms:` list — the prior key joins the rename chain as a rename-anchor synonym (no `source_doc:` or `section:`, since the prior name was the analyst's prior choice, not an observed phrasing).
+- If the entry is new (Source = `extracted` or `algorithm-derived` with no matching prior specs entry), do not append anything — there is no prior canonical to record.
 
 **Optional fields.** `description:`, `type:`, `values:`, and `synonyms:` are no longer auto-propagated from any external file. Sources for these fields:
 - Analyst-supplied during Step 3b confirmation, or already present on a prior `confirmed` specs entry (preserved per the preserve-non-null rule below).
 - AI-inferred from policy text when the source carries an unambiguous signal — `type:` from a currency marker / yes-no phrasing / bulleted enum / etc.; `description:` from a definitional sentence in the source; `values:` from an enumerated list when `type: enum` is inferred.
 - Otherwise omitted (specs entries' optional fields are nullable per the existing schema).
 
-`role_hint:` is intentionally excluded because specs encodes role via the section placement (`inputs.<Entity>` vs `computed:` vs `outputs:`). `synonyms:` is no longer surfaced by an upstream merge tool; analysts may add it manually post-Step-7 when distinct phrasing across files is worth recording.
+`role_hint:` is intentionally excluded because specs encodes role via the section placement (`inputs.<Entity>` vs `computed:` vs `outputs:`). `synonyms:` carries two kinds of entries: **observed-phrasing synonyms** (curated by the analyst, with `source_doc:` and `section:` populated to anchor the alternative name in policy text) and **rename-anchor synonyms** (appended by Step 7 on each rename round, with `source_doc:` and `section:` omitted).
 
 **Multi-file:** Write one consolidated `naming-manifest.yaml` covering all `generate` entries in the work-list (sub-modules first, main module last). Merge entries from each module into the appropriate `inputs:`, `computed:`, and `outputs:` sections.
 
@@ -513,16 +514,16 @@ inputs:
   <EntityName>:
     <field_name>:
       policy_phrase: "<exact policy phrase derived per Step 7 rule>"
-      original_name: <prior-specs-key>            # only when analyst renamed in Step 3b
       description: "<analyst- or AI-inferred>"    # optional; omitted when absent
       type: "<money|bool|int|float|string|enum|list|date>"  # optional; omitted when absent
       values: ["<a>", "<b>"]                      # optional; only when type: enum
       source_doc: "<source filename>"
       section: "<source title, heading, and paragraph>"
-      synonyms:                                   # optional; analyst-curated
-        - name: <alt-name>
+      synonyms:                                   # optional; observed-phrasing entries plus rename-anchor entries
+        - name: <alt-name>                        # observed in policy text
           source_doc: <input/policy_docs/...>
           section: "<...>"
+        - name: <prior-specs-key>                 # rename-anchor (Step 7 append; no source_doc/section)
   # repeat for each entity
 computed:
   <field_name>:
@@ -532,10 +533,11 @@ computed:
     values: ["<...>"]                             # optional; only when type: enum
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
-    synonyms:                                     # optional; analyst-curated
+    synonyms:                                     # optional; observed-phrasing + rename-anchor
       - name: <alt-name>
         source_doc: <input/policy_docs/...>
         section: "<...>"
+      - name: <prior-specs-key>                   # rename-anchor (no source_doc/section)
 outputs:
   <field_name>:
     policy_phrase: "<exact policy phrase from Name Inventory>"
@@ -544,21 +546,22 @@ outputs:
     values: ["<...>"]                             # optional; only when type: enum
     source_doc: "<source filename>"
     section: "<source title, heading, and paragraph>"
-    synonyms:                                     # optional; analyst-curated
+    synonyms:                                     # optional; observed-phrasing + rename-anchor
       - name: <alt-name>
         source_doc: <input/policy_docs/...>
         section: "<...>"
+      - name: <prior-specs-key>                   # rename-anchor (no source_doc/section)
   # repeat for each outputs: field
 ```
 
 **Re-run merge — replace-on-rename, keyed by entry identity** (CREATE re-run when the file already exists):
 
 - For each entry being written, identify its prior specs counterpart by **field-name match** against the existing specs entries. (When a confirmed entry's name is unchanged, the new and prior keys match. When the analyst renamed in Step 3b, the rename anchor is the prior specs key carried alongside the row.)
-- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry's populated fields, including any `original_name:` already on it. **Preserve-non-null rule:** on a name-match re-run, the writer preserves a field's value when present (non-null), and fills it only when null or absent. This composes cleanly with seed-time analyst values (preserved when supplied) and AI-inferred or analyst-confirmed values (filled when blank). Provenance fields (`policy_phrase`, `source_doc`, `section`) are gap-fillable when null, which is exactly what seeded entries arriving at Step 7 with provenance still null require. To force re-derivation of an analyst-supplied value, delete the field from specs and re-run `/extract-ruleset`.
-- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Set `original_name:` to the **earliest** anchor in the chain: if the existing entry already has `original_name:`, copy that value forward (the chain anchors to the first non-rename name across all rounds, never to the most recent rename). If the existing entry has no `original_name:`, set `original_name:` to the existing entry's key (the previous canonical). Drop the existing entry from the file (no duplicate). Optional fields (`description:` / `type:` / `values:` / `synonyms:`) are carried forward from the existing entry under the preserve-non-null rule above.
-- **No match (new entry):** append a new entry. New entries surfaced via the per-file aggregation or algorithm-derived path do not carry `original_name:` — there is no prior specs canonical to anchor against.
+- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry's populated fields, including any `synonyms:` already on it. **Preserve-non-null rule:** on a name-match re-run, the writer preserves a field's value when present (non-null), and fills it only when null or absent. This composes cleanly with seed-time analyst values (preserved when supplied) and AI-inferred or analyst-confirmed values (filled when blank). Provenance fields (`policy_phrase`, `source_doc`, `section`) are gap-fillable when null, which is exactly what seeded entries arriving at Step 7 with provenance still null require. To force re-derivation of an analyst-supplied value, delete the field from specs and re-run `/extract-ruleset`.
+- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Carry the existing entry's `synonyms:` list forward, then append `{name: <existing-key>}` to it as a new rename-anchor synonym (no `source_doc:`/`section:`). Skip the append when `<existing-key>` is already present in the carried list (idempotent on re-runs that don't actually rename). The full rename chain accumulates in `synonyms:` across rounds. Drop the existing entry from the file (no duplicate). Optional fields (`description:` / `type:` / `values:`) are carried forward from the existing entry under the preserve-non-null rule above.
+- **No match (new entry):** append a new entry. New entries surfaced via the per-file aggregation or algorithm-derived path do not carry rename-anchor synonyms — there is no prior specs canonical to anchor against.
 
-This preserves rename-chain integrity across multiple rename rounds — the chain anchor stays pinned to the original confirmed name even after several analyst renames.
+This preserves rename-chain integrity across multiple rename rounds — every prior canonical name accumulates as a synonym, so downstream consumers can resolve any historical name to the current canonical by scanning `synonyms[].name`.
 
 This file is user-editable. Do **not** add an "auto-generated" comment.
 

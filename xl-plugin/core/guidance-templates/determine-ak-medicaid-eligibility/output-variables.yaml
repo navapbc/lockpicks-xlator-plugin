@@ -1,8 +1,8 @@
 # Output variables — descriptive guidance for outputs declared in
 # specs/naming-manifest.yaml's outputs: block.
 #
-# Schema: flat keyed by name. Each entry carries:
-#   name_ref     — references naming-manifest.yaml outputs.<name> (always equals the key)
+# Schema: flat keyed by name (the key references the manifest entry).
+# Each entry carries:
 #   description  — analyst-curated description
 #   type         — one of: money | bool | int | float | string | enum | list | date
 #   primary      — true | false; exactly one entry must be primary: true per ruleset
@@ -11,13 +11,11 @@
 # specs/naming-manifest.yaml's synonyms: row list. Do not duplicate them here.
 
 eligibility:
-  name_ref: eligibility
   description: "Binary pass/fail eligibility determination."
   type: bool
   primary: true
 
 manual_review_required:
-  name_ref: manual_review_required
   description: "Flag for cases requiring human review before determination."
   type: bool
   primary: false

@@ -243,43 +243,6 @@ def test_expr_hint_null_is_treated_as_absent():
 
 
 # ---------------------------------------------------------------------------
-# Removed surfaces (v9.0.0)
-# ---------------------------------------------------------------------------
-
-
-def test_top_level_naming_manifest_is_rejected():
-    """Top-level naming_manifest: was removed in v9.0.0."""
-    with tempfile.TemporaryDirectory() as tmp:
-        dst = Path(tmp) / "out.md.yaml"
-        payload = _payload_with_one_computation(dst)
-        payload["naming_manifest"] = {"variables": {}}
-        try:
-            emit_per_file_yaml.emit(payload)
-        except emit_per_file_yaml.ValidationError as exc:
-            msg = str(exc)
-            assert "naming_manifest" in msg
-            assert "removed" in msg
-        else:
-            raise AssertionError("expected ValidationError for top-level naming_manifest")
-
-
-def test_per_computation_variables_field_is_rejected():
-    """sections[*].computations[*].variables: was removed in v9.0.0."""
-    with tempfile.TemporaryDirectory() as tmp:
-        dst = Path(tmp) / "out.md.yaml"
-        payload = _payload_with_one_computation(dst)
-        payload["sections"][0]["computations"][0]["variables"] = ["a", "b"]
-        try:
-            emit_per_file_yaml.emit(payload)
-        except emit_per_file_yaml.ValidationError as exc:
-            msg = str(exc)
-            assert "variables" in msg
-            assert "removed" in msg
-        else:
-            raise AssertionError("expected ValidationError for computations[].variables")
-
-
-# ---------------------------------------------------------------------------
 # Atomic write
 # ---------------------------------------------------------------------------
 
