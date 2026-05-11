@@ -19,7 +19,6 @@ The orchestrator passes a per-invocation context block listing:
     - `{name: "extract",  skill: "/extract-computations", marker_path: "<domain_dir>/policy_facets/.extract-plan.d/<rel>.md.outcome.json",  dst: "<domain_dir>/policy_facets/computations/<rel>.md.yaml"}`
 - `naming_authority_paths` — informational documentation block listing the manifest paths the `/extract-computations` child skill reads on every run:
     - `specs:    "<domain_dir>/specs/naming-manifest.yaml"` (highest authority — analyst-confirmed renames; may not exist on first run)
-    - `defaults: "<domain_dir>/policy_facets/naming-defaults.yaml"` (mid authority — auto-picked canonicals from prior `/index-inputs` finalize step; may not exist on first run)
 
   The worker does **not** read these files. The child `/extract-computations` skill derives them from its own `<source_path>` argument (its pre-flight already walks ancestors to find `<domain_dir>`) and reads them itself. The block is documentation only — it tells the worker (and any auditor) which files the child consults.
 

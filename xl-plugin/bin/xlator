@@ -110,9 +110,6 @@ case "$1" in
     emit-per-file-yaml)
         exec uv run "$TOOLS_DIR/emit_per_file_yaml.py" "${@:2}"
         ;;
-    naming-defaults)
-        exec uv run "$TOOLS_DIR/naming_defaults.py" "${@:2}"
-        ;;
     validate-guidance)
         exec uv run "$TOOLS_DIR/validate_guidance.py" "${@:2}"
         ;;
