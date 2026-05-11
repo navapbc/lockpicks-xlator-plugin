@@ -115,20 +115,18 @@ Special populations, exceptional conditions, or policy interactions that overrid
 
 ### `output-variables.yaml`
 
-Analyst-curated descriptions, examples (sample values), and primary/secondary distinction for outputs. Mirrors `specs/naming-manifest.yaml`'s `outputs:` block — `name_ref` references the manifest entry; structural fields (`type`, `values`) live in the manifest, not here.
+Analyst-curated descriptions, examples (sample values), and primary/secondary distinction for outputs. Mirrors `specs/naming-manifest.yaml`'s `outputs:` block — the map key IS the manifest reference; structural fields (`type`, `values`) live in the manifest, not here.
 
 **Written by:** `/create-skeleton`
 **Read by:** `/extract-ruleset` (Step 1 context, primary identification), `/extract-sample-rules`, `/create-sample-tests`, `/create-ruleset-modules`, `validate_civil.py` (primary identification)
 
 ```yaml
 eligible:
-  name_ref: eligible
   description: "Eligibility result based on adjusted income and compatibility checks."
   examples: ["approve", "deny", "manual_verification"]   # sample values
   primary: true
 
 denial_reason:
-  name_ref: denial_reason
   description: "Income-based reason for a 'deny' decision."
   examples: ["over_income_limit", "incompatible_household"]
   primary: false

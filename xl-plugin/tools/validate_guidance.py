@@ -179,16 +179,14 @@ def _check_output_variables(
     mismatches: list[dict],
     referenced: set[str],
 ) -> None:
-    """`output-variables.yaml` is flat keyed by name; each entry may carry
-    `name_ref`, `type`, `values`, etc."""
+    """`output-variables.yaml` is flat keyed by name; the key IS the manifest
+    reference. Each entry may carry `type`, `values`, etc."""
     if not isinstance(data, dict):
         return
-    for _key, entry in data.items():
+    for key, entry in data.items():
         if not isinstance(entry, dict):
             continue
-        name_ref = entry.get("name_ref")
-        if not isinstance(name_ref, str):
-            continue
+        name_ref = str(key)
         referenced.add(name_ref)
         manifest_entry = manifest_entries.get(name_ref)
         if manifest_entry is None:

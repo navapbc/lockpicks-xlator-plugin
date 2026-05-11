@@ -225,10 +225,9 @@ Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
 
    **Intermediate variables live here, not in a separate file.** Their structure (which variables are computed, their expression hints, their stage grouping) IS the computation skeleton. There is no `guidance/intermediate-variables.yaml`.
 
-2. **Write `guidance/output-variables.yaml`** — flat keyed by name, mirroring `specs/naming-manifest.yaml`'s `outputs:` shape:
+2. **Write `guidance/output-variables.yaml`** — flat keyed by name, mirroring `specs/naming-manifest.yaml`'s `outputs:` shape (the key IS the manifest reference):
    ```yaml
    <output_name>:
-     name_ref: <output_name>          # always equals the key; explicit for validate-guidance to scan
      description: "<analyst-curated description>"
      examples: ["<sample value 1>", "<sample value 2>"]   # optional; sample values, not synonym names
      primary: true | false             # exactly one entry has primary: true per ruleset

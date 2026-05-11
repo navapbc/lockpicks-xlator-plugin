@@ -43,7 +43,7 @@ def test_clean_alignment_returns_ok():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "primary": {"name_ref": "gross_income", "description": "Total income."},
+            "gross_income": {"description": "Total income."},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is True
@@ -63,7 +63,7 @@ def test_typo_in_name_ref_reported():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "primary": {"name_ref": "gross_inocme", "description": "typo"},
+            "gross_inocme": {"description": "typo"},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is False
@@ -191,7 +191,7 @@ def test_type_agreement_ok_when_matching():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "eligibility": {"name_ref": "eligibility", "type": "bool", "primary": True},
+            "eligibility": {"type": "bool", "primary": True},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is True
@@ -209,7 +209,7 @@ def test_type_mismatch_caught():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "eligibility": {"name_ref": "eligibility", "type": "string", "primary": True},
+            "eligibility": {"type": "string", "primary": True},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is False
@@ -232,7 +232,7 @@ def test_type_absent_on_guidance_is_not_mismatch():
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
-            "eligibility": {"name_ref": "eligibility", "primary": True},
+            "eligibility": {"primary": True},
         })
         summary = validate_guidance.cmd_validate(domain)
         assert summary["ok"] is True
@@ -255,7 +255,6 @@ def test_values_mismatch_caught():
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
             "decision": {
-                "name_ref": "decision",
                 "type": "enum",
                 "values": ["approve", "deny", "manual"],
                 "primary": True,
