@@ -84,6 +84,20 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 
 **Entity inference for `inputs.<EntityName>.<field>`.** Inputs are the leaf variables — those that appear on the RHS of some `expr_hint:` or in `description:` prose but never on an LHS, plus variables in descriptive-only computations that the source treats as supplied rather than computed. For each input, determine its owning entity from policy doc context. Entities are CamelCase nouns representing the conceptual owner of their fields — common examples: `Applicant`, `Household`, `Income`, `Asset`, `Resource`. Use these signals in order:
 
+0. **Cross-source reuse pattern** (highest priority, applied before the other rules). Scan section summaries, computation descriptions, and `preconditions:` clauses for phrases that compare or reconcile two parallel sources of the same data:
+   - "apply X to both A and B" / "perform X on both A and B"
+   - "compare A's X with B's X" / "reconcile A and B"
+   - "verify A against B" / "check A using B"
+   - "X is reasonably compatible with Y" / "match A to B"
+   - "use A unless B disagrees" / "A and B yield the same outcome"
+
+   When the pattern is detected, emit **two (or more) parallel entities** sharing a mirrored field schema, one per source — do not collapse them into a single merged entity. Examples:
+   - client-stated income vs. agency-verified income → `ClientStatement` + `<Agency>Record` (e.g., `DOLRecord`, `AVSRecord`, `IRSRecord`)
+   - applicant-reported assets vs. third-party-reported assets → `ApplicantReport` + `ThirdPartyReport`
+   - employer-reported wages vs. self-reported wages → `EmployerReport` + `SelfReport`
+
+   Both entities carry the same field names (e.g., `ClientStatement.gross_earned_income` and `DOLRecord.gross_earned_income`); the policy's "apply X to both" language IS the explicit signal of a reusable computation module that `/create-ruleset-modules`'s `reuse_across_entities` heuristic (priority 1) will detect downstream. Collapsing them into a single `Income` entity hides this signal and prevents module detection. When Rule 0 fires, rules 1–3 below still apply to *other* inputs that don't participate in the cross-source comparison.
+
 1. Section heading and surrounding section text for the variable's source — a variable surfaced under a "Household composition" heading likely belongs to `Household`; a variable under "Applicant demographics" likely belongs to `Applicant`.
 2. The variable's source policy phrase (the verbatim noun phrase the source uses for the concept) — phrasing like "applicant's age" → `Applicant.age`; "household size" → `Household.household_size`.
 3. Variable name semantics — e.g., a variable whose name starts with a clear entity prefix may indicate ownership when section context is ambiguous, but do NOT rely on prefix alone — `gross_income` is not owned by a `Gross` entity.
@@ -192,6 +206,7 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 - **Do not omit the `primary:` flag from any `outputs.<field>` entry** — every output entry must have `primary: true|false`, and exactly one per file must be `true`.
 - **Do not guess `type:` when no signal exists** — omit the field instead. Same for `description:`.
 - **Do not invent a one-off entity per variable to avoid the `Case` fallback** — `Case` is the correct entity for input fields with no clear conceptual owner. Splintering into `Misc1`, `Misc2`, etc. is worse than using `Case`.
+- **Do not collapse parallel data sources into a single entity** — when policy text says "apply X to both A and B", or compares A against B (reasonable compatibility, AVS-vs-client, employer-vs-self, etc.), emit two parallel entities (e.g., `ClientStatement` + `DOLRecord`), not one merged `Income` or `Data` entity. Merging hides the reuse signal that `/create-ruleset-modules`'s `reuse_across_entities` heuristic needs to detect a shared sub-module. This is Entity Inference Rule 0 — the highest-priority rule, applied before heading/policy-phrase/name signals.
 - **Do not group computed variables under entities** — `computed:` is flat. Computed values are functions of multiple entities' inputs; they don't conceptually belong to one entity.
 - **Do not use block-style lists for `type:` values** — `type: enum` not `type:\n  - approve\n  - deny`
 - **Do not guess domain names or paths** — always expand `$DOMAINS_DIR` from `.xlator.local.env` if the variable is unknown

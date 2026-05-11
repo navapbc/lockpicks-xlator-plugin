@@ -165,6 +165,14 @@ Build and display the skeleton using:
 - **`guidance/input-variables.yaml`** — input categories provide structure and group names; **`guidance/output-variables.yaml`** — output entries with primary flag; **`specs/naming-manifest.yaml`** — structural variable data (names + types)
 - **Step 2 signals (in-memory)** — topic tags, section headings, and file summaries enrich variable names; computation hints provide concrete variable names (prefer these over generic `examples` from the guidance template) and bare-expression values (the `expr_hint:` RHS with the `<output> =` prefix stripped — show as `≈ <expression>` when available, `= ?` when not inferable); **stage membership drives `stage:` assignment when present** — a computation whose source section has `stage:` adopts the (post-normalization) stage value as its category, overriding name-pattern-based categorization. Computations whose source sections lack `stage:` fall through to existing name-pattern categorization unchanged.
 
+**Parallel-entity reuse signal.** Before listing intermediate variables in any stage, check `specs/naming-manifest.yaml`'s `inputs:` block for two or more entities with **mirrored field schemas** — i.e., the same field name appearing under different `<EntityName>` keys (e.g., `ClientStatement.gross_earned_income` AND `DOLRecord.gross_earned_income`). When this pattern is present:
+
+- **Do not flatten the parallel runs into a single black-box step.** Listing only one aggregate variable (e.g., `adjusted_earned_income`) hides the reuse pattern and starves `/create-ruleset-modules`'s `reuse_across_entities` heuristic.
+- **Expand the stage's `variables:` list to show the parallel computations per entity**, using `<entity_prefix>_<output>` naming (snake_case of the entity name as prefix). Example: a stage that applies the same exclusion chain to `ClientStatement` and `DOLRecord` should list both `client_adjusted_earned_income` and `dol_adjusted_earned_income` (plus per-entity intermediate steps when material), not a single merged `adjusted_earned_income`.
+- **Both runs share the same `expr_hint:` shape**, differing only by entity-prefixed input names — record each entity's run with its own `exprs:` entry so the parallelism is explicit in the YAML.
+
+This expansion is what enables `/create-ruleset-modules`'s `reuse_across_entities` heuristic (priority 1) to detect the shared sub-module candidate. If the upstream `/suggest-target-ruleset` correctly applied Entity Inference Rule 0 (cross-source reuse pattern), the parallel entities are already in `naming-manifest.yaml`; this step's job is to make them visible in the skeleton.
+
 Display format:
 
 :::detail
@@ -308,6 +316,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [UPDATED in Step 
 - Do not rewrite sections the user did not change — preserve exact wording of unchanged items; only append new proposals in Step 2
 - Do not write `generated_at` — git tracks version history
 - Variables shown as `= ?` in the skeleton are omitted from `computations:` entries — only variables with a non-null bare expression (derived from the `expr_hint:` RHS) get a `computations:` entry
+- **Do not flatten parallel-entity runs into a single black-box variable** — when `naming-manifest.yaml` declares two or more entities with mirrored field schemas (e.g., `ClientStatement.gross_earned_income` AND `DOLRecord.gross_earned_income`), the skeleton's stage `variables:` list MUST show the per-entity runs (e.g., `client_adjusted_earned_income`, `dol_adjusted_earned_income`), not a single merged `adjusted_earned_income`. Flattening hides the reuse signal that `/create-ruleset-modules`'s `reuse_across_entities` heuristic needs.
 - In UPDATE mode "accept", exit without writing — do not overwrite any existing content
 - Step 2 runs in both CREATE and UPDATE mode (when `[b] replace` is selected or the full flow runs) — do not skip it even when guidance sections already have content; deduplication prevents double-adding
 - Show the step checklist after EVERY step (4 steps total) — do not skip it
