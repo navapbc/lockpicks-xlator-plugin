@@ -202,6 +202,16 @@ After generating all four files, print a summary:
   Skipped (duplicates): N
 :::
 
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and the expanded test files:
+
+```bash
+xlator record-tier-manifest <domain> --tier tests
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop — do not proceed to `:::next_step`.
+
+Note: the manifest records the current `specs/*.civil.yaml` SHA at this run's write time. The baseline `<program>_tests.yaml` (read by Phase 1 but not rewritten by this skill) may have been generated against a different civil SHA. If you need full tests-tier consistency, run `/create-tests <domain>` to refresh the baseline first.
+
 :::next_step
 Run /transpile-and-test <domain> to validate these tests against the rules.
 :::
