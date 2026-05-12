@@ -433,6 +433,7 @@ scope EligibilityDecision:
 | `Entity.field` | `Entity.field` | Same dot notation |
 | `max(a, b)` | `if a >= b then a else b` | No built-in max; use conditional |
 | `min(a, b)` | `if a <= b then a else b` | No built-in min; use conditional |
+| `in(x, [a, b, c])` | `[a; b; c] contains x` | Catala has no `in(...)` builtin; rewrite to list-`contains` form. Note `;` list separators, not `,` |
 | `CONSTANT` | Inlined literal | Constants substituted at transpile time |
 | `table('name', key).col` | Stacked `under condition` definitions (default) or single `if/else if/else` chain (`--table-style else-if`) | One block per row, or one chained definition |
 
@@ -456,3 +457,4 @@ Typed arithmetic (when mixed types need explicit precision):
 11. **`under condition` + `consequence` both required** — for conditional definition form; cannot omit either keyword
 12. **List semicolons** — list elements separated by `;` not `,`: `[ a; b; c ]`
 13. **`> Module` must be the first line** — before any Markdown heading; module name must be capitalized (first letter uppercase, underscores preserved, e.g. `Earned_income` not `earned_income`)
+14. **String fact field with `values:`** — must emit a `declaration enumeration <PascalField>` and PascalCase variant identifiers (e.g. `values: [APA, QMB]` → `-- Apa`, `-- Qmb`). Test inputs and expressions using these enums must use the same PascalCase form. Table-derived string variants (from a table key column) keep their raw casing in both declaration and use sites — do not mix the two conventions.
