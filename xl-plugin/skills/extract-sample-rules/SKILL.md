@@ -37,7 +37,7 @@ Which domain? Enter a number or domain name:
 
 `<rule_topic>` is an optional free-text filter (e.g., `"earned income"`, `"student exclusion"`). When provided, limit rule generation to index entries whose `heading:`, `summary:`, or `tags:` relate to the topic (case-insensitive keyword match). Report skipped entries at the end.
 
-`index-only` is an optional literal keyword (third positional argument). When provided, only entries whose `computations[]` all have `expr_hint:` present are processed; entries that require reading source files are skipped entirely. Pass 4b does not run. Use this when you want fast, index-derived `computed:` rules without waiting for source reads.
+`index-only` is an optional literal keyword (third positional argument). When provided, only entries whose `computations[]` all have `expr_hint:` present are processed; entries that require reading the policy doc content are skipped entirely. Pass 4b does not run. Use this when you want fast, index-derived `computed:` rules without waiting for content reads.
 
 Read `../../core/output-fencing.md` now.
 
@@ -146,8 +146,8 @@ If `skeleton:` is absent, mark all working set entries as normal priority.
 
 For each entry remaining in the working set, classify based solely on `expr_hint:` completeness in the index:
 
-- **`computed-only`**: all `computations[]` entries have `expr_hint:` present in the assignment form (`output_name = <expression>`). Rules can be generated from index data alone in Pass 4a, without reading the source policy document.
-- **`needs-source`**: any `computations[]` entry is missing `expr_hint:` or `computations[]` is empty. These entries require reading the source policy document in Pass 4b.
+- **`computed-only`**: all `computations[]` entries have `expr_hint:` present in the assignment form (`output_name = <expression>`). Rules can be generated from index data alone in Pass 4a, without reading any policy doc content.
+- **`needs-source`**: any `computations[]` entry is missing `expr_hint:` or `computations[]` is empty. These entries require reading the policy doc content in Pass 4b — the caveman-compressed mirror by default, with the original source as a fallback when the compressed text is ambiguous.
 
 Tag each entry in the working set with its class. Classification runs regardless of whether `role:` or `skeleton:` is present — it depends only on index data.
 
@@ -164,14 +164,14 @@ Show updated step checklist (as `:::progress`).
 
 ### Step 4: Generate rules (two-pass)
 
-Rules are generated in two passes. **These passes are strictly sequential and must never be combined into a single write.** Pass 4a processes `computed-only` entries using index data alone and writes output immediately so the user can review rules while Pass 4b runs. Pass 4b processes `needs-source` entries (and any `computed-only` entries queued by heuristic signals) by reading source documents, then merges again. The merge schemas are defined in Steps 5 and 6 below.
+Rules are generated in two passes. **These passes are strictly sequential and must never be combined into a single write.** Pass 4a processes `computed-only` entries using index data alone and writes output immediately so the user can review rules while Pass 4b runs. Pass 4b processes `needs-source` entries (and any `computed-only` entries queued by heuristic signals) by reading the caveman-compressed policy mirror at `policy_facets/compressed/<rel>.md` (falling back to the source doc at `input/policy_docs/<rel>.md` only when the compressed text is ambiguous, unclear, or questionable), then merges again. The merge schemas are defined in Steps 5 and 6 below.
 
 **Rendering `preconditions:` to CIVIL.** Multiple sub-steps below — Pass 4a (b), and Pass 4b (c) for both `computed:` and `categorical:` rules — consume the `preconditions:` field from index entries. Apply this rendering uniformly:
 
 - **Boolean shape** — the top-level list joins terms with AND; `{all_of: [...]}` joins terms with AND; `{any_of: [...]}` joins terms with OR; arbitrary nesting is permitted.
 - **Leaf translation** — each leaf string clause is a natural-language predicate. Translate it into a CIVIL boolean expression using canonical variable names (resolved via SP-LoadNamingManifest as in sub-step (a)). When a clause cannot be confidently translated to CIVIL, keep it as a quoted string in a `# precondition: <clause>` YAML comment immediately above the rule's `expr:` or `when:` line, and add a `missing_info:` entry: `"Precondition <clause> for <variable_name> could not be translated to CIVIL — confirm manually"`.
 - **`computed:` rules** — wrap `expr_hint:` in `conditional: { if: <rendered>, then: <expr_hint>, else: <inferred default or "?"> }` instead of a bare `expr:`. If no `else` branch is implied by the policy and no sensible default exists, keep the bare `expr:` form and prepend the `# precondition: <rendered>` comment.
-- **`categorical:` rules** — render preconditions as the rule's `when:` clause; source-text triggers from Pass 4b (c) contribute additional `when:` conditions joined with AND.
+- **`categorical:` rules** — render preconditions as the rule's `when:` clause; policy-text triggers from Pass 4b (c) contribute additional `when:` conditions joined with AND.
 - **Absent / empty `preconditions:`** — render rules unconditionally (existing behavior).
 
 ---
@@ -197,7 +197,7 @@ For each `computed-only` entry in the working set, processed in priority order (
 - Table/schedule keywords: `table`, `schedule`, `threshold`, `limit`
 - Conditional language: `if`, `unless`, `when`, `except`, `eligibility`
 
-If any signals are present, add this entry to the Pass 4b queue for `categorical:` and `table-lookup:` rule generation. Do not read the source file now.
+If any signals are present, add this entry to the Pass 4b queue for `categorical:` and `table-lookup:` rule generation. Do not read the policy doc content now.
 
 **(d) Assign to ruleset module or main.** For each generated rule, determine the best matching entry in `guidance/ruleset-modules.yaml`:
 - **Stage-aware matching when `stage:` is populated on the source section.** Filter sub-module candidates to those whose variables fall within the rule's (post-normalization) `stage:` — the R21 stage-boundary constraint is now extended to `stage:` agreement (see `/create-ruleset-modules` Step 2), so a sub-module is only a valid binding target if its variables share the rule's stage. Among stage-compatible sub-modules, then apply the existing variable name / heading keyword overlap heuristic. This keeps the rule's CIVIL `group:` annotation (set in (b)) consistent with the binding sub-module's stage membership.
@@ -233,10 +233,12 @@ If `index-only`: stop. Do not run Pass 4b.
 
 Process all `needs-source` entries, then any `computed-only` entries added to the Pass 4b queue. Within each group, process in priority order (high → normal → low), then in the entry order produced by globbing `policy_facets/computations/**/*.md.yaml` alphabetically and concatenating each file's `sections:` list.
 
-**(a) Read source text.** Locate the source file at `path:` and navigate to the section identified by `heading:`. Read that section's text.
+**(a) Read policy text.** From the working-set entry's `path:` (reconstituted as `input/policy_docs/<rel>.md`), derive the caveman-compressed mirror path by swapping the `input/policy_docs/` prefix for `policy_facets/compressed/`. Open `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` and navigate to the section identified by `heading:`. Read that section's text from the compressed mirror — this is the default read.
 
-- If the file at `path:` does not exist: log `⚠ Source not found: <path> — skipping entry` and add to `missing_info`. Continue to the next entry.
-- If the heading cannot be located in the file: log `⚠ Heading not found: "<heading>" in <path> — skipping entry` and add to `missing_info`. Continue.
+**Fallback to source.** Only when the compressed text for that section is ambiguous, unclear, or questionable for the rule drafting at hand — for example, a precondition cannot be confidently translated to CIVIL, a table or schedule is referenced but its rows are not reproduced in the compressed mirror, or aggressive compression has elided detail needed to disambiguate variable names or thresholds — re-read the same section from the source doc at `$DOMAINS_DIR/<domain>/input/policy_docs/<rel>.md`. The compressed mirror is the default; the source read is the escape hatch.
+
+- If neither the compressed mirror nor the source doc exists at the expected path: log `⚠ Source not found: <rel> — skipping entry` and add to `missing_info`. Continue to the next entry.
+- If the heading cannot be located in the compressed mirror, attempt the same heading lookup in the source doc before declaring it missing. If neither file contains the heading: log `⚠ Heading not found: "<heading>" in <rel> — skipping entry` and add to `missing_info`. Continue.
 
 **(b) Determine canonical variable names.** For each variable name surfaced by applying the `expr_hint:` parse rule (Step 2) to the entry's `computations[]` (LHS output names plus RHS input tokens, or `description:` prose for descriptive-only computations), apply the keyed lookup from SP-LoadNamingManifest: if the variable name matches a map key in `specs/naming-manifest.yaml`, use that manifest name. Only if no keyed match is found, derive a snake_case name from the policy text using the Name Inventory algorithm:
 - Extract the exact noun phrase from the policy text
@@ -246,20 +248,20 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 
 **(c) Generate rules.** For each computation hint in the entry, produce one or more CIVIL rule snippets:
 
-- **`computed:` rule** — for `needs-source` entries with a well-formed `expr_hint:` (assignment form): produce a `computed:` snippet using the canonical output variable name (LHS) and the bare expression (RHS with the `<output> =` prefix stripped) as the `expr:` value. If the entry has `preconditions:`, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form; refine the rendered preconditions against the source text from sub-step (a) — clauses that the index pass could not translate cleanly may translate now using source-text variable names. For `computed-only` entries in the Pass 4b queue: **skip `computed:` rules** — already written in Pass 4a.
+- **`computed:` rule** — for `needs-source` entries with a well-formed `expr_hint:` (assignment form): produce a `computed:` snippet using the canonical output variable name (LHS) and the bare expression (RHS with the `<output> =` prefix stripped) as the `expr:` value. If the entry has `preconditions:`, apply the **Rendering `preconditions:` to CIVIL** rule (above the Pass 4a header) to wrap the `expr:` in a `conditional:` form; refine the rendered preconditions against the policy text from sub-step (a) — clauses that the index pass could not translate cleanly may translate now using policy-text variable names. For `computed-only` entries in the Pass 4b queue: **skip `computed:` rules** — already written in Pass 4a.
 - **`computed:` rule (no expr_hint)** — for `needs-source` entries where `expr_hint:` is absent: produce the snippet with `expr: "?"` as a placeholder. Record the variable in `assumptions:` ("No expr_hint available for `<name>` — expr must be confirmed manually"). If the entry has `preconditions:`, still render them as a `# precondition: <rendered>` comment above the placeholder so the analyst can see the gating intent.
-- **`categorical:` rules** — scan the source text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names. If the originating index entry has `preconditions:`, seed the `when:` clause from the rendered preconditions (per the rendering rule above) and append source-text-derived conditions joined with AND.
-- **`table-lookup:` rule** — if the source text references a table or schedule of thresholds, draft a `computed:` entry using `table_lookup:` syntax with `table:` and `key:` fields.
-- **`invoke:` rule** — if the source text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance/ruleset-modules.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
+- **`categorical:` rules** — scan the policy text for conditional policy statements (if/then, eligibility conditions, deny/approve triggers). For each, draft a `rules:` entry with `when:` and `then:` blocks using canonical variable names. If the originating index entry has `preconditions:`, seed the `when:` clause from the rendered preconditions (per the rendering rule above) and append policy-text-derived conditions joined with AND.
+- **`table-lookup:` rule** — if the policy text references a table or schedule of thresholds, draft a `computed:` entry using `table_lookup:` syntax with `table:` and `key:` fields.
+- **`invoke:` rule** — if the policy text's computation calls for running a ruleset module, and `ruleset_modules:` in `guidance/ruleset-modules.yaml` has a matching entry, draft a `computed:` entry with `invoke:` and `with:` fields using the ruleset module's `name:` and canonical variable bindings.
 
 **(d) Assign to ruleset module or main.** Same logic as Pass 4a sub-step (d).
 
 **(e) Record notes.** Track:
-- Any referenced value not found in the index or source text → add descriptive string to `missing_info`
+- Any referenced value not found in the index or policy text → add descriptive string to `missing_info`
 - Any inferential leap or assumption → add descriptive string to `assumptions`
 - Any low-priority entry from Step 3 for which rules were generated → add to `assumptions`: `"<heading> not in skeleton — rule may be auxiliary or out of scope; confirm before use"`
 
-After processing all Pass 4b entries: merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), overwriting any index-derived `policy_phrase` values with source-text values where available. Write all files.
+After processing all Pass 4b entries: merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), overwriting any index-derived `policy_phrase` values with policy-text values where available. Write all files.
 
 Print Full Summary (see [Summary](#summary)).
 
@@ -428,7 +430,7 @@ Next: Run /tag-vars-to-include-with-output <domain> to auto-detect intermediate 
 
 ## Common Mistakes to Avoid
 
-- **Do not read files under `$DOMAINS_DIR/<domain>/input/` directly** — use the per-file files under `policy_facets/computations/`: each section's source path is encoded in the file's relative location (`policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`); navigate to the section identified by `heading:` within that source. Reading source policy files via those pointers is explicitly permitted for this command.
+- **Default to the compressed mirror; read source only as a fallback** — Pass 4b sub-step (a) reads `policy_facets/compressed/<rel>.md` first. Only fall back to `input/policy_docs/<rel>.md` when the compressed text is ambiguous, unclear, or questionable for the rule at hand (e.g., a precondition cannot be confidently translated, a referenced table's rows are missing from the mirror, or aggressive compression has elided needed detail). Do not browse `input/` directly or read unrelated files: every read is scoped to the specific section identified by the per-file `path:` and `heading:` in `policy_facets/computations/<rel>.md.yaml`.
 - **Do not overwrite existing `sample_rules:` entries** — merge by `id:` only; never remove manually edited rules
 - **Do not overwrite existing `naming-manifest.yaml` entries** — append only; the manifest is user-editable and may contain frozen names from a prior `/extract-ruleset` run
 - **Do not clobber other guidance file contents** — this command writes only to `ruleset_modules[].sample_rules` in `ruleset-modules.yaml`, and to `sample_rules`, `missing_info`, `assumptions` in `sample-artifacts.yaml`; all other fields must be preserved verbatim
