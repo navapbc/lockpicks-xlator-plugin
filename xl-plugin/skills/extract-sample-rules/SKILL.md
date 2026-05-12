@@ -410,6 +410,14 @@ Skipped (index-only — source text required):
   - 523 A. SOCIAL SECURITY BENEFITS
 :::
 
+After both passes complete, record the guidance-tier manifest so `/check-freshness` can later detect drift between `policy_facets/` and this skill's outputs:
+
+```bash
+xlator record-tier-manifest <domain> --tier guidance
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop — do not proceed to `:::next_step`.
+
 Then suggest next steps:
 
 :::next_step

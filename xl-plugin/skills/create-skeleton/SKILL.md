@@ -282,6 +282,14 @@ $DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml [CREATED]
 $DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml [CREATED]
 :::
 
+Then record the guidance-tier manifest so `/check-freshness` can later detect drift between `policy_facets/` and this skill's outputs:
+
+```bash
+xlator record-tier-manifest <domain> --tier guidance
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop — do not proceed to the step checklist or `:::next_step`.
+
 Then show the final step checklist (all steps checked):
 
 :::progress
