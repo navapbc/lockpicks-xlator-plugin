@@ -119,6 +119,9 @@ case "$1" in
     check-freshness)
         exec uv run "$TOOLS_DIR/check_freshness.py" "${@:2}"
         ;;
+    declare-target-ruleset)
+        exec uv run "$TOOLS_DIR/declare_target_ruleset.py" "${@:2}"
+        ;;
     tag-vars-include-output)
         exec uv run "$TOOLS_DIR/tag_vars_include_output.py" "${@:2}"
         ;;
