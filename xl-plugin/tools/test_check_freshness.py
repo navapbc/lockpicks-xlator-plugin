@@ -2,7 +2,7 @@
 # requires-python = ">=3.14"
 # dependencies = ["pyyaml>=6.0"]
 # ///
-"""Tests for check_freshness.py — covers tier 1-4 detection and edge cases.
+"""Tests for check_freshness.py — covers facets/guidance/civil/tests detection and edge cases.
 
 Run: uv run xl-plugin/tools/test_check_freshness.py
 """
@@ -130,86 +130,86 @@ def _categories(records, tier: str | None = None) -> list[tuple[str, str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# Tier 1
+# facets tier
 # ---------------------------------------------------------------------------
 
-def test_tier1_happy_path_no_drift():
+def test_facets_happy_path_no_drift():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         records, counts = check_freshness.cmd_check(domain)
-        assert counts["tier1"] == 0, _categories(records, "tier1")
+        assert counts["facets"] == 0, _categories(records, "facets")
 
 
-def test_tier1_source_edited():
-    """AE1: edit a policy doc after indexing -> tier1 source_edited."""
+def test_facets_source_edited():
+    """AE1: edit a policy doc after indexing -> facets source_edited."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         # Edit foo.md after the index recorded its SHA.
         _write(domain, "input/policy_docs/foo.md", "EDITED content")
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
-        assert ("tier1", "source_edited", "input/policy_docs/foo.md") in cats
+        cats = _categories(records, "facets")
+        assert ("facets", "source_edited", "input/policy_docs/foo.md") in cats
 
 
-def test_tier1_source_added():
-    """AE2: new file not in index -> tier1 source_added."""
+def test_facets_source_added():
+    """AE2: new file not in index -> facets source_added."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _write(domain, "input/policy_docs/new.md", "new content")
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
-        assert ("tier1", "source_added", "input/policy_docs/new.md") in cats
+        cats = _categories(records, "facets")
+        assert ("facets", "source_added", "input/policy_docs/new.md") in cats
 
 
-def test_tier1_source_removed():
-    """Index entry present, file missing -> tier1 source_removed."""
+def test_facets_source_removed():
+    """Index entry present, file missing -> facets source_removed."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         (domain / "input/policy_docs/foo.md").unlink()
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
-        assert ("tier1", "source_removed", "input/policy_docs/foo.md") in cats
+        cats = _categories(records, "facets")
+        assert ("facets", "source_removed", "input/policy_docs/foo.md") in cats
 
 
-def test_tier1_derived_missing():
-    """AE3: compressed counterpart deleted -> tier1 derived_missing."""
+def test_facets_derived_missing():
+    """AE3: compressed counterpart deleted -> facets derived_missing."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         (domain / "policy_facets/compressed/foo.md").unlink()
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
-        assert ("tier1", "derived_missing", "policy_facets/compressed/foo.md") in cats
+        cats = _categories(records, "facets")
+        assert ("facets", "derived_missing", "policy_facets/compressed/foo.md") in cats
 
 
-def test_tier1_orphan_derived():
-    """Compressed file with no live source -> tier1 orphan_derived."""
+def test_facets_orphan_derived():
+    """Compressed file with no live source -> facets orphan_derived."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _write(domain, "policy_facets/compressed/orphan.md", "orphan content")
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
-        assert ("tier1", "orphan_derived", "policy_facets/compressed/orphan.md") in cats
+        cats = _categories(records, "facets")
+        assert ("facets", "orphan_derived", "policy_facets/compressed/orphan.md") in cats
 
 
-def test_tier1_index_missing():
-    """No input-index.yaml -> tier1 index_missing, exit 1."""
+def test_facets_index_missing():
+    """No input-index.yaml -> facets index_missing, exit 1."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write(domain, "input/policy_docs/foo.md", "foo")
         _git_init_and_commit(domain)
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
+        cats = _categories(records, "facets")
         assert any(c == "index_missing" for _, c, _ in cats)
-        assert counts["tier1"] >= 1
+        assert counts["facets"] >= 1
 
 
-def test_tier1_rejected_source_skipped():
+def test_facets_rejected_source_skipped():
     """AE8: md_quality.score < 40, source moved to input/rejected/ -> no drift."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
@@ -223,13 +223,13 @@ def test_tier1_rejected_source_skipped():
         records, _ = check_freshness.cmd_check(domain)
         # No drift for foo.md: not flagged as source_removed (it's rejected) and
         # not flagged as source_added (it's still in the index).
-        cats = _categories(records, "tier1")
+        cats = _categories(records, "facets")
         paths = [p for _, _, p in cats]
         assert "input/policy_docs/foo.md" not in paths
         assert "input/rejected/foo.md" not in paths
 
 
-def test_tier1_untracked_sha_skipped():
+def test_facets_untracked_sha_skipped():
     """Index sha='untracked' -> comparison skipped, no spurious drift."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
@@ -240,12 +240,12 @@ def test_tier1_untracked_sha_skipped():
             "input/policy_docs/foo.md": {"sha": "untracked", "md_quality": {"score": 100}},
         })
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier1")
+        cats = _categories(records, "facets")
         assert all(c != "source_edited" for _, c, _ in cats)
 
 
-def test_tier1_git_unavailable_signal():
-    """Mock subprocess.run to fail -> tier1 git_unavailable record, exit 1."""
+def test_facets_git_unavailable_signal():
+    """Mock subprocess.run to fail -> facets git_unavailable record, exit 1."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
@@ -255,39 +255,39 @@ def test_tier1_git_unavailable_signal():
             mock_sub.run.side_effect = OSError("git not found")
             records, counts = check_freshness.cmd_check(domain)
 
-        cats = _categories(records, "tier1")
+        cats = _categories(records, "facets")
         assert any(c == "git_unavailable" for _, c, _ in cats)
-        assert counts["tier1"] >= 1
+        assert counts["facets"] >= 1
 
 
 # ---------------------------------------------------------------------------
-# Tier 2
+# guidance tier
 # ---------------------------------------------------------------------------
 
-def test_tier2_guidance_stale_when_facets_changes():
-    """AE4: edit computations/foo.md.yaml after manifest -> tier2 guidance_stale."""
+def test_guidance_guidance_stale_when_facets_changes():
+    """AE4: edit computations/foo.md.yaml after manifest -> guidance guidance_stale."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _write(domain, "policy_facets/computations/foo.md.yaml", "sections: [edited]\n")
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier2")
-        assert ("tier2", "guidance_stale", "policy_facets/computations/foo.md.yaml") in cats
+        cats = _categories(records, "guidance")
+        assert ("guidance", "guidance_stale", "policy_facets/computations/foo.md.yaml") in cats
 
 
-def test_tier2_manifest_missing_when_guidance_present():
+def test_guidance_manifest_missing_when_guidance_present():
     """AE14: guidance files exist, no .facets-manifest.yaml -> guidance_manifest_missing."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain, with_manifests=False)
         # Don't write the guidance manifest.
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier2")
+        cats = _categories(records, "guidance")
         assert any(c == "guidance_manifest_missing" for _, c, _ in cats)
 
 
-def test_tier2_no_guidance_no_manifest_no_drift():
-    """No guidance files and no manifest -> no tier-2 drift."""
+def test_guidance_no_guidance_no_manifest_no_drift():
+    """No guidance files and no manifest -> no guidance-tier drift."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write(domain, "input/policy_docs/foo.md", "foo")
@@ -298,38 +298,38 @@ def test_tier2_no_guidance_no_manifest_no_drift():
         })
         # No specs/guidance/, no facets-manifest.
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier2")
+        cats = _categories(records, "guidance")
         # Empty — no manifest-missing emitted because guidance tier has no outputs.
         assert cats == []
 
 
 # ---------------------------------------------------------------------------
-# Tier 3
+# civil tier
 # ---------------------------------------------------------------------------
 
-def test_tier3_civil_stale_when_guidance_changes():
-    """AE5: edit specs/guidance/skeleton.yaml after extraction -> tier3 civil_stale."""
+def test_civil_civil_stale_when_guidance_changes():
+    """AE5: edit specs/guidance/skeleton.yaml after extraction -> civil civil_stale."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _write(domain, "specs/guidance/skeleton.yaml", "computations: [edited]\n")
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier3")
-        assert ("tier3", "civil_stale", "specs/guidance/skeleton.yaml") in cats
+        cats = _categories(records, "civil")
+        assert ("civil", "civil_stale", "specs/guidance/skeleton.yaml") in cats
 
 
-def test_tier3_manifest_missing_when_civil_present():
+def test_civil_manifest_missing_when_civil_present():
     """AE15: civil files exist, no consumed_guidance[] -> civil_manifest_missing."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain, with_manifests=False)
         # Civil exists (populated by _populate_full_chain), but no extraction-manifest.
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier3")
+        cats = _categories(records, "civil")
         assert any(c == "civil_manifest_missing" for _, c, _ in cats)
 
 
-def test_tier3_dedup_across_sub_modules():
+def test_civil_dedup_across_sub_modules():
     """Same guidance file in program + sub-module -> single civil_stale record."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
@@ -357,38 +357,38 @@ def test_tier3_dedup_across_sub_modules():
         # Force drift on the shared path.
         _write(domain, "specs/guidance/skeleton.yaml", "EDITED")
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier3")
+        cats = _categories(records, "civil")
         # Expect exactly one civil_stale for skeleton.yaml, not two.
         stale_entries = [c for c in cats if c[1] == "civil_stale"]
         assert len(stale_entries) == 1, stale_entries
 
 
 # ---------------------------------------------------------------------------
-# Tier 4
+# tests tier
 # ---------------------------------------------------------------------------
 
-def test_tier4_tests_stale_when_civil_changes():
-    """AE6: regenerate civil after tests -> tier4 tests_stale."""
+def test_tests_tests_stale_when_civil_changes():
+    """AE6: regenerate civil after tests -> tests tests_stale."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _write(domain, "specs/eligibility.civil.yaml", "name: eligibility\nedited: true\n")
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier4")
-        assert ("tier4", "tests_stale", "specs/eligibility.civil.yaml") in cats
+        cats = _categories(records, "tests")
+        assert ("tests", "tests_stale", "specs/eligibility.civil.yaml") in cats
 
 
-def test_tier4_manifest_missing_when_tests_present():
+def test_tests_manifest_missing_when_tests_present():
     """AE16: tests dir non-empty, no .civil-manifest.yaml -> tests_manifest_missing."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain, with_manifests=False)
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier4")
+        cats = _categories(records, "tests")
         assert any(c == "tests_manifest_missing" for _, c, _ in cats)
 
 
-def test_tier4_not_applicable_for_empty_tests_dir():
+def test_tests_not_applicable_for_empty_tests_dir():
     """AE7: civil exists, empty specs/tests/ -> not_applicable."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
@@ -396,13 +396,13 @@ def test_tier4_not_applicable_for_empty_tests_dir():
         # Remove tests file to make dir effectively empty.
         (domain / "specs/tests/eligibility_tests.yaml").unlink()
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier4")
+        cats = _categories(records, "tests")
         assert any(c == "not_applicable" for _, c, _ in cats)
-        # not_applicable is informational; tier4 count is 0.
-        assert counts["tier4"] == 0
+        # not_applicable is informational; tests count is 0.
+        assert counts["tests"] == 0
 
 
-def test_tier4_not_applicable_for_absent_tests_dir():
+def test_tests_not_applicable_for_absent_tests_dir():
     """AE7 variant: tests dir doesn't exist at all -> not_applicable."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
@@ -411,9 +411,9 @@ def test_tier4_not_applicable_for_absent_tests_dir():
         import shutil
         shutil.rmtree(domain / "specs/tests")
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "tier4")
+        cats = _categories(records, "tests")
         assert any(c == "not_applicable" for _, c, _ in cats)
-        assert counts["tier4"] == 0
+        assert counts["tests"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +426,7 @@ def test_full_chain_happy_path_exits_zero(monkeypatch_env=None):
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _, counts = check_freshness.cmd_check(domain)
-        assert counts == {"tier1": 0, "tier2": 0, "tier3": 0, "tier4": 0}
+        assert counts == {"facets": 0, "guidance": 0, "civil": 0, "tests": 0}
 
 
 def test_multi_tier_drift_composition():
@@ -437,8 +437,8 @@ def test_multi_tier_drift_composition():
         _write(domain, "input/policy_docs/foo.md", "EDITED")
         _write(domain, "policy_facets/computations/foo.md.yaml", "EDITED\n")
         records, counts = check_freshness.cmd_check(domain)
-        assert counts["tier1"] >= 1
-        assert counts["tier2"] >= 1
+        assert counts["facets"] >= 1
+        assert counts["guidance"] >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +486,7 @@ def test_main_happy_path_exits_0_with_summary():
             ["test_dom"], env={"DOMAINS_FULLPATH": tmp},
         )
         assert code == 0, stdout
-        assert "summary tier1=0 tier2=0 tier3=0 tier4=0" in stdout
+        assert "summary facets=0 guidance=0 civil=0 tests=0" in stdout
 
 
 def test_main_drift_exits_1():
@@ -498,8 +498,8 @@ def test_main_drift_exits_1():
             ["test_dom"], env={"DOMAINS_FULLPATH": tmp},
         )
         assert code == 1
-        assert "tier1 source_edited input/policy_docs/foo.md" in stdout
-        assert "summary tier1=" in stdout
+        assert "facets source_edited input/policy_docs/foo.md" in stdout
+        assert "summary facets=" in stdout
 
 
 def test_main_no_arg_menu_selects_by_number():

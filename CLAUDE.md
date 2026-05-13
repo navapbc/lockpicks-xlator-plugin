@@ -42,8 +42,8 @@ When the CIVIL DSL is updated, bump the version number and in `README-dev.md` "A
 
 ## Xlator plugin versioning
 
-Increment the version number in `xl-plugin/.claude-plugin/plugin.json` when a PR is created using Semantic Versioning guidelines:
+Increment the version number in `xl-plugin/.claude-plugin/plugin.json` when a git commit is made or PR is created. Use Semantic Versioning guidelines:
 * increment the MAJOR version number for new features that break backwards compatibility
 * increment the MINOR version number for new features that do not break backwards compatibility
 * increment the PATCH version number for all other changes in behavior
-* Do not increment version numbers if documentation or formatting is changed.
+* Do not increment version numbers if documentation or file formatting is changed.

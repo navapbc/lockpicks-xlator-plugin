@@ -11,12 +11,15 @@ Traverses four tiers and compares current working-tree SHAs against per-tier
 recorded manifests; emits categorized drift records to stdout and exits
 non-zero when any drift or degraded-environment signal is detected.
 
-Tier-1: input/policy_docs/ vs policy_facets/input-index.yaml.files.<path>.sha
-Tier-2: policy_facets/* vs specs/guidance/.facets-manifest.yaml
-Tier-3: specs/guidance/* + specs/naming-manifest.yaml vs
-        specs/extraction-manifest.yaml.programs.*.consumed_guidance[].sha
-        (dedup'd across program + sub_modules)
-Tier-4: specs/*.civil.yaml vs specs/tests/.civil-manifest.yaml
+Tier names match the downstream artifact each tier produces (mirroring the
+`--tier` flag in record_tier_manifest.py):
+
+facets:   input/policy_docs/ vs policy_facets/input-index.yaml.files.<path>.sha
+guidance: policy_facets/* vs specs/guidance/.facets-manifest.yaml
+civil:    specs/guidance/* + specs/naming-manifest.yaml vs
+          specs/extraction-manifest.yaml.programs.*.consumed_guidance[].sha
+          (dedup'd across program + sub_modules)
+tests:    specs/*.civil.yaml vs specs/tests/.civil-manifest.yaml
 
 Usage:
     xlator check-freshness [<domain>]
@@ -27,14 +30,14 @@ matching $DOMAINS_DIR/*/input/policy_docs/ and prompts the user to choose.
 Output (stdout, line-stable, machine-parseable):
     <tier> <category> <path>
     ...
-    summary tier1=<n> tier2=<n> tier3=<n> tier4=<n>
+    summary facets=<n> guidance=<n> civil=<n> tests=<n>
 
 Categories emitted per tier:
-    tier1: source_edited, source_added, source_removed, derived_missing,
-           orphan_derived, index_missing, git_unavailable
-    tier2: guidance_stale, guidance_manifest_missing, git_unavailable
-    tier3: civil_stale, civil_manifest_missing, git_unavailable
-    tier4: tests_stale, tests_manifest_missing, not_applicable, git_unavailable
+    facets:   source_edited, source_added, source_removed, derived_missing,
+              orphan_derived, index_missing, git_unavailable
+    guidance: guidance_stale, guidance_manifest_missing, git_unavailable
+    civil:    civil_stale, civil_manifest_missing, git_unavailable
+    tests:    tests_stale, tests_manifest_missing, not_applicable, git_unavailable
 
 Exit codes:
     0 — no drift records, no git_unavailable records (everything fresh)
@@ -110,10 +113,10 @@ def _git_sha(domain_dir: Path, path: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tier 1: input/policy_docs/ vs policy_facets/input-index.yaml
+# facets tier: input/policy_docs/ vs policy_facets/input-index.yaml
 # ---------------------------------------------------------------------------
 
-def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
+def _check_facets(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     """Detect drift between policy docs and policy_facets/.
 
     Returns (records, git_unavailable_flag).
@@ -123,13 +126,13 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
 
     index_path = domain_dir / _INPUT_INDEX
     if not index_path.is_file():
-        records.append(DriftRecord("tier1", "index_missing", _INPUT_INDEX))
+        records.append(DriftRecord("facets", "index_missing", _INPUT_INDEX))
         return records, git_unavailable
 
     try:
         index_data = yaml.safe_load(index_path.read_text()) or {}
     except yaml.YAMLError:
-        records.append(DriftRecord("tier1", "index_missing", _INPUT_INDEX))
+        records.append(DriftRecord("facets", "index_missing", _INPUT_INDEX))
         return records, git_unavailable
 
     indexed_files: dict[str, dict] = index_data.get("files") or {}
@@ -155,7 +158,7 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         # index_key is e.g. "input/policy_docs/foo.md".
         source_path = domain_dir / index_key
         if not source_path.is_file():
-            records.append(DriftRecord("tier1", "source_removed", index_key))
+            records.append(DriftRecord("facets", "source_removed", index_key))
             continue
         if indexed_sha == "untracked":
             # SP-LoadInputIndex contract: skip comparison.
@@ -165,7 +168,7 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
             if current_sha == "untracked":
                 git_unavailable = True
             elif current_sha != indexed_sha:
-                records.append(DriftRecord("tier1", "source_edited", index_key))
+                records.append(DriftRecord("facets", "source_edited", index_key))
 
         # Check derived counterparts for this source.
         # index_key = "input/policy_docs/<rel>" -> rel relative to that root
@@ -173,10 +176,10 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         compressed_path = domain_dir / _COMPRESSED / rel
         comp_rel = f"{_COMPRESSED}/{rel}"
         if not compressed_path.is_file():
-            records.append(DriftRecord("tier1", "derived_missing", comp_rel))
+            records.append(DriftRecord("facets", "derived_missing", comp_rel))
         computations_rel = f"{_COMPUTATIONS}/{rel}.yaml"
         if not (domain_dir / computations_rel).is_file():
-            records.append(DriftRecord("tier1", "derived_missing", computations_rel))
+            records.append(DriftRecord("facets", "derived_missing", computations_rel))
 
     # Enumerate live sources; flag any not in the (full, including rejected) index
     # as source_added. Use the full `indexed_files` set here so that rejected
@@ -187,7 +190,7 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         for md_path in sorted(docs_root.rglob("*.md")):
             rel_key = md_path.relative_to(domain_dir).as_posix()
             if rel_key not in indexed_files:
-                records.append(DriftRecord("tier1", "source_added", rel_key))
+                records.append(DriftRecord("facets", "source_added", rel_key))
 
     # Enumerate derived files; flag any whose source no longer exists.
     compressed_root = domain_dir / _COMPRESSED
@@ -198,7 +201,7 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
                 # also check rejected location
                 if not (domain_dir / _INPUT_REJECTED / rel).is_file():
                     records.append(
-                        DriftRecord("tier1", "orphan_derived", f"{_COMPRESSED}/{rel}")
+                        DriftRecord("facets", "orphan_derived", f"{_COMPRESSED}/{rel}")
                     )
     computations_root = domain_dir / _COMPUTATIONS
     if computations_root.is_dir():
@@ -209,20 +212,20 @@ def _check_tier1(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
                 if not (domain_dir / _INPUT_REJECTED / source_rel).is_file():
                     records.append(
                         DriftRecord(
-                            "tier1",
+                            "facets",
                             "orphan_derived",
                             f"{_COMPUTATIONS}/{rel}",
                         )
                     )
 
     if git_unavailable:
-        records.append(DriftRecord("tier1", "git_unavailable", "git hash-object failed"))
+        records.append(DriftRecord("facets", "git_unavailable", "git hash-object failed"))
 
     return records, git_unavailable
 
 
 # ---------------------------------------------------------------------------
-# Tier 2: policy_facets/* vs specs/guidance/.facets-manifest.yaml
+# guidance tier: policy_facets/* vs specs/guidance/.facets-manifest.yaml
 # ---------------------------------------------------------------------------
 
 def _guidance_tier_has_outputs(domain_dir: Path) -> bool:
@@ -233,7 +236,7 @@ def _guidance_tier_has_outputs(domain_dir: Path) -> bool:
     return any(guidance.glob("*.yaml"))
 
 
-def _check_tier2(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
+def _check_guidance(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     records: list[DriftRecord] = []
     git_unavailable = False
 
@@ -241,7 +244,7 @@ def _check_tier2(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     if not manifest_path.is_file():
         if _guidance_tier_has_outputs(domain_dir):
             records.append(
-                DriftRecord("tier2", "guidance_manifest_missing", _GUIDANCE_MANIFEST)
+                DriftRecord("guidance", "guidance_manifest_missing", _GUIDANCE_MANIFEST)
             )
         return records, git_unavailable
 
@@ -249,7 +252,7 @@ def _check_tier2(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         manifest = yaml.safe_load(manifest_path.read_text()) or {}
     except yaml.YAMLError:
         records.append(
-            DriftRecord("tier2", "guidance_manifest_missing", _GUIDANCE_MANIFEST)
+            DriftRecord("guidance", "guidance_manifest_missing", _GUIDANCE_MANIFEST)
         )
         return records, git_unavailable
 
@@ -258,7 +261,7 @@ def _check_tier2(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         path = domain_dir / rel
         if not path.is_file():
             # Upstream file deleted since manifest was written — treat as stale.
-            records.append(DriftRecord("tier2", "guidance_stale", rel))
+            records.append(DriftRecord("guidance", "guidance_stale", rel))
             continue
         if recorded_sha == "untracked":
             continue
@@ -266,16 +269,16 @@ def _check_tier2(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         if current == "untracked":
             git_unavailable = True
         elif current != recorded_sha:
-            records.append(DriftRecord("tier2", "guidance_stale", rel))
+            records.append(DriftRecord("guidance", "guidance_stale", rel))
 
     if git_unavailable:
-        records.append(DriftRecord("tier2", "git_unavailable", "git hash-object failed"))
+        records.append(DriftRecord("guidance", "git_unavailable", "git hash-object failed"))
 
     return records, git_unavailable
 
 
 # ---------------------------------------------------------------------------
-# Tier 3: specs/guidance/* + naming-manifest vs extraction-manifest consumed_guidance[]
+# civil tier: specs/guidance/* + naming-manifest vs extraction-manifest consumed_guidance[]
 # ---------------------------------------------------------------------------
 
 def _civil_files_exist(domain_dir: Path) -> bool:
@@ -307,7 +310,7 @@ def _iter_consumed_guidance(manifest: dict) -> Iterable[dict]:
                     yield entry
 
 
-def _check_tier3(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
+def _check_civil(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     records: list[DriftRecord] = []
     git_unavailable = False
 
@@ -317,7 +320,7 @@ def _check_tier3(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     if not manifest_path.is_file():
         if civil_present:
             records.append(
-                DriftRecord("tier3", "civil_manifest_missing", _EXTRACTION_MANIFEST)
+                DriftRecord("civil", "civil_manifest_missing", _EXTRACTION_MANIFEST)
             )
         return records, git_unavailable
 
@@ -326,7 +329,7 @@ def _check_tier3(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     except yaml.YAMLError:
         if civil_present:
             records.append(
-                DriftRecord("tier3", "civil_manifest_missing", _EXTRACTION_MANIFEST)
+                DriftRecord("civil", "civil_manifest_missing", _EXTRACTION_MANIFEST)
             )
         return records, git_unavailable
 
@@ -344,14 +347,14 @@ def _check_tier3(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
 
     if civil_present and not consumed:
         records.append(
-            DriftRecord("tier3", "civil_manifest_missing", _EXTRACTION_MANIFEST)
+            DriftRecord("civil", "civil_manifest_missing", _EXTRACTION_MANIFEST)
         )
         return records, git_unavailable
 
     for rel, recorded_sha in sorted(consumed.items()):
         path = domain_dir / rel
         if not path.is_file():
-            records.append(DriftRecord("tier3", "civil_stale", rel))
+            records.append(DriftRecord("civil", "civil_stale", rel))
             continue
         if recorded_sha == "untracked":
             continue
@@ -359,16 +362,16 @@ def _check_tier3(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         if current == "untracked":
             git_unavailable = True
         elif current != recorded_sha:
-            records.append(DriftRecord("tier3", "civil_stale", rel))
+            records.append(DriftRecord("civil", "civil_stale", rel))
 
     if git_unavailable:
-        records.append(DriftRecord("tier3", "git_unavailable", "git hash-object failed"))
+        records.append(DriftRecord("civil", "git_unavailable", "git hash-object failed"))
 
     return records, git_unavailable
 
 
 # ---------------------------------------------------------------------------
-# Tier 4: specs/*.civil.yaml vs specs/tests/.civil-manifest.yaml
+# tests tier: specs/*.civil.yaml vs specs/tests/.civil-manifest.yaml
 # ---------------------------------------------------------------------------
 
 def _tests_tier_has_outputs(domain_dir: Path) -> bool:
@@ -378,30 +381,30 @@ def _tests_tier_has_outputs(domain_dir: Path) -> bool:
     return any(p for p in tests.rglob("*") if p.is_file() and not p.name.startswith("."))
 
 
-def _check_tier4(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
+def _check_tests(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     records: list[DriftRecord] = []
     git_unavailable = False
 
     if not _tests_tier_has_outputs(domain_dir):
-        records.append(DriftRecord("tier4", "not_applicable", _TESTS))
+        records.append(DriftRecord("tests", "not_applicable", _TESTS))
         return records, git_unavailable
 
     manifest_path = domain_dir / _CIVIL_MANIFEST
     if not manifest_path.is_file():
-        records.append(DriftRecord("tier4", "tests_manifest_missing", _CIVIL_MANIFEST))
+        records.append(DriftRecord("tests", "tests_manifest_missing", _CIVIL_MANIFEST))
         return records, git_unavailable
 
     try:
         manifest = yaml.safe_load(manifest_path.read_text()) or {}
     except yaml.YAMLError:
-        records.append(DriftRecord("tier4", "tests_manifest_missing", _CIVIL_MANIFEST))
+        records.append(DriftRecord("tests", "tests_manifest_missing", _CIVIL_MANIFEST))
         return records, git_unavailable
 
     files_map: dict[str, str] = manifest.get("files") or {}
     for rel, recorded_sha in files_map.items():
         path = domain_dir / rel
         if not path.is_file():
-            records.append(DriftRecord("tier4", "tests_stale", rel))
+            records.append(DriftRecord("tests", "tests_stale", rel))
             continue
         if recorded_sha == "untracked":
             continue
@@ -409,10 +412,10 @@ def _check_tier4(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         if current == "untracked":
             git_unavailable = True
         elif current != recorded_sha:
-            records.append(DriftRecord("tier4", "tests_stale", rel))
+            records.append(DriftRecord("tests", "tests_stale", rel))
 
     if git_unavailable:
-        records.append(DriftRecord("tier4", "git_unavailable", "git hash-object failed"))
+        records.append(DriftRecord("tests", "git_unavailable", "git hash-object failed"))
 
     return records, git_unavailable
 
@@ -429,11 +432,11 @@ def cmd_check(domain_dir: Path) -> tuple[list[DriftRecord], dict[str, int]]:
     NOT counted.
     """
     all_records: list[DriftRecord] = []
-    for checker in (_check_tier1, _check_tier2, _check_tier3, _check_tier4):
+    for checker in (_check_facets, _check_guidance, _check_civil, _check_tests):
         records, _ = checker(domain_dir)
         all_records.extend(records)
 
-    counts = {"tier1": 0, "tier2": 0, "tier3": 0, "tier4": 0}
+    counts = {"facets": 0, "guidance": 0, "civil": 0, "tests": 0}
     for rec in all_records:
         if rec.category == "not_applicable":
             continue
@@ -519,8 +522,8 @@ def main() -> None:
     for rec in records:
         print(rec.render())
     print(
-        f"summary tier1={counts['tier1']} tier2={counts['tier2']} "
-        f"tier3={counts['tier3']} tier4={counts['tier4']}"
+        f"summary facets={counts['facets']} guidance={counts['guidance']} "
+        f"civil={counts['civil']} tests={counts['tests']}"
     )
 
     total_drift = sum(counts.values())

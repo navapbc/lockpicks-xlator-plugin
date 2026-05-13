@@ -46,7 +46,7 @@ xlator check-freshness <domain>
 
 Open a `:::detail` fence. Relay the tool's stdout verbatim. No summary formatting. Close the `:::` fence when relay completes.
 
-Capture the tool's exit code. The tool emits one drift record per line in the form `<tier> <category> <path>`, followed by a final `summary tier1=<n> tier2=<n> tier3=<n> tier4=<n>` line. Exit code is `0` when no drift, `1` on any drift (including degraded-environment `git_unavailable` records), and `2` on environment/usage error.
+Capture the tool's exit code. The tool emits one drift record per line in the form `<tier> <category> <path>`, followed by a final `summary facets=<n> guidance=<n> civil=<n> tests=<n>` line. Exit code is `0` when no drift, `1` on any drift (including degraded-environment `git_unavailable` records), and `2` on environment/usage error.
 
 ## Summary
 
@@ -60,10 +60,10 @@ After the relay closes, parse the final `summary` line and the per-tier categori
 - **Drift detected (exit code 1):** One line per tier with a non-zero count, naming the dominant category. Example:
   :::important
   Drift detected for <domain>:
-    Tier 1 (policy_facets): 2 source_edited
-    Tier 2 (specs/guidance): 1 guidance_stale
-    Tier 3 (civil): clean
-    Tier 4 (tests): 1 tests_manifest_missing
+    facets (policy_facets): 2 source_edited
+    guidance (specs/guidance): 1 guidance_stale
+    civil: clean
+    tests: 1 tests_manifest_missing
   :::
 
 - **Environment error (exit code 2):** Surface the tool's stderr in an `:::error` fence and stop.
@@ -72,15 +72,15 @@ After the relay closes, parse the final `summary` line and the per-tier categori
 
 When drift is detected, emit a `:::next_step` block listing the appropriate remediation per affected tier:
 
-- Tier 1 drift → suggest `/index-inputs <domain>` to refresh `policy_facets/input-index.yaml` and the compressed/computations counterparts.
-- Tier 2 drift → suggest `/refine-guidance <domain>` (or the specific child skill) to refresh `specs/guidance/` artifacts and rewrite `specs/guidance/.facets-manifest.yaml`.
-- Tier 3 drift → suggest `/extract-ruleset <domain>` (or `/update-ruleset <domain>` for an incremental refresh) to refresh `specs/*.civil.yaml` and the `consumed_guidance[]` block in `specs/extraction-manifest.yaml`.
-- Tier 4 drift → suggest `/create-tests <domain>` (when baseline tests need regeneration) or `/expand-tests <domain>` (when expanding existing tests). Both refresh `specs/tests/.civil-manifest.yaml`.
+- `facets` drift → suggest `/index-inputs <domain>` to refresh `policy_facets/input-index.yaml` and the compressed/computations counterparts.
+- `guidance` drift → suggest `/refine-guidance <domain>` (or the specific child skill) to refresh `specs/guidance/` artifacts and rewrite `specs/guidance/.facets-manifest.yaml`.
+- `civil` drift → suggest `/extract-ruleset <domain>` (or `/update-ruleset <domain>` for an incremental refresh) to refresh `specs/*.civil.yaml` and the `consumed_guidance[]` block in `specs/extraction-manifest.yaml`.
+- `tests` drift → suggest `/create-tests <domain>` (when baseline tests need regeneration) or `/expand-tests <domain>` (when expanding existing tests). Both refresh `specs/tests/.civil-manifest.yaml`.
 
 When all tiers are fresh, no `:::next_step` block is needed.
 
 ## Common Mistakes to Avoid
 
 - Do not modify any tier's manifest from this skill — it is read-only. To refresh a stale manifest, run the appropriate generation skill (see Next steps).
-- Do not interpret `tier4 not_applicable specs/tests/` as drift. It is informational and indicates `specs/tests/` is empty or absent — a normal state for domains that have not yet generated tests.
+- Do not interpret `tests not_applicable specs/tests/` as drift. It is informational and indicates `specs/tests/` is empty or absent — a normal state for domains that have not yet generated tests.
 - Do not silently ignore a `git_unavailable` record. It signals the environment cannot compute SHAs reliably; the freshness verdict is degraded. Surface it in the summary.
