@@ -38,7 +38,7 @@ Read `../../core/output-fencing.md` now.
 After pre-flight, before mode detection, check for input documents and `extracted-tests.yaml`.
 
 ```bash
-ls $DOMAINS_DIR/<domain>/input/**/* 2>/dev/null   # any input docs?
+ls $DOMAINS_DIR/<domain>/policy_facets/compressed/**/* 2>/dev/null   # any input docs?
 ls $DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml 2>/dev/null
 ```
 
@@ -52,16 +52,16 @@ Options: `[u]se` / `[r]e-extract` / `[s]kip`
 - `[r]e-extract`: run `/extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `[s]kip`: proceed to Mode Detection without extracted tests
 
-**If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/input/` contains documents:**
+**If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/policy_facets/compressed/` contains documents:**
 :::user_input
-Found M policy documents in `$DOMAINS_DIR/<domain>/input/`. Extract concrete examples from them to seed tests? (recommended)
+Found M policy documents in `$DOMAINS_DIR/<domain>/policy_facets/compressed/`. Extract concrete examples from them to seed tests? (recommended)
 Options: `[y/n]`
 :::
 
 - `y`: run `/extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `n`: proceed to Mode Detection without extracted tests
 
-**If `input/` is empty or absent:** proceed to Mode Detection without extracted tests.
+**If `$DOMAINS_DIR/<domain>/policy_facets/compressed/` is empty or absent:** proceed to Mode Detection without extracted tests.
 
 ## Mode Detection
 
@@ -85,12 +85,12 @@ Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` to understand:
 - All computed fields involved in eligibility thresholds
 - All tables and constants referenced in rules
 
-**If extracted tests are available** (from Step 0), copy them into the test suite as-is — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Note which of the 6 coverage tags they already satisfy.
+**If extracted tests are available** (from Step 0), copy all of them into the test suite — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Rename variables to match those in the CIVIL file. Note which of the 6 coverage tags they already satisfy.
 
 **If `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
 
 1. For each entry in `sample_tests:`, validate every key in `inputs` against the input fields declared in the CIVIL file. Collect unrecognised keys.
-2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `inputs`, `expected`, `tags`) are preserved as-is.
+2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `tags`) are preserved.
 3. Accumulate the `tags` from all sample test entries and include them in the 6-tag coverage tally.
 
 :::important
@@ -122,7 +122,7 @@ tests:
   - case_id: "ext_001"
     description: "..."
     source:
-      file: "$DOMAINS_DIR/<domain>/input/..."
+      file: "$DOMAINS_DIR/<domain>/policy_facets/compressed/..."
       section: "Example 1"
     inputs:
       household_size: 3
