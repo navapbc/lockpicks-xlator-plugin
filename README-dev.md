@@ -36,6 +36,8 @@ xlator catala-pipeline        <domain> <module>   # validate → catala-transpil
 
 ### Rego (OPA backend)
 
+Old -- consider this as deprecated.
+
 ```bash
 xlator rego-transpile   <domain> <module>     # Generate Rego from CIVIL YAML
 xlator rego-test        <domain> <module>     # Start OPA, run tests, stop OPA

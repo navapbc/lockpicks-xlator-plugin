@@ -3,8 +3,7 @@
 <!-- Last verified against tools/rego-run_tests.py + tools/transpile_to_catala_tests.py: 2026-03-19 -->
 
 This is a **Claude authoring cheat sheet** for writing valid CIVIL test YAML files.
-Test files drive both the OPA runner (`tools/rego-run_tests.py`) and the Catala test transpiler
-(`tools/transpile_to_catala_tests.py`).
+Test files drive both the Catala test transpiler (`tools/transpile_to_catala_tests.py`) and the OPA runner (`tools/rego-run_tests.py`).
 
 ---
 

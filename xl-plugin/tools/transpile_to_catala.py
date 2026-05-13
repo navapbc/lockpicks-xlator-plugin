@@ -36,7 +36,7 @@ from civil_expr import normalize_computed_doc  # noqa: E402
 
 
 # =============================================================================
-# UTILITIES (copied from transpile_to_rego.py)
+# UTILITIES
 # =============================================================================
 
 def fail(msg):
