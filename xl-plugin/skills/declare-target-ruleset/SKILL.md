@@ -154,7 +154,8 @@ edge_cases: []
 **Field population rules:**
 
 - `display_name`, `description`, `role`, `scope`: copied verbatim from the ruleset file as quoted strings
-- `constraints`, `standards`, `guidance`: copy all entries from `xl-plugin/core/guidance-templates/assess-eligibility/prompt-context.yaml` exactly as listed — do not summarize or reword
+- `constraints`: use the six-entry canonical seed list shown verbatim in the YAML template above — do not summarize, reword, or substitute. Reference examples of populated `prompt-context.yaml` files live under `xl-plugin/core/guidance-examples/` if useful for orientation, but the canonical text is the inlined list above
+- `standards`, `guidance`: copy each entry from the ruleset file's `standards:` and `guidance:` lists verbatim — do not summarize or reword
 - `edge_cases: []`: always empty at creation; `/create-skeleton`'s Step 2 pass will populate
 - **`naming-manifest.yaml` `inputs:` block:** copy `inputs.<EntityName>.<field>` from the ruleset file directly; carry `type:` and `description:` when the ruleset supplied them; omit them otherwise
 - **`naming-manifest.yaml` `computed:` block:** copy `computed.<field>` from the ruleset file; carry `type:` and `description:` when present

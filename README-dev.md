@@ -136,7 +136,7 @@ uv run tools/transpile_to_rego.py --spec domains/snap/specs/eligibility.civil.ya
 | `catala-quickref.md` | Catala 1.1.0 syntax patterns |
 | `catala-test-quickref.md` | Catala test annotation patterns |
 | `ruleset.schema.json` | JSON Schema (auto-generated — regenerate via `xlator generate-schema`) |
-| `guidance-templates/` | Template files used to populate `guidance/` for each domain |
+| `guidance-examples/` | Reference examples of populated `guidance/` files — illustrative only; no skill copies from this directory |
 
 ---
 

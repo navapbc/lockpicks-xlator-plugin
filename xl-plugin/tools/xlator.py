@@ -482,7 +482,7 @@ def cmd_list():
         module_rows.append((domain, module))
         domains_with_modules.add(domain)
 
-    exclude_domains = {".shared", "guidance-templates"}
+    exclude_domains = {".shared", "guidance-examples"}
     domain_dirs = sorted(p.name for p in (DOMAINS_FULLPATH).iterdir() if p.is_dir() and p.name not in exclude_domains)
     initialized_only = [d for d in domain_dirs if d not in domains_with_modules]
 
