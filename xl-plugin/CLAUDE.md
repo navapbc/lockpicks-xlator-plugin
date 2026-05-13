@@ -40,6 +40,20 @@ Downstream skills that need the policy doc *structured section data* (e.g., `/su
 
 The per-file `<rel>.md.yaml` filename is intentional: the source filename (including its `.md` extension) is preserved verbatim and `.yaml` is appended so editor syntax highlighting and `find -name '*.yaml'` filters pick the files up as YAML.
 
+## Tier manifests and freshness check
+
+Each tier in the xlator derivation chain (`input/policy_docs/` → `policy_facets/` → `specs/guidance/` → `specs/*.civil.yaml` → `specs/tests/`) records per-file SHAs of its upstream inputs at the moment of generation, so a read-only check tool can later detect when an upstream artifact has changed without the downstream tier being regenerated.
+
+**Three manifest artifacts** (in addition to `policy_facets/input-index.yaml`, which already records tier-1 source SHAs):
+
+- `specs/guidance/.facets-manifest.yaml` — SHAs of every `policy_facets/` file (input-index.yaml, compressed/, computations/) as of the last guidance-tier write. Written by the 6 guidance-tier consumer skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`, `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests`) via `xlator record-tier-manifest <domain> --tier guidance`.
+- `specs/extraction-manifest.yaml` — extended with a `consumed_guidance:` block per program (and per sub-module) carrying `{path, sha}` entries for every `specs/guidance/*.yaml` file plus `specs/naming-manifest.yaml`. Written inline by `/extract-ruleset` Step 5 and refreshed (for the program being updated only) by `/update-ruleset` Step 7. SHAs are sourced from a new shared procedure `SP-LoadGuidanceShas` (parallel to `SP-LoadInputIndex` — see `core/ruleset-shared.md`).
+- `specs/tests/.civil-manifest.yaml` — SHAs of every `specs/*.civil.yaml` file as of the last tests-tier write. Written by `/create-tests`, `/expand-tests`, and `/extract-test-cases` (the latter only on the re-extract path; the `[keep]` path preserves the prior manifest) via `xlator record-tier-manifest <domain> --tier tests`.
+
+**Checking freshness.** Run `/check-freshness <domain>` (or `xlator check-freshness <domain>` directly). The tool compares each tier's recorded manifest against current working-tree SHAs and emits per-tier drift records (`source_edited`, `guidance_stale`, `civil_stale`, `tests_stale`, plus `*_manifest_missing` and `git_unavailable` categories). Exits 0 when every tier is fresh, 1 on any drift or degraded environment, 2 on env/usage error. Read-only — to fix drift, re-run the relevant generation skill.
+
+**No backwards-compatibility mode.** Domains generated before this feature shipped will report `*_manifest_missing` drift until each tier's generation skill re-runs. Per the project's "don't migrate old files" stance, no auto-blessing helper is provided.
+
 ## Output Fencing
 
 All skill output MUST be wrapped in semantic fence blocks so a web UI harness can parse and route it without AI or heuristics. Always include the fencing syntax around the text blocks in the output, such as `:::important` and `:::next_step`.
@@ -84,6 +98,8 @@ Typical steps:
         - `/create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
   5. `/extract-ruleset <domain>` to extract the CIVIL ruleset
   6. `/review-ruleset <domain>` to review the extracted ruleset, finalize graph artifacts, and capture guidance learnings
+
+`/check-freshness <domain>` can be invoked at any point between steps to detect drift across all four tiers (`input/policy_docs/` → `policy_facets/` → `specs/guidance/` → `specs/*.civil.yaml` → `specs/tests/`). It reads the per-tier SHA manifests written by the generation skills above and reports which tier (if any) has fallen behind. See "Tier manifests and freshness check" above for the underlying mechanism.
 
 ### Skill dependency diagram
 

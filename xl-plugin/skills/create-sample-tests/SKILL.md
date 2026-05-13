@@ -174,6 +174,14 @@ sample_tests written to guidance/sample-tests.yaml:
   deny_edge_001       (deny, edge)
 :::
 
+Then record the guidance-tier manifest so `/check-freshness` can later detect drift between `policy_facets/` and this skill's outputs:
+
+```bash
+xlator record-tier-manifest <domain> --tier guidance
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop — do not proceed to `:::next_step`.
+
 :::next_step
 Next: Run /extract-ruleset <domain> to extract the CIVIL ruleset.
       After extraction, run /create-tests <domain> for the validated test suite.

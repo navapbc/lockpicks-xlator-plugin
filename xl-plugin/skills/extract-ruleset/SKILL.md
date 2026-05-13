@@ -75,6 +75,8 @@ Run shared pre-flight checks 3–5 from `../../core/ruleset-shared.md`.
 Store the returned `{path → sha}` map for use in Step 5 (Write Extraction Manifest).
 - If SP-LoadInputIndex emits an abort signal → stop with the message it printed. Do not advance to Step 1.
 
+**Immediately after SP-LoadInputIndex succeeds:** Run **SP-LoadGuidanceShas** (from `../../core/ruleset-shared.md`) with `domain=<domain>`. Store the returned `{guidance-path → sha}` map for use in Step 5 to fill the `consumed_guidance[].sha:` block in `extraction-manifest.yaml`. The SP returns an empty map when no `specs/guidance/*.yaml` files exist — that case is fine; the resulting `consumed_guidance:` block is an empty list, not absent.
+
 ---
 
 ## Process
@@ -454,11 +456,16 @@ programs:
     extracted_at: "YYYY-MM-DD"
     source_docs:
       - { path: "input/policy_docs/<rel>.md", git_sha: "<sha>" }
+    consumed_guidance:
+      - { path: "specs/guidance/<file>.yaml", sha: "<sha>" }
+      - { path: "specs/naming-manifest.yaml", sha: "<sha>" }
 ```
 
-**Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`.
+**Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`. Each sub-module entry also carries its own `consumed_guidance:` block using the same `{path, sha}` shape — populate it identically to the parent program's block (sub-modules consume the same guidance set as the parent in v1).
 
 For each `source_docs:` entry being written, read the SHA from the `{path → sha}` map produced by **SP-LoadInputIndex** in pre-flight, keyed on the entry's `path:` (`input/policy_docs/<rel>.md`). Write that value verbatim into the entry's `git_sha:` field. Do not run `git hash-object` here — the SP already computed the working-tree drift check, so the indexed SHA is guaranteed to match the bytes being extracted. Field-name translation: the index field is `sha:`, the manifest field is `git_sha:`; the value is identical (see `../../core/ruleset-shared.md` SP-LoadInputIndex "Field-name translation contract").
+
+For each `consumed_guidance:` entry, read the SHA from the `{guidance-path → sha}` map produced by **SP-LoadGuidanceShas** in pre-flight, keyed on the entry's `path:` (`specs/guidance/<file>.yaml` or `specs/naming-manifest.yaml`). Write that value verbatim into the entry's `sha:` field. Enumerate every path that appears in the map — the resulting `consumed_guidance:` list reflects the full state of the guidance tier at extract time. When the SP returns an empty map (no `specs/guidance/*.yaml` files), write `consumed_guidance: []` (an empty list, not an absent field). This block enables the `/check-freshness` tier-3 drift check (`civil_stale`); without it, the freshness check reports `civil_manifest_missing`.
 
 ### Step 6: Validate CIVIL files
 

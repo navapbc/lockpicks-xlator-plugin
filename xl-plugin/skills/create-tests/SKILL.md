@@ -168,6 +168,14 @@ tests:
 
 Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and this skill's outputs:
+
+```bash
+xlator record-tier-manifest <domain> --tier tests
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop.
+
 ---
 
 ## Process — UPDATE Mode
@@ -241,6 +249,16 @@ Overwrite `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` with the upda
 ### Step 6: Clean Up Sidecar
 
 Delete `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` if it exists (prevents stale hints on the next standalone run).
+
+### Step 7: Record Tests-Tier Manifest
+
+Record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and the updated test suite:
+
+```bash
+xlator record-tier-manifest <domain> --tier tests
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop.
 
 ---
 

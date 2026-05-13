@@ -95,6 +95,8 @@ Stop.
 **After Step 0 multi-file validation:** Run **SP-LoadInputIndex** (from `../../core/ruleset-shared.md`) with `domain=<domain>`, `mode=batch`, and `paths=[]` (request the entire filtered `files:` map). Store the returned `{path → sha}` map for use in Steps 1, 2, and 7.
 - If SP-LoadInputIndex emits an abort signal → stop with the message it printed. Do not advance to Step 1.
 
+**Immediately after SP-LoadInputIndex succeeds:** Run **SP-LoadGuidanceShas** (from `../../core/ruleset-shared.md`) with `domain=<domain>`. Store the returned `{guidance-path → sha}` map for use in Step 7 to refresh the `consumed_guidance[].sha:` block for the program being updated. The SP returns an empty map when no `specs/guidance/*.yaml` files exist.
+
 Proceed to Step 1.
 
 ### Step 1: Load Baseline
@@ -105,7 +107,12 @@ Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the recorded 
 
 ### Step 1b: Reconcile Manifest
 
-Before change detection, remove stale entries from `extraction-manifest.yaml` for files that no longer exist on disk. For each `source_docs` path under both `programs: <program>:` and `programs: <program>: sub_modules: []:`, check if the file exists; if absent, remove that entry and print `Removed stale manifest entry: <path>`. Runs on every UPDATE invocation — ensures deleted or renamed input files don't cause change detection failures.
+Before change detection, remove stale entries from `extraction-manifest.yaml` for files that no longer exist on disk:
+
+- For each `source_docs` path under both `programs: <program>:` and `programs: <program>: sub_modules: []:`, check if the file exists; if absent, remove that entry and print `Removed stale manifest entry: <path>`.
+- For each `consumed_guidance` path under the same scopes, check if the file exists at `$DOMAINS_DIR/<domain>/<path>`; if absent, remove that entry and print `Removed stale guidance manifest entry: <path>`. The `consumed_guidance[]` block is otherwise preserved verbatim during this step — its SHA values are not refreshed here (Step 7 handles refresh for the program being updated; other programs' blocks remain untouched).
+
+Runs on every UPDATE invocation — ensures deleted or renamed input files don't cause change detection failures.
 
 ### Step 2: Detect Changes
 
@@ -199,10 +206,13 @@ Proceed to Step 7 only after SP-MaintainabilityReview passes (no blocking failur
 
 Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`. Each `git_sha:` value is the source doc's blob SHA — read it from the `{path → sha}` map produced by **SP-LoadInputIndex** in pre-flight (already loaded; do not run `git hash-object` here). Field-name translation: the index field is `sha:`, the manifest field is `git_sha:`; the value is identical.
 
-**Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated).
+Refresh the `consumed_guidance[]` block for the program being updated, using the `{guidance-path → sha}` map produced by **SP-LoadGuidanceShas** in pre-flight. Enumerate every path in the SP-returned map and write one `{path, sha}` entry per file. When the SP returned an empty map, write `consumed_guidance: []`. The same refresh rule applies to every sub-module of the program being updated. Other programs' `consumed_guidance[]` blocks (programs not touched by this run) are preserved verbatim — do not refresh them; their entries reflect provenance from their last `/extract-ruleset` or `/update-ruleset` run.
+
+**Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated). Refresh `consumed_guidance[]` for every regenerated entry per the rule above.
 
 **Single-file:**
 - Update `git_sha` for each changed source doc
+- Refresh `consumed_guidance[]` for this program using the SP-LoadGuidanceShas map
 - Update `extracted_at` to today's date
 
 ### Step 8: Validate
