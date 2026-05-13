@@ -28,9 +28,15 @@ If <domain> is omitted, an interactive numbered menu lists all directories
 matching $DOMAINS_DIR/*/input/policy_docs/ and prompts the user to choose.
 
 Output (stdout, line-stable, machine-parseable):
-    <tier> <category> <path>
+    <tier>  <category>  <path>
     ...
+
     summary facets=<n> guidance=<n> civil=<n> tests=<n>
+
+Records appear in fixed tier order (facets, guidance, civil, tests). Tier
+and category columns are space-padded to align; blank lines separate tier
+groups and precede the summary. `line.split()` still yields exactly
+[tier, category, path].
 
 Categories emitted per tier:
     facets:   source_edited, source_added, source_removed, derived_missing,
@@ -88,8 +94,24 @@ class DriftRecord:
         self.category = category
         self.path = path
 
-    def render(self) -> str:
-        return f"{self.tier} {self.category} {self.path}"
+
+def _emit_records(records: list[DriftRecord]) -> None:
+    """Print records grouped by tier with aligned columns.
+
+    Tier and category columns are space-padded to the widest in `records`;
+    a blank line separates consecutive tier groups. `line.split()` still
+    yields exactly `[tier, category, path]`.
+    """
+    if not records:
+        return
+    tier_w = max(len(r.tier) for r in records)
+    cat_w = max(len(r.category) for r in records)
+    last_tier: str | None = None
+    for rec in records:
+        if last_tier is not None and rec.tier != last_tier:
+            print()
+        print(f"{rec.tier:<{tier_w}}  {rec.category:<{cat_w}}  {rec.path}")
+        last_tier = rec.tier
 
 
 def _git_sha(domain_dir: Path, path: Path) -> str:
@@ -519,8 +541,9 @@ def main() -> None:
 
     records, counts = cmd_check(domain_dir)
 
-    for rec in records:
-        print(rec.render())
+    _emit_records(records)
+    if records:
+        print()
     print(
         f"summary facets={counts['facets']} guidance={counts['guidance']} "
         f"civil={counts['civil']} tests={counts['tests']}"

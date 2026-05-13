@@ -46,7 +46,7 @@ xlator check-freshness <domain>
 
 Open a `:::detail` fence. Relay the tool's stdout verbatim. No summary formatting. Close the `:::` fence when relay completes.
 
-Capture the tool's exit code. The tool emits one drift record per line in the form `<tier> <category> <path>`, followed by a final `summary facets=<n> guidance=<n> civil=<n> tests=<n>` line. Exit code is `0` when no drift, `1` on any drift (including degraded-environment `git_unavailable` records), and `2` on environment/usage error.
+Capture the tool's exit code. The tool emits one drift record per line in the form `<tier>  <category>  <path>` with whitespace-aligned columns and blank lines between tier groups, followed by a final `summary facets=<n> guidance=<n> civil=<n> tests=<n>` line. Exit code is `0` when no drift, `1` on any drift (including degraded-environment `git_unavailable` records), and `2` on environment/usage error.
 
 ## Summary
 

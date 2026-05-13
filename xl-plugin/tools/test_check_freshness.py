@@ -129,6 +129,18 @@ def _categories(records, tier: str | None = None) -> list[tuple[str, str, str]]:
     return out
 
 
+def _stdout_records(stdout: str) -> list[tuple[str, ...]]:
+    """Tokenize non-blank, non-summary stdout lines into split-tuples.
+
+    Robust to column-alignment padding: any whitespace counts as a separator.
+    """
+    return [
+        tuple(line.split())
+        for line in stdout.splitlines()
+        if line.strip() and not line.startswith("summary")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # facets tier
 # ---------------------------------------------------------------------------
@@ -498,7 +510,7 @@ def test_main_drift_exits_1():
             ["test_dom"], env={"DOMAINS_FULLPATH": tmp},
         )
         assert code == 1
-        assert "facets source_edited input/policy_docs/foo.md" in stdout
+        assert ("facets", "source_edited", "input/policy_docs/foo.md") in _stdout_records(stdout)
         assert "summary facets=" in stdout
 
 
