@@ -43,4 +43,4 @@ Increment the version number in `xl-plugin/.claude-plugin/plugin.json` when a gi
 * increment the MAJOR version number for new features that break backwards compatibility
 * increment the MINOR version number for new features that do not break backwards compatibility
 * increment the PATCH version number for all other changes in behavior
-* Do not increment version numbers if documentation or file formatting is changed.
+* Do not increment version numbers if documentation or file formatting is changed. CLAUDE.md is considered non-documentation code since it affects how the AI behaves.
