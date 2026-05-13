@@ -58,7 +58,7 @@ If `[keep]`, stop.
 Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` and collect:
 
 - **Program vocabulary** — all field names from `inputs:`, `computed:`, and `outputs:`
-- **Source citations** — all `source:` strings present on any `FactField`, `ComputedField`, `TableDef`, or `Rule`. These are free-text CFR section strings (e.g., `"7 CFR § 273.9(a)(1) — Gross Income Test"`). Collect them into a **source citation list**.
+- **Source citations** — every `source:` object present on any `FactField`, `ComputedField`, `TableDef`, or `Rule`. Each is a `{file:, section:}` object (e.g., `{file: "input/policy_docs/snap_eligibility.md", section: "7 CFR § 273.9(a)(1) — Gross Income Test"}`). Collect the `section:` strings (citation + heading) into a **source citation list** for the matching steps below.
 
 ### Step 2: Identify relevant files
 

@@ -217,12 +217,12 @@ If the user changes any name, update the table and re-present. Loop until the us
 
 When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it is appended to the rewritten entry's `synonyms:` list). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
 
-**`source:` population:** In Step 4, populate `source:` on every `FactField`, `ComputedField`, `TableDef`, and `Rule` using the "Source Section" value from the Name Inventory table above, *combined* with the surrounding document heading:
+**`source:` population:** In Step 4, populate `source:` on every `FactField`, `ComputedField`, `TableDef`, and `Rule` as an object with two subfields:
 
-- Format: `"<§ citation> — <heading>"`, e.g. `"7 CFR § 273.9(a) — Income and Deductions"`
-- If the "Source Section" column contains only a bare citation (`"§ 273.9(a)"`), prepend the full CFR title reference and append the heading from the enclosing document section
-- For `Rule` entries (not in the Name Inventory table), derive `source:` from the heading and paragraph of the policy text where the rule's condition is stated
-- `source:` is optional — if the policy document has no clear section for a given element, omit it rather than guessing
+- `file:` — the source-doc path relative to the domain root, always written as `input/policy_docs/<rel>.md`. Use the `source_doc:` provenance from the manifest entry or per-file aggregation row; do not substitute the compressed-mirror path.
+- `section:` — the citation plus heading, formatted as `"<§ citation> — <heading>"`, e.g. `"7 CFR § 273.9(a) — Income and Deductions"`. If the "Source Section" column contains only a bare citation (`"§ 273.9(a)"`), prepend the full CFR title reference and append the heading from the enclosing document section.
+- For `Rule` entries (not in the Name Inventory table), derive `file:` and `section:` from the doc path and the heading/paragraph of the policy text where the rule's condition is stated.
+- `source:` itself, and either subfield within it, is optional — if the policy document has no clear section for a given element, omit `section:` (or the whole `source:` object) rather than guessing. Never emit `source:` as a plain string.
 
 ### Step 4: Draft the CIVIL Module
 
@@ -272,7 +272,7 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
 - **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
 - **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
-- **`source:` population from seed provenance:** populate the table or constant's `source:` field as `"<source_section> — <source_file basename without .md>"` (matching the `"<§ citation> — <heading>"` format used elsewhere in this step) directly from the seed entry's `source_file:` and `source_section:` — both are guaranteed present by `/create-skeleton`. Do not re-derive `source:` from policy text for seeded entries.
+- **`source:` population from seed provenance:** populate the table or constant's `source:` field as a `{file:, section:}` object directly from the seed entry's `source_file:` and `source_section:` — both are guaranteed present by `/create-skeleton`. Use the seed `source_file:` value verbatim for `file:` (it is already the `input/policy_docs/<rel>.md` form) and the seed `source_section:` verbatim for `section:`. Do not re-derive `source:` from policy text for seeded entries.
 - After all seeded entries, append any additional tables or constants found in policy text that were not in the seed list (existing behavior).
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
@@ -301,7 +301,9 @@ inputs:
       <field_name>:
         type: <int|float|bool|string|money|date|list|set|enum>
         description: "..."
-        source: "<§ citation> — <heading>"  # e.g., "7 CFR § 273.9(a) — Income and Deductions"
+        source:
+          file: "input/policy_docs/<rel>.md"            # e.g., "input/policy_docs/snap_eligibility.md"
+          section: "<§ citation> — <heading>"           # e.g., "7 CFR § 273.9(a) — Income and Deductions"
         currency: USD  # for money type
         optional: true  # if not required
 
@@ -347,7 +349,9 @@ outputs:
 tables:
   <table_name>:
     description: "..."
-    source: "<§ citation> — <heading>"  # e.g., "7 CFR § 273.9(a)(1) — Gross Income Limits Table"
+    source:
+      file: "input/policy_docs/<rel>.md"
+      section: "<§ citation> — <heading>"   # e.g., "7 CFR § 273.9(a)(1) — Gross Income Limits Table"
     key: [<key_field>]
     value: [<value_field>]
     rows:
@@ -360,7 +364,9 @@ computed:  # optional (CIVIL v2) — intermediate derived values for multi-step 
   <field_name>:
     type: <money|bool|float|int>
     description: "..."
-    source: "<§ citation> — <heading>"  # e.g., "7 CFR § 273.9(d)(1) — Earned Income Deduction"
+    source:
+      file: "input/policy_docs/<rel>.md"
+      section: "<§ citation> — <heading>"   # e.g., "7 CFR § 273.9(d)(1) — Earned Income Deduction"
     expr: "<CIVIL expression>"     # single expression
     review:
       extraction_fidelity: <1-5>
@@ -371,7 +377,9 @@ computed:  # optional (CIVIL v2) — intermediate derived values for multi-step 
   <field_name_2>:
     type: money
     description: "..."
-    source: "<§ citation> — <heading>"
+    source:
+      file: "input/policy_docs/<rel>.md"
+      section: "<§ citation> — <heading>"
     conditional:
       if: "<bool expression>"
       then: "<value expression>"
@@ -397,7 +405,9 @@ rules:
     kind: deny  # or: allow
     priority: 1  # lower = higher priority; allow rules typically 100+
     description: "..."
-    source: "<§ citation> — <heading>"  # e.g., "7 CFR § 273.9(a)(1) — Gross Income Test"
+    source:
+      file: "input/policy_docs/<rel>.md"
+      section: "<§ citation> — <heading>"   # e.g., "7 CFR § 273.9(a)(1) — Gross Income Test"
     when: "<CIVIL expression>"
     then:
       - add_reason:

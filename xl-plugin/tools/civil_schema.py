@@ -116,6 +116,31 @@ class Conditional(BaseModel):
     else_: str = Field(alias="else", description="CIVIL expression for the false branch.")
 
 
+class Source(BaseModel):
+    """Policy-document provenance for a field, table, rule, or computed value.
+
+    Both subfields are optional. `file:` is the source-doc path relative to the
+    domain root (e.g. 'input/policy_docs/snap_eligibility.md'); `section:` is
+    the citation-plus-heading string identifying the relevant section within
+    that document (e.g. '7 CFR § 273.9(a)(1) — Gross Income Test').
+    """
+
+    file: str | None = Field(
+        default=None,
+        description=(
+            "Source-doc path relative to the domain root, "
+            "e.g. 'input/policy_docs/snap_eligibility.md'."
+        ),
+    )
+    section: str | None = Field(
+        default=None,
+        description=(
+            "Citation and heading within the source document, "
+            "e.g. '7 CFR § 273.9(a)(1) — Gross Income Test'."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Facts, decisions, tables, constants
 # ---------------------------------------------------------------------------
@@ -131,11 +156,12 @@ class FactField(BaseModel):
         )
     )
     description: str | None = Field(default=None, description="Human-readable field description.")
-    source: str | None = Field(
+    source: Source | None = Field(
         default=None,
         description=(
-            "Policy document location where this field is defined, "
-            "e.g. '7 CFR § 273.9(a) — Income and Deductions'."
+            "Policy document location where this field is defined. "
+            "Object with optional `file:` (source-doc path) and `section:` "
+            "(citation + heading) subfields."
         ),
     )
     optional: bool = Field(
@@ -236,11 +262,12 @@ class TableDef(BaseModel):
     description: str | None = Field(
         default=None, description="Description of what this table represents."
     )
-    source: str | None = Field(
+    source: Source | None = Field(
         default=None,
         description=(
-            "Policy document location where this table is defined, "
-            "e.g. '7 CFR § 273.9(a)(1) — Gross Income Limits Table'."
+            "Policy document location where this table is defined. "
+            "Object with optional `file:` (source-doc path) and `section:` "
+            "(citation + heading) subfields."
         ),
     )
     key: list[str] = Field(description="Key column name(s) used for lookup.")
@@ -313,11 +340,12 @@ class ComputedField(BaseModel):
         default=None,
         description="Human-readable explanation of what this field computes.",
     )
-    source: str | None = Field(
+    source: Source | None = Field(
         default=None,
         description=(
-            "Policy document location where this computed field is derived from, "
-            "e.g. '7 CFR § 273.9(d)(1) — Earned Income Deduction'."
+            "Policy document location where this computed field is derived from. "
+            "Object with optional `file:` (source-doc path) and `section:` "
+            "(citation + heading) subfields."
         ),
     )
     expr: str | None = Field(
@@ -491,11 +519,12 @@ class Rule(BaseModel):
     description: str | None = Field(
         default=None, description="Optional human-readable description of this rule."
     )
-    source: str | None = Field(
+    source: Source | None = Field(
         default=None,
         description=(
-            "Policy document location where this rule is defined, "
-            "e.g. '7 CFR § 273.9(a)(1) — Gross Income Test'."
+            "Policy document location where this rule is defined. "
+            "Object with optional `file:` (source-doc path) and `section:` "
+            "(citation + heading) subfields."
         ),
     )
     review: ReviewBlock | None = Field(

@@ -107,7 +107,9 @@ the prior (e.g., a deduction chain). The `when:` clause references the final com
 ### `source:` vs `citations:` — They Are Distinct
 
 - **`source:`** on a field, table, rule, or computed field identifies *where in the policy document
-  the element was defined* — developer traceability. Example: `"7 CFR § 273.9(a) — Income and Deductions"`
+  the element was defined* — developer traceability. It is an object with optional `file:` (source-doc
+  path relative to the domain root, e.g. `input/policy_docs/snap_eligibility.md`) and `section:`
+  (citation + heading, e.g. `"7 CFR § 273.9(a) — Income and Deductions"`) subfields.
 
 - **`citations:`** inside an `add_reason` action contains the *legal authority shown to applicants
   in a denial explanation* — the statutory basis displayed in user-facing output.

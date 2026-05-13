@@ -232,15 +232,14 @@
         "source": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/Source"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Policy document location where this computed field is derived from, e.g. '7 CFR \u00a7 273.9(d)(1) \u2014 Earned Income Deduction'.",
-          "title": "Source"
+          "description": "Policy document location where this computed field is derived from. Object with optional `file:` (source-doc path) and `section:` (citation + heading) subfields."
         },
         "expr": {
           "anyOf": [
@@ -514,15 +513,14 @@
         "source": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/Source"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Policy document location where this field is defined, e.g. '7 CFR \u00a7 273.9(a) \u2014 Income and Deductions'.",
-          "title": "Source"
+          "description": "Policy document location where this field is defined. Object with optional `file:` (source-doc path) and `section:` (citation + heading) subfields."
         },
         "optional": {
           "default": false,
@@ -756,15 +754,14 @@
         "source": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/Source"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Policy document location where this rule is defined, e.g. '7 CFR \u00a7 273.9(a)(1) \u2014 Gross Income Test'.",
-          "title": "Source"
+          "description": "Policy document location where this rule is defined. Object with optional `file:` (source-doc path) and `section:` (citation + heading) subfields."
         },
         "review": {
           "anyOf": [
@@ -899,6 +896,39 @@
       "title": "RulesetGroup",
       "type": "object"
     },
+    "Source": {
+      "description": "Policy-document provenance for a field, table, rule, or computed value.\n\nBoth subfields are optional. `file:` is the source-doc path relative to the\ndomain root (e.g. 'input/policy_docs/snap_eligibility.md'); `section:` is\nthe citation-plus-heading string identifying the relevant section within\nthat document (e.g. '7 CFR \u00a7 273.9(a)(1) \u2014 Gross Income Test').",
+      "properties": {
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source-doc path relative to the domain root, e.g. 'input/policy_docs/snap_eligibility.md'.",
+          "title": "File"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Citation and heading within the source document, e.g. '7 CFR \u00a7 273.9(a)(1) \u2014 Gross Income Test'.",
+          "title": "Section"
+        }
+      },
+      "title": "Source",
+      "type": "object"
+    },
     "TableDef": {
       "description": "A lookup table mapping key values to output values.\n\nTables are referenced in CIVIL expressions as:\n  table('table_name', key_expr).value_column",
       "properties": {
@@ -918,15 +948,14 @@
         "source": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/Source"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Policy document location where this table is defined, e.g. '7 CFR \u00a7 273.9(a)(1) \u2014 Gross Income Limits Table'.",
-          "title": "Source"
+          "description": "Policy document location where this table is defined. Object with optional `file:` (source-doc path) and `section:` (citation + heading) subfields."
         },
         "key": {
           "description": "Key column name(s) used for lookup.",

@@ -99,7 +99,22 @@ def percent_literal(value: float) -> str:
     return f"{pct}%"
 
 
-def _prose_block(description: str | None, source: str | None) -> str:
+def _format_source(source: dict | None) -> str:
+    """Render a CIVIL `source:` object as a single prose-friendly string.
+
+    Returns '' for None, empty dict, or an object whose `file:` and `section:`
+    are both blank.
+    """
+    if not isinstance(source, dict):
+        return ""
+    section = (source.get("section") or "").strip()
+    file = (source.get("file") or "").strip()
+    if section and file:
+        return f"{section} — {file}"
+    return section or file
+
+
+def _prose_block(description: str | None, source: dict | None) -> str:
     """Return Markdown prose text for a CIVIL field's description and source.
 
     Empty/whitespace-only strings are treated the same as None — not emitted.
@@ -107,7 +122,7 @@ def _prose_block(description: str | None, source: str | None) -> str:
     """
     parts = []
     desc = (description or "").strip()
-    src = (source or "").strip()
+    src = _format_source(source)
     if desc:
         parts.append(desc)
     if src:
@@ -115,7 +130,7 @@ def _prose_block(description: str | None, source: str | None) -> str:
     return "\n\n".join(parts)
 
 
-def _emit_prose_heading(md_lines: list, name: str, description: str | None, source: str | None):
+def _emit_prose_heading(md_lines: list, name: str, description: str | None, source: dict | None):
     """Append H4 heading and optional prose block to md_lines.
 
     Always emits the H4 for Markdown anchor navigation. Prose body is only

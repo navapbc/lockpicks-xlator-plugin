@@ -232,10 +232,12 @@ rules:
 
 ### 2d) Source provenance (optional, on fact fields, computed fields, tables, and rules)
 
-The `source:` field records where in the source policy document an element was defined. It is a plain free-text string — typically a CFR section plus heading. Its value is purely for human traceability; it has no effect on transpilation or OPA evaluation.
+The `source:` field records where in the source policy document an element was defined. It is an object with two optional subfields — `file:` (the source-doc path relative to the domain root) and `section:` (the citation plus heading inside that document). Both are for human traceability; they have no effect on transpilation or OPA evaluation.
 
 ```yaml
-source: "7 CFR § 273.9(a)(1) — Gross Income Test"
+source:
+  file: "input/policy_docs/snap_eligibility.md"
+  section: "7 CFR § 273.9(a)(1) — Gross Income Test"
 ```
 
 **Where it applies:** `FactField`, `ComputedField`, `TableDef`, `Rule`.
@@ -261,19 +263,25 @@ inputs:
         type: money
         currency: USD
         description: "Total gross monthly income before deductions"
-        source: "7 CFR § 273.9(a) — Income and Deductions"
+        source:
+          file: "input/policy_docs/snap_eligibility.md"
+          section: "7 CFR § 273.9(a) — Income and Deductions"
 
 computed:
   gross_income_exceeds_limit:
     type: bool
     expr: "Household.gross_monthly_income > gross_limit"
-    source: "7 CFR § 273.9(a)(1) — Gross Income Test"
+    source:
+      file: "input/policy_docs/snap_eligibility.md"
+      section: "7 CFR § 273.9(a)(1) — Gross Income Test"
 
 tables:
   gross_income_limits:
     key: [household_size]
     value: [monthly_limit]
-    source: "7 CFR § 273.9(a)(1) — Gross Income Limits Table"
+    source:
+      file: "input/policy_docs/snap_eligibility.md"
+      section: "7 CFR § 273.9(a)(1) — Gross Income Limits Table"
     rows:
       - { household_size: 1, monthly_limit: 1580 }
 
@@ -281,7 +289,9 @@ rules:
   - id: "FED-SNAP-DENY-GROSS"
     kind: deny
     priority: 1
-    source: "7 CFR § 273.9(a)(1) — Gross Income Test"
+    source:
+      file: "input/policy_docs/snap_eligibility.md"
+      section: "7 CFR § 273.9(a)(1) — Gross Income Test"
     when: "gross_income_exceeds_limit"
     then:
       - add_reason:

@@ -42,7 +42,7 @@ Entity names use **PascalCase** (e.g. `Household`, `Applicant`).
 |-------|----------|-------|
 | `type` | ✅ | See valid fact types below |
 | `description` | — | Human-readable field description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a) — Income and Deductions"` |
+| `source` | — | Policy document provenance — object with optional `file:` (path under `input/policy_docs/`) and `section:` (citation + heading) subfields |
 | `optional` | — | `true` if the field may be absent (default: `false`) |
 | `currency` | — | Currency code for `money` type, e.g. `USD` |
 | `values` | — | List of allowed strings for `enum` type |
@@ -64,7 +64,7 @@ Valid `type` values for fact fields:
 | `module` | ✅ for `invoke:` | Sub-module name (no extension). E.g. `earned_income` |
 | `currency` | — | Currency code for `money` type |
 | `description` | — | Human-readable description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(d)(1) — Earned Income Deduction"` |
+| `source` | — | Policy document provenance — object with optional `file:` and `section:` subfields |
 | `expr` | ✅ or `conditional`/`invoke` | CIVIL expression (mutually exclusive with the others) |
 | `conditional` | ✅ or `expr`/`invoke` | If/then/else branch (mutually exclusive with the others) |
 | `invoke` | ✅ or `expr`/`conditional` | (CIVIL v4) Sub-ruleset invocation. Requires `module:` and `type: object` |
@@ -172,7 +172,9 @@ computed:
     type: money
     currency: USD
     description: "Income standard from Expanded Refused Cash Income Limits"
-    source: "Addendum 1 (ADLTC)"
+    source:
+      file: "input/policy_docs/adltc_manual/addendum_1.md"
+      section: "Addendum 1 (ADLTC)"
     table_lookup:
       table: expanded_refused_cash_income_limits  # must exist in tables:
       key: [household_type, benefit_year]         # column names resolved by name match
@@ -247,7 +249,7 @@ outputs:
 | Field | Required | Notes |
 |-------|----------|-------|
 | `description` | — | Human-readable description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a)(1) — Gross Income Limits Table"` |
+| `source` | — | Policy document provenance — object with optional `file:` and `section:` subfields |
 | `key` | ✅ | List of key column name(s), e.g. `[household_size]` |
 | `value` | ✅ | List of value column name(s), e.g. `[max_gross_monthly]` |
 | `rows` | ✅ | List of row dicts, e.g. `[{household_size: 1, max_gross_monthly: 1580}]` |
@@ -266,7 +268,7 @@ Table reference in expressions: `table('table_name', key_expr).value_column`
 | `when` | ✅ | Boolean CIVIL expression |
 | `then` | ✅ | List of `Action` objects — **must be non-empty** |
 | `description` | — | Human-readable description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a)(1) — Gross Income Test"` |
+| `source` | — | Policy document provenance — object with optional `file:` and `section:` subfields |
 | `review` | — | `ReviewBlock` with extraction quality scores |
 | `group` | — | (CIVIL v6) Ruleset group name, e.g. `"income_test"`. Must match a name in `rule_set.ruleset_groups` when that list is non-empty. **Transpiler no-op.** |
 | `mutex_group` | — | (CIVIL v6) Mutual-exclusion group name. Rules sharing a `mutex_group` are competing alternatives; all must have unique `priority` values. **Transpiler no-op.** |
