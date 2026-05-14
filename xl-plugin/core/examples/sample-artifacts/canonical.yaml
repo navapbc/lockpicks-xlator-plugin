@@ -1,0 +1,58 @@
+sample_rules:
+  - id: sum_gross_income
+    rule_type: computed
+    source: "Sum the applicant's gross monthly earned and unearned income before applying the general income disregard."
+    civil: |
+      computed:
+        - name: gross_income
+          type: money
+          group: income_aggregation
+          formula: "Income.monthly_earned + Income.monthly_unearned"
+          source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A. INCOME ELIGIBILITY"
+
+  - id: apply_general_disregard
+    rule_type: computed
+    source: "Apply the $20 monthly general income disregard once to gross income; never reduce countable income below zero."
+    civil: |
+      computed:
+        - name: countable_income
+          type: money
+          group: exclusion_application
+          formula: "max(0, gross_income - 20)"
+          source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A.2. GENERAL INCOME DISREGARD"
+
+  - id: lookup_income_standard
+    rule_type: table-lookup
+    source: "Select the applicable monthly income standard from the medicaid_income_standards table using eligibility_category and household_size as keys."
+    civil: |
+      computed:
+        - name: income_standard
+          type: money
+          group: standard_lookup
+          table_lookup:
+            table: medicaid_income_standards
+            key: [eligibility_category, household_size]
+            return: standard_amount
+          source: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md — Addendum 1"
+
+  - id: decide_eligibility
+    rule_type: computed
+    source: "Compare countable_income against income_standard; gate the authorize branch on citizenship and residency. Otherwise deny."
+    civil: |
+      computed:
+        - name: eligibility_decision
+          type: enum
+          group: eligibility_decision
+          formula: |
+            if (not Applicant.is_us_citizen) or (not Applicant.is_alaska_resident) then "deny"
+            else if countable_income < income_standard then "authorize"
+            else "deny"
+          source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A. INCOME ELIGIBILITY"
+
+missing_info:
+  - "qualified_non_citizen_categories: the is_us_citizen flag conflates 'citizen' with 'qualified non-citizen' — confirm with the analyst whether qualified non-citizen statuses (LPR ≥5 years, refugee, asylee) should be modeled as a separate enum or remain folded into the bool."
+
+assumptions:
+  - "The $20 general income disregard is applied once to combined gross income, not separately to earned and unearned income (per MS 523 A.2)."
+  - "Income standards table coverage assumed to span household_size 1–8 across all eligibility categories; canonical does not handle household_size > 8."
+  - "Sample income_standard values for examples assume the 2026 program standards table; confirm benefit-year alignment before running /create-tests."

@@ -1,0 +1,49 @@
+skeleton:
+  inputs:
+    - is_us_citizen
+    - is_alaska_resident
+    - eligibility_category
+    - monthly_earned
+    - monthly_unearned
+    - household_size
+    - state_supplement_applies
+  outputs:
+    - eligibility_decision
+    - denial_reason
+  computations:
+    - stage: income_aggregation
+      variables:
+        - gross_income
+      exprs:
+        gross_income: "monthly_earned + monthly_unearned"
+
+    - stage: exclusion_application
+      variables:
+        - general_income_disregard
+        - countable_income
+      exprs:
+        general_income_disregard: "20"
+        countable_income: "max(0, gross_income - general_income_disregard)"
+
+    - stage: standard_lookup
+      variables:
+        - income_standard
+      exprs:
+        income_standard: "lookup(medicaid_income_standards, eligibility_category, household_size)"
+
+    - stage: eligibility_decision
+      variables:
+        - is_under_standard
+        - eligibility_decision
+        - denial_reason
+      exprs:
+        is_under_standard: "countable_income < income_standard"
+        eligibility_decision: |
+          if (not is_us_citizen) or (not is_alaska_resident) then "deny"
+          else if is_under_standard then "authorize"
+          else "deny"
+        denial_reason: |
+          if eligibility_decision == "deny" and not is_us_citizen then "non_citizen"
+          else if eligibility_decision == "deny" and not is_alaska_resident then "non_resident"
+          else if eligibility_decision == "deny" then "income_over_standard"
+          else "none"

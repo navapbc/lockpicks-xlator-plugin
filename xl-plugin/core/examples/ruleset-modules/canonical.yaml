@@ -1,0 +1,53 @@
+ruleset_modules:
+  - name: income_calculation
+    description: "Aggregate gross monthly income (earned + unearned) and apply the $20 general income disregard to produce countable income for the case."
+    bound_entities: [Income]
+    rationale: single_responsibility
+    depends_on: []
+    sample_rules:
+      - id: sum_gross_income
+        rule_type: computed
+        source: "Sum the applicant's gross monthly earned and unearned income before applying the general income disregard."
+        civil: |
+          - id: sum_gross_income
+            group: income_aggregation
+            computed:
+              gross_income: "Income.monthly_earned + Income.monthly_unearned"
+            source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A. INCOME ELIGIBILITY"
+      - id: apply_general_disregard
+        rule_type: computed
+        source: "Apply the $20 monthly general income disregard once to gross income (not per income source); never reduce countable income below zero."
+        civil: |
+          - id: apply_general_disregard
+            group: exclusion_application
+            computed:
+              countable_income: "max(0, gross_income - 20)"
+            source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A.2. GENERAL INCOME DISREGARD"
+
+  - name: eligibility_determination
+    description: "Look up the applicable income standard by (eligibility_category, household_size), then produce the eligibility decision and any denial reason."
+    bound_entities: [Applicant, Case]
+    rationale: single_responsibility
+    depends_on: [income_calculation]
+    sample_rules:
+      - id: lookup_income_standard
+        rule_type: table-lookup
+        source: "Select the applicable monthly income standard from the medicaid_income_standards table using eligibility_category and household_size as keys."
+        civil: |
+          - id: lookup_income_standard
+            group: standard_lookup
+            computed:
+              income_standard: "lookup(medicaid_income_standards, [Applicant.eligibility_category, Case.household_size])"
+            source: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md — Addendum 1"
+      - id: decide_eligibility
+        rule_type: computed
+        source: "Compare countable income against the income standard, gated by citizenship and residency. Produce authorize when countable_income < income_standard and the applicant is a citizen and Alaska resident; otherwise deny."
+        civil: |
+          - id: decide_eligibility
+            group: eligibility_decision
+            computed:
+              eligibility_decision: |
+                if (not Applicant.is_us_citizen) or (not Applicant.is_alaska_resident) then "deny"
+                else if countable_income < income_standard then "authorize"
+                else "deny"
+            source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A. INCOME ELIGIBILITY"

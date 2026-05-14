@@ -1,0 +1,82 @@
+sample_tests:
+  - case_id: "allow_001"
+    description: "Happy path — citizen, Alaska resident, countable income well below the household-size standard. Should authorize."
+    inputs:
+      is_us_citizen: true
+      is_alaska_resident: true
+      eligibility_category: "family"
+      monthly_earned: 800
+      monthly_unearned: 0
+      household_size: 2
+      state_supplement_applies: false
+    expected:
+      gross_income: 800
+      countable_income: 780
+      income_standard: 1850
+      eligibility_decision: "authorize"
+    tags: ["allow", "happy_path"]
+
+  - case_id: "deny_over_standard_001"
+    description: "Income exceeds the standard for the household size. Citizen and resident, so denial reason is income_over_standard."
+    inputs:
+      is_us_citizen: true
+      is_alaska_resident: true
+      eligibility_category: "family"
+      monthly_earned: 2400
+      monthly_unearned: 100
+      household_size: 2
+      state_supplement_applies: false
+    expected:
+      gross_income: 2500
+      countable_income: 2480
+      income_standard: 1850
+      eligibility_decision: "deny"
+      denial_reason: "income_over_standard"
+    tags: ["deny"]
+
+  - case_id: "deny_non_citizen_001"
+    description: "Non-citizen applicant with otherwise-eligible income. Citizenship gate fires; denial reason is non_citizen regardless of income comparison."
+    inputs:
+      is_us_citizen: false
+      is_alaska_resident: true
+      eligibility_category: "family"
+      monthly_earned: 600
+      monthly_unearned: 0
+      household_size: 2
+      state_supplement_applies: false
+    expected:
+      eligibility_decision: "deny"
+      denial_reason: "non_citizen"
+    tags: ["deny", "gate_check"]
+
+  - case_id: "edge_zero_earned_unearned_only_001"
+    description: "Zero earned income with non-zero unearned income — the $20 disregard still applies once, to the unearned income."
+    inputs:
+      is_us_citizen: true
+      is_alaska_resident: true
+      eligibility_category: "family"
+      monthly_earned: 0
+      monthly_unearned: 450
+      household_size: 1
+      state_supplement_applies: false
+    expected:
+      gross_income: 450
+      countable_income: 430
+      eligibility_decision: "authorize"
+    tags: ["allow", "edge_case"]
+
+  - case_id: "edge_disregard_floor_001"
+    description: "Gross income below $20 — countable income clamps to 0 (the disregard never reduces below zero)."
+    inputs:
+      is_us_citizen: true
+      is_alaska_resident: true
+      eligibility_category: "family"
+      monthly_earned: 15
+      monthly_unearned: 0
+      household_size: 1
+      state_supplement_applies: false
+    expected:
+      gross_income: 15
+      countable_income: 0
+      eligibility_decision: "authorize"
+    tags: ["allow", "edge_case", "boundary"]

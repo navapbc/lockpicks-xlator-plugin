@@ -1,0 +1,12 @@
+ruleset_groups:
+  - name: income_aggregation
+    description: Sum gross monthly earned and unearned income into a single gross-income figure for the case.
+
+  - name: exclusion_application
+    description: Apply the $20 monthly general income disregard once to gross income (never reducing below zero) to produce countable income.
+
+  - name: standard_lookup
+    description: Look up the applicable monthly income standard from the medicaid_income_standards table by (eligibility_category, household_size).
+
+  - name: eligibility_decision
+    description: Apply citizenship and residency gates, then compare countable income against the income standard to produce the terminal eligibility decision and a denial reason when applicable.
