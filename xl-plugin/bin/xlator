@@ -125,6 +125,9 @@ case "$1" in
     tag-vars-include-output)
         exec uv run "$TOOLS_DIR/tag_vars_include_output.py" "${@:2}"
         ;;
+    detect-ruleset-modules)
+        exec uv run "$TOOLS_DIR/detect_ruleset_modules.py" "${@:2}"
+        ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
     # without needing to know where xlator.py is or worry about environment variables,

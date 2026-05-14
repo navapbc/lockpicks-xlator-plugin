@@ -3,19 +3,25 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
-Shared CIVIL spec helpers for CSV-based test case authoring tools.
+Shared CIVIL spec helpers for CSV-based test case authoring tools and
+heuristic detection tools.
 
-Provides FieldSpec and build_csv_field_specs() — the single implementation
-of CIVIL-to-CSV column mapping used by export_test_template, export_test_cases,
-and import_tests.
+Provides:
+  - FieldSpec / build_csv_field_specs() for CIVIL-to-CSV column mapping
+    (consumed by export_test_template, export_test_cases, import_tests).
+  - parse_expr_hint(), normalize_stage(), load_per_file_computations() for
+    skill-side detection tools (consumed by detect_ruleset_modules and
+    a sister scan-ruleset-groups tool — single source of truth so all
+    consumer skills apply identical parse / normalization rules).
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -186,3 +192,128 @@ def load_civil_yaml(path: Path) -> dict:
     except yaml.YAMLError as e:
         print(f"ERROR: YAML parse error in {path}: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Shared detection helpers
+# ---------------------------------------------------------------------------
+
+# Keywords excluded from snake_case identifier tokenization on the RHS of an
+# expr_hint. Mirrors the keyword filter in tag_vars_include_output.py and the
+# prose contract in /create-ruleset-modules and /extract-sample-rules.
+_EXPR_HINT_KEYWORDS = frozenset({
+    "if", "else", "then",
+    "and", "or", "not",
+    "min", "max", "sum", "abs", "count",
+    "true", "false", "null",
+    "in",
+})
+
+# Snake_case identifier, NOT preceded by `.` (so dot-notation RHS members
+# are excluded — only the base name on a dot-notation LHS surfaces, by
+# being matched on its own).
+_IDENT_RE = re.compile(r"(?<![a-zA-Z0-9_.])([a-z_][a-z0-9_]*)")
+
+# Strip single- and double-quoted string literals before identifier scan
+# so quoted enum tags don't surface as variable names.
+_STRING_LITERAL_RE = re.compile(r"'[^']*'|\"[^\"]*\"")
+
+# Trailing-suffix strips applied to a `stage:` value before comparison.
+# Match the same set used by /create-ruleset-groups.
+_STAGE_STRIP_SUFFIXES = ("_evaluation", "_check", "_test")
+
+
+def parse_expr_hint(text: str) -> Optional[tuple[str, str, list[str]]]:
+    """Parse an `expr_hint:` value.
+
+    Splits on the first `=`. The LHS (whitespace-trimmed) is the snake_case
+    output name; the RHS is the expression text. Returns a tuple of
+    `(lhs, rhs, rhs_tokens)` where `rhs_tokens` is the list of snake_case
+    identifiers in the RHS, in source order, with duplicates preserved.
+
+    Tokenization excludes:
+      - numeric / string literals
+      - language keywords (see `_EXPR_HINT_KEYWORDS`)
+      - the LHS-base of any `<base>.<member>` dot-notation
+        (the regex's negative-lookbehind on `.` handles this)
+
+    Returns `None` when `text` is not a non-empty string, the format lacks
+    an `=`, or the LHS is empty after trim.
+    """
+    if not isinstance(text, str) or not text:
+        return None
+    if "=" not in text:
+        return None
+    lhs_raw, _, rhs_raw = text.partition("=")
+    lhs = lhs_raw.strip()
+    rhs = rhs_raw.strip()
+    if not lhs or not rhs:
+        return None
+    if rhs.startswith("="):
+        # Reject comparison expressions like `a == b` — `partition("=")` on
+        # them yields LHS=`a`, RHS=`= b`, which would otherwise be parsed
+        # as a valid assignment with a malformed RHS.
+        return None
+    if not _IDENT_RE.fullmatch(lhs):
+        # LHS must be a single snake_case identifier.
+        return None
+    stripped = _STRING_LITERAL_RE.sub("", rhs)
+    tokens = [t for t in _IDENT_RE.findall(stripped) if t not in _EXPR_HINT_KEYWORDS]
+    return lhs, rhs, tokens
+
+
+def normalize_stage(stage: Any) -> Optional[str]:
+    """Normalize a `stage:` value for cross-section comparison.
+
+    Strips a single trailing `_test` / `_check` / `_evaluation`
+    (case-insensitively) and lowercases the result. Returns `None` for
+    `None` / non-string / empty input.
+
+    Matches the suffix-stripping rule in `/create-ruleset-groups` Step 1
+    so stage identifiers compare equal across writer skills.
+    """
+    if stage is None:
+        return None
+    if not isinstance(stage, str):
+        return None
+    s = stage.strip().lower()
+    if not s:
+        return None
+    for suffix in _STAGE_STRIP_SUFFIXES:
+        if s.endswith(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
+def load_per_file_computations(domain_dir: Path) -> dict[str, dict]:
+    """Glob every `policy_facets/computations/**/*.md.yaml` under
+    `domain_dir` and return a dict keyed by relative path string
+    (POSIX-style, relative to `policy_facets/computations/`) → parsed
+    YAML mapping.
+
+    Files that fail to parse as YAML or that don't parse to a mapping
+    are skipped silently — callers that need to surface parse errors
+    can do their own walk. Returns `{}` when the directory is absent.
+
+    The relative-path key is the source-path reconstruction anchor: a
+    caller can map `<rel>.md.yaml` back to the source policy doc via
+    `input/policy_docs/<rel>.md` (drop the `.yaml` suffix to recover
+    `<rel>.md`).
+    """
+    base = domain_dir / "policy_facets" / "computations"
+    if not base.is_dir():
+        return {}
+    out: dict[str, dict] = {}
+    for path in sorted(base.rglob("*.md.yaml")):
+        if not path.is_file():
+            continue
+        try:
+            with path.open(encoding="utf-8") as f:
+                doc = yaml.safe_load(f)
+        except yaml.YAMLError:
+            continue
+        if not isinstance(doc, dict):
+            continue
+        rel = path.relative_to(base).as_posix()
+        out[rel] = doc
+    return out
