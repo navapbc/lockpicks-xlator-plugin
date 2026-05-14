@@ -11,9 +11,11 @@ Verifies the contract for `load_canonical` (YAML loading) and `canonical_path`
 (folder resolution for paired non-YAML siblings).
 """
 
+import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from test_helpers import (
     canonical_path,
@@ -22,12 +24,14 @@ from test_helpers import (
 
 
 def test_load_canonical_returns_parsed_dict():
-    """Happy path — load_canonical returns the canonical's parsed contents."""
+    """Happy path — load_canonical returns a non-empty parsed dict.
+
+    Avoids asserting specific keys from the naming-manifest canonical, which
+    would couple the helper test to corpus content. Structural assertions only.
+    """
     manifest = load_canonical("naming-manifest")
     assert isinstance(manifest, dict)
-    assert manifest["version"] == "1.0"
-    assert "Applicant" in manifest["inputs"]
-    assert "eligibility_decision" in manifest["outputs"]
+    assert len(manifest) > 0
 
 
 @pytest.mark.parametrize(
@@ -119,3 +123,31 @@ def test_load_canonical_raises_for_path_traversal_attempts():
         load_canonical("../escape")
     with pytest.raises(ValueError):
         canonical_path("foo/bar")
+
+
+def test_metadata_inline_block_matches_canonical_file():
+    """Integration — the inlined metadata YAML in declare-target-ruleset/SKILL.md must equal core/examples/metadata/canonical.yaml.
+
+    The corpus README documents `metadata` as both inlined-into-SKILL.md AND filed at
+    `core/examples/metadata/canonical.yaml`. Drift between the two copies would silently
+    teach the AI two different metadata shapes. Enforce byte-equality via YAML parse.
+    """
+    skill_md = (
+        canonical_path("metadata").parents[2]
+        / "skills"
+        / "declare-target-ruleset"
+        / "SKILL.md"
+    ).read_text()
+    fenced_blocks = re.findall(r"```yaml\n(.*?)```", skill_md, re.DOTALL)
+    inline_metadata = next(
+        (yaml.safe_load(block) for block in fenced_blocks if "display_name" in block),
+        None,
+    )
+    assert inline_metadata is not None, (
+        "declare-target-ruleset/SKILL.md must contain a ```yaml fenced block "
+        "with the inlined metadata canonical (display_name + description)."
+    )
+    assert inline_metadata == load_canonical("metadata"), (
+        "Inlined metadata block in declare-target-ruleset/SKILL.md has drifted from "
+        "core/examples/metadata/canonical.yaml. Update both copies in lockstep."
+    )

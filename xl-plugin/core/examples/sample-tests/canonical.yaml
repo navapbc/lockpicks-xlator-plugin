@@ -13,11 +13,12 @@ sample_tests:
       gross_income: 800
       countable_income: 780
       income_standard: 1850
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
     tags: ["allow", "happy_path"]
 
   - case_id: "deny_over_standard_001"
-    description: "Income exceeds the standard for the household size. Citizen and resident, so denial reason is income_over_standard."
+    description: "Income exceeds the standard for the household size. Citizen and resident, so the denial reason is INCOME_OVER_STANDARD."
     inputs:
       is_us_citizen: true
       is_alaska_resident: true
@@ -30,12 +31,13 @@ sample_tests:
       gross_income: 2500
       countable_income: 2480
       income_standard: 1850
-      eligibility_decision: "deny"
-      denial_reason: "income_over_standard"
+      eligible: false
+      reasons:
+        - code: "INCOME_OVER_STANDARD"
     tags: ["deny"]
 
   - case_id: "deny_non_citizen_001"
-    description: "Non-citizen applicant with otherwise-eligible income. Citizenship gate fires; denial reason is non_citizen regardless of income comparison."
+    description: "Non-citizen applicant with otherwise-eligible income. Citizenship gate fires; denial reason is NON_CITIZEN regardless of income."
     inputs:
       is_us_citizen: false
       is_alaska_resident: true
@@ -45,8 +47,9 @@ sample_tests:
       household_size: 2
       state_supplement_applies: false
     expected:
-      eligibility_decision: "deny"
-      denial_reason: "non_citizen"
+      eligible: false
+      reasons:
+        - code: "NON_CITIZEN"
     tags: ["deny", "gate_check"]
 
   - case_id: "edge_zero_earned_unearned_only_001"
@@ -62,7 +65,8 @@ sample_tests:
     expected:
       gross_income: 450
       countable_income: 430
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
     tags: ["allow", "edge_case"]
 
   - case_id: "edge_disregard_floor_001"
@@ -78,5 +82,6 @@ sample_tests:
     expected:
       gross_income: 15
       countable_income: 0
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
     tags: ["allow", "edge_case", "boundary"]

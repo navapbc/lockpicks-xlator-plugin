@@ -36,17 +36,26 @@ sample_rules:
           source: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md — Addendum 1"
 
   - id: decide_eligibility
-    rule_type: computed
-    source: "Compare countable_income against income_standard; gate the authorize branch on citizenship and residency. Otherwise deny."
+    rule_type: rule
+    source: "Apply citizenship and residency gates, then compare countable_income against income_standard. The case is eligible only when all three conditions hold; otherwise add the matching reason code (NON_CITIZEN, NON_RESIDENT, or INCOME_OVER_STANDARD) and deny."
     civil: |
-      computed:
-        - name: eligibility_decision
-          type: enum
-          group: eligibility_decision
-          formula: |
-            if (not Applicant.is_us_citizen) or (not Applicant.is_alaska_resident) then "deny"
-            else if countable_income < income_standard then "authorize"
-            else "deny"
+      rules:
+        - id: "MED-DENY-NON-CITIZEN"
+          kind: deny
+          when: "!Applicant.is_us_citizen"
+          then:
+            - add_reason:
+                code: "NON_CITIZEN"
+        - id: "MED-DENY-INCOME-OVER-STANDARD"
+          kind: deny
+          when: "Applicant.is_us_citizen && Applicant.is_alaska_resident && !is_under_standard"
+          then:
+            - add_reason:
+                code: "INCOME_OVER_STANDARD"
+      outputs:
+        eligible:
+          type: bool
+          expr: "count(reasons) == 0"
           source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A. INCOME ELIGIBILITY"
 
 missing_info:

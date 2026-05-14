@@ -1,9 +1,12 @@
-eligibility_decision:
-  description: "Final Medicaid income eligibility decision based on whether countable income is under the household-size-adjusted income standard, gated by citizenship and residency."
-  examples: ["authorize", "deny", "further_verification_required"]
+eligible:
+  description: "Whether the applicant meets Medicaid income eligibility. True when countable income is under the household-size-adjusted standard AND the applicant is a U.S. citizen AND a current Alaska resident."
+  examples: ["true", "false"]
   primary: true
 
-denial_reason:
-  description: "Reason for denial when eligibility_decision is deny. Empty/absent when eligibility_decision is authorize or further_verification_required."
-  examples: ["income_over_standard", "non_citizen", "non_resident", "missing_documentation"]
+reasons:
+  description: "Denial reasons accumulated during rule evaluation. Empty list when eligible is true; one or more Reason entries when eligible is false. Each Reason carries a machine-readable code plus a caseworker-facing message and supporting citations."
+  examples:
+    - "[]"
+    - "[{code: NON_CITIZEN, message: ...}]"
+    - "[{code: INCOME_OVER_STANDARD, message: ...}]"
   primary: false

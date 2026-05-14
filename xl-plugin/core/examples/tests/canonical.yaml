@@ -1,6 +1,6 @@
 test_suite:
   spec: "medicaid_income_eligibility.civil.yaml"
-  description: "Test cases for Alaska Medicaid income eligibility — anchors the shape of both /create-tests output (single _tests.yaml) and /expand-tests output (four *_expanded_tests.yaml files with drv_/bnd_/nil_/edg_ id prefixes). The four expand-tests variants share this same top-level shape; only the case-id prefix and tags differ."
+  description: "Test cases for Alaska Medicaid income eligibility — anchors the shape of both /create-tests output (single _tests.yaml) and /expand-tests output (four *_expanded_tests.yaml files with drv_/bnd_/nil_/edg_ id prefixes). The four expand-tests variants share this same top-level shape; only the case-id prefix and tags differ. Assertions follow the CIVIL convention: expected.eligible (bool) and expected.reasons (list of Reason objects)."
   version: "1.0"
 
 tests:
@@ -20,7 +20,8 @@ tests:
       Case:
         household_size: 2
     expected:
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
       gross_income: 800
       countable_income: 780
       income_standard: 1850
@@ -28,7 +29,7 @@ tests:
     tags: ["allow", "happy_path"]
 
   - case_id: "deny_over_standard_001"
-    description: "Income exceeds the standard for the household size. Citizen and resident, so denial reason is income_over_standard."
+    description: "Income exceeds the standard for the household size. Citizen and resident, so denial reason is INCOME_OVER_STANDARD."
     inputs:
       Applicant:
         is_us_citizen: true
@@ -40,9 +41,9 @@ tests:
       Case:
         household_size: 2
     expected:
-      eligibility_decision: "deny"
+      eligible: false
       reasons:
-        - code: "income_over_standard"
+        - code: "INCOME_OVER_STANDARD"
     tags: ["deny", "income_test"]
 
   # --- /expand-tests boundary expansions: bnd_ prefix ---
@@ -60,7 +61,8 @@ tests:
       Case:
         household_size: 2
     expected:
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
       countable_income: 1849
       income_standard: 1850
     tags: ["expand", "boundary", "allow"]
@@ -78,14 +80,34 @@ tests:
       Case:
         household_size: 2
     expected:
-      eligibility_decision: "deny"
+      eligible: false
+      reasons:
+        - code: "INCOME_OVER_STANDARD"
       countable_income: 1850
       income_standard: 1850
-      reasons:
-        - code: "income_over_standard"
     tags: ["expand", "boundary", "deny"]
 
   # --- /expand-tests null-input expansions: nil_ prefix ---
+
+  - case_id: "nil_missing_eligibility_category_001"
+    description: "Null-input — eligibility_category is omitted entirely. The income_standard lookup has no key, so the case defaults to deny with a system-level reason. Anchors the null-input handling pattern for /expand-tests."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        # eligibility_category intentionally omitted
+      Income:
+        monthly_earned: 800
+        monthly_unearned: 0
+      Case:
+        household_size: 2
+    expected:
+      eligible: false
+      reasons:
+        - code: "MISSING_ELIGIBILITY_CATEGORY"
+    tags: ["expand", "null_input", "deny"]
+
+  # --- /expand-tests edge-case expansions: edg_ prefix ---
 
   - case_id: "edg_zero_earned_unearned_only_001"
     description: "Edge case — zero earned income with non-zero unearned. The $20 disregard still applies once, to the unearned income."
@@ -100,12 +122,11 @@ tests:
       Case:
         household_size: 1
     expected:
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
       gross_income: 450
       countable_income: 430
     tags: ["expand", "edge_case", "allow"]
-
-  # --- /expand-tests edge-case expansions: edg_ prefix ---
 
   - case_id: "edg_disregard_floor_001"
     description: "Edge case — gross income below $20; countable income clamps to 0 (the disregard never reduces below zero)."
@@ -120,13 +141,14 @@ tests:
       Case:
         household_size: 1
     expected:
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
       gross_income: 15
       countable_income: 0
     tags: ["expand", "edge_case", "boundary", "allow"]
 
   - case_id: "edg_non_citizen_overrides_income_001"
-    description: "Edge case — non-citizen with otherwise-eligible income. Citizenship gate fires first; denial reason is non_citizen regardless of income."
+    description: "Edge case — non-citizen with otherwise-eligible income. Citizenship gate fires first; reason is NON_CITIZEN regardless of income."
     inputs:
       Applicant:
         is_us_citizen: false
@@ -138,9 +160,9 @@ tests:
       Case:
         household_size: 2
     expected:
-      eligibility_decision: "deny"
+      eligible: false
       reasons:
-        - code: "non_citizen"
+        - code: "NON_CITIZEN"
     tags: ["expand", "edge_case", "deny", "gate_check"]
 
   # --- /expand-tests derived-from-extracted: drv_ prefix ---
@@ -158,7 +180,8 @@ tests:
       Case:
         household_size: 4
     expected:
-      eligibility_decision: "authorize"
+      eligible: true
+      reasons: []
       gross_income: 1700
       countable_income: 1680
       income_standard: 2600

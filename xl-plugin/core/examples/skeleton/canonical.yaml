@@ -8,8 +8,8 @@ skeleton:
     - household_size
     - state_supplement_applies
   outputs:
-    - eligibility_decision
-    - denial_reason
+    - eligible
+    - reasons
   computations:
     - stage: income_aggregation
       variables:
@@ -34,16 +34,14 @@ skeleton:
     - stage: eligibility_decision
       variables:
         - is_under_standard
-        - eligibility_decision
-        - denial_reason
+        - eligible
+        - reasons
       exprs:
         is_under_standard: "countable_income < income_standard"
-        eligibility_decision: |
-          if (not is_us_citizen) or (not is_alaska_resident) then "deny"
-          else if is_under_standard then "authorize"
-          else "deny"
-        denial_reason: |
-          if eligibility_decision == "deny" and not is_us_citizen then "non_citizen"
-          else if eligibility_decision == "deny" and not is_alaska_resident then "non_resident"
-          else if eligibility_decision == "deny" then "income_over_standard"
-          else "none"
+        eligible: "is_us_citizen and is_alaska_resident and is_under_standard"
+        reasons: |
+          [reason for reason in [
+            (if not is_us_citizen then {code: \"NON_CITIZEN\"} else null),
+            (if is_us_citizen and not is_alaska_resident then {code: \"NON_RESIDENT\"} else null),
+            (if is_us_citizen and is_alaska_resident and not is_under_standard then {code: \"INCOME_OVER_STANDARD\"} else null)
+          ] if reason != null]

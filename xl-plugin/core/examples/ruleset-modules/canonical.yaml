@@ -40,14 +40,22 @@ ruleset_modules:
               income_standard: "lookup(medicaid_income_standards, [Applicant.eligibility_category, Case.household_size])"
             source: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md — Addendum 1"
       - id: decide_eligibility
-        rule_type: computed
-        source: "Compare countable income against the income standard, gated by citizenship and residency. Produce authorize when countable_income < income_standard and the applicant is a citizen and Alaska resident; otherwise deny."
+        rule_type: rule
+        source: "Apply citizenship and residency gates, then compare countable_income against income_standard. Each failing gate or test adds a Reason to `reasons`; `eligible` is true only when `reasons` is empty."
         civil: |
-          - id: decide_eligibility
-            group: eligibility_decision
-            computed:
-              eligibility_decision: |
-                if (not Applicant.is_us_citizen) or (not Applicant.is_alaska_resident) then "deny"
-                else if countable_income < income_standard then "authorize"
-                else "deny"
+          - id: "MED-DENY-NON-CITIZEN"
+            kind: deny
+            when: "!Applicant.is_us_citizen"
+            then:
+              - add_reason: { code: "NON_CITIZEN" }
+          - id: "MED-DENY-NON-RESIDENT"
+            kind: deny
+            when: "Applicant.is_us_citizen && !Applicant.is_alaska_resident"
+            then:
+              - add_reason: { code: "NON_RESIDENT" }
+          - id: "MED-DENY-INCOME-OVER-STANDARD"
+            kind: deny
+            when: "Applicant.is_us_citizen && Applicant.is_alaska_resident && countable_income >= income_standard"
+            then:
+              - add_reason: { code: "INCOME_OVER_STANDARD" }
             source: "input/policy_docs/medicaid_manual/income_eligibility.md — MS 523 A. INCOME ELIGIBILITY"

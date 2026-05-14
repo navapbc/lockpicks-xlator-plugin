@@ -25,7 +25,7 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` dire
 
 Read `../../core/output-fencing.md` now.
 
-Read `../../core/examples/input-index/canonical.yaml` and the `../../core/examples/input-index/input/policy_docs/` source `.md` set now — both the index output and the source files it points at, so the key-to-source mapping is visible.
+Read `../../core/examples/input-index/canonical.yaml`, `../../core/examples/input-index/input/policy_docs/medicaid_manual/income_eligibility.md`, `../../core/examples/input-index/input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md`, and `../../core/examples/input-index/input/policy_docs/medicaid_manual/citizenship_eligibility.md` now — both the index output and the source files it points at, so the key-to-source mapping is visible.
 
 ## Pre-flight
 

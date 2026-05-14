@@ -53,11 +53,12 @@ computed:
     description: "Whether countable_income is strictly less than income_standard."
 
 outputs:
-  eligibility_decision:
-    type: enum
-    description: "Final Medicaid income eligibility decision — one of: authorize, deny, further_verification_required."
+  eligible:
+    type: bool
+    description: "Whether the applicant meets Medicaid income eligibility — true when countable income is under the standard AND the applicant is a U.S. citizen AND a current Alaska resident."
     primary: true
-  denial_reason:
-    type: enum
-    description: "Reason for denial when eligibility_decision is deny — one of: income_over_standard, non_citizen, non_resident, missing_documentation."
+  reasons:
+    type: list
+    item_type: Reason
+    description: "Denial reasons accumulated during rule evaluation. Empty when eligible is true. Reason codes: NON_CITIZEN, NON_RESIDENT, INCOME_OVER_STANDARD."
     primary: false
