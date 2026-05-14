@@ -25,6 +25,8 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` dire
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/input-index/canonical.yaml` and the `../../core/examples/input-index/input/policy_docs/` source `.md` set now — both the index output and the source files it points at, so the key-to-source mapping is visible.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

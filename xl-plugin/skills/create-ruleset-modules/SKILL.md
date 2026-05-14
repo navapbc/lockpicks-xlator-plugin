@@ -17,6 +17,8 @@ A ruleset module is a subset of rules within a ruleset group. Ruleset modules mu
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/ruleset-modules/canonical.yaml` now.
+
 ## Pre-flight
 
 1. **Domain argument provided?**

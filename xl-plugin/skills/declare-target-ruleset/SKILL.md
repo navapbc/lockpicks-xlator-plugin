@@ -15,6 +15,8 @@ Bootstrap the `guidance/` folder for a domain from a ruleset file produced by `/
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/naming-manifest/canonical.yaml`, `../../core/examples/metadata/canonical.yaml`, and `../../core/examples/prompt-context/canonical.yaml` now.
+
 ## Pre-flight
 
 1. **Domain argument provided?**
@@ -103,6 +105,13 @@ Read `../../core/output-fencing.md` now.
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml`         | Created (or overwritten) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`       | Created (or overwritten) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Created (or overwritten) |
+
+The `metadata.yaml` shape is small and structurally fixed — `display_name` plus `description`. For convenience, the canonical content is shown inline here verbatim (kept byte-identical to `../../core/examples/metadata/canonical.yaml`):
+
+```yaml
+display_name: "Determine Medicaid Income Eligibility"
+description: "Decide whether to authorize, deny, or request further verification for an Alaska Medicaid case by comparing the applicant's countable monthly income against the household-size-adjusted income standard."
+```
 
 ## Common Mistakes to Avoid
 

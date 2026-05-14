@@ -19,6 +19,8 @@ This skill is the per-file primitive that mirrors `/extract-computations`'s shap
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/compressed/source.md` and `../../core/examples/compressed/canonical.md` now — both the uncompressed input and the compressed output, so the input→output transformation is visible.
+
 ## Pre-flight
 
 Run these checks before doing anything else. Skip pre-flight when invoked from inside `/index-inputs`'s subagent worker — the parent already validated the path.

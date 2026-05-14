@@ -19,6 +19,8 @@ This skill is invoked per file by `/index-inputs` (in a loop over REINDEX entrie
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/computations/source.md` and `../../core/examples/computations/canonical.md.yaml` now — both the compressed-source input and the extracted-computations output, so the input→output transformation is visible.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

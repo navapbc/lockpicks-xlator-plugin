@@ -15,6 +15,8 @@ Extract structured signals from `policy_facets/computations/` and the naming man
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/skeleton/canonical.yaml` now.
+
 ## Pre-flight
 
 1. **Domain argument provided?**

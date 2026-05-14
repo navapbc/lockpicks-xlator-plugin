@@ -18,6 +18,8 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/tests/canonical.yaml` now.
+
 ## Pre-flight
 
 1. **Domain folder exists?** — NO → Print:

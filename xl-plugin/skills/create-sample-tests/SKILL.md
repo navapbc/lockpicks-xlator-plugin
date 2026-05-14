@@ -28,6 +28,8 @@ Which domain? Enter a number or domain name:
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/sample-tests/canonical.yaml` now.
+
 ## Pre-flight
 
 1. **Domain argument provided?** — If not, show domain menu (above). Await response.

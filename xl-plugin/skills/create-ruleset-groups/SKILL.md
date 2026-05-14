@@ -17,6 +17,8 @@ A "Ruleset Group" is synonymous with a "ruleset group".
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/ruleset-groups/canonical.yaml` now.
+
 ## Pre-flight
 
 1. **Domain argument provided?**

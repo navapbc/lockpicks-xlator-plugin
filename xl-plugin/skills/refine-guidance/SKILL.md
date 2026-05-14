@@ -15,6 +15,8 @@ Create or update the `guidance/` folder for a domain by orchestrating the granul
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/input-variables/canonical.yaml`, `../../core/examples/output-variables/canonical.yaml`, and `../../core/examples/constants-and-tables/canonical.yaml` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

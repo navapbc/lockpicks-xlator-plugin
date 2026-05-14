@@ -25,6 +25,8 @@ the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeG
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/naming-manifest/canonical.yaml`, `../../core/examples/prompt-context/canonical.yaml`, `../../core/examples/ruleset-modules/canonical.yaml`, `../../core/examples/sample-artifacts/canonical.yaml`, `../../core/examples/output-variables/canonical.yaml`, `../../core/examples/input-variables/canonical.yaml`, `../../core/examples/constants-and-tables/canonical.yaml`, and `../../core/examples/civil-ruleset/canonical.civil.yaml` now. The first seven are inputs that produced the eighth — read both sides so the input→output mapping is visible, not just the output shape.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

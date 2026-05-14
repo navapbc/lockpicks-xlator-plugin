@@ -17,6 +17,8 @@ The optional `<hint>` argument (e.g., "eligibility" or "benefit calculation") na
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/suggested-target/canonical.yaml` now.
+
 ## Pre-flight
 
 Run these checks before doing anything else:

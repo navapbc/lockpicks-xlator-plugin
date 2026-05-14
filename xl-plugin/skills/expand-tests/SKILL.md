@@ -18,6 +18,8 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` file
 
 Read `../../core/output-fencing.md` now.
 
+Read `../../core/examples/tests/canonical.yaml` now. The same canonical anchors both `/create-tests` (single `_tests.yaml`) and the four `*_expanded_tests.yaml` files this skill writes; the four variants share the canonical's top-level shape and differ only by case-id prefix (`drv_`, `bnd_`, `nil_`, `edg_`).
+
 ## Pre-flight
 
 1. **Domain folder exists?** — NO →
