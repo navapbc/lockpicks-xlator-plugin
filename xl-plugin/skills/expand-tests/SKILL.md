@@ -78,6 +78,19 @@ For each category below, emit only cases not already covered by any existing tes
 
 All tests are **blackbox only**: `inputs:` uses only declared `inputs:` fields; `expected:` contains only the domain's declared `outputs:` fields. No `computed:` field assertions.
 
+### Computing `expected:` via the CIVIL evaluator
+
+For every generated test case (drv_*, bnd_*, edg_*), compute the `expected:` block by running the CIVIL evaluator on the synthesized `inputs:`. Do not derive expected outcomes by mentally tracing rule logic.
+
+1. Write the case's `inputs:` map to a temporary JSON file.
+2. Run `xlator evaluate-civil <domain> <program> --inputs <tmpfile>`.
+3. Parse stdout as JSON. Use `result.outputs` for the `expected:` block, filtered to the declared `outputs:` fields.
+
+If the evaluator exits non-zero, surface the stderr in a `:::error` block and skip the case. Two non-fatal cases worth handling explicitly:
+
+- **Missing required input** (Phase 2c null-input scenarios deliberately do this) — the evaluator exits 1. For null/malformed cases, set `expected:` to the fully-denied state (e.g., the `default:` of each declared output, plus an empty `reasons: []` when present); the transpiler's `default <rule> := false` emission produces this OPA-side too, so the assertion still holds.
+- **`invoke:` unsupported** (multi-file CIVIL modules) — the evaluator raises this in v1; fall back to manual derivation for those programs and note it in the file header.
+
 ### Output file format
 
 Each output file follows the same structure as `<program>_tests.yaml`:
@@ -109,8 +122,8 @@ tests:
 Read `$DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml`. Mine it for test scenarios even when `extracted_tests: []`:
 
 - **From list entries with `notes:`** — Unmappable values in `notes:` often describe computed results (e.g., "net income after deductions = $320"). Use them to infer plausible boundary inputs to test.
-- **From `extracted_tests:` entries (non-empty list)** — Each entry is a concrete policy example. If it is not already in `<program>_tests.yaml` (match by `case_id` OR by identical `inputs:` map), include it here as a `drv_*` case, preserving the original `inputs:` and `expected:` values.
-- **From header comments** — Comments above `extracted_tests:` document partial examples and unmappable fields. Use this narrative to construct test scenarios (e.g., if a comment says "household of 4 with $1,200 gross — could not determine net income", generate a test with those inputs and infer the expected outcome from the CIVIL rules).
+- **From `extracted_tests:` entries (non-empty list)** — Each entry is a concrete policy example. If it is not already in `<program>_tests.yaml` (match by `case_id` OR by identical `inputs:` map), include it here as a `drv_*` case. Preserve any explicit `expected:` values from the source narrative; when the narrative is silent on a field, fill it via the CIVIL evaluator (see "Computing `expected:`" above).
+- **From header comments** — Comments above `extracted_tests:` document partial examples and unmappable fields. Use this narrative to construct test inputs; derive `expected:` via the CIVIL evaluator.
 
 **This is best-effort derivation, not exhaustive coverage.** State this clearly in the file header:
 
@@ -145,7 +158,7 @@ For each gap identified in the coverage map, generate three cases per threshold 
 
 **For extended table rows** (formula rows in `computed:`): calculate the actual limit for at least one key beyond the last table row (e.g., count = last row + 1) and generate boundary cases for that value.
 
-Determine the expected outcome for each case by applying the rule logic from the CIVIL spec (`when:` conditions and their operators). Set `expected:` to the domain's declared `outputs:` fields (from the `outputs:` section).
+Derive `expected:` via the CIVIL evaluator (see "Computing `expected:`" above).
 
 ---
 
@@ -162,7 +175,7 @@ Generate one test per scenario below for each **required** input fact field in t
 | Wrong type (number field given string) | `field: "not-a-number"` | `["malformed", "deny"]` |
 | Negative value on a non-negative field | `field: -1` | `["malformed", "deny"]` |
 
-All null/malformed tests assert denial. Because the transpiler always emits `default <rule> := false` for every boolean rule, OPA evaluates missing or undefined inputs as `false`, producing the domain's fully denied outcome. Set `expected:` to the denied state (read from the `outputs:` section of the CIVIL spec).
+All null/malformed tests assert denial. The CIVIL evaluator will exit 1 with `missing required input` for omitted-field cases; treat that as confirmation and set `expected:` to the fully-denied state (per "Computing `expected:`" above). For typed-wrong / negative-value cases that the evaluator can execute, use its output.
 
 ---
 
@@ -182,7 +195,7 @@ Generate tests for extreme values and unusual combinations not already covered b
 | Minimum entity count | Smallest possible count with a key value exactly at the applicable limit |
 | Extreme numeric value | Primary numeric field set to 10× the highest table limit |
 
-For each edge case, derive `expected:` by applying the CIVIL rules to the chosen input values.
+For each edge case, derive `expected:` via the CIVIL evaluator (see "Computing `expected:`" above).
 
 ---
 

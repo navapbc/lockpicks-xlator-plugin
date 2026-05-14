@@ -185,11 +185,9 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 
 - **If present** (written by `/extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
-- **If absent** (standalone run after a manual CIVIL edit): compare each test case's `inputs` values against all current `tables:` rows and `constants:` values in the CIVIL file. Flag any case where an input value exactly matches a value that no longer appears in any table row or constant.
+- **If absent** (standalone run after a manual CIVIL edit): run `xlator detect-stale-cases <domain> <program>` and parse the JSON header (everything before the `--- DETECT-STALE-CASES-HEADER-END ---` sentinel). Treat each entry in `stale_cases:` as a stale case; the `diff:` field names the divergent outputs. The evaluator catches value-boundary changes AND logic-only changes (operator shifts, new `when:` clauses, restructured precedence) — no manual review caveat needed.
 
-  :::important
-  No `.stale-cases.yaml` found — using table/constant comparison to detect stale cases. Logic-only rule changes (e.g., operator changes, new conditions) will not be detected; review manually.
-  :::
+  If the tool exits non-zero, surface the stderr in a `:::error` block and stop.
 
 ### Step 2: Update Stale Cases
 
