@@ -1,0 +1,165 @@
+test_suite:
+  spec: "medicaid_income_eligibility.civil.yaml"
+  description: "Test cases for Alaska Medicaid income eligibility — anchors the shape of both /create-tests output (single _tests.yaml) and /expand-tests output (four *_expanded_tests.yaml files with drv_/bnd_/nil_/edg_ id prefixes). The four expand-tests variants share this same top-level shape; only the case-id prefix and tags differ."
+  version: "1.0"
+
+tests:
+
+  # --- /create-tests output: extracted from policy text and sample-tests.yaml ---
+
+  - case_id: "allow_001"
+    description: "Happy path — citizen, Alaska resident, countable income well below the household-size standard."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 800
+        monthly_unearned: 0
+      Case:
+        household_size: 2
+    expected:
+      eligibility_decision: "authorize"
+      gross_income: 800
+      countable_income: 780
+      income_standard: 1850
+      is_under_standard: true
+    tags: ["allow", "happy_path"]
+
+  - case_id: "deny_over_standard_001"
+    description: "Income exceeds the standard for the household size. Citizen and resident, so denial reason is income_over_standard."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 2400
+        monthly_unearned: 100
+      Case:
+        household_size: 2
+    expected:
+      eligibility_decision: "deny"
+      reasons:
+        - code: "income_over_standard"
+    tags: ["deny", "income_test"]
+
+  # --- /expand-tests boundary expansions: bnd_ prefix ---
+
+  - case_id: "bnd_under_standard_by_one_001"
+    description: "Boundary — countable income is exactly $1 below the standard. Should authorize (strict less-than)."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 1869
+        monthly_unearned: 0
+      Case:
+        household_size: 2
+    expected:
+      eligibility_decision: "authorize"
+      countable_income: 1849
+      income_standard: 1850
+    tags: ["expand", "boundary", "allow"]
+
+  - case_id: "bnd_at_standard_001"
+    description: "Boundary — countable income equals the standard exactly. Should deny (strict less-than, not less-than-or-equal)."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 1870
+        monthly_unearned: 0
+      Case:
+        household_size: 2
+    expected:
+      eligibility_decision: "deny"
+      countable_income: 1850
+      income_standard: 1850
+      reasons:
+        - code: "income_over_standard"
+    tags: ["expand", "boundary", "deny"]
+
+  # --- /expand-tests null-input expansions: nil_ prefix ---
+
+  - case_id: "nil_zero_earned_unearned_only_001"
+    description: "Null-input — zero earned income with non-zero unearned. The $20 disregard still applies once, to the unearned income."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 0
+        monthly_unearned: 450
+      Case:
+        household_size: 1
+    expected:
+      eligibility_decision: "authorize"
+      gross_income: 450
+      countable_income: 430
+    tags: ["expand", "null_input", "allow"]
+
+  # --- /expand-tests edge-case expansions: edg_ prefix ---
+
+  - case_id: "edg_disregard_floor_001"
+    description: "Edge case — gross income below $20; countable income clamps to 0 (the disregard never reduces below zero)."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 15
+        monthly_unearned: 0
+      Case:
+        household_size: 1
+    expected:
+      eligibility_decision: "authorize"
+      gross_income: 15
+      countable_income: 0
+    tags: ["expand", "edge_case", "boundary", "allow"]
+
+  - case_id: "edg_non_citizen_overrides_income_001"
+    description: "Edge case — non-citizen with otherwise-eligible income. Citizenship gate fires first; denial reason is non_citizen regardless of income."
+    inputs:
+      Applicant:
+        is_us_citizen: false
+        is_alaska_resident: true
+        eligibility_category: "family"
+      Income:
+        monthly_earned: 600
+        monthly_unearned: 0
+      Case:
+        household_size: 2
+    expected:
+      eligibility_decision: "deny"
+      reasons:
+        - code: "non_citizen"
+    tags: ["expand", "edge_case", "deny", "gate_check"]
+
+  # --- /expand-tests derived-from-extracted: drv_ prefix ---
+
+  - case_id: "drv_qmb_household_size_4_001"
+    description: "Derived — same shape as allow_001 but eligibility_category=qmb and household_size=4. Exercises a different (category, size) standard lookup."
+    inputs:
+      Applicant:
+        is_us_citizen: true
+        is_alaska_resident: true
+        eligibility_category: "qmb"
+      Income:
+        monthly_earned: 1500
+        monthly_unearned: 200
+      Case:
+        household_size: 4
+    expected:
+      eligibility_decision: "authorize"
+      gross_income: 1700
+      countable_income: 1680
+      income_standard: 2600
+    tags: ["expand", "derived", "allow"]

@@ -1,0 +1,197 @@
+# Medicaid Income Decision — CIVIL DSL Module
+# Translated from: input/policy_docs/medicaid_manual/income_eligibility.md (MS 523)
+# Primary authority: Alaska Medicaid Manual MS 523 A
+
+module: "medicaid_income_eligibility"
+description: "Determine Medicaid income eligibility — sum gross monthly income, apply the $20 general disregard, look up the household-size-adjusted income standard, gate on citizenship and residency, and produce one of: authorize, deny."
+version: "2026Q1"
+
+jurisdiction:
+  level: state
+  country: US
+  state: AK
+
+effective:
+  start: 2026-01-01
+
+# =============================================================================
+# INPUTS
+# =============================================================================
+
+inputs:
+  Applicant:
+    description: "Medicaid applicant whose income eligibility is being determined."
+    fields:
+      is_us_citizen:
+        type: bool
+        description: "Whether the applicant is a U.S. citizen or qualified non-citizen (see MS 521)."
+        source:
+          file: "input/policy_docs/medicaid_manual/citizenship_eligibility.md"
+          section: "MS 521"
+      is_alaska_resident:
+        type: bool
+        description: "Whether the applicant is a current Alaska resident."
+      eligibility_category:
+        type: string
+        values: [working_disabled, qmb, slmb, qdwi, family, child]
+        description: "Medicaid eligibility category (drives income-standard lookup)."
+
+  Income:
+    description: "Applicant's monthly income figures."
+    fields:
+      monthly_earned:
+        type: money
+        currency: USD
+        description: "Gross monthly earned income (wages, salaries, self-employment net)."
+        source:
+          file: "input/policy_docs/medicaid_manual/income_eligibility.md"
+          section: "MS 523 A.1"
+      monthly_unearned:
+        type: money
+        currency: USD
+        description: "Gross monthly unearned income (Social Security, pensions, child support)."
+        source:
+          file: "input/policy_docs/medicaid_manual/income_eligibility.md"
+          section: "MS 523 A.1"
+
+  Case:
+    description: "Case-level facts for income-standard lookup."
+    fields:
+      household_size:
+        type: int
+        description: "Number of countable household members (1–8 supported by the program standards table)."
+      state_supplement_applies:
+        type: bool
+        optional: true
+        description: "Whether the Alaska State Supplement adjustment applies."
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+outputs:
+  eligible:
+    type: bool
+    default: false
+    description: "Whether the applicant meets Medicaid income eligibility requirements."
+    expr: "count(reasons) == 0"
+
+  reasons:
+    type: list
+    item_type: Reason
+    default: []
+    description: "Denial reasons accumulated during rule evaluation. Empty when eligible is true."
+
+# =============================================================================
+# TABLES
+# =============================================================================
+
+tables:
+  medicaid_income_standards:
+    description: "Monthly Medicaid income standard by (eligibility_category, household_size)."
+    key: [eligibility_category, household_size]
+    value: [standard_amount]
+    rows:
+      - { eligibility_category: family, household_size: 1, standard_amount: 1255 }
+      - { eligibility_category: family, household_size: 2, standard_amount: 1850 }
+      - { eligibility_category: family, household_size: 3, standard_amount: 2330 }
+      - { eligibility_category: family, household_size: 4, standard_amount: 2810 }
+      - { eligibility_category: child,  household_size: 1, standard_amount: 1255 }
+      - { eligibility_category: child,  household_size: 2, standard_amount: 1850 }
+      - { eligibility_category: working_disabled, household_size: 1, standard_amount: 2510 }
+      - { eligibility_category: working_disabled, household_size: 2, standard_amount: 3700 }
+      - { eligibility_category: qmb,    household_size: 1, standard_amount: 1255 }
+      - { eligibility_category: qmb,    household_size: 2, standard_amount: 1704 }
+      - { eligibility_category: qmb,    household_size: 4, standard_amount: 2600 }
+      - { eligibility_category: slmb,   household_size: 1, standard_amount: 1506 }
+      - { eligibility_category: slmb,   household_size: 2, standard_amount: 2045 }
+      - { eligibility_category: qdwi,   household_size: 1, standard_amount: 2510 }
+      - { eligibility_category: qdwi,   household_size: 2, standard_amount: 3408 }
+
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+constants:
+  GENERAL_INCOME_DISREGARD: 20   # $20/month disregard per MS 523 A.2
+
+# =============================================================================
+# COMPUTED
+# =============================================================================
+
+computed:
+  gross_income:
+    type: money
+    currency: USD
+    description: "Sum of monthly earned and unearned income (MS 523 A.1)."
+    expr: "Income.monthly_earned + Income.monthly_unearned"
+
+  countable_income:
+    type: money
+    currency: USD
+    description: "Gross income minus the $20 general disregard; never below zero (MS 523 A.2)."
+    expr: "max(0, gross_income - GENERAL_INCOME_DISREGARD)"
+
+  income_standard:
+    type: money
+    currency: USD
+    description: "Applicable monthly income standard for this case (MS 523 A.3)."
+    expr: "table('medicaid_income_standards', Applicant.eligibility_category, Case.household_size).standard_amount"
+
+  is_under_standard:
+    type: bool
+    description: "Whether countable income is strictly less than the income standard."
+    expr: "countable_income < income_standard"
+
+# =============================================================================
+# RULE SET
+# =============================================================================
+
+rule_set:
+  name: "medicaid_income_eligibility"
+  precedence: "deny_overrides_allow"
+  description: "Alaska Medicaid income eligibility — citizenship and residency gates, then the income comparison."
+
+# =============================================================================
+# RULES
+# =============================================================================
+
+rules:
+  - id: "MED-DENY-NON-CITIZEN"
+    kind: "deny"
+    priority: 1
+    description: "Applicant is not a U.S. citizen or qualified non-citizen (MS 521)."
+    when: "!Applicant.is_us_citizen"
+    then:
+      - add_reason:
+          code: "NON_CITIZEN"
+          message: "Applicant is not a U.S. citizen or qualified non-citizen."
+          citations:
+            - label: "MS 521"
+              excerpt: "An applicant must be a U.S. citizen or a qualified non-citizen to be eligible for Medicaid."
+
+  - id: "MED-DENY-NON-RESIDENT"
+    kind: "deny"
+    priority: 2
+    description: "Applicant is not a current Alaska resident (MS 522)."
+    when: "Applicant.is_us_citizen && !Applicant.is_alaska_resident"
+    then:
+      - add_reason:
+          code: "NON_RESIDENT"
+          message: "Applicant is not a current Alaska resident."
+          citations:
+            - label: "MS 522"
+              excerpt: "An applicant must be a current Alaska resident."
+
+  - id: "MED-DENY-INCOME-OVER-STANDARD"
+    kind: "deny"
+    priority: 3
+    description: "Countable income meets or exceeds the household-size-adjusted standard (MS 523 A.4)."
+    when: "Applicant.is_us_citizen && Applicant.is_alaska_resident && !is_under_standard"
+    then:
+      - add_reason:
+          code: "INCOME_OVER_STANDARD"
+          message: "Countable monthly income meets or exceeds the applicable income standard."
+          citations:
+            - label: "MS 523 A.4"
+              excerpt: "When countable monthly income is strictly less than the applicable income standard, the case is authorized; otherwise denied."
