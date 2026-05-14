@@ -46,6 +46,17 @@ Output:
     table the skill relays in :::detail.
   - Atomic write of `specs/guidance/ruleset-modules.yaml`.
 
+Example stdout:
+    {"main_module_name": "eligibility", "primary_output_present": true, "cross_source_language_scan_recommended": false, "subm_count": 2, "dropped_candidates": [{"name": "income_chain", "reason": "spans stages [initial_screening, deductions] and cannot be split"}]}
+    --- DETECT-RULESET-MODULES-HEADER-END ---
+    Ruleset Modules
+    ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+      # │ Name                   │ Role │ Bound Entities             │ Heuristic              │ Basis
+      1 │ adjusted_earned_income │ sub  │ ClientStatement, DOLRecord │ reuse_across_entities  │ Shared computation: adjusted_earned_income
+      2 │ deduction_chain        │ sub  │ Household                  │ depth_threshold        │ Depth chain: deduction_* variables
+      3 │ eligibility            │ main │ —                          │ main_module            │ Determine Medicaid Income Eligibility
+    ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 Usage:
     xlator detect-ruleset-modules <domain> [--main-module-name <name>]
 
@@ -1374,30 +1385,39 @@ def _atomic_write(dest: Path, content: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _format_table(modules: list[dict]) -> str:
-    """Human-readable summary table the skill relays in :::detail."""
+    """Human-readable summary table the skill relays in :::detail.
+
+    The Basis column carries each entry's `description:` — for tool-detected
+    sub-modules this is the deterministic-template basis (e.g.,
+    "Shared computation: <name>" for H1, "Sequential chain ending at <tail>"
+    for H3); for the main-module entry it is the `display_name` from
+    metadata.yaml; for existing entries preserved by UPDATE mode it is
+    whatever description the analyst wrote.
+    """
+    divider = (
+        "──────────────────────────────────────────────────────────────────"
+        "──────────────────────────────────────────────────"
+    )
     header = (
         "Ruleset Modules\n"
-        "─────────────────────────────────────────────────────────────────────────\n"
-        "  # │ Name              │ Role │ Bound Entities          │ Heuristic"
+        + divider + "\n"
+        "  # │ Name                   │ Role │ Bound Entities             "
+        "│ Heuristic              │ Basis"
     )
     if not modules:
-        return (
-            header
-            + "\n  (none)\n"
-            + "─────────────────────────────────────────────────────────────────────────"
-        )
+        return header + "\n  (none)\n" + divider
     lines = [header]
     for i, m in enumerate(modules, 1):
         name = str(m.get("name", ""))
         role = str(m.get("role", "sub"))
         bound = ", ".join(m.get("bound_entities") or []) or "—"
         rationale = str(m.get("rationale", ""))
+        basis = str(m.get("description", "")) or "—"
         lines.append(
-            f"  {i} │ {name:<17} │ {role:<4} │ {bound:<23} │ {rationale}"
+            f"  {i} │ {name:<22} │ {role:<4} │ {bound:<26} "
+            f"│ {rationale:<22} │ {basis}"
         )
-    lines.append(
-        "─────────────────────────────────────────────────────────────────────────"
-    )
+    lines.append(divider)
     return "\n".join(lines)
 
 
