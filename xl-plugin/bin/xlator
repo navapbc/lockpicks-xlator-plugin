@@ -131,6 +131,12 @@ case "$1" in
     scan-ruleset-groups)
         exec uv run "$TOOLS_DIR/scan_ruleset_groups.py" "${@:2}"
         ;;
+    skeleton-signals)
+        exec uv run "$TOOLS_DIR/skeleton_signals.py" "${@:2}"
+        ;;
+    emit-skeleton)
+        exec uv run "$TOOLS_DIR/emit_skeleton.py" "${@:2}"
+        ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
     # without needing to know where xlator.py is or worry about environment variables,
