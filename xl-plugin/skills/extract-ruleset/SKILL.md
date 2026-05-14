@@ -62,20 +62,31 @@ Run these checks before doing anything else:
        :::
        Then stop.
 
-Run shared pre-flight checks 3–5 from `../../core/ruleset-shared.md`.
+3. **Load extraction context (deterministic).**
 
-**After Check 4 (guidance files loaded):** Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `extract`. Store the returned work-list for use in Steps 3b, 4, SP-Validate, Step 7, SP-TagOutputs, and SP-CompleteExtraction.
-- If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
-- If the work-list has exactly one entry (ruleset_modules: empty) → proceed as today (single-file path; all steps below behave identically to prior behavior).
+   Run:
+   ```bash
+   xlator load-extraction-context <domain> [<program>] --mode extract
+   ```
 
-**After Check 5 (in-scope source set resolved):** Run **SP-LoadInputIndex** (from `../../core/ruleset-shared.md`) with `domain=<domain>`, `mode=batch`, and `paths` set to the in-scope source set:
-- If Check 5 fired (2+ files): `paths` is the list of `input/policy_docs/<rel>.md` keys the user selected (a single number, comma-separated numbers, or every file when `a` was chosen).
-- Else (1 file): `paths = ["input/policy_docs/<the-file>.md"]`.
+   This tool subsumes pre-flight checks 3–5 from `../../core/ruleset-shared.md`, plus `SP-LoadInputIndex` and `SP-LoadGuidanceShas`. It reads every guidance file + `naming-manifest.yaml` + `policy_facets/input-index.yaml` + `extraction-manifest.yaml` (if present), runs the working-tree drift check on `input-index.yaml`'s recorded SHAs, computes `git hash-object` for every `specs/guidance/*.yaml` + `specs/naming-manifest.yaml`, resolves the multi-file work-list from `ruleset-modules.yaml`, and emits a single JSON payload to stdout.
 
-Store the returned `{path → sha}` map for use in Step 5 (Write Extraction Manifest).
-- If SP-LoadInputIndex emits an abort signal → stop with the message it printed. Do not advance to Step 1.
+   On non-zero exit: relay the tool's stderr in `:::error` and stop. The tool exits 1 on working-tree drift (with `Re-run /index-inputs <domain>`), 2 on missing required files (with the specific file path).
 
-**Immediately after SP-LoadInputIndex succeeds:** Run **SP-LoadGuidanceShas** (from `../../core/ruleset-shared.md`) with `domain=<domain>`. Store the returned `{guidance-path → sha}` map for use in Step 5 to fill the `consumed_guidance[].sha:` block in `extraction-manifest.yaml`. The SP returns an empty map when no `specs/guidance/*.yaml` files exist — that case is fine; the resulting `consumed_guidance:` block is an empty list, not absent.
+   Parse the JSON payload. Bind the following structures to the AI's working context (used in later steps):
+   - `confirmed_exprs` — `{<variable>: <expression>}`. Used in Step 4 when emitting `computed:` fields.
+   - `example_rules` — anchor block at the top of the main module's CIVIL draft.
+   - `guidance_output_set` — list of variable names to be tagged `expose` in Step 4.
+   - `constants_tables_seed` — pre-seeds `tables:` and `constants:` in Step 4.
+   - `per_module_sample_rules` — sub-module anchor blocks in Step 4 (multi-file).
+   - `input_index_shas`, `guidance_shas` — used in Step 5 to populate `extraction-manifest.yaml`.
+   - `work_list` — drives multi-file extraction iteration (sub-modules first, main module last; `action: generate | reference`).
+   - `metadata`, `prompt_context`, `output_variables`, `input_variables`, `naming_manifest` — the full guidance docs for Step 1 internalization and Step 3b table pre-population.
+   - `program` — resolved program name (from `ruleset-modules.yaml`'s `role: main` entry, the CLI arg, or single-`*.civil.yaml` auto-detection). When `null` and `candidate_programs` is non-empty, prompt the user to choose one.
+
+   **If the work-list has exactly one entry** (ruleset_modules: empty) → proceed as today (single-file path). **If multiple entries** → proceed with multi-file branches throughout.
+
+4. **Multi-doc selection (Check 5 from `core/ruleset-shared.md`).** If `input/policy_docs/` contains 2+ `.md` files, follow Check 5's display logic (using the `input_index_shas` map to drive the rich indexed prompt). The selected set scopes the source docs read in Step 1.
 
 ---
 
@@ -83,39 +94,25 @@ Store the returned `{path → sha}` map for use in Step 5 (Write Extraction Mani
 
 ### Step 1: Read Policy Documents
 
-The guidance files were loaded in pre-flight. Internalize the following before reading any policy documents:
+The context payload from pre-flight already contains every guidance file + the naming manifest as parsed JSON. Internalize them now:
 
 ```
 ---
-[content of guidance/metadata.yaml, guidance/prompt-context.yaml,
- guidance/output-variables.yaml, guidance/input-variables.yaml,
- guidance/include-with-output.yaml, guidance/constants-and-tables.yaml,
- guidance/skeleton.yaml — paste verbatim as loaded.
- Plus specs/naming-manifest.yaml for structural variable data.]
+[content of metadata, prompt_context, output_variables, input_variables,
+ guidance_output_set, constants_tables_seed, and naming_manifest from the
+ pre-flight JSON payload]
 ---
 
 Use this goal to scope your reading:
-- Prioritize policy sections relevant to the input categories listed in `guidance/input-variables.yaml`.
-- Watch for intermediate values referenced in `guidance/skeleton.yaml`'s `computations:` block.
-- Target the primary output (the entry with `primary: true` in `guidance/output-variables.yaml`); its type comes from `specs/naming-manifest.yaml`'s `outputs:` block (mapped to CIVIL decisions[0]).
+- Prioritize policy sections relevant to the input categories listed in input_variables.
+- Watch for intermediate values whose expressions are in confirmed_exprs.
+- Target the primary output (the entry with primary: true in output_variables); its type comes from naming_manifest's outputs block.
 - Apply all constraints and standards listed above throughout Steps 1–7.
 ```
 
-Additionally, build five in-memory structures from the loaded guidance files:
+Read the caveman-compressed copies for the files selected via the pre-flight prompt. Translate each index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`.
 
-1. **Confirmed exprs map** `{variable_name → expr}`: Read `guidance/skeleton.yaml`'s `computations:` block. For each stage, iterate its `exprs:` map and add `name → expr` to the map. This map is used in Step 4.
-
-2. **Example rules list**: Read the top-level `sample_rules:` section from `guidance/sample-artifacts.yaml` (if present) as a list of seed CIVIL snippets. Each entry has `id:`, `rule_type:`, `source:`, and `civil:`. This list is used in Step 4 (main module / single-file path).
-
-3. **Guidance output set** `{variable_name}`: Read `guidance/include-with-output.yaml` (if present). It is a flat list of variable name strings; treat it as the include set. If the file is absent or empty, use an empty set. This set is used in Step 4 and SP-TagOutputs.
-
-4. **Constants/tables seed list** `[{name, description, source_file, source_section}]`: Read the top-level `constants_and_tables:` key from `guidance/constants-and-tables.yaml` (if present). For each entry, collect its `name:`, `description:`, `source_file:`, and `source_section:` — all four are required on every guidance entry. If the file is absent or empty, the list is empty. This list is used in Step 4.
-
-5. **Per-module sample rules map** `{module_name → [{id, rule_type, source, civil}]}`: Iterate `ruleset_modules:` from `guidance/ruleset-modules.yaml` (if present). For each entry, collect the module's `name:` and its `sample_rules:` list (empty list if the key is absent on that entry). If `ruleset_modules:` is absent or empty, the map is empty. This map is used in Step 4 (multi-file path only).
-
-Read the caveman-compressed copies for the files selected via the pre-flight prompt (all files if `a` was chosen, or the specific file(s) selected by number). Translate each index key's `input/policy_docs/` prefix to `policy_facets/compressed/` — see the "Index path keys vs content reads" section in `xl-plugin/CLAUDE.md`.
-
-**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` (a YAML map with one top-level key `sections`) and skim `data["sections"]` (heading/summary/tags/computations on each section block) to understand structure before reading the full compressed content. The source path of each per-file file is encoded in its relative location — strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
+**If `policy_facets/computations/` is populated**, use the per-file files as a reading guide: glob `policy_facets/computations/**/*.md.yaml`, then for each selected source file open the matching per-file file at `policy_facets/computations/<rel>.md.yaml` (a YAML map with one top-level key `sections`) and skim `data["sections"]` (heading/summary/tags/computations on each section block) to understand structure before reading the full compressed content. Strip the trailing `.yaml` from the per-file path: `policy_facets/computations/<rel>.md.yaml` describes `input/policy_docs/<rel>.md`; read the matching compressed file at `policy_facets/compressed/<rel>.md`.
 
 Identify:
 
@@ -151,16 +148,15 @@ After building the component map, run **SP-OrchestrationFilter** (from `../../co
 
 ### Step 3: Derive Program Name
 
-If SP-ResolveRulesetModules resolved a main module name from a `role: main` entry in `guidance/ruleset-modules.yaml` (Step 1b of SP-ResolveRulesetModules), use that name directly — no inference or prompt needed.
+If the pre-flight JSON payload's `program` field is populated (resolved from a `role: main` entry in `ruleset-modules.yaml` or auto-detected from a single `*.civil.yaml`), use that name directly — no inference or prompt needed.
 
-Otherwise (no `role: main` entry exists — backward compat path):
-1. Use `<program>` argument if given.
-2. Infer from the `module:` name found in the policy text (e.g., "SNAP income eligibility" → `eligibility`).
-3. If ambiguous, prompt: "What should the program file be named? (e.g., `eligibility`, `income_test`)"
+Otherwise (`program` is null and no CLI arg):
+1. Infer from the `module:` name found in the policy text (e.g., "SNAP income eligibility" → `eligibility`).
+2. If ambiguous, prompt: "What should the program file be named? (e.g., `eligibility`, `income_test`)"
 
 ### Step 3b: Name Inventory
 
-**Multi-file:** Build one Name Inventory table per `generate` entry in the SP-ResolveRulesetModules work-list (sub-modules first, main module last). Label each table `Name Inventory: <module_name>`. Display all tables together in a single presentation so the user can review cross-file naming at once, then confirm or adjust as a batch. For `reference` entries: skip (names are already set in the existing file).
+**Multi-file:** Build one Name Inventory table per `generate` entry in the work-list (sub-modules first, main module last). Label each table `Name Inventory: <module_name>`. Display all tables together in a single presentation so the user can review cross-file naming at once, then confirm or adjust as a batch. For `reference` entries: skip (names are already set in the existing file).
 
 **Single-file (ruleset_modules: empty):** produce one Name Inventory table as described below (existing behavior).
 
@@ -184,16 +180,16 @@ Present the result as a Markdown table with a **Source** column distinguishing s
 :::
 
 The **Source** column distinguishes three values:
-- **`seeded`**: from `specs/naming-manifest.yaml` with no `policy_phrase` (analyst declared via `/declare-target-ruleset`; provenance is null pre-extraction). Source Section column is blank. Policy Phrase column shows `<seeded>` placeholder.
-- **`confirmed`**: from `specs/naming-manifest.yaml` with a populated `policy_phrase` (was confirmed against a doc in a prior run). Source Section comes from the entry's `section`. The variable name on the row equals the existing specs key.
+- **`seeded`**: from the JSON payload's `naming_manifest` with no `policy_phrase` (analyst declared via `/declare-target-ruleset`; provenance is null pre-extraction). Source Section column is blank. Policy Phrase column shows `<seeded>` placeholder.
+- **`confirmed`**: from the JSON payload's `naming_manifest` with a populated `policy_phrase` (was confirmed against a doc in a prior run). Source Section comes from the entry's `section`. The variable name on the row equals the existing specs key.
 - **`extracted`**: surfaced from per-file `*.md.yaml` files via the aggregation algorithm below — names from `expr_hint:` LHSes plus AI-scanned `description:` prose for descriptive-only computations. Source Section is the per-file section's `heading:` value; the per-file file's source_doc (reconstituted from its relative path) provides per-row provenance.
 - **`algorithm-derived`**: no prior entry and no per-file extraction surfaced the concept; derived directly from policy text via the algorithm above.
 
-When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 by appending the prior specs key to the entry's `synonyms:` list.
+When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 by passing the prior specs key as `prior_name` in the inventory JSON (Step 7's merge tool appends it to the entry's `synonyms:` list).
 
 **Pre-populate the table from three sources:**
 
-1. **Manifest entries:** If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists, run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). For each entry:
+1. **Manifest entries:** Use the `naming_manifest` already loaded in the pre-flight JSON payload. For each entry:
    - **Confirmed entries** (have `policy_phrase`): pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`, **Source = `confirmed`**.
    - **Seeded entries** (no `policy_phrase`): pre-populate Field Name from the variable name key, Entity / Section from the entity key, **Source = `seeded`**. Source Section is blank (provenance not yet filled). Policy Phrase column shows `<seeded>` placeholder.
 
@@ -215,7 +211,7 @@ Do the field names in this table match your intent? You may edit any name.
 :::
 If the user changes any name, update the table and re-present. Loop until the user explicitly approves. Use the approved names in Step 4 onward.
 
-When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it is appended to the rewritten entry's `synonyms:` list). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
+When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it is passed as `prior_name` in the inventory JSON). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
 
 **`source:` population:** In Step 4, populate `source:` on every `FactField`, `ComputedField`, `TableDef`, and `Rule` as an object with two subfields:
 
@@ -228,11 +224,11 @@ When a confirmed specs entry's Field Name is edited (rename), retain the prior s
 
 **Name binding:** Before writing any CIVIL YAML, re-read the approved Name Inventory table(s) from Step 3b. Use **only** those approved field names for every `inputs:`, `computed:`, `outputs:`, `tables:`, and `constants:` entry — do not re-derive names from policy text.
 
-**Multi-file:** Iterate the SP-ResolveRulesetModules work-list in generation order (sub-modules first, main module last). For each `generate` entry, apply the full drafting logic below. For each `reference` entry, skip drafting entirely (the file is already on disk).
+**Multi-file:** Iterate the work-list in generation order (sub-modules first, main module last). For each `generate` entry, apply the full drafting logic below. For each `reference` entry, skip drafting entirely (the file is already on disk).
 
 **Sub-module files:** Draft as a standard CIVIL module (no `invoke:` fields). Sub-module computed fields that will be accessed by the parent module via dot-access **must** have `tags: [expose]`. Remind yourself of the parent's planned `invoke:` fields when choosing which computed fields to mark as expose.
 
-**Main module with sub-modules:** Draft with `invoke:` computed fields using the confirmed `bind:` maps from SP-ResolveRulesetModules's work-list. Use confirmed field names from the sub-module Name Inventory tables (or actual field names from `reference` files) in dot-access expressions (e.g., `client_result.net_income`). Each `invoke:` field has `type: object` and a `module:` matching the sub-module name.
+**Main module with sub-modules:** Draft with `invoke:` computed fields using the confirmed `bind:` maps from the work-list. Use confirmed field names from the sub-module Name Inventory tables (or actual field names from `reference` files) in dot-access expressions (e.g., `client_result.net_income`). Each `invoke:` field has `type: object` and a `module:` matching the sub-module name.
 
 **Single-file (ruleset_modules: empty):** existing behavior unchanged.
 
@@ -240,35 +236,35 @@ When a confirmed specs entry's Field Name is edited (rename), retain the prior s
 - **If present:** copy the list directly into `rule_set.ruleset_groups` in the emitted CIVIL file. This enables `rule.group:` annotations to be validated immediately.
 - **If absent:** omit the `ruleset_groups:` key from `rule_set:` entirely (the CIVIL schema treats it as optional, defaulting to `[]`).
 
-**If the example rules list (from Step 1) is non-empty**, display those rules at the top of the CIVIL draft output for the **main module** (single-file path or main module in multi-file path) before emitting any new content:
+**If `example_rules` (from the JSON payload) is non-empty**, display those rules at the top of the CIVIL draft output for the **main module** (single-file path or main module in multi-file path) before emitting any new content:
 
 ```
 # === User-approved example rules ===
 # These rules were confirmed by the user. Use them as anchors for CIVIL
 # structure, citation format, and naming style throughout this draft.
-<civil: content of each sample_rules entry>
+<civil: content of each example_rules entry>
 # =========================================================
 ```
 
-**Multi-file — sub-module anchor injection:** For each **sub-module** `generate` entry, look up the module's `name:` in the per-module sample rules map (from Step 1). If the list is non-empty, display it before emitting any new content for that sub-module:
+**Multi-file — sub-module anchor injection:** For each **sub-module** `generate` entry, look up the module's `name:` in the `per_module_sample_rules` map (from the JSON payload). If the list is non-empty, display it before emitting any new content for that sub-module:
 
 ```
 # === User-approved example rules (module: <name>) ===
 # These rules were confirmed by the user. Use them as anchors for CIVIL
 # structure, citation format, and naming style throughout this sub-module draft.
-<civil: content of each ruleset_modules[<name>].sample_rules entry>
+<civil: content of each per_module_sample_rules[<name>] entry>
 # =========================================================
 ```
 
 If a sub-module's per-module list is empty, skip the anchor block for that module.
 
-**When emitting `computed:` fields**, check the confirmed exprs map (from Step 1) first:
-- If the variable name appears in the map, use its `expr:` value directly and add the YAML comment `# expr confirmed in /refine-guidance` on the same line or immediately above the `expr:` field.
+**When emitting `computed:` fields**, check `confirmed_exprs` (from the JSON payload) first:
+- If the variable name appears in the map, use its value directly and add the YAML comment `# expr confirmed in /refine-guidance` on the same line or immediately above the `expr:` field.
 - For variables not in the map, infer `expr:` from policy text as normal.
 
-Additionally, check the guidance output set (from Step 1): if the variable name is in the set, add `tags: [expose]` immediately after the `type:` line in the emitted CIVIL YAML for that field.
+Additionally, check `guidance_output_set` (from the JSON payload): if the variable name is in the set, add `tags: [expose]` immediately after the `type:` line in the emitted CIVIL YAML for that field.
 
-**When emitting `tables:` and `constants:` sections**, if the constants/tables seed list (from Step 1) is non-empty, begin with the seeded entries before drafting from policy text:
+**When emitting `tables:` and `constants:` sections**, if `constants_tables_seed` (from the JSON payload) is non-empty, begin with the seeded entries before drafting from policy text:
 - For each entry in the seed list, infer whether it is a `tables:` entry or a `constants:` entry from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → table; "fixed", "rate", "percentage", "flat amount" → constant).
 - **Table entry:** emit a `tables:` skeleton using the seed `name:` (snake_case), the seed `description:`, and placeholder `key:`, `value:`, and `rows:` derived from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml` on the entry's name line. If no matching policy text is found, include the skeleton as a stub and add `# not found in policy — verify manually`.
 - **Constant entry:** emit a `constants:` entry using the seed `name:` (UPPER_SNAKE_CASE) with its value filled from policy text. Add the YAML comment `# pre-seeded from guidance/constants-and-tables.yaml`. If no value is found in policy text, use `null  # not found in policy — verify manually`.
@@ -277,7 +273,7 @@ Additionally, check the guidance output set (from Step 1): if the variable name 
 
 Create `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`:
 
-**Before drafting `outputs:`,** identify the primary output (the entry with `primary: true` in `guidance/output-variables.yaml`) and read its `type:` from `specs/naming-manifest.yaml`'s `outputs.<primary_name>.type`:
+**Before drafting `outputs:`,** identify the primary output (the entry with `primary: true` in `output_variables` from the JSON payload) and read its `type:` from the `naming_manifest`'s `outputs.<primary_name>.type`:
 - **`bool`** (default) — use `type: bool` with `expr: "count(reasons) == 0"`
 - **`enum`** — use `type: string` + `values:` + `conditional:` (see template below); `enum` maps to `string` in CIVIL
 - **other scalar** (`money`, `int`, `float`) — use a typed output decision with `expr:` instead of `computed:` + `tags: [expose]`
@@ -473,9 +469,9 @@ programs:
 
 **Multi-file (ruleset_modules: non-empty):** write using the multi-file format (see `../../core/civil-quickref.md` — Authoring Tooling Schemas section). For each `reference` entry in the work-list, set `referenced: true` in its `sub_modules:` entry; for `generate` entries, set `referenced: false`. Each sub-module entry also carries its own `consumed_guidance:` block using the same `{path, sha}` shape — populate it identically to the parent program's block (sub-modules consume the same guidance set as the parent in v1).
 
-For each `source_docs:` entry being written, read the SHA from the `{path → sha}` map produced by **SP-LoadInputIndex** in pre-flight, keyed on the entry's `path:` (`input/policy_docs/<rel>.md`). Write that value verbatim into the entry's `git_sha:` field. Do not run `git hash-object` here — the SP already computed the working-tree drift check, so the indexed SHA is guaranteed to match the bytes being extracted. Field-name translation: the index field is `sha:`, the manifest field is `git_sha:`; the value is identical (see `../../core/ruleset-shared.md` SP-LoadInputIndex "Field-name translation contract").
+For each `source_docs:` entry, read the SHA from the `input_index_shas` map in the pre-flight JSON payload, keyed on the entry's `path:` (`input/policy_docs/<rel>.md`). Write that value verbatim into `git_sha:`. Do not run `git hash-object` here — the pre-flight tool already validated drift, so the indexed SHA matches the bytes being extracted.
 
-For each `consumed_guidance:` entry, read the SHA from the `{guidance-path → sha}` map produced by **SP-LoadGuidanceShas** in pre-flight, keyed on the entry's `path:` (`specs/guidance/<file>.yaml` or `specs/naming-manifest.yaml`). Write that value verbatim into the entry's `sha:` field. Enumerate every path that appears in the map — the resulting `consumed_guidance:` list reflects the full state of the guidance tier at extract time. When the SP returns an empty map (no `specs/guidance/*.yaml` files), write `consumed_guidance: []` (an empty list, not an absent field). This block enables the `/check-freshness` tier-3 drift check (`civil_stale`); without it, the freshness check reports `civil_manifest_missing`.
+For each `consumed_guidance:` entry, read the SHA from the `guidance_shas` map in the pre-flight JSON payload, keyed on the entry's `path:` (`specs/guidance/<file>.yaml` or `specs/naming-manifest.yaml`). Enumerate every path that appears in the map — the resulting list reflects the full state of the guidance tier at extract time. When the map is empty (no `specs/guidance/*.yaml` files), write `consumed_guidance: []`.
 
 ### Step 6: Validate CIVIL files
 
@@ -491,91 +487,59 @@ Do not proceed to the next file after a validation failure.
 
 ### Step 7: Write Naming Manifest
 
-Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
+Build the analyst-approved Name Inventory from Step 3b as an inventory JSON file, then call `xlator merge-naming-manifest` to apply the deterministic merge rules (preserve-non-null, rename-via-synonyms-append, drop-on-rename, seeded-entry gap-fill, carry-forward synonyms, entity-grouped `inputs:`).
 
-**Seeded-entry handling.** When the Name Inventory's Source column for an entry is `seeded`, the entry already exists in `specs/naming-manifest.yaml` with nullable provenance (no `policy_phrase`, no `source_doc`, no `section`). For each such entry the analyst confirmed against an observed phrase in Step 3b:
-- Fill `policy_phrase:` from the observed entry's policy phrase (the Source Section column's policy_phrase value, joined to the seeded entry by name-equality).
-- Fill `source_doc:` and `section:` from the observed entry's provenance.
-- Apply the preserve-non-null rule below: existing analyst-supplied fields on the seeded entry (description, type, values) are preserved; null/absent fields gap-fill from the matched defaults entry.
+**1. Build the inventory JSON.** For each row in the approved Name Inventory table(s), construct one inventory entry:
 
-For seeded entries the analyst did NOT match against an observation in Step 3b (still standalone after confirmation), leave provenance fields null. They remain seeded-but-unobserved; the next `/index-inputs` run may surface a matching observation and a future Step 7 will fill provenance retroactively.
-
-**`policy_phrase:` derivation.** For each entry being written, derive `policy_phrase:` from the source policy doc's verbatim text scoped to the section the name was observed in:
-- For rows with Source = `confirmed` or `seeded` (existing specs entries): when the analyst confirmed an unfilled (seeded) phrase against an observation in Step 3b, fill `policy_phrase:` from the analyst-confirmed observation. When the entry was already confirmed, preserve the existing `policy_phrase:` per the preserve-non-null rule below.
-- For rows with Source = `extracted` (surfaced by per-file aggregation): read the caveman-compressed source doc at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` (where `<rel>.md` is reconstituted from the per-file file's relative path under `policy_facets/computations/`). Scope the scan to the section the name was observed in by using the per-file section's `heading:` value as a boundary marker — locate the heading in the compressed source and read text up to the next heading of equal or higher level. Within that scoped text, extract the verbatim noun phrase per the rule in `core/naming_guide.md` lines 34–54. If the section heading cannot be located in the compressed source (boundary edge case at start or end of doc), fall back to scanning the whole file but log a `policy_phrase:` derivation warning.
-- For rows with Source = `algorithm-derived`: derive `policy_phrase:` from the policy text directly per the same verbatim rule, using the heading and surrounding paragraph the analyst pointed to during Step 3b confirmation.
-
-**Rename tracking via `synonyms:`.** Rename anchoring re-uses the existing `synonyms:` list rather than a dedicated `original_name:` field:
-
-- If the analyst's confirmed Field Name equals the existing specs entry's key (analyst kept the same name), **do not append anything to `synonyms:`** for this entry.
-- If the analyst's confirmed Field Name differs from the existing specs entry's key (analyst renamed it in Step 3b), append `{name: <prior-specs-key>}` to the new entry's `synonyms:` list — the prior key joins the rename chain as a rename-anchor synonym (no `source_doc:` or `section:`, since the prior name was the analyst's prior choice, not an observed phrasing).
-- If the entry is new (Source = `extracted` or `algorithm-derived` with no matching prior specs entry), do not append anything — there is no prior canonical to record.
-
-**Optional fields.** `description:`, `type:`, `values:`, and `synonyms:` are no longer auto-propagated from any external file. Sources for these fields:
-- Analyst-supplied during Step 3b confirmation, or already present on a prior `confirmed` specs entry (preserved per the preserve-non-null rule below).
-- AI-inferred from policy text when the source carries an unambiguous signal — `type:` from a currency marker / yes-no phrasing / bulleted enum / etc.; `description:` from a definitional sentence in the source; `values:` from an enumerated list when `type: enum` is inferred.
-- Otherwise omitted (specs entries' optional fields are nullable per the existing schema).
-
-`role_hint:` is intentionally excluded because specs encodes role via the section placement (`inputs.<Entity>` vs `computed:` vs `outputs:`). `synonyms:` carries two kinds of entries: **observed-phrasing synonyms** (curated by the analyst, with `source_doc:` and `section:` populated to anchor the alternative name in policy text) and **rename-anchor synonyms** (appended by Step 7 on each rename round, with `source_doc:` and `section:` omitted).
-
-**Multi-file:** Write one consolidated `naming-manifest.yaml` covering all `generate` entries in the work-list (sub-modules first, main module last). Merge entries from each module into the appropriate `inputs:`, `computed:`, and `outputs:` sections.
-
-```yaml
-version: "1.0"
-inputs:
-  <EntityName>:
-    <field_name>:
-      policy_phrase: "<exact policy phrase derived per Step 7 rule>"
-      description: "<analyst- or AI-inferred>"    # optional; omitted when absent
-      type: "<money|bool|int|float|string|enum|list|date>"  # optional; omitted when absent
-      values: ["<a>", "<b>"]                      # optional; only when type: enum
-      source_doc: "<source filename>"
-      section: "<source title, heading, and paragraph>"
-      synonyms:                                   # optional; observed-phrasing entries plus rename-anchor entries
-        - name: <alt-name>                        # observed in policy text
-          source_doc: <input/policy_docs/...>
-          section: "<...>"
-        - name: <prior-specs-key>                 # rename-anchor (Step 7 append; no source_doc/section)
-  # repeat for each entity
-computed:
-  <field_name>:
-    policy_phrase: "<exact policy phrase>"
-    description: "<analyst- or AI-inferred>"      # optional
-    type: "<...>"                                 # optional
-    values: ["<...>"]                             # optional; only when type: enum
-    source_doc: "<source filename>"
-    section: "<source title, heading, and paragraph>"
-    synonyms:                                     # optional; observed-phrasing + rename-anchor
-      - name: <alt-name>
-        source_doc: <input/policy_docs/...>
-        section: "<...>"
-      - name: <prior-specs-key>                   # rename-anchor (no source_doc/section)
-outputs:
-  <field_name>:
-    policy_phrase: "<exact policy phrase from Name Inventory>"
-    description: "<analyst- or AI-inferred>"      # optional
-    type: "<...>"                                 # optional
-    values: ["<...>"]                             # optional; only when type: enum
-    source_doc: "<source filename>"
-    section: "<source title, heading, and paragraph>"
-    synonyms:                                     # optional; observed-phrasing + rename-anchor
-      - name: <alt-name>
-        source_doc: <input/policy_docs/...>
-        section: "<...>"
-      - name: <prior-specs-key>                   # rename-anchor (no source_doc/section)
-  # repeat for each outputs: field
+```json
+{
+  "name": "<approved snake_case Field Name>",
+  "section": "inputs.<Entity>" | "computed" | "outputs",
+  "policy_phrase": "<exact verbatim phrase from policy doc>" | null,
+  "source_doc": "input/policy_docs/<rel>.md" | null,
+  "section_text": "<§ citation> — <heading>" | null,
+  "prior_name": "<previous specs key>" | null,
+  "description": "<analyst- or AI-supplied>" | null,
+  "type": "<money|bool|int|float|string|enum|list|set|date|object>" | null,
+  "values": ["<a>", "<b>"] | null,
+  "observed_synonyms": [
+    {"name": "<alt-name>",
+     "source_doc": "input/policy_docs/<rel>.md",
+     "section": "<§ citation> — <heading>"}
+  ] | null
+}
 ```
 
-**Re-run merge — replace-on-rename, keyed by entry identity** (CREATE re-run when the file already exists):
+Rules for building each entry:
+- **`name`**: the analyst-approved Field Name from Step 3b (snake_case).
+- **`section`**: `inputs.<EntityName>` for input fields (3-level structure); `computed` or `outputs` (flat).
+- **`policy_phrase`**: the verbatim noun phrase from the source policy doc, scoped to the section the name was observed in. For `confirmed`/`seeded` rows where the analyst confirmed the name against an observation, fill from the observation. For `extracted`/`algorithm-derived` rows, derive per the verbatim rule in `core/naming_guide.md` lines 34–54 using the caveman-compressed source at `policy_facets/compressed/<rel>.md`. If no observation exists (seeded entry not confirmed this round), set to `null` — the merge tool preserves null provenance.
+- **`source_doc`**: `input/policy_docs/<rel>.md` for the file the policy_phrase was observed in. `null` when policy_phrase is null.
+- **`section_text`**: `"<§ citation> — <heading>"` from the section the policy_phrase was observed in. `null` when policy_phrase is null.
+- **`prior_name`**: the prior specs key when the analyst renamed an entry in Step 3b (Source = `confirmed` with edited Field Name). `null` for non-renames and for new entries.
+- **`description`, `type`, `values`**: optional analyst- or AI-supplied values. AI-infer `type:` from currency markers / yes-no phrasing / enumerated lists when the source carries an unambiguous signal. AI-infer `description:` from definitional sentences. Set to `null` to defer to whatever the existing entry has (preserve-non-null).
+- **`observed_synonyms`**: optional. For curated alternative phrasings observed in policy text. Each entry has `name` (required), `source_doc` and `section` (recommended for traceability). Omit or set `null` when there are no curated synonyms this round.
 
-- For each entry being written, identify its prior specs counterpart by **field-name match** against the existing specs entries. (When a confirmed entry's name is unchanged, the new and prior keys match. When the analyst renamed in Step 3b, the rename anchor is the prior specs key carried alongside the row.)
-- **Match found, name matches existing key (analyst kept the same name):** preserve the existing entry's populated fields, including any `synonyms:` already on it. **Preserve-non-null rule:** on a name-match re-run, the writer preserves a field's value when present (non-null), and fills it only when null or absent. This composes cleanly with seed-time analyst values (preserved when supplied) and AI-inferred or analyst-confirmed values (filled when blank). Provenance fields (`policy_phrase`, `source_doc`, `section`) are gap-fillable when null, which is exactly what seeded entries arriving at Step 7 with provenance still null require. To force re-derivation of an analyst-supplied value, delete the field from specs and re-run `/extract-ruleset`.
-- **Match found, name differs (analyst renamed in this run):** **replace** the existing entry — write the new entry under the new field-name key. Carry the existing entry's `synonyms:` list forward, then append `{name: <existing-key>}` to it as a new rename-anchor synonym (no `source_doc:`/`section:`). Skip the append when `<existing-key>` is already present in the carried list (idempotent on re-runs that don't actually rename). The full rename chain accumulates in `synonyms:` across rounds. Drop the existing entry from the file (no duplicate). Optional fields (`description:` / `type:` / `values:`) are carried forward from the existing entry under the preserve-non-null rule above.
-- **No match (new entry):** append a new entry. New entries surfaced via the per-file aggregation or algorithm-derived path do not carry rename-anchor synonyms — there is no prior specs canonical to anchor against.
+Write the inventory list to a tempfile (e.g., `tempfile.NamedTemporaryFile(suffix='.json', mode='w')`), then close before passing the path.
 
-This preserves rename-chain integrity across multiple rename rounds — every prior canonical name accumulates as a synonym, so downstream consumers can resolve any historical name to the current canonical by scanning `synonyms[].name`.
+**2. Run the merge tool:**
 
-This file is user-editable. Do **not** add an "auto-generated" comment.
+```bash
+xlator merge-naming-manifest <domain> <program> --inventory <tmpfile>
+```
+
+The tool reads the existing `specs/naming-manifest.yaml`, applies the merge rules, and writes the merged manifest atomically. It emits a JSON header line on stdout followed by `--- MERGE-NAMING-MANIFEST-HEADER-END ---` and a human summary. Parse the JSON header for counters; relay the summary in `:::important`.
+
+On non-zero exit: relay the tool's stderr in `:::error` and stop. The tool exits 1 on inventory schema violation (`ERROR: inventory[<N>].<field>: <reason>`) or pathological conflict (both `name` and `prior_name` exist as separate entries); exit 2 on missing domain or missing inventory file.
+
+The tool enforces the load-bearing invariants from the prior prose version of Step 7:
+- **Preserve-non-null:** for every entry being written, existing non-null fields win; inventory fills null fields. Seeded-entry provenance gap-fill is the same rule applied to `policy_phrase`/`source_doc`/`section`.
+- **Rename via `synonyms:`-append:** when `prior_name` matches an existing key in the same section, the old entry is dropped and a `{name: <prior_name>}` rename-anchor synonym is appended (no `source_doc:`/`section:`). Idempotent on re-runs (skips append when the prior key is already in the carried synonyms list).
+- **Carry-forward synonyms:** the new entry inherits the existing entry's full `synonyms:` list before the rename-anchor is appended; rename chains accumulate across multiple rename rounds.
+- **`role_hint:` is never written** — section placement encodes role.
+- **`inputs.<Entity>` is 3-level; `computed:` and `outputs:` are flat.**
+
+The merged manifest is user-editable. Do **not** add an "auto-generated" comment.
 
 ---
 
@@ -602,18 +566,10 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/<sub_module>.civil.yaml` | Created (for each generated sub-module, if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Written by `xlator merge-naming-manifest` (Step 7, after validation) |
 | `$DOMAINS_DIR/<domain>/policy_facets/computations/<rel>.md.yaml` | Read-only (per-file section data; if present) |
 | `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required — run `/declare-target-ruleset <domain>` first) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml` | Read (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Read (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Read (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` | Read (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-groups.yaml` | Read (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance/sample-artifacts.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/*.yaml` | Read (via `xlator load-extraction-context`) |
+| `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml` | Read (via `xlator load-extraction-context`) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.
