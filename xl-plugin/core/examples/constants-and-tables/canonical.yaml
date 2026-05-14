@@ -1,0 +1,20 @@
+constants_and_tables:
+  - name: medicaid_income_standards
+    description: "Monthly Medicaid income standard table keyed by (eligibility_category, household_size) yielding the dollar threshold below which a case is income-eligible. Covers household_size 1–8 across all eligibility categories (family, child, working_disabled, qmb, slmb, qdwi)."
+    source_file: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md"
+    source_section: "Addendum 1"
+
+  - name: general_income_disregard
+    description: "Standard $20 monthly general income disregard subtracted once from total gross income (earned plus unearned) before comparing to the income standard."
+    source_file: "input/policy_docs/medicaid_manual/income_eligibility.md"
+    source_section: "MS 523 A.2. GENERAL INCOME DISREGARD"
+
+  - name: alaska_state_supplement_adjustments
+    description: "Additional disregard amounts applied when state_supplement_applies is true, keyed by household_size. Residency-dependent; populated for Alaska residents only."
+    source_file: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md"
+    source_section: "Addendum 1 — State Supplement"
+
+  - name: qualified_non_citizen_categories
+    description: "Enumeration of non-citizen statuses that qualify as 'U.S. citizen or qualified non-citizen' for the is_us_citizen check — Legal Permanent Resident with ≥5 years residency, refugee, asylee, Cuban/Haitian entrant, victim of trafficking, and Iraqi/Afghan special immigrant."
+    source_file: "input/policy_docs/medicaid_manual/citizenship_eligibility.md"
+    source_section: "MS 521. CITIZENSHIP AND ALIEN STATUS"

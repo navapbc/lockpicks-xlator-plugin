@@ -1,0 +1,9 @@
+eligibility_decision:
+  description: "Final Medicaid income eligibility decision based on whether countable income is under the household-size-adjusted income standard, gated by citizenship and residency."
+  examples: ["authorize", "deny", "further_verification_required"]
+  primary: true
+
+denial_reason:
+  description: "Reason for denial when eligibility_decision is deny. Empty/absent when eligibility_decision is authorize or further_verification_required."
+  examples: ["income_over_standard", "non_citizen", "non_resident", "missing_documentation"]
+  primary: false

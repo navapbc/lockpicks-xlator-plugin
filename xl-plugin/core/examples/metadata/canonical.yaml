@@ -1,0 +1,2 @@
+display_name: "Determine Medicaid Income Eligibility"
+description: "Decide whether to authorize, deny, or request further verification for an Alaska Medicaid case by comparing the applicant's countable monthly income against the household-size-adjusted income standard."

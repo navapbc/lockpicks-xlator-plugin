@@ -1,0 +1,31 @@
+categories:
+  - category: monthly_income
+    description: "Applicant's monthly income figures (earned and unearned) — the primary numeric inputs to the eligibility comparison."
+    examples: ["1250", "0", "3500"]
+    fields:
+      - name_ref: monthly_earned
+      - name_ref: monthly_unearned
+    source_file: "input/policy_docs/medicaid_manual/income_eligibility.md"
+    source_section: "MS 523 A. INCOME ELIGIBILITY"
+    exact_phrase: "Sum the applicant's gross monthly earned and unearned income before applying the general income disregard."
+
+  - category: applicant_demographics
+    description: "Applicant attributes that gate eligibility — citizenship, residency, and the program category that determines which income standard applies."
+    examples: ["is_us_citizen=true", "is_alaska_resident=true", "eligibility_category=family"]
+    fields:
+      - name_ref: is_us_citizen
+      - name_ref: is_alaska_resident
+      - name_ref: eligibility_category
+    source_file: "input/policy_docs/medicaid_manual/income_eligibility.md"
+    source_section: "MS 523 A. INCOME ELIGIBILITY"
+    exact_phrase: "An applicant must be a U.S. citizen (or qualified non-citizen) and a current Alaska resident to be income-eligible for Medicaid."
+
+  - category: case_composition
+    description: "Case-level facts used to look up the income standard — primarily household size, with a flag for the state-supplement adjustment."
+    examples: ["household_size=1", "household_size=4", "state_supplement_applies=true"]
+    fields:
+      - name_ref: household_size
+      - name_ref: state_supplement_applies
+    source_file: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md"
+    source_section: "Addendum 1"
+    exact_phrase: "The applicable income standard is selected from the program standards table using the household size."

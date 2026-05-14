@@ -1,0 +1,61 @@
+version: "1.0"
+
+inputs:
+  Applicant:
+    is_us_citizen:
+      type: bool
+      description: "Whether the applicant is a U.S. citizen or qualified non-citizen."
+    is_alaska_resident:
+      type: bool
+      description: "Whether the applicant is a current Alaska resident."
+    eligibility_category:
+      type: enum
+      description: "Medicaid eligibility category — one of: working_disabled, qmb, slmb, qdwi, family, child."
+  Income:
+    monthly_earned:
+      type: money
+      description: "Applicant's gross monthly earned income (wages, salaries, self-employment net)."
+      policy_phrase: "gross monthly earned income"
+      source_doc: "input/policy_docs/medicaid_manual/income_eligibility.md"
+      section: "MS 523 A. INCOME ELIGIBILITY"
+    monthly_unearned:
+      type: money
+      description: "Applicant's gross monthly unearned income (Social Security, pensions, child support)."
+      policy_phrase: "gross monthly unearned income"
+      source_doc: "input/policy_docs/medicaid_manual/income_eligibility.md"
+      section: "MS 523 A. INCOME ELIGIBILITY"
+  Case:
+    household_size:
+      type: int
+      description: "Number of countable household members for income-standard lookup (1–8 supported by the program standards table)."
+    state_supplement_applies:
+      type: bool
+      description: "Whether the Alaska State Supplement adjustment applies (residency-dependent)."
+
+computed:
+  general_income_disregard:
+    type: money
+    description: "Standard $20 monthly general income disregard subtracted from gross income before comparison (MS 523 A.2)."
+  countable_income:
+    type: money
+    description: "Sum of monthly_earned and monthly_unearned, minus the general income disregard."
+    policy_phrase: "countable income"
+    source_doc: "input/policy_docs/medicaid_manual/income_eligibility.md"
+    section: "MS 523 A. INCOME ELIGIBILITY"
+  income_standard:
+    type: money
+    description: "Applicable monthly income standard for the case, looked up by household_size from the Medicaid Income Standards table."
+    policy_phrase: "applicable income standard"
+    source_doc: "input/policy_docs/medicaid_manual/Addendum 1 PROGRAM STANDARDS.md"
+    section: "Addendum 1"
+  is_under_standard:
+    type: bool
+    description: "Whether countable_income is strictly less than income_standard."
+
+outputs:
+  eligibility_decision:
+    type: enum
+    description: "Final Medicaid income eligibility decision — one of: authorize, deny, further_verification_required."
+  denial_reason:
+    type: enum
+    description: "Reason for denial when eligibility_decision is deny — one of: income_over_standard, non_citizen, non_resident, missing_documentation."
