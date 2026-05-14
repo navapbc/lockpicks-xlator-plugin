@@ -65,8 +65,7 @@ After completion of an `xl` skill, suggest possible next steps based on these wo
 
 **Notes on ordering:**
 - `/tag-vars-to-include-with-output` is required before `/extract-ruleset` in UI-driven workflows (it populates `include_with_output`; skipping it causes `/extract-ruleset` to prompt mid-run).
-- `/create-sample-tests` is optional (planning scaffolding; `/extract-ruleset` does not read `sample_tests:`).
-- `/check-freshness <domain>` can run at any point to detect drift across tiers.
+- `/check-freshness <domain>` can run at any point to detect drift of input data on previously-created downstream artifacts.
 
 **After ruleset exists:**
 - `/create-demo <domain>` — generate a web-based ruleset demo
