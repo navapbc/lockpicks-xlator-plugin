@@ -49,21 +49,34 @@ def canonical_path(file_type: str) -> Path:
     return _CORE_EXAMPLES / file_type
 
 
-def load_canonical(file_type: str) -> dict:
-    """Load `<folder>/canonical.yaml` and return its parsed contents.
+def load_canonical(file_type: str) -> dict[str, object]:
+    """Load the canonical YAML for `file_type` and return its parsed contents.
+
+    Probes `<folder>/canonical.yaml` first, then `<folder>/canonical.civil.yaml`
+    so the helper covers both ordinary YAML canonicals and CIVIL ruleset
+    canonicals (per the corpus README's documented contract).
 
     Raises:
-        FileNotFoundError: when `<folder>/canonical.yaml` does not exist. The
-            message includes the resolved path so the caller can see exactly
-            where the loader looked.
-        ValueError: when `file_type` contains a path separator or traversal segment.
+        FileNotFoundError: when neither `canonical.yaml` nor `canonical.civil.yaml`
+            exists in the folder. The message includes the resolved folder so
+            the caller can see exactly where the loader looked.
+        ValueError: when `file_type` contains a path separator or traversal
+            segment, OR when the canonical file's top-level YAML node is not a
+            mapping (e.g., the file is empty, scalar-rooted, or list-rooted).
     """
     folder = canonical_path(file_type)
-    yaml_path = folder / "canonical.yaml"
-    if not yaml_path.is_file():
-        raise FileNotFoundError(
-            f"No canonical.yaml found for file_type {file_type!r}; "
-            f"looked at {yaml_path}"
-        )
-    with yaml_path.open() as f:
-        return yaml.safe_load(f)
+    for leaf in ("canonical.yaml", "canonical.civil.yaml"):
+        yaml_path = folder / leaf
+        if yaml_path.is_file():
+            with yaml_path.open() as f:
+                result = yaml.safe_load(f)
+            if not isinstance(result, dict):
+                raise ValueError(
+                    f"{yaml_path} did not parse as a YAML mapping "
+                    f"(got {type(result).__name__}); canonicals must be dicts."
+                )
+            return result
+    raise FileNotFoundError(
+        f"No canonical.yaml or canonical.civil.yaml found for file_type "
+        f"{file_type!r}; looked in {folder}"
+    )

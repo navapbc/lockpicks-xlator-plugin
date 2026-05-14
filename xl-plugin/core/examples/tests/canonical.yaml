@@ -87,8 +87,8 @@ tests:
 
   # --- /expand-tests null-input expansions: nil_ prefix ---
 
-  - case_id: "nil_zero_earned_unearned_only_001"
-    description: "Null-input — zero earned income with non-zero unearned. The $20 disregard still applies once, to the unearned income."
+  - case_id: "edg_zero_earned_unearned_only_001"
+    description: "Edge case — zero earned income with non-zero unearned. The $20 disregard still applies once, to the unearned income."
     inputs:
       Applicant:
         is_us_citizen: true
@@ -103,7 +103,7 @@ tests:
       eligibility_decision: "authorize"
       gross_income: 450
       countable_income: 430
-    tags: ["expand", "null_input", "allow"]
+    tags: ["expand", "edge_case", "allow"]
 
   # --- /expand-tests edge-case expansions: edg_ prefix ---
 

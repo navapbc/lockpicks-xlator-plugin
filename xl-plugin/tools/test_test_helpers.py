@@ -30,9 +30,9 @@ def test_load_canonical_returns_parsed_dict():
     assert "eligibility_decision" in manifest["outputs"]
 
 
-def test_load_canonical_works_for_every_yaml_canonical():
-    """Happy path — every YAML canonical in the corpus loads without error."""
-    yaml_file_types = [
+@pytest.mark.parametrize(
+    "file_type",
+    [
         "suggested-target",
         "naming-manifest",
         "metadata",
@@ -47,12 +47,17 @@ def test_load_canonical_works_for_every_yaml_canonical():
         "sample-tests",
         "tests",
         "input-index",
-    ]
-    for file_type in yaml_file_types:
-        result = load_canonical(file_type)
-        assert isinstance(result, dict), (
-            f"load_canonical({file_type!r}) did not return a dict"
-        )
+        "civil-ruleset",
+    ],
+)
+def test_load_canonical_works_for_every_yaml_canonical(file_type):
+    """Happy path — every YAML canonical in the corpus loads without error.
+
+    Includes `civil-ruleset` whose canonical lives at `canonical.civil.yaml`;
+    the helper probes both `.yaml` and `.civil.yaml` extensions.
+    """
+    result = load_canonical(file_type)
+    assert isinstance(result, dict)
 
 
 def test_canonical_path_returns_folder_not_file():
@@ -71,9 +76,32 @@ def test_canonical_path_returns_folder_not_file():
 def test_canonical_path_resolves_to_corpus_root():
     """Happy path — the resolved path is rooted under xl-plugin/core/examples/."""
     folder = canonical_path("compressed")
-    assert folder.parts[-3:] == ("xl-plugin", "core", "examples", "compressed")[-3:]
+    assert folder.parts[-4:] == ("xl-plugin", "core", "examples", "compressed")
     assert (folder / "source.md").exists()
     assert (folder / "canonical.md").exists()
+
+
+def test_canonical_path_resolves_computations_paired_files():
+    """Happy path — computations/ canonical_path resolves and both paired files exist."""
+    folder = canonical_path("computations")
+    assert (folder / "source.md").exists()
+    assert (folder / "canonical.md.yaml").exists()
+
+
+def test_load_canonical_raises_value_error_for_non_mapping_yaml(tmp_path, monkeypatch):
+    """Error path — a canonical that parses as a list/scalar/empty raises ValueError, not silent return."""
+    import test_helpers as th
+
+    monkeypatch.setattr(th, "_CORE_EXAMPLES", tmp_path)
+    (tmp_path / "list-rooted").mkdir()
+    (tmp_path / "list-rooted" / "canonical.yaml").write_text("- a\n- b\n")
+    with pytest.raises(ValueError, match="did not parse as a YAML mapping"):
+        load_canonical("list-rooted")
+
+    (tmp_path / "empty").mkdir()
+    (tmp_path / "empty" / "canonical.yaml").write_text("")
+    with pytest.raises(ValueError, match="did not parse as a YAML mapping"):
+        load_canonical("empty")
 
 
 def test_load_canonical_raises_for_unknown_file_type():
