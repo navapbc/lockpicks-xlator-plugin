@@ -143,6 +143,9 @@ case "$1" in
     merge-naming-manifest)
         exec uv run "$TOOLS_DIR/merge_naming_manifest.py" "${@:2}"
         ;;
+    review-buckets)
+        exec uv run "$TOOLS_DIR/review_buckets.py" "${@:2}"
+        ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
     # without needing to know where xlator.py is or worry about environment variables,
