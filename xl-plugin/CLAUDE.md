@@ -48,7 +48,9 @@ After completion of an `xl` skill, suggest possible next steps based on these wo
 **New domain → ruleset:**
 1. `/new-domain <domain>` — folder scaffold
 2. User adds `.md` policy docs to `$DOMAINS_DIR/<domain>/input/policy_docs/`
-3. `/index-inputs <domain>` — build the document index
+3. `/index-inputs <domain>` — build the document index; for each indexable source file, fans out to two per-file AI skills in parallel:
+  * `/compress-input <path>` — runs `/caveman:compress` on each input policy file to create `policy_facets/compressed/<rel>.md` so downstream skills can read a concise token-reduced version of the content
+  * `/extract-computations <path>` — parse the input policy file's sections and infer computations from the text to `policy_facets/computations/<rel>.md.yaml`
 4. Either `/refine-guidance <domain>` (orchestrated), or run step-by-step:
   * **Orchestrated:** `/refine-guidance <domain>` — runs the step-by-step skills below in sequence (bootstraps via `/suggest-target-ruleset` + `/declare-target-ruleset` on first run)
   * **Step-by-step (for UI-driven or incremental workflows):**
