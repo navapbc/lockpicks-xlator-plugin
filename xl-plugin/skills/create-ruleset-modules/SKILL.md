@@ -12,8 +12,10 @@ A ruleset module is a subset of rules within a ruleset group. Ruleset modules mu
 ## Input
 
 ```
-/create-ruleset-modules <domain>
+/create-ruleset-modules <domain> [<approximate_num_of_modules>]
 ```
+
+`approximate_num_of_modules` — optional positive integer (default `3`) that sets the target final module count used by Step 7's consolidation.
 
 Read `../../core/output-fencing.md` now.
 
@@ -59,7 +61,27 @@ The tool re-validates every other pre-flight condition (domain folder, `metadata
 
 6. If the tool's `dropped_candidates` array is non-empty, relay the dropped names and reasons in a `:::progress` block so the analyst sees what R21 split-or-drop removed.
 
-7. Record the guidance-tier manifest so `/check-freshness` can later detect drift between `policy_facets/` and this skill's outputs:
+7. **Consolidate modules to about `approximate_num_of_modules`.** Count the entries written to `specs/guidance/ruleset-modules.yaml` (including the main module). If the count is already about `approximate_num_of_modules`, skip this step.
+
+   Otherwise, propose merges so the final manifest lands at about `approximate_num_of_modules`. Merge candidates that:
+   - belong to the same ruleset group and share a clear policy theme (e.g., overlapping `depends_on`, related variables, or the same heuristic family),
+   - are narrow single-rule modules that fold naturally into a broader sibling,
+   - duplicate intent under different heuristic labels.
+
+   Never merge across ruleset group boundaries (R21). Draft 2–3 distinct consolidation plans that each land at about `approximate_num_of_modules` — e.g., an aggressive plan (fewer modules), a balanced plan (closest to `approximate_num_of_modules`), and a conservative plan (more modules). For each plan, show the resulting module list and the merges it applies in a `:::detail` block, then prompt:
+
+   :::user_input
+   Choose a consolidation plan (target ≈ <approximate_num_of_modules>):
+   [a] Plan A — aggressive (N modules)
+   [b] Plan B — balanced (N modules)
+   [c] Plan C — conservative (N modules)
+   [n] None — keep current modules
+   (or type in different response)
+   :::
+
+   Substitute the actual module counts; append additional letters if more than three plans are offered. On a plan selection, rewrite `specs/guidance/ruleset-modules.yaml` so the merged modules absorb the `sample_rules:`, `description:`, and `depends_on:` of the modules they replace. Preserve the main module entry. On `n` or a free-form decline, leave the file as-is.
+
+8. Record the guidance-tier manifest so `/check-freshness` can later detect drift between `policy_facets/` and this skill's outputs:
 
    ```bash
    xlator record-tier-manifest <domain> --tier guidance
@@ -67,7 +89,7 @@ The tool re-validates every other pre-flight condition (domain folder, `metadata
 
    If the command exits non-zero, emit `:::error` with the captured stderr and stop — do not proceed to `:::next_step`.
 
-8. Suggest next steps:
+9. Suggest next steps:
 
    :::next_step
    Next: Run /extract-sample-rules <domain> to extract sample rules.
