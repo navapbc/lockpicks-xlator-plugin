@@ -10,9 +10,9 @@ Provides:
   - FieldSpec / build_csv_field_specs() for CIVIL-to-CSV column mapping
     (consumed by export_test_template, export_test_cases, import_tests).
   - parse_expr_hint(), normalize_stage(), load_per_file_computations() for
-    skill-side detection tools (consumed by detect_ruleset_modules and
-    a sister scan-ruleset-groups tool — single source of truth so all
-    consumer skills apply identical parse / normalization rules).
+    skill-side detection tools (consumed by scan_ruleset_groups — single
+    source of truth so all consumer skills apply identical parse /
+    normalization rules).
 """
 
 from __future__ import annotations
