@@ -29,6 +29,7 @@ import os
 import pathlib
 import argparse
 import subprocess
+from typing import Callable
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -322,7 +323,7 @@ def _rewrite_between(expr: str) -> str:
     return "".join(result)
 
 
-def _rewrite_comprehension(expr: str, head: str, emit: callable) -> str:
+def _rewrite_comprehension(expr: str, head: str, emit: Callable[[str, str, str], str]) -> str:
     """Generic comprehension rewriter for `count(...)` / `exists(...)` forms.
 
     Walks `expr` left-to-right looking for token-bounded `<head>(`. For each
@@ -576,7 +577,8 @@ def _scan_sum_args(s: str, start: int) -> tuple[str, str, str, str | None, int] 
             i += 1
             continue
         if ch in "]}":
-            depth -= 1
+            if depth > 0:
+                depth -= 1
             i += 1
             continue
         if ch == ")":
@@ -610,8 +612,6 @@ def _civil_type_to_catala_sum_type(field_type: str | None) -> str:
         return "money"
     if field_type == "int":
         return "integer"
-    if field_type == "decimal" or field_type == "float":
-        return "decimal"
     return "decimal"
 
 
