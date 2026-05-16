@@ -466,7 +466,7 @@ def _scan_comprehension_iterables(expr: str) -> list[str]:
 
 
 def _validate_expressions(doc: dict, module_name: str) -> tuple[list[str], list[str]]:
-    """Expression-aware validation pass (CIVIL v8 — comprehension support).
+    """Expression-aware validation pass (CIVIL v11 — comprehension support).
 
     For every collected `(field_id, expr_str)` tuple:
       1. Call `extract_refs` — catch `ValueError` and emit a parse / qualified-access /
@@ -595,7 +595,7 @@ def validate(path: str) -> bool:
         print(f"\n{len(tl_errors)} table_lookup error(s) found in {path}", file=sys.stderr)
         return False
 
-    # CIVIL v8: expression-aware validation (parse errors, comprehension scope checks).
+    # CIVIL v11: expression-aware validation (parse errors, comprehension scope checks).
     expr_errors, expr_warnings = _validate_expressions(data, module.module)
     for warn in expr_warnings:
         print(f"WARNING: {warn}", file=sys.stderr)
