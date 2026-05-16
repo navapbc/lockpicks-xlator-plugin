@@ -12,10 +12,14 @@ A ruleset module is a subset of rules within a ruleset group. Ruleset modules mu
 ## Input
 
 ```
-/create-ruleset-modules <domain> [<approximate_num_of_modules>]
+/create-ruleset-modules <domain> [<approximate_num_of_modules> | <module_names>]
 ```
 
 `approximate_num_of_modules` — optional positive integer (default `3`) that sets the target final module count used by Step 7's consolidation.
+
+`module_names` — optional quoted, comma-separated list of sub-module names (e.g., `"eligibility,income,assets"`) used by Step 7 to consolidate detected candidates onto the analyst's chosen module set. Names only sub-modules — the main module is still resolved from `guidance/output-variables.yaml` or the Step 4 `--main-module-name` prompt. The analyst's exact strings are written to each entry's `name:` verbatim (no case or separator normalization).
+
+The second positional disambiguates by type: a bare integer is `approximate_num_of_modules`; any value that fails integer parsing (including a comma-bearing string or a single non-numeric word) is `module_names`. When both are somehow supplied, `module_names` wins and the count is ignored.
 
 Read `../../core/output-fencing.md` now.
 
@@ -61,14 +65,38 @@ The tool re-validates every other pre-flight condition (domain folder, `metadata
 
 6. If the tool's `dropped_candidates` array is non-empty, relay the dropped names and reasons in a `:::progress` block so the analyst sees what R21 split-or-drop removed.
 
-7. **Consolidate modules to about `approximate_num_of_modules`.** Count the entries written to `specs/guidance/ruleset-modules.yaml` (including the main module). If the count is already about `approximate_num_of_modules`, skip this step.
+7. **Consolidate modules.** Branch on whether `module_names` was provided:
+   - If `module_names` is set, follow **§7a (name-mode)**.
+   - Otherwise, follow **§7b (count-mode)**.
+
+   Never merge across ruleset group boundaries (R21) in either branch.
+
+   ### §7a — Name-mode consolidation
+
+   1. Load `specs/guidance/ruleset-modules.yaml` (just written by the tool earlier in this run). Read each non-main entry's `name:`, `description:`, `sample_rules:`, `depends_on:`, and `group:`.
+   2. For each non-main entry, choose the most semantically-fitting target name from `module_names` based on its `description`, `sample_rules`, and `depends_on`. Entries that fit no user-supplied name are placed in an `unmapped` bucket and kept as their own entries — they are never dropped.
+   3. Detect R21 violations: for each user-supplied name, collect the `group:` values of the entries folded into it. If more than one distinct group appears, that name is an R21 conflict. List conflicts in a `:::detail` block and ask the analyst to revise names, accept a partial mapping (the conflicting name is split into one entry per group), or decline. Do not violate R21 silently.
+   4. Show the proposed mapping in `:::detail` as a `name → absorbed-entries (group)` table, with an explicit `unmapped` section listing any entries that fit no name.
+   5. Prompt:
+
+      :::user_input
+      Apply this mapping? [y/n]
+      (or type in different response)
+      :::
+
+   6. On `y`: rewrite `specs/guidance/ruleset-modules.yaml` so each named target entry adopts the user-supplied `name:` and absorbs `sample_rules:`, `description:`, and `depends_on:` from the entries folded into it (preserving each absorbed entry's `group:` on the resulting entry — split into separate entries per group when partial-mapping was confirmed). Entries in the `unmapped` bucket are preserved verbatim. The main module entry is untouched.
+   7. On `n` or a free-form decline, leave the file as-is.
+
+   ### §7b — Count-mode consolidation
+
+   Count the entries written to `specs/guidance/ruleset-modules.yaml` (including the main module). If the count is already about `approximate_num_of_modules`, skip this step.
 
    Otherwise, propose merges so the final manifest lands at about `approximate_num_of_modules`. Merge candidates that:
    - belong to the same ruleset group and share a clear policy theme (e.g., overlapping `depends_on`, related variables, or the same heuristic family),
    - are narrow single-rule modules that fold naturally into a broader sibling,
    - duplicate intent under different heuristic labels.
 
-   Never merge across ruleset group boundaries (R21). Draft 2–3 distinct consolidation plans that each land at about `approximate_num_of_modules` — e.g., an aggressive plan (fewer modules), a balanced plan (closest to `approximate_num_of_modules`), and a conservative plan (more modules). For each plan, show the resulting module list and the merges it applies in a `:::detail` block, then prompt:
+   Draft 2–3 distinct consolidation plans that each land at about `approximate_num_of_modules` — e.g., an aggressive plan (fewer modules), a balanced plan (closest to `approximate_num_of_modules`), and a conservative plan (more modules). For each plan, show the resulting module list and the merges it applies in a `:::detail` block, then prompt:
 
    :::user_input
    Choose a consolidation plan (target ≈ <approximate_num_of_modules>):
