@@ -21,9 +21,19 @@ Two policy documents in [dl/](dl/):
 | [traffic_violation_code.md](dl/traffic_violation_code.md) | classify violation → assign demerit points → compute fine (with school-zone multiplier and repeat-violation surcharge) |
 | [license_suspension_policy.md](dl/license_suspension_policy.md) | identify recent violations → apply recency weight → check severity escalations → assign action tier |
 
+### Intended workflow
+
+The two documents form a two-stage pipeline operating at different scopes:
+
+1. **Per-violation (described in `traffic_violation_code.md`).** When a single violation is adjudicated, classify it into a Severity Class (Section 300), assign Demerit Points from that class (Section 400), and compute the final fine with school-zone multiplier and repeat-violation surcharge (Section 500). The per-violation outputs are: Severity Class, Demerit Points, and Final Fine.
+
+2. **Per-driver assessment (described in `license_suspension_policy.md`).** At assessment time, gather the driver's Recent Violations (≤24 months) along with each violation's Severity Class and Demerit Points — both *carried over* from the Traffic Violation Code rather than redefined. Apply the recency weight to each violation's points (Section 300), sum to a Weighted Point Total, check Section 310 escalations on Severity Class C/D counts, and assign an Action Tier (Section 400).
+
+The cross-document handoff is the per-violation record `(severity_class, demerit_points, adjudication_date)`: produced once per incident by the Traffic Violation Code, consumed many-to-one by the License Suspension Policy when assessing a driver. This is why `severity_classification` and `demerit_points` are expected to surface as shared modules — they are computed by the first document and read by the second.
+
 ### Intended module structure
 
-Note that while these are the intended modules, an AI may decide on a different module decomposition, depending on the input and output of the desired target ruleset.
+Note that while these are the intended modules, an AI may decide on a different module decomposition, depending on the input and output of the desired target ruleset. The AI is likely to use different module names unless the names are provided when requested.
 
 The two documents are written to imply the following module decomposition:
 

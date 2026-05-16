@@ -72,7 +72,7 @@ Then bootstrap the target ruleset via AI suggestion:
 1. Prompt: "Enter a hint to narrow candidate rulesets (e.g. 'eligibility', 'benefit calculation'), or 'all' to suggest all:"
 2. Run `/suggest-target-ruleset <domain> [<hint>]` (omit `<hint>` if the user responded with 'all'). Skip pre-flight — domain and index already verified above.
 3. Present the list of generated candidate files from `specs/suggested_targets/`.
-4. Ask the user which candidate to use.
+4. Ask the user which candidate to use. Provide a link to each candidate. Remind the user that they can review and modify the candidates before making a selection.
 5. Run `/declare-target-ruleset <domain> <chosen_ruleset>`. Skip pre-flight — domain already verified above.
 
 After this step, `specs/naming-manifest.yaml`, `guidance/metadata.yaml`, and `guidance/prompt-context.yaml` exist and Step 2 may proceed. The remaining descriptive guidance files (`output-variables.yaml`, `input-variables.yaml`, `constants-and-tables.yaml`) are written by `/create-skeleton` in Step 2; `include-with-output.yaml` is written by `/tag-vars-to-include-with-output` in Step 6.
