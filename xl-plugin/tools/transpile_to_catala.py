@@ -401,6 +401,280 @@ def _rewrite_exists_comprehension(s: str) -> str:
     return _rewrite_comprehension(s, "exists", _emit_exists)
 
 
+# Identifier regex shared by the sum scanner.
+_SUM_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _scan_sum_args(s: str, start: int) -> tuple[str, str, str, str | None, int] | None:
+    """Scan a Python-generator-expression argument list starting just after `sum(`.
+
+    Expects the shape `<elt_expr> for <var> in <coll>[ if <pred>]` and walks
+    forward tracking:
+      - paren / bracket depth (incremented on `(` / `[`, decremented on `)` / `]`)
+      - single-quote string state (inside, parens / keywords are ignored)
+      - double-quote string state (same)
+
+    Backslash-escaped quotes inside string literals are honored.
+
+    Args:
+        s: the full expression string.
+        start: offset immediately after the opening `(` of `sum(...)`.
+
+    Returns:
+        `(elt_expr, var, coll, optional_pred, end_offset)` where `end_offset` is
+        the index of the matching closing `)` of the outer `sum(...)` call. The
+        `optional_pred` is `None` when no `if`-filter is present.
+        Returns None if the shape doesn't match.
+    """
+    n = len(s)
+
+    def _skip_ws(j: int) -> int:
+        while j < n and s[j].isspace():
+            j += 1
+        return j
+
+    def _is_kw_at(j: int, kw: str) -> bool:
+        """True when `kw` appears at offset j surrounded by whitespace boundaries."""
+        end = j + len(kw)
+        if not s.startswith(kw, j) or end >= n:
+            return False
+        if j > 0 and (s[j - 1].isalnum() or s[j - 1] == "_"):
+            return False
+        if not s[end].isspace():
+            return False
+        return True
+
+    # Walk forward until we hit a top-level ` for ` keyword (outside strings/brackets).
+    i = start
+    depth = 0
+    in_sq = False
+    in_dq = False
+    elt_start = _skip_ws(i)
+    for_at = -1
+    j = elt_start
+    while j < n:
+        ch = s[j]
+        if in_sq:
+            if ch == "\\" and j + 1 < n:
+                j += 2
+                continue
+            if ch == "'":
+                in_sq = False
+            j += 1
+            continue
+        if in_dq:
+            if ch == "\\" and j + 1 < n:
+                j += 2
+                continue
+            if ch == '"':
+                in_dq = False
+            j += 1
+            continue
+        if ch == "'":
+            in_sq = True
+            j += 1
+            continue
+        if ch == '"':
+            in_dq = True
+            j += 1
+            continue
+        if ch in "([{":
+            depth += 1
+            j += 1
+            continue
+        if ch in ")]}":
+            if depth == 0:
+                # End of outer call before any `for` — not a generator expression.
+                return None
+            depth -= 1
+            j += 1
+            continue
+        if depth == 0 and ch.isspace() and _is_kw_at(j + 1, "for"):
+            # Match the leading whitespace as the separator boundary.
+            elt_end = j
+            for_at = j + 1
+            break
+        j += 1
+    if for_at < 0:
+        return None
+
+    elt_expr = s[elt_start:elt_end].rstrip()
+    if not elt_expr:
+        return None
+
+    # Past `for`.
+    i = for_at + 3  # len("for")
+    if i >= n or not s[i].isspace():
+        return None
+    i = _skip_ws(i)
+
+    # Bound variable identifier.
+    m = _SUM_IDENT_RE.match(s, i)
+    if not m:
+        return None
+    var = m.group(0)
+    i = m.end()
+
+    # Expect whitespace, then `in`, then whitespace.
+    if i >= n or not s[i].isspace():
+        return None
+    i = _skip_ws(i)
+    if not s.startswith("in", i) or i + 2 >= n or not s[i + 2].isspace():
+        return None
+    i += 2
+    i = _skip_ws(i)
+
+    # Collection: bare ident or dotted attribute chain (mirrors _scan_comprehension_args).
+    m = _SUM_IDENT_RE.match(s, i)
+    if not m:
+        return None
+    coll_start = m.start()
+    i = m.end()
+    while i < n and s[i] == ".":
+        m2 = _SUM_IDENT_RE.match(s, i + 1)
+        if not m2:
+            return None
+        i = m2.end()
+    coll = s[coll_start:i]
+
+    # Optional ` if <pred>` clause. Walk the remainder tracking depth/strings;
+    # an unguarded top-level ` if ` introduces the predicate. Otherwise the
+    # remainder up to the matching `)` is empty whitespace.
+    depth = 0
+    in_sq = False
+    in_dq = False
+    pred: str | None = None
+    pred_start = -1
+    while i < n:
+        ch = s[i]
+        if in_sq:
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == "'":
+                in_sq = False
+            i += 1
+            continue
+        if in_dq:
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == '"':
+                in_dq = False
+            i += 1
+            continue
+        if ch == "'":
+            in_sq = True
+            i += 1
+            continue
+        if ch == '"':
+            in_dq = True
+            i += 1
+            continue
+        if ch in "([{":
+            depth += 1
+            i += 1
+            continue
+        if ch in "]}":
+            depth -= 1
+            i += 1
+            continue
+        if ch == ")":
+            if depth == 0:
+                # End of outer sum(...) call.
+                if pred_start >= 0:
+                    pred = s[pred_start:i].rstrip()
+                    if not pred:
+                        return None
+                return (elt_expr, var, coll, pred, i)
+            depth -= 1
+            i += 1
+            continue
+        if pred_start < 0 and depth == 0 and ch.isspace() and _is_kw_at(i + 1, "if"):
+            # Step over `<ws>if<ws>` to the predicate start.
+            i = _skip_ws(i + 1 + 2)
+            pred_start = i
+            continue
+        i += 1
+    return None
+
+
+def _civil_type_to_catala_sum_type(field_type: str | None) -> str:
+    """Map a CIVIL field-type hint to the Catala `sum <type> of <list>` annotation.
+
+    Catala requires an explicit numeric type for `sum`. We mirror the host
+    output field's type when known; otherwise default to `decimal` (the most
+    permissive numeric type for collection sums).
+    """
+    if field_type == "money":
+        return "money"
+    if field_type == "int":
+        return "integer"
+    if field_type == "decimal" or field_type == "float":
+        return "decimal"
+    return "decimal"
+
+
+def _rewrite_sum_comprehension(s: str, field_type: str | None = None) -> str:
+    """Rewrite `sum(<expr> for v in coll [if pred])` to Catala's sum-over-collection form.
+
+    Catala has no direct generator-expression form for sum; the equivalent is
+    `sum <type> of (map each v among coll [such that pred] to <expr>)`.
+
+    Walks `s` left-to-right looking for token-bounded `sum(`. On match, invokes
+    `_scan_sum_args`. On `None`, leaves the head untouched (defensive — there
+    is no flat-form `sum(<list>)` rewrite today, but future additions remain
+    composable).
+
+    The element expression and predicate are rewritten recursively so nested
+    comprehensions (including nested `sum`, `count`, `exists`) are lowered.
+    """
+    pattern = "sum("
+    head_len = len(pattern)
+    n = len(s)
+    out: list[str] = []
+    i = 0
+    while i < n:
+        idx = s.find(pattern, i)
+        if idx == -1:
+            out.append(s[i:])
+            break
+        if idx > 0 and (s[idx - 1].isalnum() or s[idx - 1] == "_"):
+            out.append(s[i:idx + head_len])
+            i = idx + head_len
+            continue
+        scan = _scan_sum_args(s, idx + head_len)
+        if scan is None:
+            out.append(s[i:idx + head_len])
+            i = idx + head_len
+            continue
+        elt_expr, var, coll, pred, end = scan
+        # Recursively lower nested comprehensions inside the element expr and predicate.
+        elt_rewritten = _rewrite_sum_comprehension(elt_expr, field_type)
+        elt_rewritten = _rewrite_comprehension(elt_rewritten, "count", _emit_count)
+        elt_rewritten = _rewrite_comprehension(elt_rewritten, "exists", _emit_exists)
+        if pred is not None:
+            pred_rewritten = _rewrite_sum_comprehension(pred, field_type)
+            pred_rewritten = _rewrite_comprehension(pred_rewritten, "count", _emit_count)
+            pred_rewritten = _rewrite_comprehension(pred_rewritten, "exists", _emit_exists)
+        else:
+            pred_rewritten = None
+        type_ann = _civil_type_to_catala_sum_type(field_type)
+        if pred_rewritten is None:
+            emitted = (
+                f"(sum {type_ann} of (map each {var} among {coll} to {elt_rewritten}))"
+            )
+        else:
+            emitted = (
+                f"(sum {type_ann} of (map each {var} among {coll} "
+                f"such that {pred_rewritten} to {elt_rewritten}))"
+            )
+        out.append(s[i:idx])
+        out.append(emitted)
+        i = end + 1
+    return "".join(out)
+
+
 def negate_simple_condition(cond: str) -> str:
     """Flip a simple comparison operator: 'X <= N' → 'X > N', etc."""
     for op, neg in [("<=", ">"), (">=", "<"), (" < ", " >= "), (" > ", " <= ")]:
@@ -429,7 +703,9 @@ def translate_expr_to_catala(
     3.55. abs(expr) → (if expr >= $0 then expr else $0 - (expr))
     3.6a. count(v in coll where pred) → (number for v among coll such that pred)
     3.6b. exists(v in coll where pred) → (exists v among coll such that pred)
-    3.6c. count(list) → (number of list)  (flat-form, preserved)
+    3.6c. sum(<expr> for v in coll [if pred])
+            → (sum <type> of (map each v among coll [such that pred] to <expr>))
+    3.6d. count(list) → (number of list)  (flat-form, preserved)
     4. max(a, b)  → (if a >= b then a else b)
     5. min(a, b)  → (if a <= b then a else b)
     6. &&  → and
@@ -518,7 +794,13 @@ def translate_expr_to_catala(
     # Step 3.6b: exists(v in coll where pred) → (exists v among coll such that pred)
     result = _rewrite_exists_comprehension(result)
 
-    # Step 3.6c: count(list) → (number of list)  (flat-form, preserved)
+    # Step 3.6c: sum(<expr> for v in coll [if pred])
+    #           → (sum <type> of (map each v among coll [such that pred] to <expr>))
+    # Same ordering rationale as 3.6a/b: predicate may contain `&&`/`||` that
+    # need Catala-native `and`/`or` translation downstream (Steps 6–7).
+    result = _rewrite_sum_comprehension(result, field_type)
+
+    # Step 3.6d: count(list) → (number of list)  (flat-form, preserved)
     result = re.sub(r"\bcount\(([^)]+)\)", r"(number of \1)", result)
 
     # Steps 4–5: expand max/min iteratively until no nested calls remain.

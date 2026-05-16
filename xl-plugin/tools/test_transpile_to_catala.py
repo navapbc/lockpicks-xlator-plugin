@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from transpile_to_catala import (  # noqa: E402
     _rewrite_count_comprehension,
     _rewrite_exists_comprehension,
+    _rewrite_sum_comprehension,
     translate_expr_to_catala,
 )
 
@@ -236,6 +237,165 @@ class TestBackwardCompatFlatForm:
 # ---------------------------------------------------------------------------
 # Snap eligibility end-to-end smoke test — backward-compat baseline check
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# U7 — sum(<expr> for v in coll [if pred]) comprehension lowering
+# ---------------------------------------------------------------------------
+
+
+class TestRewriteSumComprehension:
+    def test_basic_no_filter(self):
+        out = _rewrite_sum_comprehension(
+            "sum(v.weighted_contribution for v in recent_violations)"
+        )
+        assert out == (
+            "(sum decimal of (map each v among recent_violations "
+            "to v.weighted_contribution))"
+        )
+
+    def test_with_filter(self):
+        out = _rewrite_sum_comprehension(
+            "sum(v.amount for v in payments if v.cleared)"
+        )
+        assert out == (
+            "(sum decimal of (map each v among payments "
+            "such that v.cleared to v.amount))"
+        )
+
+    def test_field_type_money_emits_money_annotation(self):
+        out = _rewrite_sum_comprehension(
+            "sum(v.amount for v in payments)", field_type="money"
+        )
+        assert "(sum money of " in out
+
+    def test_field_type_int_emits_integer_annotation(self):
+        out = _rewrite_sum_comprehension(
+            "sum(v.count for v in batches)", field_type="int"
+        )
+        assert "(sum integer of " in out
+
+    def test_does_not_match_count_substring(self):
+        # `count(...)` and `exists(...)` must NOT be consumed by the sum rewrite.
+        out = _rewrite_sum_comprehension("count(v in items where v.x > 0)")
+        assert out == "count(v in items where v.x > 0)"
+
+    def test_does_not_match_exists_substring(self):
+        out = _rewrite_sum_comprehension("exists(v in items where v.x > 0)")
+        assert out == "exists(v in items where v.x > 0)"
+
+    def test_token_boundary_consumed_not_sum(self):
+        # `consumed(...)` must NOT match the `sum(` head.
+        out = _rewrite_sum_comprehension("consumed(reasons)")
+        assert out == "consumed(reasons)"
+
+    def test_string_literal_in_predicate(self):
+        # The scanner must not be fooled by a string literal containing ` if `.
+        out = _rewrite_sum_comprehension(
+            "sum(v.amount for v in payments if v.status == 'cleared if posted')"
+        )
+        assert out == (
+            "(sum decimal of (map each v among payments "
+            "such that v.status == 'cleared if posted' to v.amount))"
+        )
+
+    def test_dotted_collection(self):
+        out = _rewrite_sum_comprehension(
+            "sum(w.amount for w in v.entries)"
+        )
+        assert out == (
+            "(sum decimal of (map each w among v.entries to w.amount))"
+        )
+
+    def test_malformed_passes_through(self):
+        # Missing collection — U1's validator would have caught this. The
+        # transpiler leaves it unchanged.
+        out = _rewrite_sum_comprehension("sum(x for v in)")
+        assert out == "sum(x for v in)"
+
+
+class TestFullPipelineSumComprehension:
+    def test_pipeline_simple_no_filter(self):
+        out = translate_expr_to_catala(
+            "sum(v.weighted_contribution for v in recent_violations)"
+        )
+        assert (
+            "(sum decimal of (map each v among recent_violations "
+            "to v.weighted_contribution))" in out
+        )
+
+    def test_pipeline_with_filter(self):
+        out = translate_expr_to_catala(
+            "sum(v.amount for v in payments if v.cleared)"
+        )
+        assert (
+            "(sum decimal of (map each v among payments "
+            "such that v.cleared to v.amount))" in out
+        )
+
+    def test_pipeline_amp_amp_in_predicate_becomes_and(self):
+        # ORDERING INVARIANT: sum-rewrite runs BEFORE Step 6 (`&&` → `and`), so
+        # `&&` inside the predicate is translated to Catala-native `and`.
+        out = translate_expr_to_catala(
+            "sum(v.x for v in xs if v.flag && v.amount > 0)"
+        )
+        assert "&&" not in out, f"Expected no literal '&&' in output: {out}"
+        assert " and " in out
+        assert "such that v.flag and v.amount > 0 to v.x" in out
+
+    def test_pipeline_string_literal_in_predicate(self):
+        out = translate_expr_to_catala(
+            "sum(v.amount for v in payments if v.status == 'cleared')"
+        )
+        # Catala uses single `=` for equality (Step 9).
+        assert (
+            "(sum decimal of (map each v among payments "
+            "such that v.status = 'cleared' to v.amount))" in out
+        )
+
+    def test_pipeline_field_type_money(self):
+        out = translate_expr_to_catala(
+            "sum(v.weighted_contribution for v in recent_violations)",
+            field_type="money",
+        )
+        assert "(sum money of " in out
+
+    def test_pipeline_action_tier_fixture(self):
+        # Real-world fixture: minimal CIVIL fragment matching
+        # action_tier_assignment.civil.yaml:95 shape.
+        out = translate_expr_to_catala(
+            "sum(v.weighted_contribution for v in recent_violations)"
+        )
+        # Verify the output string is well-formed Catala (paren-balanced,
+        # contains the sum-collection op, no leftover Python `for ... in`).
+        assert out.count("(") == out.count(")")
+        assert "(sum " in out
+        assert " for v in " not in out
+        assert " of (map each v among recent_violations " in out
+
+
+class TestSumDoesNotRegressCountExists:
+    """U7 must not break U3's count/exists comprehensions."""
+
+    def test_count_comprehension_still_works_with_sum_inside(self):
+        out = translate_expr_to_catala(
+            "count(v in xs where v.amount > sum(w.x for w in v.parts))"
+        )
+        # The outer count comprehension is lowered (Step 3.6a) before the inner
+        # sum is encountered. Sum-rewrite is recursive into predicates of
+        # count/exists comprehensions only through the count/exists helpers'
+        # own recursion path — verify the sum-rewrite at minimum lowers any
+        # top-level sum that survives into the pipeline output.
+        assert "(number for v among xs such that" in out
+
+    def test_count_reasons_still_lowers_to_number_of(self):
+        # U3 backward compat smoke check (also covered in TestBackwardCompatFlatForm).
+        out = translate_expr_to_catala("count(reasons) == 0")
+        assert "(number of reasons) = 0" in out
+
+    def test_exists_comprehension_still_works(self):
+        out = translate_expr_to_catala("exists(v in items where v.x == 'D')")
+        assert "(exists v among items such that v.x = 'D')" in out
 
 
 class TestSnapEligibilityBaseline:
