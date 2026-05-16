@@ -15,9 +15,9 @@ A "module" is a ruleset module — a subset of rules within a ruleset group (rul
 /create-ruleset-modules <domain> [<approximate_num_of_modules> | <module_names>]
 ```
 
-`approximate_num_of_modules` — optional positive integer (default `3`) that sets the target final module count used by Step 5's consolidation.
+`approximate_num_of_modules` — optional positive integer (default `3`) that sets the target final module count. Consumed by Step 2's §2b (count-mode) branch; heuristics fit candidates onto this target rather than emitting raw output for a separate consolidation pass.
 
-`module_names` — optional quoted, comma-separated list of sub-module names (e.g., `"eligibility,income,assets"`) used by Step 5 to consolidate detected candidates onto the analyst's chosen module set. Names only sub-modules — the main module is still resolved from `guidance/output-variables.yaml` or the Step 3 fallback prompt. The analyst's exact strings are written to each entry's `name:` verbatim (no case or separator normalization).
+`module_names` — optional quoted, comma-separated list of sub-module names (e.g., `"eligibility,income,assets"`) consumed by Step 2's §2a (names-mode) branch as the authoritative target taxonomy; heuristics serve as evidence for assigning detected candidates to each name. Names only sub-modules — the main module is still resolved from `guidance/output-variables.yaml` or the Step 3 fallback prompt. The analyst's exact strings are written to each entry's `name:` verbatim (no case or separator normalization).
 
 The second positional disambiguates by type: a bare integer is `approximate_num_of_modules`; any value that fails integer parsing (including a comma-bearing string or a single non-numeric word) is `module_names`. When both are somehow supplied, `module_names` wins and the count is ignored.
 
@@ -141,7 +141,93 @@ When both `sequential_chain` and `depth_threshold` would match the same candidat
 
 In UPDATE mode: pre-confirmed entries (existing sub-modules and any existing `role: main` entry) are shown above the table with `[confirmed]` labels as in Step 1. Only newly detected modules are shown in the table below.
 
-**If one or more new modules are detected**, display the results table in exactly this format:
+**Constraint branch:** If `module_names` was provided, follow **§2a (names-mode)**. Otherwise follow **§2b (count-mode)** — the default for `approximate_num_of_modules` is `3` when neither positional argument was given, so count-mode runs by default.
+
+Neither branch writes `specs/guidance/ruleset-modules.yaml` directly — both finalize an in-memory mapping that Step 4 writes.
+
+#### §2a — Names-mode detection
+
+1. The user-supplied names (from the `module_names` positional) are the authoritative target sub-module taxonomy. The seven heuristics above have already produced candidate clusters; treat them as evidence for assignment rather than as the final module set.
+
+2. For each candidate cluster, choose the most semantically-fitting target from `module_names` based on the candidate's variable names, computation descriptions, and `stage:`. Candidates that fit no supplied name go to the `unfit` set.
+
+3. **All-unfit early-exit.** If the `unfit` set equals the entire candidate set, surface this prompt BEFORE any per-candidate decisions:
+
+   :::user_input
+   None of your supplied module_names fit the detected candidates.
+   [a] Revise names — return to skill input and try different names
+   [b] Accept heuristic-only output — write the unconstrained candidate set
+   [c] Decline — leave `ruleset-modules.yaml` unchanged in UPDATE mode (or write `ruleset_modules: []` in CREATE mode)
+   (or type in different response)
+   :::
+
+   On `[a]`: return to skill input. On `[b]`: skip the per-candidate prompts and the mapping table; the in-memory mapping is the raw heuristic candidate set (no name-mapping applied). On `[c]` or free-form decline: same as step 8's decline path.
+
+4. For each unfit candidate when the unfit set is non-empty but smaller than the candidate set, prompt — using one combined `:::user_input` block listing all unfit candidates with per-candidate rows:
+
+   :::user_input
+   Unfit candidates (none of your supplied names fits semantically):
+     <candidate_name_1> (stage: <stage>) — [a] fold into <suggested_name>  [b] keep as own sub-module  [c] drop
+     <candidate_name_2> (stage: <stage>) — [a] fold into <suggested_name>  [b] keep as own sub-module  [c] drop
+     ...
+   (or type in different response)
+   :::
+
+   Decline-default for each row is `[b]` (keep as own sub-module). The combined block scales to N rows; do not fire one prompt per candidate.
+
+5. **R21 violation check.** For each supplied name, the `group:` values of the candidates folded under it must all agree (primary check, using `group:` data populated via `ruleset-groups.yaml`). Additionally, when `stage:` is populated on the source sections, every candidate folded under the supplied name must share the same `stage:` value (stricter overlay). On conflict at either tier, surface a `:::detail` table of conflicts and prompt:
+
+   :::user_input
+   R21 conflict: candidates folded under "<supplied_name>" span multiple groups/stages.
+   [a] Revise names
+   [b] Accept partial mapping — split "<supplied_name>" into one entry per group/stage
+   [c] Decline mapping
+   (or type in different response)
+   :::
+
+6. Show the proposed mapping in `:::detail` as a `name → absorbed-candidates (group)` table. In UPDATE mode, include `old_name → new_name (group)` rows for any existing pre-confirmed entries being renamed BEFORE the file is rewritten — the analyst sees the full delta before confirming.
+
+7. Prompt:
+
+   :::user_input
+   Apply this mapping? [y/n]
+   (or type in different response)
+   :::
+
+8. **On `y`** — finalize the in-memory mapping. Each named target absorbs `description:` / `sample_rules:` / `depends_on:` from the candidates folded onto it, preserving each absorbed entry's `group:` / `role:` per UPDATE-mode rules. §2a does NOT write the file directly; Step 4 writes using this finalized mapping.
+
+   **On `n` or free-form decline** — the in-memory mapping is the raw heuristic-detected candidate set (no name-mapping applied). In CREATE mode, Step 4 writes these heuristic-only candidates per its existing contract. In UPDATE mode, Step 4 preserves the prior `ruleset-modules.yaml` verbatim. Proceed to Step 3 in either case.
+
+After confirmation (or decline), display the final in-memory mapping using the **Results table format** below, then proceed to Step 3.
+
+#### §2b — Count-mode detection
+
+target = `approximate_num_of_modules` (default `3` when neither positional argument was given). The seven heuristics above have already produced candidate clusters; let `N` be the resulting count.
+
+1. **If `N == target`**, the heuristic count already matches the target — emit the single grouping directly, no plan menu. Display the results table and proceed to Step 3.
+
+2. **If `N != target`**, draft 2–3 consolidation plans (aggressive / balanced / conservative) targeted at `target`. Each plan must not propose merges that cross ruleset group boundaries (R21 carryover). Show each plan in a `:::detail` block, then prompt:
+
+   :::user_input
+   Choose a consolidation plan (target ≈ <approximate_num_of_modules>):
+   [a] Plan A — aggressive (N modules)
+   [b] Plan B — balanced (N modules)
+   [c] Plan C — conservative (N modules)
+   [n] None — keep current modules
+   (or type in different response)
+   :::
+
+   Substitute the actual module counts; append additional letters if more than three plans are offered.
+
+3. **On a plan selection** — the in-memory mapping is the selected plan's merged grouping. §2b does NOT write the file directly; Step 4 writes using this mapping.
+
+   **On `n` or free-form decline** — the in-memory mapping is the unmerged heuristic candidate set. In CREATE mode, Step 4 writes these heuristic-only candidates. In UPDATE mode, Step 4 preserves the prior `ruleset-modules.yaml` verbatim. Proceed to Step 3 in either case.
+
+After confirmation (or decline), display the final in-memory mapping using the **Results table format** below, then proceed to Step 3.
+
+**Results table format**
+
+Display the final in-memory mapping in exactly this format:
 
 :::detail
 Ruleset Modules
@@ -151,8 +237,6 @@ Ruleset Modules
   2 │ deduction_chain   │ sub  │ Household               │ depth_threshold
 ─────────────────────────────────────────────────────────────────────────
 :::
-
-All detected modules are confirmed automatically. Proceed immediately to Step 3.
 
 **If zero NEW modules are detected**, print:
 
@@ -229,55 +313,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml [CREATED]
 
 ---
 
-### Step 5: Consolidate modules
-
-Branch on whether `module_names` was provided:
-- If `module_names` is set, follow **§5a (name-mode)**.
-- Otherwise, follow **§5b (count-mode)**.
-
-Never merge across ruleset group boundaries (R21) in either branch.
-
-#### §5a — Name-mode consolidation
-
-1. Load `specs/guidance/ruleset-modules.yaml` (just written in Step 4). Read each non-main entry's `name:`, `description:`, `sample_rules:`, `depends_on:`, and `group:`.
-2. For each non-main entry, choose the most semantically-fitting target name from `module_names` based on its `description`, `sample_rules`, and `depends_on`. Entries that fit no user-supplied name are placed in an `unmapped` bucket and kept as their own entries — they are never dropped.
-3. Detect R21 violations: for each user-supplied name, collect the `group:` values of the entries folded into it. If more than one distinct group appears, that name is an R21 conflict. List conflicts in a `:::detail` block and ask the analyst to revise names, accept a partial mapping (the conflicting name is split into one entry per group), or decline. Do not violate R21 silently.
-4. Show the proposed mapping in `:::detail` as a `name → absorbed-entries (group)` table, with an explicit `unmapped` section listing any entries that fit no name.
-5. Prompt:
-
-   :::user_input
-   Apply this mapping? [y/n]
-   (or type in different response)
-   :::
-
-6. On `y`: rewrite `specs/guidance/ruleset-modules.yaml` so each named target entry adopts the user-supplied `name:` and absorbs `sample_rules:`, `description:`, and `depends_on:` from the entries folded into it (preserving each absorbed entry's `group:` on the resulting entry — split into separate entries per group when partial-mapping was confirmed). Entries in the `unmapped` bucket are preserved verbatim. The main module entry is untouched.
-7. On `n` or a free-form decline, leave the file as-is.
-
-#### §5b — Count-mode consolidation
-
-Count the entries written to `specs/guidance/ruleset-modules.yaml` (including the main module). If the count is already about `approximate_num_of_modules`, skip this step.
-
-Otherwise, propose merges so the final manifest lands at about `approximate_num_of_modules`. Merge candidates that:
-- belong to the same ruleset group and share a clear policy theme (e.g., overlapping `depends_on`, related variables, or the same heuristic family),
-- are narrow single-rule modules that fold naturally into a broader sibling,
-- duplicate intent under different heuristic labels.
-
-Draft 2–3 distinct consolidation plans that each land at about `approximate_num_of_modules` — e.g., an aggressive plan (fewer modules), a balanced plan (closest to `approximate_num_of_modules`), and a conservative plan (more modules). For each plan, show the resulting module list and the merges it applies in a `:::detail` block, then prompt:
-
-:::user_input
-Choose a consolidation plan (target ≈ <approximate_num_of_modules>):
-[a] Plan A — aggressive (N modules)
-[b] Plan B — balanced (N modules)
-[c] Plan C — conservative (N modules)
-[n] None — keep current modules
-(or type in different response)
-:::
-
-Substitute the actual module counts; append additional letters if more than three plans are offered. On a plan selection, rewrite `specs/guidance/ruleset-modules.yaml` so the merged modules absorb the `sample_rules:`, `description:`, and `depends_on:` of the modules they replace. Preserve the main module entry. On `n` or a free-form decline, leave the file as-is.
-
----
-
-### Step 6: Record guidance-tier manifest
+### Step 5: Record guidance-tier manifest
 
 Record the guidance-tier manifest so `/check-freshness` can later detect drift between `policy_facets/` and this skill's outputs:
 
@@ -289,7 +325,7 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 
 ---
 
-### Step 7: Suggest next steps
+### Step 6: Suggest next steps
 
 :::next_step
 Next: Run /extract-sample-rules <domain> to extract sample rules.
@@ -320,6 +356,9 @@ $DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml    [CREATED]
 - `bound_entities` values use CamelCase entity names (e.g., `ClientData`, `DOLRecord`, `Household`) — not snake_case; main module always uses `bound_entities: []`
 - In UPDATE mode, preserve `role:`, `depends_on:`, and `sample_rules:` from existing entries — never strip fields added by a prior run
 - Do not write `generated_at`
-- Step 5 consolidation operates on the file just written in Step 4 — name-mode and count-mode both rewrite the YAML in place, preserving the main module entry and any `unmapped` (§5a) or unmerged (§5b) sub-modules
-- This command has 7 steps — show a step checklist at the completion of each step (>3 steps rule)
+- Step 2 consumes `module_names` and `approximate_num_of_modules` as detection inputs — do not first emit heuristic-only candidates and then reshape them in a later step; §2a (names-mode) and §2b (count-mode) shape the detection result directly
+- In §2a, surface unfit candidates inline via the `[a]/[b]/[c]` fold/keep/drop prompt — do not silently force-fit them under a supplied name, drop them, or hide them in an unmapped bucket without an explicit confirmation
+- In §2b, skip the 3-plan menu when the heuristic candidate count already matches `approximate_num_of_modules` (`N == target`) — drafting a menu in this case is unnecessary friction; only draft aggressive / balanced / conservative plans when the gap is non-zero
+- Neither §2a nor §2b writes `ruleset-modules.yaml` directly — both finalize an in-memory mapping that Step 4 writes
+- This command has 6 steps — show a step checklist at the completion of each step (>3 steps rule)
 - Note: requiring `ruleset_groups:` before ruleset module detection reverses the monolith's Step 4 → Step 5 order. This is intentional: ruleset modules must stay within a single stage.
