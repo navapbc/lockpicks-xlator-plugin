@@ -616,6 +616,7 @@ def test_existing_files_all_absent():
         signals = ss.extract_signals(domain)
         ef = signals["existing_files"]
         assert ef["skeleton.yaml"] is None
+        assert ef["flow_diagram.yaml"] is None
         assert ef["output-variables.yaml"] is None
         assert ef["input-variables.yaml"] is None
         assert ef["constants-and-tables.yaml"] is None
@@ -627,6 +628,7 @@ def test_existing_files_all_present():
             Path(tmp),
             existing_outputs={
                 "skeleton.yaml": {"skeleton": {"inputs": ["a"]}},
+                "flow_diagram.yaml": {"flow_diagram": "a -> b"},
                 "output-variables.yaml": {"eligible": {"description": "x", "primary": True}},
                 "input-variables.yaml": {"categories": []},
                 "constants-and-tables.yaml": {"constants_and_tables": []},
@@ -635,6 +637,7 @@ def test_existing_files_all_present():
         signals = ss.extract_signals(domain)
         ef = signals["existing_files"]
         assert ef["skeleton.yaml"] == {"skeleton": {"inputs": ["a"]}}
+        assert ef["flow_diagram.yaml"] == {"flow_diagram": "a -> b"}
         assert ef["output-variables.yaml"] == {"eligible": {"description": "x", "primary": True}}
         assert ef["input-variables.yaml"] == {"categories": []}
         assert ef["constants-and-tables.yaml"] == {"constants_and_tables": []}
@@ -651,6 +654,7 @@ def test_existing_files_mixed():
         signals = ss.extract_signals(domain)
         ef = signals["existing_files"]
         assert ef["skeleton.yaml"] == {"skeleton": {}}
+        assert ef["flow_diagram.yaml"] is None
         assert ef["output-variables.yaml"] is None
 
 

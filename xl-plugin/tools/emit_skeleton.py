@@ -6,12 +6,13 @@
 """
 xlator emit-skeleton: schema-validating writer for the /create-skeleton skill.
 
-Reads signals (re-extracted via skeleton_signals.extract_signals) plus an
-enrichment.json file produced by the skill's AI step, validates the
-enrichment shape, then writes/merges five guidance files:
+Reads signals (re-extracted via skeleton_signals.extract_signals) plus a
+skeleton.json file (the AI-produced enrichment) produced by the skill's AI
+step, validates the enrichment shape, then writes/merges six guidance files:
 
   - specs/guidance/prompt-context.yaml  (merge — additions only)
   - specs/guidance/skeleton.yaml
+  - specs/guidance/flow_diagram.yaml
   - specs/guidance/output-variables.yaml
   - specs/guidance/input-variables.yaml
   - specs/guidance/constants-and-tables.yaml
@@ -59,6 +60,7 @@ _GUIDANCE_DIR_REL = "specs/guidance"
 _OUTPUT_FILES_REL = {
     "prompt-context.yaml": "specs/guidance/prompt-context.yaml",
     "skeleton.yaml": "specs/guidance/skeleton.yaml",
+    "flow_diagram.yaml": "specs/guidance/flow_diagram.yaml",
     "output-variables.yaml": "specs/guidance/output-variables.yaml",
     "input-variables.yaml": "specs/guidance/input-variables.yaml",
     "constants-and-tables.yaml": "specs/guidance/constants-and-tables.yaml",
@@ -68,6 +70,7 @@ _OUTPUT_FILES_REL = {
 # only to these (not prompt-context.yaml, which is always merged).
 _STEP4_FILES = (
     "skeleton.yaml",
+    "flow_diagram.yaml",
     "output-variables.yaml",
     "input-variables.yaml",
     "constants-and-tables.yaml",
@@ -352,17 +355,34 @@ def _build_skeleton(signals: dict, enrichment: dict, mode: str, existing: Any) -
         "inputs": list(enrichment["skeleton_inputs"]),
         "outputs": list(enrichment["skeleton_outputs"]),
         "computations": computations,
-        "flow_diagram": enrichment["skeleton_flow_diagram"],
     }
 
     if mode == "revise" and isinstance(existing, dict):
         existing_skel = existing.get("skeleton")
         if isinstance(existing_skel, dict):
-            for key in ("inputs", "outputs", "computations", "flow_diagram"):
+            for key in ("inputs", "outputs", "computations"):
                 if existing_skel.get(key) not in (None, [], "", {}):
                     skeleton_body[key] = existing_skel[key]
 
     return {"skeleton": skeleton_body}
+
+
+# ---------------------------------------------------------------------------
+# flow_diagram.yaml build
+# ---------------------------------------------------------------------------
+
+def _build_flow_diagram(enrichment: dict, mode: str, existing: Any) -> dict:
+    """Build the flow_diagram.yaml document content.
+
+    In revise mode, preserve an existing non-empty `flow_diagram` string so
+    analyst edits to the ASCII diagram survive re-runs.
+    """
+    diagram = enrichment["skeleton_flow_diagram"]
+    if mode == "revise" and isinstance(existing, dict):
+        existing_diagram = existing.get("flow_diagram")
+        if isinstance(existing_diagram, str) and existing_diagram:
+            diagram = existing_diagram
+    return {"flow_diagram": diagram}
 
 
 # ---------------------------------------------------------------------------
@@ -647,6 +667,10 @@ def run(domain_dir: Path, mode: str, enrichment_path: Path) -> int:
         signals, enrichment, mode, existing_files.get("skeleton.yaml")
     )
 
+    flow_diagram_doc = _build_flow_diagram(
+        enrichment, mode, existing_files.get("flow_diagram.yaml")
+    )
+
     output_vars_doc, ov_preserved = _build_output_variables(
         enrichment, mode, existing_files.get("output-variables.yaml")
     )
@@ -682,6 +706,11 @@ def run(domain_dir: Path, mode: str, enrichment_path: Path) -> int:
             "skeleton.yaml",
             domain_dir / _OUTPUT_FILES_REL["skeleton.yaml"],
             _serialize_yaml(skeleton_doc),
+        ),
+        (
+            "flow_diagram.yaml",
+            domain_dir / _OUTPUT_FILES_REL["flow_diagram.yaml"],
+            _serialize_yaml(flow_diagram_doc),
         ),
         (
             "output-variables.yaml",

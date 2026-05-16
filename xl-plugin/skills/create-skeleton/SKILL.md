@@ -5,7 +5,7 @@ description: Build Computation Skeleton for a Domain
 
 # Build Computation Skeleton for a Domain
 
-Extract structured signals from `policy_facets/computations/` and the naming manifest via `xlator skeleton-signals`, produce an AI enrichment JSON (descriptions, ASCII flow diagram, primary selection, prompt-context proposals), then have `xlator emit-skeleton` validate and merge into five guidance files. The deterministic signal extraction, schema enforcement, and re-run preservation all live in the two tools.
+Extract structured signals from `policy_facets/computations/` and the naming manifest via `xlator skeleton-signals`, produce an AI enrichment JSON (descriptions, ASCII flow diagram, primary selection, prompt-context proposals) persisted as `skeleton.json`, then have `xlator emit-skeleton` validate and merge into six guidance files. The deterministic signal extraction, schema enforcement, and re-run preservation all live in the two tools.
 
 ## Input
 
@@ -32,7 +32,7 @@ Check whether `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` exists:
   Skeleton already exists: <N> computations across <M> stages
 
   [a]ccept — keep as-is and exit
-  [b]replace — overwrite the four Step-4 files unconditionally
+  [b]replace — overwrite the five Step-4 files unconditionally
   [c]revise — preserve analyst-edited fields, fill in the rest
   :::
   - `a` → Exit without invoking the tools. Emit `:::next_step` pointing at `/create-ruleset-groups`.
@@ -51,7 +51,7 @@ The stdout is a single JSON object. Hold it in memory for Step 2. On non-zero ex
 
 ### Step 2: Produce enrichment JSON
 
-Read the signals JSON and produce an `enrichment.json` object. The emit tool validates the schema and exits 1 on any violation with `ERROR: enrichment.<dotted-path>: <reason>` — fix the enrichment and re-run, do not bypass.
+Read the signals JSON and produce an enrichment object. The emit tool validates the schema and exits 1 on any violation with `ERROR: enrichment.<dotted-path>: <reason>` — fix the enrichment and re-run, do not bypass.
 
 **Required top-level fields:**
 
@@ -64,12 +64,12 @@ Read the signals JSON and produce an `enrichment.json` object. The emit tool val
 
 **Parallel-entity reuse signal.** When `signals.mirrored_fields` is non-empty, expand parallel runs with entity-prefixed names (e.g., `client_adjusted_earned_income`, `dol_adjusted_earned_income`) in `skeleton_inputs` and intermediates. Flattening hides the reuse signal `/create-ruleset-modules`'s `reuse_across_entities` heuristic needs.
 
-Write the enrichment JSON to a tempfile (e.g., `tempfile.NamedTemporaryFile(suffix='.json')`).
+Write the enrichment JSON to `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.json` (create the parent directory if missing). This file is the durable record of the AI enrichment for this run — re-runs overwrite it.
 
 ### Step 3: Validate and write guidance files
 
 ```bash
-xlator emit-skeleton <domain> --mode <create|replace|revise> --enrichment <tmpfile>
+xlator emit-skeleton <domain> --mode <create|replace|revise> --enrichment $DOMAINS_DIR/<domain>/specs/guidance/skeleton.json
 ```
 
 Parse the JSON header on stdout; the line `--- EMIT-SKELETON-HEADER-END ---` divides header from human summary.
@@ -94,8 +94,10 @@ Next: Run /create-ruleset-groups <domain> to propose ruleset groups.
 
 | File | Action |
 |------|--------|
+| `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.json` | Written by the skill (durable AI enrichment) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Merged (additions only) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/skeleton.yaml` | Created or revised |
+| `$DOMAINS_DIR/<domain>/specs/guidance/flow_diagram.yaml` | Created or revised |
 | `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Created or revised |
 | `$DOMAINS_DIR/<domain>/specs/guidance/input-variables.yaml` | Created or revised |
 | `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Created or revised |
@@ -108,3 +110,5 @@ Next: Run /create-ruleset-groups <domain> to propose ruleset groups.
 - `revise` mode preserves analyst-edited fields. Do not regenerate them.
 - In UPDATE-mode `[a]ccept`, exit without invoking either tool.
 - When `signals.mirrored_fields` is non-empty, expand parallel runs with per-entity-prefixed names — do not flatten.
+- `skeleton.json` is the durable record of the AI enrichment. It is overwritten on every re-run; do not hand-edit it (edit the emitted YAMLs instead).
+- `flow_diagram.yaml` carries the ASCII diagram as a top-level `flow_diagram:` literal-block string. In `revise` mode an analyst-edited file is preserved verbatim.

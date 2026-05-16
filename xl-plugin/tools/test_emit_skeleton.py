@@ -282,7 +282,7 @@ def test_enrichment_primary_not_bool():
 # Happy path: create mode
 # ---------------------------------------------------------------------------
 
-def test_create_mode_writes_all_five_files():
+def test_create_mode_writes_all_six_files():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(Path(tmp))
         enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
@@ -291,6 +291,7 @@ def test_create_mode_writes_all_five_files():
         for rel in (
             "specs/guidance/prompt-context.yaml",
             "specs/guidance/skeleton.yaml",
+            "specs/guidance/flow_diagram.yaml",
             "specs/guidance/output-variables.yaml",
             "specs/guidance/input-variables.yaml",
             "specs/guidance/constants-and-tables.yaml",
@@ -314,7 +315,8 @@ def test_create_mode_skeleton_shape():
         assert comp[0]["stage"] == "deductions"
         assert "gross_earned_income" in comp[0]["variables"]
         assert comp[0]["exprs"]["gross_earned_income"] == "wages + tips"
-        assert "flow_diagram" in skel
+        # flow_diagram has moved to its own file.
+        assert "flow_diagram" not in skel
 
 
 def test_create_mode_collision_fails():
@@ -327,6 +329,131 @@ def test_create_mode_collision_fails():
         rc, _stdout, stderr = _run_tool(Path(tmp), "test_dom", "create", enr_path)
         assert rc == 2
         assert "file exists" in stderr
+
+
+# ---------------------------------------------------------------------------
+# flow_diagram.yaml: shape, create-mode collision, replace/revise semantics
+# ---------------------------------------------------------------------------
+
+def test_flow_diagram_yaml_create_shape():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(Path(tmp))
+        enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
+        es.run(domain, "create", enr_path)
+        doc = _read_yaml(domain / "specs/guidance/flow_diagram.yaml")
+        assert list(doc.keys()) == ["flow_diagram"]
+        assert doc["flow_diagram"] == "gross_earned_income\n   |\n   v\neligible"
+
+
+def test_flow_diagram_yaml_serializes_as_literal_block():
+    """Multi-line diagrams round-trip through `|` block style and preserve
+    Unicode arrows."""
+    enr = _minimal_enrichment(
+        skeleton_flow_diagram="client_gross ──► exclusion ──► result\ndol_quarterly ──► /3 ──► result",
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(Path(tmp))
+        enr_path = _write_enrichment(Path(tmp), enr)
+        es.run(domain, "create", enr_path)
+        raw = (domain / "specs/guidance/flow_diagram.yaml").read_text(encoding="utf-8")
+        assert "flow_diagram: |" in raw
+        assert "──►" in raw
+        doc = _read_yaml(domain / "specs/guidance/flow_diagram.yaml")
+        assert (
+            doc["flow_diagram"]
+            == "client_gross ──► exclusion ──► result\ndol_quarterly ──► /3 ──► result"
+        )
+
+
+def test_flow_diagram_yaml_single_line_diagram_round_trips():
+    enr = _minimal_enrichment(skeleton_flow_diagram="a -> b -> c")
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(Path(tmp))
+        enr_path = _write_enrichment(Path(tmp), enr)
+        es.run(domain, "create", enr_path)
+        doc = _read_yaml(domain / "specs/guidance/flow_diagram.yaml")
+        assert doc["flow_diagram"] == "a -> b -> c"
+
+
+def test_flow_diagram_yaml_create_collision_fails():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(
+            Path(tmp),
+            existing_outputs={
+                "flow_diagram.yaml": {"flow_diagram": "pre-existing"},
+            },
+        )
+        enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
+        rc, _stdout, stderr = _run_tool(Path(tmp), "test_dom", "create", enr_path)
+        assert rc == 2
+        assert "file exists" in stderr
+        assert "flow_diagram.yaml" in stderr
+
+
+def test_flow_diagram_yaml_replace_overwrites_analyst_content():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(
+            Path(tmp),
+            existing_outputs={
+                "flow_diagram.yaml": {"flow_diagram": "ANALYST EDITED"},
+            },
+        )
+        enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
+        rc = es.run(domain, "replace", enr_path)
+        assert rc == 0
+        doc = _read_yaml(domain / "specs/guidance/flow_diagram.yaml")
+        assert doc["flow_diagram"] == "gross_earned_income\n   |\n   v\neligible"
+
+
+def test_flow_diagram_yaml_revise_preserves_analyst_content():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(
+            Path(tmp),
+            existing_outputs={
+                "flow_diagram.yaml": {"flow_diagram": "ANALYST EDITED"},
+            },
+        )
+        enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
+        rc = es.run(domain, "revise", enr_path)
+        assert rc == 0
+        doc = _read_yaml(domain / "specs/guidance/flow_diagram.yaml")
+        assert doc["flow_diagram"] == "ANALYST EDITED"
+
+
+def test_flow_diagram_yaml_revise_fills_when_missing():
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(Path(tmp))  # no existing flow_diagram.yaml
+        enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
+        rc = es.run(domain, "revise", enr_path)
+        assert rc == 0
+        doc = _read_yaml(domain / "specs/guidance/flow_diagram.yaml")
+        assert doc["flow_diagram"] == "gross_earned_income\n   |\n   v\neligible"
+
+
+def test_skeleton_yaml_revise_drops_stale_flow_diagram():
+    """A stale `flow_diagram:` left inside an existing skeleton.yaml must not
+    be carried into the regenerated skeleton.yaml. It lives in flow_diagram.yaml now."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _build_domain(
+            Path(tmp),
+            existing_outputs={
+                "skeleton.yaml": {
+                    "skeleton": {
+                        "inputs": ["analyst_input"],
+                        "outputs": ["analyst_output"],
+                        "computations": [{"stage": "analyst_stage", "variables": ["x"]}],
+                        "flow_diagram": "STALE DIAGRAM INSIDE SKELETON",
+                    },
+                },
+            },
+        )
+        enr_path = _write_enrichment(Path(tmp), _minimal_enrichment())
+        rc = es.run(domain, "revise", enr_path)
+        assert rc == 0
+        doc = _read_yaml(domain / "specs/guidance/skeleton.yaml")
+        assert "flow_diagram" not in doc["skeleton"]
+        # Analyst-edited spine fields still preserved.
+        assert doc["skeleton"]["inputs"] == ["analyst_input"]
 
 
 # ---------------------------------------------------------------------------
@@ -685,10 +812,11 @@ def test_stdout_header_json_and_sentinel():
         assert rc == 0
         header = _parse_header(stdout)
         assert header["mode"] == "create"
-        assert len(header["files_written"]) == 5
+        assert len(header["files_written"]) == 6
         assert "specs/guidance/skeleton.yaml" in header["files_written"]
+        assert "specs/guidance/flow_diagram.yaml" in header["files_written"]
         # Human summary follows the sentinel.
-        assert "Wrote 5 files:" in stdout
+        assert "Wrote 6 files:" in stdout
         assert "[CREATED]" in stdout
 
 
@@ -701,6 +829,7 @@ def test_stdout_files_written_round_trip_yaml():
         for rel in (
             "specs/guidance/prompt-context.yaml",
             "specs/guidance/skeleton.yaml",
+            "specs/guidance/flow_diagram.yaml",
             "specs/guidance/output-variables.yaml",
             "specs/guidance/input-variables.yaml",
             "specs/guidance/constants-and-tables.yaml",

@@ -18,6 +18,8 @@ guidance/
   include-with-output.yaml ← flat list of variable names to expose with API output
   constants-and-tables.yaml ← non-variable named tables/constants
   skeleton.yaml            ← skeleton + intermediate variables (computations:)
+  flow_diagram.yaml        ← ASCII flow diagram of the computation graph
+  skeleton.json            ← durable AI enrichment input to xlator emit-skeleton
   ruleset-groups.yaml      ← ruleset_groups
   ruleset-modules.yaml     ← ruleset_modules
   sample-artifacts.yaml    ← sample_rules, missing_info, assumptions
@@ -28,7 +30,7 @@ guidance/
   source-annotations.yaml  ← [analyst] important_sections, ignore_or_low_priority
 ```
 
-**Pipeline files** (written by AI skills): `metadata.yaml`, `prompt-context.yaml`, `output-variables.yaml`, `input-variables.yaml`, `include-with-output.yaml`, `constants-and-tables.yaml`, `skeleton.yaml`, `ruleset-groups.yaml`, `ruleset-modules.yaml`, `sample-artifacts.yaml`, `sample-tests.yaml`
+**Pipeline files** (written by AI skills): `metadata.yaml`, `prompt-context.yaml`, `output-variables.yaml`, `input-variables.yaml`, `include-with-output.yaml`, `constants-and-tables.yaml`, `skeleton.yaml`, `flow_diagram.yaml`, `skeleton.json`, `ruleset-groups.yaml`, `ruleset-modules.yaml`, `sample-artifacts.yaml`, `sample-tests.yaml`
 
 **Analyst-authored files** (written by analyst, AI skill, or both): `policy-briefing.yaml`, `scenario-cards.yaml`, `known-pitfalls.yaml`, `source-annotations.yaml`
 
@@ -209,13 +211,34 @@ skeleton:
       variables: [after_federal, after_eitc, after_half, adjusted_earned_income]
       exprs:
         after_half: "after_irwe * 0.5"
-  flow_diagram: |
-    client_gross_earned ──► exclusion_chain ──► client_result
-    dol_quarterly_earnings ──► /3 ──► exclusion_chain ──► dol_result
-    client_result, dol_result ──► is_compatible ──► eligible
 ```
 
-Sub-fields: `inputs` (flat list of confirmed input variable names), `outputs` (flat list of confirmed output variable names), `computations` (list of `{stage, variables[], exprs}` entries), `flow_diagram` (ASCII diagram of computation flow).
+Sub-fields: `inputs` (flat list of confirmed input variable names), `outputs` (flat list of confirmed output variable names), `computations` (list of `{stage, variables[], exprs}` entries). The ASCII flow diagram lives in `flow_diagram.yaml`.
+
+---
+
+### `flow_diagram.yaml`
+
+Carries the ASCII diagram of the computation flow as a single top-level literal-block string. Analyst-facing; not consumed by any downstream tool. Written by `/create-skeleton`; `revise` mode preserves analyst edits.
+
+**Written by:** `/create-skeleton`
+**Read by:** (analyst only)
+
+```yaml
+flow_diagram: |
+  client_gross_earned ──► exclusion_chain ──► client_result
+  dol_quarterly_earnings ──► /3 ──► exclusion_chain ──► dol_result
+  client_result, dol_result ──► is_compatible ──► eligible
+```
+
+---
+
+### `skeleton.json`
+
+Durable copy of the AI enrichment object that `/create-skeleton` feeds into `xlator emit-skeleton`. Overwritten on every re-run. Not analyst-edited (edit the emitted YAMLs instead). Not enumerated by `SP-LoadGuidanceShas` since it is JSON, not YAML.
+
+**Written by:** `/create-skeleton`
+**Read by:** `xlator emit-skeleton` (via `--enrichment <path>`)
 
 ---
 

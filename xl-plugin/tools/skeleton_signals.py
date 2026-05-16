@@ -61,6 +61,7 @@ _PER_FILE_REL = "policy_facets/computations"
 # Step-4 output files that may already exist (preserved in `revise` mode).
 _OUTPUT_FILES_REL = (
     "specs/guidance/skeleton.yaml",
+    "specs/guidance/flow_diagram.yaml",
     "specs/guidance/output-variables.yaml",
     "specs/guidance/input-variables.yaml",
     "specs/guidance/constants-and-tables.yaml",
