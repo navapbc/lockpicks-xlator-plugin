@@ -125,9 +125,6 @@ case "$1" in
     tag-vars-include-output)
         exec uv run "$TOOLS_DIR/tag_vars_include_output.py" "${@:2}"
         ;;
-    detect-ruleset-modules)
-        exec uv run "$TOOLS_DIR/detect_ruleset_modules.py" "${@:2}"
-        ;;
     scan-ruleset-groups)
         exec uv run "$TOOLS_DIR/scan_ruleset_groups.py" "${@:2}"
         ;;

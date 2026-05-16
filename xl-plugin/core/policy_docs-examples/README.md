@@ -21,7 +21,9 @@ Two policy documents in [dl/](dl/):
 | [traffic_violation_code.md](dl/traffic_violation_code.md) | classify violation → assign demerit points → compute fine (with school-zone multiplier and repeat-violation surcharge) |
 | [license_suspension_policy.md](dl/license_suspension_policy.md) | identify recent violations → apply recency weight → check severity escalations → assign action tier |
 
-### Expected module structure
+### Intended module structure
+
+Note that while these are the intended modules, an AI may decide on a different module decomposition, depending on the input and output of the desired target ruleset.
 
 The two documents are written to imply the following module decomposition:
 
