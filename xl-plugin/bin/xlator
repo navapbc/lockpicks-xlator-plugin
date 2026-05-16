@@ -131,12 +131,6 @@ case "$1" in
     scan-ruleset-groups)
         exec uv run "$TOOLS_DIR/scan_ruleset_groups.py" "${@:2}"
         ;;
-    skeleton-signals)
-        exec uv run "$TOOLS_DIR/skeleton_signals.py" "${@:2}"
-        ;;
-    emit-skeleton)
-        exec uv run "$TOOLS_DIR/emit_skeleton.py" "${@:2}"
-        ;;
     load-extraction-context)
         exec uv run "$TOOLS_DIR/load_extraction_context.py" "${@:2}"
         ;;

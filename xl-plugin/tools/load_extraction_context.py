@@ -13,7 +13,9 @@ SP-LoadNamingManifest, and SP-ResolveRulesetModules's resolution into a
 deterministic, read-only Python tool.
 
 Output (stdout): a single pretty-printed JSON object — no human body, no
-sentinel divider. Matches the `skeleton-signals` transport from plan 005.
+sentinel divider. Unlike other xlator tools that emit a JSON-header +
+sentinel + human-readable body (e.g., scan_ruleset_groups,
+detect_ruleset_modules), this tool's stdout is consumed only programmatically.
 
 Usage:
     xlator load-extraction-context <domain> [<program>] [--mode {extract,update,review}]
