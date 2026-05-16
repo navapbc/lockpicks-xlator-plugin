@@ -24,7 +24,7 @@ import sys
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from civil_expr import _scan_comprehension_args, extract_refs  # noqa: E402
+from civil_expr import _scan_comprehension_args, _string_literal_positions, extract_refs  # noqa: E402
 from civil_schema import CivilModule  # noqa: E402
 
 from pydantic import ValidationError  # noqa: E402
@@ -438,34 +438,10 @@ def _scan_comprehension_iterables(expr: str) -> list[str]:
     iterables: list[str] = []
     i = 0
     n = len(expr)
-    in_sq = False  # inside single-quoted string literal at the outer level
-    in_dq = False  # inside double-quoted string literal at the outer level
+    literal_positions = _string_literal_positions(expr)
     while i < n:
-        ch = expr[i]
-        # Track string-literal state so heads inside string literals are not matched.
-        # Mirrors civil_expr._scan_comprehension_args escape handling.
-        if in_sq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == "'":
-                in_sq = False
-            i += 1
-            continue
-        if in_dq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == '"':
-                in_dq = False
-            i += 1
-            continue
-        if ch == "'":
-            in_sq = True
-            i += 1
-            continue
-        if ch == '"':
-            in_dq = True
+        # Inside a string literal — skip; heads buried in strings are not real.
+        if i in literal_positions:
             i += 1
             continue
 

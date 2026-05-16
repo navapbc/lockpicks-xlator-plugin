@@ -33,7 +33,12 @@ from typing import Callable
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from civil_expr import _scan_comprehension_args, normalize_computed_doc  # noqa: E402
+from civil_expr import (  # noqa: E402
+    _find_outside_strings,
+    _scan_comprehension_args,
+    _string_literal_positions,
+    normalize_computed_doc,
+)
 
 
 # =============================================================================
@@ -327,49 +332,15 @@ def _find_head_outside_strings(s: str, head: str, start: int) -> int:
     """Find the next occurrence of `head` in `s` at index >= `start`, skipping
     matches that fall inside a single- or double-quoted string literal.
 
-    Mirrors the R1 fix pattern in `civil_expr._rewrite_comprehensions_for_ast`:
-    tracks `in_sq` / `in_dq` state with backslash-escape handling so a head-like
-    substring buried inside a CIVIL `expr:` string literal (e.g.,
-    `reason == 'see count(v in xs where v > 0)'`) is NOT mistaken for a real
-    comprehension head and rewritten.
+    Delegates to the shared `_find_outside_strings` primitive in `civil_expr`,
+    so a head-like substring buried inside a CIVIL `expr:` string literal
+    (e.g., `reason == 'see count(v in xs where v > 0)'`) is NOT mistaken for
+    a real comprehension head and rewritten.
 
     Returns the index of the next head occurrence outside any string literal,
     or -1 if none remains.
     """
-    n = len(s)
-    in_sq = False
-    in_dq = False
-    i = start
-    while i < n:
-        ch = s[i]
-        if in_sq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == "'":
-                in_sq = False
-            i += 1
-            continue
-        if in_dq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == '"':
-                in_dq = False
-            i += 1
-            continue
-        if ch == "'":
-            in_sq = True
-            i += 1
-            continue
-        if ch == '"':
-            in_dq = True
-            i += 1
-            continue
-        if s.startswith(head, i):
-            return i
-        i += 1
-    return -1
+    return _find_outside_strings(s, head, start)
 
 
 def _rewrite_comprehension(expr: str, head: str, emit: Callable[[str, str, str], str]) -> str:
@@ -499,40 +470,20 @@ def _scan_sum_args(s: str, start: int) -> tuple[str, str, str, str | None, int] 
             return False
         return True
 
+    # String-aware position lookup, shared with the post-`for` walker below.
+    literal_positions = _string_literal_positions(s)
+
     # Walk forward until we hit a top-level ` for ` keyword (outside strings/brackets).
     i = start
     depth = 0
-    in_sq = False
-    in_dq = False
     elt_start = _skip_ws(i)
     for_at = -1
     j = elt_start
     while j < n:
+        if j in literal_positions:
+            j += 1
+            continue
         ch = s[j]
-        if in_sq:
-            if ch == "\\" and j + 1 < n:
-                j += 2
-                continue
-            if ch == "'":
-                in_sq = False
-            j += 1
-            continue
-        if in_dq:
-            if ch == "\\" and j + 1 < n:
-                j += 2
-                continue
-            if ch == '"':
-                in_dq = False
-            j += 1
-            continue
-        if ch == "'":
-            in_sq = True
-            j += 1
-            continue
-        if ch == '"':
-            in_dq = True
-            j += 1
-            continue
         if ch in "([{":
             depth += 1
             j += 1
@@ -592,40 +543,18 @@ def _scan_sum_args(s: str, start: int) -> tuple[str, str, str, str | None, int] 
         i = m2.end()
     coll = s[coll_start:i]
 
-    # Optional ` if <pred>` clause. Walk the remainder tracking depth/strings;
-    # an unguarded top-level ` if ` introduces the predicate. Otherwise the
-    # remainder up to the matching `)` is empty whitespace.
+    # Optional ` if <pred>` clause. Walk the remainder tracking depth (strings
+    # handled via the shared `literal_positions` from above); an unguarded
+    # top-level ` if ` introduces the predicate. Otherwise the remainder up
+    # to the matching `)` is empty whitespace.
     depth = 0
-    in_sq = False
-    in_dq = False
     pred: str | None = None
     pred_start = -1
     while i < n:
+        if i in literal_positions:
+            i += 1
+            continue
         ch = s[i]
-        if in_sq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == "'":
-                in_sq = False
-            i += 1
-            continue
-        if in_dq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == '"':
-                in_dq = False
-            i += 1
-            continue
-        if ch == "'":
-            in_sq = True
-            i += 1
-            continue
-        if ch == '"':
-            in_dq = True
-            i += 1
-            continue
         if ch in "([{":
             depth += 1
             i += 1

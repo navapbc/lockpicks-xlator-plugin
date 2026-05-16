@@ -43,6 +43,75 @@ _IN_FN_RE = re.compile(r"\bin\(")  # 'in' is a Python keyword when used as a fn 
 _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
+def _string_literal_positions(s: str) -> frozenset[int]:
+    """Return the set of byte offsets in `s` that lie inside a single- or
+    double-quoted string literal — opening quote, body chars, closing quote,
+    AND escape-sequence chars. Backslash escapes (`\\'`, `\\"`, `\\\\`) are
+    honored: the backslash and its escaped char are both treated as inside.
+
+    Single source of truth for string-awareness across the parser, validator,
+    and transpiler. Callers do `if i in literal_positions:` to skip in-string
+    positions during their own char-by-char walks.
+    """
+    positions: set[int] = set()
+    in_sq = False
+    in_dq = False
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        if in_sq:
+            positions.add(i)
+            if c == "\\" and i + 1 < n:
+                positions.add(i + 1)
+                i += 2
+                continue
+            if c == "'":
+                in_sq = False
+            i += 1
+            continue
+        if in_dq:
+            positions.add(i)
+            if c == "\\" and i + 1 < n:
+                positions.add(i + 1)
+                i += 2
+                continue
+            if c == '"':
+                in_dq = False
+            i += 1
+            continue
+        if c == "'":
+            in_sq = True
+            positions.add(i)
+            i += 1
+            continue
+        if c == '"':
+            in_dq = True
+            positions.add(i)
+            i += 1
+            continue
+        i += 1
+    return frozenset(positions)
+
+
+def _find_outside_strings(s: str, needle: str, start: int = 0) -> int:
+    """Return the index of the first occurrence of `needle` in `s` at or after
+    `start` that is NOT inside a string literal. Returns -1 if not found.
+
+    Thin wrapper over `_string_literal_positions` — provided for sites that
+    only need substring search.
+    """
+    literal_positions = _string_literal_positions(s)
+    n = len(s)
+    needle_len = len(needle)
+    for i in range(start, n - needle_len + 1):
+        if i in literal_positions:
+            continue
+        if s.startswith(needle, i):
+            return i
+    return -1
+
+
 def _scan_comprehension_args(s: str, start: int) -> tuple[str, str, str, int] | None:
     """Scan a comprehension argument list starting just after a `count(` or `exists(`.
 
@@ -116,36 +185,15 @@ def _scan_comprehension_args(s: str, start: int) -> tuple[str, str, str, int] | 
         i += 1
 
     # Walk the predicate until the matching closing `)` of the outer call.
+    # String-literal awareness via the shared primitive.
     pred_start = i
     depth = 0
-    in_sq = False  # inside single-quoted string
-    in_dq = False  # inside double-quoted string
+    literal_positions = _string_literal_positions(s)
     while i < n:
+        if i in literal_positions:
+            i += 1
+            continue
         ch = s[i]
-        if in_sq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == "'":
-                in_sq = False
-            i += 1
-            continue
-        if in_dq:
-            if ch == "\\" and i + 1 < n:
-                i += 2
-                continue
-            if ch == '"':
-                in_dq = False
-            i += 1
-            continue
-        if ch == "'":
-            in_sq = True
-            i += 1
-            continue
-        if ch == '"':
-            in_dq = True
-            i += 1
-            continue
         if ch == "(":
             depth += 1
             i += 1
@@ -185,49 +233,18 @@ def _rewrite_comprehensions_for_ast(expr: str) -> str:
     out_parts: list[str] = []
     i = 0
     n = len(expr)
-    in_sq = False  # inside single-quoted string literal at the outer level
-    in_dq = False  # inside double-quoted string literal at the outer level
+    literal_positions = _string_literal_positions(expr)
     while i < n:
-        ch = expr[i]
-        # Track string-literal state so heads inside string literals are not matched.
-        # Mirrors the inner scanner's escape handling: a `\` escapes the next char.
-        if in_sq:
-            if ch == "\\" and i + 1 < n:
-                out_parts.append(expr[i:i + 2])
-                i += 2
-                continue
-            if ch == "'":
-                in_sq = False
-            out_parts.append(ch)
-            i += 1
-            continue
-        if in_dq:
-            if ch == "\\" and i + 1 < n:
-                out_parts.append(expr[i:i + 2])
-                i += 2
-                continue
-            if ch == '"':
-                in_dq = False
-            out_parts.append(ch)
-            i += 1
-            continue
-        if ch == "'":
-            in_sq = True
-            out_parts.append(ch)
-            i += 1
-            continue
-        if ch == '"':
-            in_dq = True
-            out_parts.append(ch)
+        # Inside a string literal — copy verbatim and advance.
+        if i in literal_positions:
+            out_parts.append(expr[i])
             i += 1
             continue
 
-        # Try to find the next `count(` or `exists(` head; respect string literals
-        # via in_sq/in_dq state above. A token-boundary check on the preceding
-        # char ensures we don't match `recount(`, `_exists(`, etc.
+        # Outside strings — try to match a head. Token-boundary check ensures
+        # we don't match `recount(`, `_exists(`, etc.
         head = None
         head_len = 0
-        # count(
         if (
             expr.startswith("count(", i)
             and (i == 0 or not (expr[i - 1].isalnum() or expr[i - 1] == "_"))
@@ -266,90 +283,26 @@ def _rewrite_comprehensions_for_ast(expr: str) -> str:
 
     result = "".join(out_parts)
 
-    # Defensive guard: every remaining `count(...)` / `exists(...)` substring should
-    # be either flat-form (no ` in ` / ` where `) or already rewritten. If we still see
-    # both keywords inside such a substring, the scanner left a comprehension partially
-    # consumed.
-    #
-    # Pre-compute the offsets that lie inside outer-level string literals so the
-    # guard doesn't false-fire on `count(` substrings buried inside a string.
-    string_literal_positions: set[int] = set()
-    _i = 0
-    _in_sq = False
-    _in_dq = False
-    while _i < len(result):
-        _ch = result[_i]
-        if _in_sq:
-            string_literal_positions.add(_i)
-            if _ch == "\\" and _i + 1 < len(result):
-                string_literal_positions.add(_i + 1)
-                _i += 2
-                continue
-            if _ch == "'":
-                _in_sq = False
-            _i += 1
-            continue
-        if _in_dq:
-            string_literal_positions.add(_i)
-            if _ch == "\\" and _i + 1 < len(result):
-                string_literal_positions.add(_i + 1)
-                _i += 2
-                continue
-            if _ch == '"':
-                _in_dq = False
-            _i += 1
-            continue
-        if _ch == "'":
-            _in_sq = True
-            string_literal_positions.add(_i)
-            _i += 1
-            continue
-        if _ch == '"':
-            _in_dq = True
-            string_literal_positions.add(_i)
-            _i += 1
-            continue
-        _i += 1
-
+    # Defensive guard: every remaining `count(...)` / `exists(...)` substring
+    # should be either flat-form (no ` in ` / ` where `) or already rewritten.
+    # If we still see both keywords inside such a substring, the scanner left
+    # a comprehension partially consumed. String-aware via the shared primitive
+    # so heads buried inside string literals are not re-scanned.
+    result_literal_positions = _string_literal_positions(result)
     for fn in ("count", "exists"):
         head_re = re.compile(rf"\b{fn}\(")
         for m in head_re.finditer(result):
-            # Skip heads that fall inside a string literal — those are not real
-            # comprehension heads and must not be re-scanned by the guard.
-            if m.start() in string_literal_positions:
+            if m.start() in result_literal_positions:
                 continue
-            # Scan to matching close to find the substring.
+            # Find the matching `)` (paren-depth tracking, string-aware).
             depth = 0
             j = m.end() - 1  # position of the `(`
             close = None
-            in_sq = False
-            in_dq = False
             while j < len(result):
+                if j in result_literal_positions:
+                    j += 1
+                    continue
                 ch = result[j]
-                if in_sq:
-                    if ch == "\\" and j + 1 < len(result):
-                        j += 2
-                        continue
-                    if ch == "'":
-                        in_sq = False
-                    j += 1
-                    continue
-                if in_dq:
-                    if ch == "\\" and j + 1 < len(result):
-                        j += 2
-                        continue
-                    if ch == '"':
-                        in_dq = False
-                    j += 1
-                    continue
-                if ch == "'":
-                    in_sq = True
-                    j += 1
-                    continue
-                if ch == '"':
-                    in_dq = True
-                    j += 1
-                    continue
                 if ch == "(":
                     depth += 1
                 elif ch == ")":
