@@ -13,16 +13,16 @@ Reads one specs/suggested_targets/<ruleset_name>.yaml and writes:
   - specs/guidance/prompt-context.yaml (role, scope, constraints seed,
                                         standards, guidance, edge_cases: [])
 
-Field-mapping rules (verbatim from
-docs/plans/2026-05-13-002-refactor-declare-target-ruleset-script-plan.md):
+Field-mapping rules:
 
   - inputs/computed/outputs entries carry `type:` and `description:` only when
     the suggestion supplies them; absent keys are omitted (not written as null).
-  - outputs entries DROP the `primary:` flag — primary distinction lives in
-    guidance/output-variables.yaml (written by /create-skeleton).
+    Any other keys present on a suggestion entry are silently dropped.
   - Provenance fields (policy_phrase, source_doc, section, synonyms) are NEVER
     written on seeded entries; /extract-ruleset Step 7 fills them in once an
     analyst confirms a seeded name against an observed phrase.
+  - Output declaration order is preserved — /create-skeleton uses the first
+    output as the primary decision when writing guidance/output-variables.yaml.
   - `constraints:` is a fixed 6-entry seed list, encoded in this file as
     `_CONSTRAINTS_SEED`. Future seed edits update this constant — single
     source of truth.
@@ -85,9 +85,9 @@ def _load_yaml(path: Path) -> Any:
 
 def _entry_subset(entry: Any) -> dict[str, Any]:
     """Return a new dict containing only `type:` and `description:` from
-    `entry` — and only when those keys are present. Drops every other key,
-    including `primary:`, `policy_phrase:`, `source_doc:`, `section:`, and
-    `synonyms:`. Returns `{}` when `entry` is not a dict."""
+    `entry` — and only when those keys are present. Every other key on the
+    suggestion entry (e.g. `policy_phrase:`, `source_doc:`, `section:`,
+    `synonyms:`) is dropped. Returns `{}` when `entry` is not a dict."""
     if not isinstance(entry, dict):
         return {}
     out: dict[str, Any] = {}
@@ -117,7 +117,7 @@ def _build_inputs(raw: Any) -> dict[str, Any]:
 
 def _build_flat(raw: Any) -> dict[str, Any]:
     """Build a flat block (used for `computed:` and `outputs:`). Each key
-    maps to `{type?, description?}`. Crucially DROPS `primary:` for outputs."""
+    maps to `{type?, description?}`."""
     if not isinstance(raw, dict):
         return {}
     out: dict[str, Any] = {}
@@ -212,24 +212,13 @@ def _format_summary(
     primary_name = ""
     primary_type = ""
     secondary_names: list[str] = []
-    if isinstance(outputs_raw, dict):
-        for name, entry in outputs_raw.items():
-            is_primary = isinstance(entry, dict) and entry.get("primary") is True
-            if is_primary and not primary_name:
-                primary_name = str(name)
-                if isinstance(entry, dict) and "type" in entry:
-                    primary_type = str(entry["type"])
-            else:
-                secondary_names.append(str(name))
-
-    # Fallback: if no entry was marked primary, treat the first output as primary.
-    if not primary_name and isinstance(outputs_raw, dict) and outputs_raw:
-        first_name = next(iter(outputs_raw))
-        primary_name = str(first_name)
-        first_entry = outputs_raw[first_name]
+    if isinstance(outputs_raw, dict) and outputs_raw:
+        names = list(outputs_raw.keys())
+        primary_name = str(names[0])
+        first_entry = outputs_raw[names[0]]
         if isinstance(first_entry, dict) and "type" in first_entry:
             primary_type = str(first_entry["type"])
-        secondary_names = [n for n in secondary_names if n != primary_name]
+        secondary_names = [str(n) for n in names[1:]]
 
     output_line = (
         f"{primary_name} ({primary_type})" if primary_type else primary_name

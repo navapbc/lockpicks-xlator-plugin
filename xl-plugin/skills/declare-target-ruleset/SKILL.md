@@ -106,6 +106,4 @@ Read `../../core/output-fencing.md` now.
 
 ## Common Mistakes to Avoid
 
-- **Do not write `generated_at`** — git tracks version history; the tool drops this field.
-- **Do not propagate the `primary: true|false` flag** from `suggested_targets/*.yaml` into `naming-manifest.yaml` — primary distinction lives in `guidance/output-variables.yaml` (written by `/create-skeleton`). The tool enforces this.
 - **Do not write `policy_phrase:`, `source_doc:`, or `section:` on seeded `naming-manifest.yaml` entries** — these provenance fields are nullable at seed time. The tool omits them; `/extract-ruleset` Step 7 fills them in once the analyst confirms a seeded name against an observed phrase.

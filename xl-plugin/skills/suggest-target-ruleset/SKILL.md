@@ -80,7 +80,7 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 - `scope` — extraction goal sentence (e.g., "Convert the provided policy text into explicit, testable eligibility rules that produce an eligibility decision.")
 - `inputs.<EntityName>.<field>` — entity-grouped input variables. See "Entity inference" below for the rule. Each `<field>` is keyed by snake_case variable name and carries optional `{type, description}`.
 - `computed.<field>` — flat block of computed (intermediate) variables. Variables identified as intermediate via the variable-chain analysis above (LHS-of-one, RHS-of-another) flow here. Each entry carries optional `{type, description}`.
-- `outputs.<field>` — flat block of output variables. Each entry carries `{type, description, primary: true|false}`. Exactly one output has `primary: true` per ruleset (the candidate's main decision); all others are secondary (denial reasons, verification flags, etc.). Variables that appear on an LHS but never on a downstream RHS are terminal outputs.
+- `outputs.<field>` — flat block of output variables. Each entry carries optional `{type, description}`. **List the candidate's main decision first** (the primary output); secondary outputs (denial reasons, verification flags, etc.) follow in subsequent entries. Variables that appear on an LHS but never on a downstream RHS are terminal outputs. Declaration order is load-bearing — downstream `/create-skeleton` treats the first entry as primary.
 
 **Entity inference for `inputs.<EntityName>.<field>`.** Inputs are the leaf variables — those that appear on the RHS of some `expr_hint:` or in `description:` prose but never on an LHS, plus variables in descriptive-only computations that the source treats as supplied rather than computed. For each input, determine its owning entity from policy doc context. Entities are CamelCase nouns representing the conceptual owner of their fields — common examples: `Applicant`, `Household`, `Income`, `Asset`, `Resource`. Use these signals in order:
 
@@ -122,12 +122,12 @@ Suggestions focused on: <hint>            ← omit this line if no hint was prov
   1. <ruleset_name>
      <description>
      Inputs: <comma-separated entity names>
-     Output: <primary_output_name> (<type>)
+     Output: <first_output_name> (<type>)
 
   2. <ruleset_name>
      <description>
      Inputs: <comma-separated entity names>
-     Output: <primary_output_name> (<type>)
+     Output: <first_output_name> (<type>)
 
   3. <ruleset_name>   ← include only if a third distinct scope is identifiable
      ...
@@ -159,18 +159,17 @@ computed:                       # flat — no entity grouping
   <field_name>:
     type: <type>                # optional
     description: <string>       # optional
-outputs:                        # flat — exactly one entry has primary: true
+outputs:                        # flat — list the primary output first; declaration order is load-bearing
   <field_name>:
-    type: <type>
-    description: <string>
-    primary: true | false
+    type: <type>                # optional
+    description: <string>       # optional
   # repeat for each output
 ```
 
    YAML conventions:
    - Two-space indentation throughout
    - All `description:` and `display_name:` values as quoted strings
-   - Exactly one `outputs.<field>.primary: true` per file — every other output has `primary: false`
+   - **List the candidate's main decision as the first entry under `outputs:`** — `/create-skeleton` treats the first output as primary; secondary outputs follow
    - Omit `type:` and `description:` when no signal exists rather than guessing
    - Use the fallback entity `Case` for input fields with no clear conceptual owner — do not invent one-off entities to avoid the fallback
    - `# Generated:` date as YYYY-MM-DD (today's date)
@@ -203,7 +202,7 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 - **Do not include `intermediate_variables`, `constraints`, `standards`, `guidance`, `edge_cases`, `skeleton:`, `ruleset_groups:`, or `ruleset_modules:` in suggestion files** — those are written by later skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`)
 - **Do not read files under `$DOMAINS_DIR/<domain>/input/`** — `policy_facets/computations/` is the sole source of doc signals
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
-- **Do not omit the `primary:` flag from any `outputs.<field>` entry** — every output entry must have `primary: true|false`, and exactly one per file must be `true`.
+- **Do not emit a `primary:` flag on `outputs.<field>` entries** — primary distinction is encoded by declaration order (first entry = primary); `/create-skeleton` reads that order when writing `guidance/output-variables.yaml`. Emitting `primary:` adds noise that downstream tooling strips.
 - **Do not guess `type:` when no signal exists** — omit the field instead. Same for `description:`.
 - **Do not invent a one-off entity per variable to avoid the `Case` fallback** — `Case` is the correct entity for input fields with no clear conceptual owner. Splintering into `Misc1`, `Misc2`, etc. is worse than using `Case`.
 - **Do not collapse parallel data sources into a single entity** — when policy text says "apply X to both A and B", or compares A against B (reasonable compatibility, AVS-vs-client, employer-vs-self, etc.), emit two parallel entities (e.g., `ClientStatement` + `DOLRecord`), not one merged `Income` or `Data` entity. Merging hides the reuse signal that `/create-ruleset-modules`'s `reuse_across_entities` heuristic needs to detect a shared sub-module. This is Entity Inference Rule 0 — the highest-priority rule, applied before heading/policy-phrase/name signals.

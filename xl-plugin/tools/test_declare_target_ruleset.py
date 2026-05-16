@@ -3,8 +3,8 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """Tests for declare_target_ruleset.py — covers field-mapping rules, the
-seeded-entry invariant, the primary:-drop rule, the constraints seed verbatim
-contract, and all pre-flight paths."""
+seeded-entry invariant, the constraints seed verbatim contract, and all
+pre-flight paths."""
 
 from __future__ import annotations
 
@@ -92,9 +92,9 @@ def _full_payload() -> dict:
             "passes_gross_test": {"type": "bool", "description": "Gross test pass."},
         },
         "outputs": {
-            "eligible": {"type": "bool", "description": "Final eligibility.", "primary": True},
-            "denial_reason": {"type": "string", "description": "Reason.", "primary": False},
-            "warning": {"type": "string", "description": "Optional warning.", "primary": False},
+            "eligible": {"type": "bool", "description": "Final eligibility."},
+            "denial_reason": {"type": "string", "description": "Reason."},
+            "warning": {"type": "string", "description": "Optional warning."},
         },
         "standards": ["Use monthly amounts.", "Express money in dollars."],
         "guidance": ["Look for chained deductions.", "Check gross and net tests."],
@@ -139,28 +139,10 @@ def test_happy_path_inputs_round_trip():
 
 
 # ---------------------------------------------------------------------------
-# primary: flag drop — load-bearing invariant
+# Outputs round-trip type and description
 # ---------------------------------------------------------------------------
 
-def test_primary_true_dropped_from_outputs():
-    with tempfile.TemporaryDirectory() as tmp:
-        domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", _full_payload())
-        dtr.run(domain_dir, "sample_ruleset")
-        manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert "primary" not in manifest["outputs"]["eligible"]
-
-
-def test_primary_false_also_dropped():
-    with tempfile.TemporaryDirectory() as tmp:
-        domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", _full_payload())
-        dtr.run(domain_dir, "sample_ruleset")
-        manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert "primary" not in manifest["outputs"]["denial_reason"]
-        assert "primary" not in manifest["outputs"]["warning"]
-
-
 def test_outputs_preserve_type_and_description():
-    """After primary: drop, type/description still round-trip."""
     with tempfile.TemporaryDirectory() as tmp:
         domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", _full_payload())
         dtr.run(domain_dir, "sample_ruleset")
@@ -567,7 +549,7 @@ def test_stdout_computed_none_when_absent():
 def test_stdout_secondary_outputs_none_when_only_one_output():
     payload = _full_payload()
     payload["outputs"] = {
-        "eligible": {"type": "bool", "description": "x", "primary": True},
+        "eligible": {"type": "bool", "description": "x"},
     }
     with tempfile.TemporaryDirectory() as tmp:
         domain_dir = _build_suggestion(Path(tmp), "d", "r", payload)

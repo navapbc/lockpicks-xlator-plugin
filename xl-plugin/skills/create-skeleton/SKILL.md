@@ -243,6 +243,8 @@ Write four files into `$DOMAINS_DIR/<domain>/specs/guidance/`:
    ```
    `examples:` carries **sample values** (concrete instance data), NOT synonym names. Synonyms live in `naming-manifest.yaml`'s `synonyms:` row list.
 
+   **Determining `primary:`.** Treat the **first** entry in `specs/naming-manifest.yaml`'s `outputs:` block as `primary: true` and every other entry as `primary: false`. The manifest preserves declaration order from `suggested_targets/<ruleset>.yaml`, where `/suggest-target-ruleset` lists the candidate's main decision first. Do not re-read the suggestion file and do not infer primary from semantics — the order in `naming-manifest.yaml` is the contract.
+
 3. **Write `guidance/input-variables.yaml`** — input categories with descriptive metadata + per-category provenance:
    ```yaml
    categories:
@@ -331,6 +333,7 @@ $DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml       [UPDATED in Step 
 - When `[c] revise` is selected in UPDATE mode, skip Steps 1–3 and go directly to the Step 4 confirm/adjust loop displaying the existing skeleton — do not re-run Step 2 extraction
 - Step 2 writes `prompt-context.yaml`; Step 4 writes `skeleton.yaml`, `output-variables.yaml`, `input-variables.yaml`, and `constants-and-tables.yaml` — do not conflate them
 - **`output-variables.yaml`'s `examples:` carries sample values, not synonym names** — synonyms are tracked in `naming-manifest.yaml`'s `synonyms:` row list. Do not duplicate.
+- **`output-variables.yaml`'s `primary:` flag is derived from declaration order, not inferred** — the first output in `naming-manifest.yaml`'s `outputs:` block is `primary: true`; every other is `primary: false`. Do not re-evaluate which output is "most important" by reading descriptions or policy text.
 - Re-runs preserve analyst edits — only fill in fields the analyst left blank. Match `/extract-ruleset` Step 7's preserve-non-null discipline.
 - **When a section has an explicit `stage:` value, that stage wins over name-pattern categorization** — do not override an explicit doc signal with a heuristic guess. Apply the same suffix-stripping normalization as `/create-ruleset-groups` so stages match `ruleset_groups[*].name` exactly
 - **Do not write `stage:` or modify it** — `stage:` is single-owner; only `/extract-computations` writes the field. This skill reads it
