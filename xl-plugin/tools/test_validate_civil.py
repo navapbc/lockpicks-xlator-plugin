@@ -566,12 +566,46 @@ class TestRealDomainBackwardCompat:
         errors, _ = _validate_expressions(data, data["module"])
         assert errors == [], f"unexpected expression errors on ak_doh: {errors}"
 
-    def test_dl_severity_class_fails_qualified_access(self, capsys):
-        # U4 will fix these files. Today they contain bare-name predicates that
-        # the new U2 validator must correctly reject.
+    def test_bare_name_predicate_inline_fragment_rejected(self):
+        # Stable negative test using an inline CIVIL fragment: a bare-name
+        # predicate inside a comprehension must be rejected with a
+        # qualified-access error, regardless of dl file evolution.
+        doc = _minimal_module(
+            inputs={
+                "RecentViolation": {
+                    "fields": {
+                        "recent_violations": {"type": "list"},
+                        "severity_class": {
+                            "type": "enum",
+                            "values": ["A", "B", "C", "D"],
+                        },
+                    },
+                },
+            },
+            computed={
+                "severity_d_escalation": {
+                    "type": "bool",
+                    "expr": (
+                        "count(v in recent_violations "
+                        "where severity_class == 'D') >= 1"
+                    ),
+                },
+            },
+        )
+        errors, _ = _validate_expressions(doc, "severity_class")
+        assert errors, "expected qualified-access error for bare-name predicate"
+        assert any("qualified" in e for e in errors)
+
+    @pytest.mark.skipif(
+        not (DOMAINS_DIR / "dl" / "specs" / "severity_class.civil.yaml").exists(),
+        reason="dl domain not present",
+    )
+    def test_dl_severity_class_validates_clean_post_u4(self):
+        # Positive coverage: after U4's qualified-access migration, the dl
+        # severity_class module's expression pass returns clean. Asserts the
+        # integrated stack (parser + validator + dl migration) is wired up.
         path = DOMAINS_DIR / "dl" / "specs" / "severity_class.civil.yaml"
         with open(path) as f:
             data = yaml.safe_load(f)
         errors, _ = _validate_expressions(data, data["module"])
-        assert errors, "expected qualified-access errors for dl/severity_class"
-        assert any("qualified" in e for e in errors)
+        assert errors == [], f"unexpected expression errors on dl/severity_class: {errors}"

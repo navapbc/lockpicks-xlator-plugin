@@ -19,6 +19,9 @@ Expression language reference (for 'when:' conditions and 'expr:' strings):
   Functions:    table(name, key), in(value, [a,b,c]), exists(f), is_null(f),
                 between(value, min, max)
   computed: only: max(a, b), min(a, b)
+  Comprehensions: count(v in coll where v.field ...),
+                  exists(v in coll where v.field ...),
+                  sum(<expr> for v in coll [if <pred>])
 
 See core/CIVIL_DSL_spec.md for full specification and design rationale.
 """

@@ -1,6 +1,6 @@
 # CIVIL DSL — Authoring Quick Reference
 
-<!-- Last verified against tools/civil_schema.py: 2026-03-26 -->
+<!-- Last verified against tools/civil_schema.py: 2026-05-16 -->
 
 This is a **Claude authoring cheat sheet** for writing valid CIVIL YAML modules.
 For full specification and design rationale, see [CIVIL_DSL_spec.md](CIVIL_DSL_spec.md).
@@ -184,6 +184,43 @@ computed:
 **Key resolution order:** computed field name (bare) → entity field (`Entity.field`). Ambiguous or missing names fail at validation.
 
 **When to use:** Prefer `table_lookup` over `expr: "table(...).col"` for AI-extracted rulesets — it's structured, validator-checked, and more readable.
+
+---
+
+## Collection Comprehensions (CIVIL v11)
+
+Filtered collection operations over `list`-typed fields. Three forms ship today: `count`, `exists`, and `sum`. All lower to Catala collection ops; Rego target is deferred.
+
+| Form | Shape | Catala lowering |
+|------|-------|-----------------|
+| count | `count(<bound> in <coll> where <pred>)` | `(number for <bound> among <coll> such that <pred>)` |
+| exists | `exists(<bound> in <coll> where <pred>)` | `(exists <bound> among <coll> such that <pred>)` |
+| sum | `sum(<expr> for <bound> in <coll> [if <pred>])` | Catala `sum` collection op |
+
+**Worked example:**
+
+```yaml
+# Example: count, exists, sum across a collection
+computed:
+  adult_count:
+    type: int
+    expr: "count(h in household_members where h.age >= 18)"
+
+  has_minor:
+    type: bool
+    expr: "exists(h in household_members where h.age < 18)"
+
+  total_income:
+    type: money
+    expr: "sum(h.income for h in household_members if h.is_earner)"
+```
+
+**Notes:**
+
+- **Bound-name shape:** The bound name is a valid identifier (`[A-Za-z_][A-Za-z0-9_]*`).
+- **Strict qualified-access rule:** Inside the predicate or sum expression, iterated-row fields MUST be qualified as `<bound>.<field>` (e.g., `h.age`). Bare names (e.g., `age` alone) inside the predicate are rejected unconditionally — the only legal bare reference is the bound iterator itself. To reference a host-rule constant or computed value, hoist it outside the predicate.
+- **Shadowing:** A bound name that shadows a known entity, computed field, constant, or table fails validation.
+- **Single-arg `exists` disambiguation:** The single-argument `exists(<field>)` form is a presence check; the comprehension form requires the `<bound> in <coll> where <pred>` structure.
 
 ---
 
