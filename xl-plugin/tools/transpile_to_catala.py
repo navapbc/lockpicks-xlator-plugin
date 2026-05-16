@@ -32,7 +32,7 @@ import subprocess
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from civil_expr import normalize_computed_doc  # noqa: E402
+from civil_expr import _scan_comprehension_args, normalize_computed_doc  # noqa: E402
 
 
 # =============================================================================
@@ -322,6 +322,85 @@ def _rewrite_between(expr: str) -> str:
     return "".join(result)
 
 
+def _rewrite_comprehension(expr: str, head: str, emit: callable) -> str:
+    """Generic comprehension rewriter for `count(...)` / `exists(...)` forms.
+
+    Walks `expr` left-to-right looking for token-bounded `<head>(`. For each
+    occurrence, invokes the shared string-literal-aware scanner from
+    `civil_expr._scan_comprehension_args`. On success, splices in the Catala
+    fragment produced by `emit(var, coll, pred)`. On `None`, leaves the head
+    untouched so the flat-form path (e.g. the existing `count(<list>)` regex)
+    can still consume it.
+
+    The scan recurses into the predicate so nested comprehensions are lowered.
+
+    Trust boundary: this transpiler trusts U1's validator gate; malformed
+    comprehensions that escape validation simply pass through unchanged here
+    and surface as Catala typecheck errors downstream.
+    """
+    pattern = head + "("
+    head_len = len(pattern)
+    n = len(expr)
+    out: list[str] = []
+    i = 0
+    while i < n:
+        idx = expr.find(pattern, i)
+        if idx == -1:
+            out.append(expr[i:])
+            break
+        # Token boundary: previous char must not be alnum/underscore (else this
+        # is part of a longer identifier like `discount(...)`).
+        if idx > 0 and (expr[idx - 1].isalnum() or expr[idx - 1] == "_"):
+            out.append(expr[i:idx + head_len])
+            i = idx + head_len
+            continue
+        scan = _scan_comprehension_args(expr, idx + head_len)
+        if scan is None:
+            # Not a comprehension shape — leave the head + `(` untouched.
+            out.append(expr[i:idx + head_len])
+            i = idx + head_len
+            continue
+        var, coll, pred, end = scan
+        # Recursively lower nested comprehensions inside the predicate.
+        pred_rewritten = _rewrite_comprehension(pred, head, emit)
+        # Also run the sibling rewrite — a `count(...)` may contain `exists(...)` inside.
+        other = "exists" if head == "count" else "count"
+        other_emit = _emit_exists if other == "exists" else _emit_count
+        pred_rewritten = _rewrite_comprehension(pred_rewritten, other, other_emit)
+        out.append(expr[i:idx])
+        out.append(emit(var, coll, pred_rewritten))
+        i = end + 1  # skip the matching closing `)`
+    return "".join(out)
+
+
+def _emit_count(var: str, coll: str, pred: str) -> str:
+    """Catala emission for `count(v in coll where pred)`."""
+    return f"(number for {var} among {coll} such that {pred})"
+
+
+def _emit_exists(var: str, coll: str, pred: str) -> str:
+    """Catala emission for `exists(v in coll where pred)`."""
+    return f"(exists {var} among {coll} such that {pred})"
+
+
+def _rewrite_count_comprehension(s: str) -> str:
+    """Rewrite `count(v in coll where pred)` → `(number for v among coll such that pred)`.
+
+    Preserves the flat-form `count(<list>)` invocation for the downstream regex
+    by leaving it untouched when the scanner returns `None`.
+    """
+    return _rewrite_comprehension(s, "count", _emit_count)
+
+
+def _rewrite_exists_comprehension(s: str) -> str:
+    """Rewrite `exists(v in coll where pred)` → `(exists v among coll such that pred)`.
+
+    The single-arg `exists(<field>)` flat-form path (handled elsewhere) is
+    preserved by leaving the head untouched when the scanner returns `None`.
+    """
+    return _rewrite_comprehension(s, "exists", _emit_exists)
+
+
 def negate_simple_condition(cond: str) -> str:
     """Flip a simple comparison operator: 'X <= N' → 'X > N', etc."""
     for op, neg in [("<=", ">"), (">=", "<"), (" < ", " >= "), (" > ", " <= ")]:
@@ -346,6 +425,11 @@ def translate_expr_to_catala(
     1. Inline constants as Catala-formatted literals
     2. Resolve literal-key table lookups: table('name', INT).col → money literal
     3. Strip variable-key table lookups (handled by stacked defs in emit_table_section)
+    3.5. between(val, low, high) → (low <= val and val <= high)
+    3.55. abs(expr) → (if expr >= $0 then expr else $0 - (expr))
+    3.6a. count(v in coll where pred) → (number for v among coll such that pred)
+    3.6b. exists(v in coll where pred) → (exists v among coll such that pred)
+    3.6c. count(list) → (number of list)  (flat-form, preserved)
     4. max(a, b)  → (if a >= b then a else b)
     5. min(a, b)  → (if a <= b then a else b)
     6. &&  → and
@@ -418,7 +502,23 @@ def translate_expr_to_catala(
     # Step 3.55: abs(expr) → (if expr >= $0 then expr else $0 - (expr))
     result = _rewrite_abs(result)
 
-    # Step 3.6: count(list) → (number of list)
+    # Step 3.6: comprehension lowerings.
+    # ORDERING INVARIANT: comprehension lowerings MUST run AFTER table
+    # normalization (Steps 1-3, since table(...) may appear inside predicates)
+    # AND BEFORE the &&/||/! translations (Steps 6-8, because Catala's
+    # `such that pred` requires Catala-native and/or inside pred, while
+    # inputs are still CIVIL-native &&/||).
+    # The comprehension rewrites also run BEFORE the existing flat-form
+    # `count(<list>)` regex (Step 3.6c) so comprehension shapes are consumed
+    # first; the flat regex `\bcount\(([^)]+)\)` is paren-unsafe and would
+    # mis-match `count(v in coll where pred)` otherwise.
+    # Step 3.6a: count(v in coll where pred) → (number for v among coll such that pred)
+    result = _rewrite_count_comprehension(result)
+
+    # Step 3.6b: exists(v in coll where pred) → (exists v among coll such that pred)
+    result = _rewrite_exists_comprehension(result)
+
+    # Step 3.6c: count(list) → (number of list)  (flat-form, preserved)
     result = re.sub(r"\bcount\(([^)]+)\)", r"(number of \1)", result)
 
     # Steps 4–5: expand max/min iteratively until no nested calls remain.
