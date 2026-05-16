@@ -474,6 +474,85 @@ class TestSumTypedContextGuard:
         assert "(exists v among items such that v.x = 'D')" in out
 
 
+class TestComprehensionHeadInsideStringLiteralNotRewritten:
+    """R1 extension: outer transpiler walkers must track string-literal state.
+
+    A CIVIL `expr:` string may contain a string literal whose contents include
+    a head-like substring (`count(...)`, `exists(...)`, `sum(...)`). The walker
+    must NOT mistake the substring for a real comprehension head and rewrite
+    it — the string literal must be preserved verbatim.
+
+    Mirrors the parser-side fix in civil_expr.py (commit 69353f3).
+    """
+
+    def test_count_substring_in_string_literal_not_rewritten(self):
+        out = _rewrite_count_comprehension(
+            "reason == 'see count(v in xs where v > 0)'"
+        )
+        assert out == "reason == 'see count(v in xs where v > 0)'"
+
+    def test_exists_substring_in_string_literal_not_rewritten(self):
+        out = _rewrite_exists_comprehension(
+            "reason == 'check exists(v in xs where v.flag)'"
+        )
+        assert out == "reason == 'check exists(v in xs where v.flag)'"
+
+    def test_sum_substring_in_string_literal_not_rewritten(self):
+        out = _rewrite_sum_comprehension(
+            "reason == 'totals sum(v.amount for v in xs)'",
+            field_type="decimal",
+        )
+        assert out == "reason == 'totals sum(v.amount for v in xs)'"
+
+    def test_double_quoted_string_with_comprehension_substring_not_rewritten(self):
+        # Double-quoted variant: same string-literal tracking applies.
+        out_count = _rewrite_count_comprehension(
+            'reason == "see count(v in xs where v > 0)"'
+        )
+        assert out_count == 'reason == "see count(v in xs where v > 0)"'
+
+        out_exists = _rewrite_exists_comprehension(
+            'reason == "check exists(v in xs where v.flag)"'
+        )
+        assert out_exists == 'reason == "check exists(v in xs where v.flag)"'
+
+        out_sum = _rewrite_sum_comprehension(
+            'reason == "totals sum(v.amount for v in xs)"',
+            field_type="decimal",
+        )
+        assert out_sum == 'reason == "totals sum(v.amount for v in xs)"'
+
+    def test_escaped_quote_in_string_with_comprehension_substring(self):
+        # Backslash-escaped quote inside the string must not prematurely
+        # terminate the string-literal state; the head-like substring stays
+        # protected.
+        out = _rewrite_count_comprehension(
+            "reason == 'it\\'s count(v in xs where v.a)'"
+        )
+        assert out == "reason == 'it\\'s count(v in xs where v.a)'"
+
+    def test_real_comprehension_after_string_with_head_substring(self):
+        # End-to-end: a string-literal head-substring is preserved verbatim
+        # AND a real comprehension that follows is correctly lowered to Catala.
+        #
+        # Uses `exists(...)` for the in-string substring because `exists` has
+        # no flat-form regex rewrite (unlike `count(<list>)` at Step 3.6d, which
+        # is regex-based and string-literal-unaware — a separate, out-of-scope
+        # bug). This test exercises the outer comprehension walkers covered by
+        # the R1 extension.
+        out = translate_expr_to_catala(
+            "reason == 'see exists(v in xs where v.flag)' && "
+            "exists(w in ys where w.a > 0)"
+        )
+        # String literal preserved verbatim.
+        assert "'see exists(v in xs where v.flag)'" in out
+        # Real comprehension lowered to Catala form.
+        assert "(exists w among ys such that w.a > 0)" in out
+        # `&&` translated to Catala `and`.
+        assert "&&" not in out
+        assert " and " in out
+
+
 class TestSnapEligibilityBaseline:
     """Confirms that transpiling the snap eligibility module is unchanged by U3.
 

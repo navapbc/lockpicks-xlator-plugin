@@ -323,6 +323,55 @@ def _rewrite_between(expr: str) -> str:
     return "".join(result)
 
 
+def _find_head_outside_strings(s: str, head: str, start: int) -> int:
+    """Find the next occurrence of `head` in `s` at index >= `start`, skipping
+    matches that fall inside a single- or double-quoted string literal.
+
+    Mirrors the R1 fix pattern in `civil_expr._rewrite_comprehensions_for_ast`:
+    tracks `in_sq` / `in_dq` state with backslash-escape handling so a head-like
+    substring buried inside a CIVIL `expr:` string literal (e.g.,
+    `reason == 'see count(v in xs where v > 0)'`) is NOT mistaken for a real
+    comprehension head and rewritten.
+
+    Returns the index of the next head occurrence outside any string literal,
+    or -1 if none remains.
+    """
+    n = len(s)
+    in_sq = False
+    in_dq = False
+    i = start
+    while i < n:
+        ch = s[i]
+        if in_sq:
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == "'":
+                in_sq = False
+            i += 1
+            continue
+        if in_dq:
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == '"':
+                in_dq = False
+            i += 1
+            continue
+        if ch == "'":
+            in_sq = True
+            i += 1
+            continue
+        if ch == '"':
+            in_dq = True
+            i += 1
+            continue
+        if s.startswith(head, i):
+            return i
+        i += 1
+    return -1
+
+
 def _rewrite_comprehension(expr: str, head: str, emit: Callable[[str, str, str], str]) -> str:
     """Generic comprehension rewriter for `count(...)` / `exists(...)` forms.
 
@@ -335,6 +384,11 @@ def _rewrite_comprehension(expr: str, head: str, emit: Callable[[str, str, str],
 
     The scan recurses into the predicate so nested comprehensions are lowered.
 
+    String-literal awareness: head lookups use `_find_head_outside_strings` so
+    a head-like substring embedded inside a quoted string in the `expr:` is
+    NOT rewritten. This mirrors the R1 fix already applied to civil_expr's
+    pre-AST walker.
+
     Trust boundary: this transpiler trusts U1's validator gate; malformed
     comprehensions that escape validation simply pass through unchanged here
     and surface as Catala typecheck errors downstream.
@@ -345,7 +399,7 @@ def _rewrite_comprehension(expr: str, head: str, emit: Callable[[str, str, str],
     out: list[str] = []
     i = 0
     while i < n:
-        idx = expr.find(pattern, i)
+        idx = _find_head_outside_strings(expr, pattern, i)
         if idx == -1:
             out.append(expr[i:])
             break
@@ -637,6 +691,11 @@ def _rewrite_sum_comprehension(s: str, field_type: str | None = None) -> str:
     is no flat-form `sum(<list>)` rewrite today, but future additions remain
     composable).
 
+    String-literal awareness: head lookups use `_find_head_outside_strings` so
+    a `sum(` substring embedded inside a quoted string in the `expr:` is NOT
+    rewritten. This mirrors the R1 fix already applied to civil_expr's
+    pre-AST walker.
+
     The element expression and predicate are rewritten recursively so nested
     comprehensions (including nested `sum`, `count`, `exists`) are lowered.
     """
@@ -646,7 +705,7 @@ def _rewrite_sum_comprehension(s: str, field_type: str | None = None) -> str:
     out: list[str] = []
     i = 0
     while i < n:
-        idx = s.find(pattern, i)
+        idx = _find_head_outside_strings(s, pattern, i)
         if idx == -1:
             out.append(s[i:])
             break
