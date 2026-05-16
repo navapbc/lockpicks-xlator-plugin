@@ -203,6 +203,203 @@ class TestFunctions:
             _eval_expr("foo(1, 2)")
 
 
+# ---------------------------------------------------------------------------
+# Comprehension expressions (U6)
+# ---------------------------------------------------------------------------
+
+
+class TestComprehensions:
+    """U6: count/exists/sum comprehension forms lowered by U1 into ListComp /
+    GeneratorExp AST nodes, consumed by visit_ListComp / visit_GeneratorExp
+    plus the len/any/sum branches of visit_Call."""
+
+    @pytest.fixture
+    def doc_with_xs(self):
+        """Module exposing `xs` as a list input plus four comprehension outputs."""
+        return {
+            "inputs": {"Ctx": {"fields": {"xs": {"type": "list"}}}},
+            "outputs": {
+                "cnt_positive": {
+                    "type": "int",
+                    "expr": "count(v in xs where v.a > 0)",
+                },
+                "has_positive": {
+                    "type": "bool",
+                    "expr": "exists(v in xs where v.a > 0)",
+                },
+                "sum_all": {
+                    "type": "int",
+                    "expr": "sum(v.a for v in xs)",
+                },
+                "sum_positive": {
+                    "type": "int",
+                    "expr": "sum(v.a for v in xs if v.a > 0)",
+                },
+            },
+        }
+
+    def test_count_returns_filtered_count(self, doc_with_xs):
+        result = evaluate_civil(
+            doc_with_xs, {"xs": [{"a": 1}, {"a": -1}, {"a": 2}]}
+        )
+        assert result.outputs["cnt_positive"] == 2
+
+    def test_exists_returns_true_when_any_match(self, doc_with_xs):
+        result = evaluate_civil(
+            doc_with_xs, {"xs": [{"a": 1}, {"a": -1}, {"a": 2}]}
+        )
+        assert result.outputs["has_positive"] is True
+
+    def test_sum_without_filter(self, doc_with_xs):
+        result = evaluate_civil(
+            doc_with_xs, {"xs": [{"a": 1}, {"a": -1}, {"a": 2}]}
+        )
+        # 1 + (-1) + 2 = 2
+        assert result.outputs["sum_all"] == 2
+
+    def test_sum_with_filter(self, doc_with_xs):
+        result = evaluate_civil(
+            doc_with_xs, {"xs": [{"a": 1}, {"a": -1}, {"a": 2}]}
+        )
+        # 1 + 2 = 3 (drops -1)
+        assert result.outputs["sum_positive"] == 3
+
+    def test_empty_list_count_zero(self, doc_with_xs):
+        result = evaluate_civil(doc_with_xs, {"xs": []})
+        assert result.outputs["cnt_positive"] == 0
+
+    def test_empty_list_exists_false(self, doc_with_xs):
+        result = evaluate_civil(doc_with_xs, {"xs": []})
+        assert result.outputs["has_positive"] is False
+
+    def test_empty_list_sum_zero(self, doc_with_xs):
+        result = evaluate_civil(doc_with_xs, {"xs": []})
+        assert result.outputs["sum_all"] == 0
+        assert result.outputs["sum_positive"] == 0
+
+    def test_exists_all_filtered_out_returns_false(self, doc_with_xs):
+        result = evaluate_civil(
+            doc_with_xs, {"xs": [{"a": -1}, {"a": -2}]}
+        )
+        assert result.outputs["has_positive"] is False
+        assert result.outputs["cnt_positive"] == 0
+
+    def test_nested_comprehension(self):
+        """count over outer rows where inner exists() finds a flagged child."""
+        doc = {
+            "inputs": {"Ctx": {"fields": {"groups": {"type": "list"}}}},
+            "outputs": {
+                "n": {
+                    "type": "int",
+                    "expr": "count(v in groups where exists(w in v.items where w.flag))",
+                },
+            },
+        }
+        groups = [
+            {"items": [{"flag": False}, {"flag": True}]},   # exists → True
+            {"items": [{"flag": False}]},                    # exists → False
+            {"items": []},                                    # exists → False
+            {"items": [{"flag": True}]},                     # exists → True
+        ]
+        result = evaluate_civil(doc, {"groups": groups})
+        assert result.outputs["n"] == 2
+
+    def test_attribute_row_via_object(self):
+        """Generalized row-shape: bound iterator can be an attribute-bearing
+        object (here a dataclass instance), not just a dict."""
+        from dataclasses import dataclass
+
+        @dataclass
+        class Row:
+            a: int
+
+        doc = {
+            "inputs": {"Ctx": {"fields": {"xs": {"type": "list"}}}},
+            "outputs": {
+                "n": {"type": "int", "expr": "count(v in xs where v.a > 0)"},
+            },
+        }
+        rows = [Row(a=1), Row(a=-2), Row(a=3), Row(a=0)]
+        result = evaluate_civil(doc, {"xs": rows})
+        assert result.outputs["n"] == 2
+
+    def test_bound_name_shadows_outer_scope(self):
+        """When the bound name shadows a computed/constant name, the bound
+        value wins inside the comprehension body."""
+        doc = {
+            "inputs": {"Ctx": {"fields": {"xs": {"type": "list"}}}},
+            "constants": {"v": 999},  # would otherwise resolve to 999
+            "outputs": {
+                # `v.a` MUST use the iterator binding, not the constant.
+                "n": {"type": "int", "expr": "count(v in xs where v.a > 0)"},
+            },
+        }
+        result = evaluate_civil(doc, {"xs": [{"a": 1}, {"a": -1}]})
+        assert result.outputs["n"] == 1
+
+    def test_multi_generator_rejected(self):
+        """Synthetic AST: hand a multi-generator ListComp directly to _Evaluator
+        and confirm it raises EvaluationError. CIVIL's surface syntax cannot
+        produce this shape via _civil_to_python; this guards against future
+        callers that construct ASTs directly."""
+        import ast as _ast
+
+        from civil_eval import _Context, _Evaluator
+
+        ctx = _Context(
+            inputs={},
+            entities={},
+            constants={},
+            tables={},
+            computed={},
+            reasons=[],
+            set_outputs={},
+            fired_mutex_groups=set(),
+            multi_entity=False,
+        )
+        ev = _Evaluator(ctx, label="test")
+        # [a for a in [1] for b in [2]]
+        node = _ast.ListComp(
+            elt=_ast.Name(id="a", ctx=_ast.Load()),
+            generators=[
+                _ast.comprehension(
+                    target=_ast.Name(id="a", ctx=_ast.Store()),
+                    iter=_ast.List(elts=[_ast.Constant(value=1)], ctx=_ast.Load()),
+                    ifs=[],
+                    is_async=0,
+                ),
+                _ast.comprehension(
+                    target=_ast.Name(id="b", ctx=_ast.Store()),
+                    iter=_ast.List(elts=[_ast.Constant(value=2)], ctx=_ast.Load()),
+                    ifs=[],
+                    is_async=0,
+                ),
+            ],
+        )
+        _ast.fix_missing_locations(node)
+        with pytest.raises(EvaluationError, match="multi-generator"):
+            ev.visit(node)
+
+    def test_count_via_computed_chain(self):
+        """count() result flows through a computed field into an output —
+        exercises the full evaluator pipeline, not just expression eval."""
+        doc = {
+            "inputs": {"Ctx": {"fields": {"xs": {"type": "list"}}}},
+            "computed": {
+                "n_positive": {
+                    "type": "int",
+                    "expr": "count(v in xs where v.a > 0)",
+                },
+            },
+            "outputs": {"result": {"type": "int", "expr": "n_positive"}},
+        }
+        result = evaluate_civil(
+            doc, {"xs": [{"a": 1}, {"a": -1}, {"a": 2}, {"a": 5}]}
+        )
+        assert result.computed["n_positive"] == 3
+        assert result.outputs["result"] == 3
+
+
 class TestTableLookup:
     def test_lookup_by_single_key(self):
         doc = {

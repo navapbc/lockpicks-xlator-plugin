@@ -110,6 +110,33 @@ class _Evaluator(ast.NodeVisitor):
     def __init__(self, ctx: _Context, label: str = ""):
         self.ctx = ctx
         self.label = label
+        # Stack of bound-name frames for comprehension iteration. Each frame is
+        # {<bound_name>: <row_value>}. Innermost frame is at the top (end of list).
+        self._bound_stack: list[dict[str, Any]] = []
+
+    # --- comprehension bound-name helpers --------------------------------
+
+    def _lookup_bound(self, name: str) -> tuple[bool, Any]:
+        """Return (found, value) for `name` in the bound-name stack. Walks frames
+        innermost-first so nested comprehensions shadow outer bindings correctly."""
+        for frame in reversed(self._bound_stack):
+            if name in frame:
+                return True, frame[name]
+        return False, None
+
+    def _row_attr(self, row: Any, attr: str) -> Any:
+        """Access `attr` on a comprehension row. Generalizes over dict rows,
+        attribute-bearing objects (Pydantic models, dataclasses, namedtuples),
+        and raises EvaluationError otherwise."""
+        if isinstance(row, dict):
+            if attr in row:
+                return row[attr]
+            raise EvaluationError(self.label, f"row has no column {attr!r}")
+        if hasattr(row, attr):
+            return getattr(row, attr)
+        raise EvaluationError(
+            self.label, f"cannot access {attr!r} on {type(row).__name__}"
+        )
 
     def eval_expr(self, expr: str) -> Any:
         py = civil_expr._civil_to_python(expr)
@@ -126,6 +153,10 @@ class _Evaluator(ast.NodeVisitor):
 
     def visit_Name(self, node: ast.Name) -> Any:
         name = node.id
+        # Comprehension-bound names shadow everything else (innermost first).
+        found, value = self._lookup_bound(name)
+        if found:
+            return value
         # CIVIL literals lowercased
         if name == "true":
             return True
@@ -160,6 +191,13 @@ class _Evaluator(ast.NodeVisitor):
         raise EvaluationError(self.label, f"undefined identifier {name!r}")
 
     def visit_Attribute(self, node: ast.Attribute) -> Any:
+        # Comprehension-bound row access: `v.field` where `v` is on the bound stack.
+        # Checked before the entity lookup so iterators that happen to share a name
+        # with an entity still resolve via the bound stack (innermost scope wins).
+        if isinstance(node.value, ast.Name):
+            found, row = self._lookup_bound(node.value.id)
+            if found:
+                return self._row_attr(row, node.attr)
         # Entity.field: resolve via inputs binding
         if isinstance(node.value, ast.Name) and node.value.id in self.ctx.entities:
             entity_name = node.value.id
@@ -175,13 +213,10 @@ class _Evaluator(ast.NodeVisitor):
             if field_def.get("optional"):
                 return field_def.get("default")
             raise EvaluationError(self.label, f"missing required input {key!r}")
-        # Otherwise: evaluate node.value (e.g. a Call returning a row dict) and access .attr
+        # Otherwise: evaluate node.value (e.g. a Call returning a row dict, or an
+        # attribute-bearing object) and access .attr.
         value = self.visit(node.value)
-        if isinstance(value, dict):
-            if node.attr in value:
-                return value[node.attr]
-            raise EvaluationError(self.label, f"row has no column {node.attr!r}")
-        raise EvaluationError(self.label, f"cannot access {node.attr!r} on {type(value).__name__}")
+        return self._row_attr(value, node.attr)
 
     # --- operators -------------------------------------------------------
 
@@ -259,6 +294,60 @@ class _Evaluator(ast.NodeVisitor):
     def visit_Tuple(self, node: ast.Tuple) -> list:
         return [self.visit(elt) for elt in node.elts]
 
+    # --- comprehensions --------------------------------------------------
+
+    def _iter_comprehension(self, node: ast.ListComp | ast.GeneratorExp) -> list:
+        """Shared core for ListComp and GeneratorExp. Returns the materialized
+        list of element values for rows where all `ifs` clauses are truthy.
+
+        Multi-generator comprehensions (cross-products) and non-Name targets
+        (tuple unpacking) are rejected — CIVIL's surface forms produce only
+        single-generator, single-target comprehensions via _civil_to_python.
+        """
+        if len(node.generators) != 1:
+            raise EvaluationError(
+                self.label, "multi-generator comprehensions not supported"
+            )
+        gen = node.generators[0]
+        if not isinstance(gen.target, ast.Name):
+            raise EvaluationError(
+                self.label, "comprehension target must be a single bound name"
+            )
+        iterable = self.visit(gen.iter)
+        if iterable is None:
+            iterable = []
+        try:
+            rows = list(iterable)
+        except TypeError as exc:
+            raise EvaluationError(
+                self.label,
+                f"comprehension iterable must be a list, got {type(iterable).__name__}",
+            ) from exc
+        bound_name = gen.target.id
+        results: list[Any] = []
+        for row in rows:
+            self._bound_stack.append({bound_name: row})
+            try:
+                keep = True
+                for if_clause in gen.ifs:
+                    if not self.visit(if_clause):
+                        keep = False
+                        break
+                if keep:
+                    results.append(self.visit(node.elt))
+            finally:
+                self._bound_stack.pop()
+        return results
+
+    def visit_ListComp(self, node: ast.ListComp) -> list:
+        return self._iter_comprehension(node)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> list:
+        # Generators are eagerly materialized for simplicity; CIVIL comprehensions
+        # operate over small list-shaped data and len()/any()/sum() consume the
+        # full list anyway.
+        return self._iter_comprehension(node)
+
     # --- function calls --------------------------------------------------
 
     def visit_Call(self, node: ast.Call) -> Any:
@@ -310,6 +399,36 @@ class _Evaluator(ast.NodeVisitor):
                 raise EvaluationError(
                     self.label,
                     f"count() requires a sized value, got {type(value).__name__}",
+                ) from exc
+        if fn == "len":
+            # U1 lowers `count(v in coll where pred)` to `len([...])`. Accept any
+            # sized value to keep this branch general-purpose.
+            if len(args) != 1:
+                raise EvaluationError(self.label, f"len() expects 1 arg, got {len(args)}")
+            value = args[0]
+            if value is None:
+                return 0
+            try:
+                return len(value)
+            except TypeError as exc:
+                raise EvaluationError(
+                    self.label,
+                    f"len() requires a sized value, got {type(value).__name__}",
+                ) from exc
+        if fn == "any":
+            # U1 lowers `exists(v in coll where pred)` to `any(...)`. The generator
+            # expression has already been materialized by visit_GeneratorExp.
+            if len(args) != 1:
+                raise EvaluationError(self.label, f"any() expects 1 arg, got {len(args)}")
+            value = args[0]
+            if value is None:
+                return False
+            try:
+                return any(value)
+            except TypeError as exc:
+                raise EvaluationError(
+                    self.label,
+                    f"any() requires an iterable, got {type(value).__name__}",
                 ) from exc
         if fn == "is_null":
             if len(args) != 1:
