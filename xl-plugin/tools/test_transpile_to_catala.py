@@ -24,9 +24,11 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 
 from transpile_to_catala import (  # noqa: E402
+    _civil_type_to_catala_sum_type,
     _rewrite_count_comprehension,
     _rewrite_exists_comprehension,
     _rewrite_sum_comprehension,
+    translate_condition_to_catala,
     translate_expr_to_catala,
 )
 
@@ -247,7 +249,8 @@ class TestBackwardCompatFlatForm:
 class TestRewriteSumComprehension:
     def test_basic_no_filter(self):
         out = _rewrite_sum_comprehension(
-            "sum(v.weighted_contribution for v in recent_violations)"
+            "sum(v.weighted_contribution for v in recent_violations)",
+            field_type="decimal",
         )
         assert out == (
             "(sum decimal of (map each v among recent_violations "
@@ -256,7 +259,8 @@ class TestRewriteSumComprehension:
 
     def test_with_filter(self):
         out = _rewrite_sum_comprehension(
-            "sum(v.amount for v in payments if v.cleared)"
+            "sum(v.amount for v in payments if v.cleared)",
+            field_type="decimal",
         )
         assert out == (
             "(sum decimal of (map each v among payments "
@@ -277,22 +281,29 @@ class TestRewriteSumComprehension:
 
     def test_does_not_match_count_substring(self):
         # `count(...)` and `exists(...)` must NOT be consumed by the sum rewrite.
-        out = _rewrite_sum_comprehension("count(v in items where v.x > 0)")
+        # Pass field_type explicitly so the typed-context guard does not fire
+        # (the input contains no `sum(` head, so no annotation is emitted).
+        out = _rewrite_sum_comprehension(
+            "count(v in items where v.x > 0)", field_type="decimal",
+        )
         assert out == "count(v in items where v.x > 0)"
 
     def test_does_not_match_exists_substring(self):
-        out = _rewrite_sum_comprehension("exists(v in items where v.x > 0)")
+        out = _rewrite_sum_comprehension(
+            "exists(v in items where v.x > 0)", field_type="decimal",
+        )
         assert out == "exists(v in items where v.x > 0)"
 
     def test_token_boundary_consumed_not_sum(self):
         # `consumed(...)` must NOT match the `sum(` head.
-        out = _rewrite_sum_comprehension("consumed(reasons)")
+        out = _rewrite_sum_comprehension("consumed(reasons)", field_type="decimal")
         assert out == "consumed(reasons)"
 
     def test_string_literal_in_predicate(self):
         # The scanner must not be fooled by a string literal containing ` if `.
         out = _rewrite_sum_comprehension(
-            "sum(v.amount for v in payments if v.status == 'cleared if posted')"
+            "sum(v.amount for v in payments if v.status == 'cleared if posted')",
+            field_type="decimal",
         )
         assert out == (
             "(sum decimal of (map each v among payments "
@@ -301,7 +312,7 @@ class TestRewriteSumComprehension:
 
     def test_dotted_collection(self):
         out = _rewrite_sum_comprehension(
-            "sum(w.amount for w in v.entries)"
+            "sum(w.amount for w in v.entries)", field_type="decimal",
         )
         assert out == (
             "(sum decimal of (map each w among v.entries to w.amount))"
@@ -309,15 +320,17 @@ class TestRewriteSumComprehension:
 
     def test_malformed_passes_through(self):
         # Missing collection — U1's validator would have caught this. The
-        # transpiler leaves it unchanged.
-        out = _rewrite_sum_comprehension("sum(x for v in)")
+        # transpiler leaves it unchanged. No `sum(` head matches the scanner,
+        # so the typed-context guard is not reached.
+        out = _rewrite_sum_comprehension("sum(x for v in)", field_type="decimal")
         assert out == "sum(x for v in)"
 
 
 class TestFullPipelineSumComprehension:
     def test_pipeline_simple_no_filter(self):
         out = translate_expr_to_catala(
-            "sum(v.weighted_contribution for v in recent_violations)"
+            "sum(v.weighted_contribution for v in recent_violations)",
+            field_type="decimal",
         )
         assert (
             "(sum decimal of (map each v among recent_violations "
@@ -326,7 +339,8 @@ class TestFullPipelineSumComprehension:
 
     def test_pipeline_with_filter(self):
         out = translate_expr_to_catala(
-            "sum(v.amount for v in payments if v.cleared)"
+            "sum(v.amount for v in payments if v.cleared)",
+            field_type="decimal",
         )
         assert (
             "(sum decimal of (map each v among payments "
@@ -337,7 +351,8 @@ class TestFullPipelineSumComprehension:
         # ORDERING INVARIANT: sum-rewrite runs BEFORE Step 6 (`&&` → `and`), so
         # `&&` inside the predicate is translated to Catala-native `and`.
         out = translate_expr_to_catala(
-            "sum(v.x for v in xs if v.flag && v.amount > 0)"
+            "sum(v.x for v in xs if v.flag && v.amount > 0)",
+            field_type="decimal",
         )
         assert "&&" not in out, f"Expected no literal '&&' in output: {out}"
         assert " and " in out
@@ -345,7 +360,8 @@ class TestFullPipelineSumComprehension:
 
     def test_pipeline_string_literal_in_predicate(self):
         out = translate_expr_to_catala(
-            "sum(v.amount for v in payments if v.status == 'cleared')"
+            "sum(v.amount for v in payments if v.status == 'cleared')",
+            field_type="decimal",
         )
         # Catala uses single `=` for equality (Step 9).
         assert (
@@ -364,7 +380,8 @@ class TestFullPipelineSumComprehension:
         # Real-world fixture: minimal CIVIL fragment matching
         # action_tier_assignment.civil.yaml:95 shape.
         out = translate_expr_to_catala(
-            "sum(v.weighted_contribution for v in recent_violations)"
+            "sum(v.weighted_contribution for v in recent_violations)",
+            field_type="decimal",
         )
         # Verify the output string is well-formed Catala (paren-balanced,
         # contains the sum-collection op, no leftover Python `for ... in`).
@@ -379,7 +396,8 @@ class TestSumDoesNotRegressCountExists:
 
     def test_count_comprehension_still_works_with_sum_inside(self):
         out = translate_expr_to_catala(
-            "count(v in xs where v.amount > sum(w.x for w in v.parts))"
+            "count(v in xs where v.amount > sum(w.x for w in v.parts))",
+            field_type="decimal",
         )
         # The outer count comprehension is lowered (Step 3.6a) before the inner
         # sum is encountered. Sum-rewrite is recursive into predicates of
@@ -395,6 +413,64 @@ class TestSumDoesNotRegressCountExists:
 
     def test_exists_comprehension_still_works(self):
         out = translate_expr_to_catala("exists(v in items where v.x == 'D')")
+        assert "(exists v among items such that v.x = 'D')" in out
+
+
+class TestSumTypedContextGuard:
+    """R2: sum() must surface a clear error when field_type is unknown.
+
+    Silently defaulting to `decimal` for money-typed collections used to break
+    Catala typecheck. The guard converts the silent semantic bug into a loud,
+    parse-time error that names the offending field.
+    """
+
+    def test_sum_in_computed_expr_with_money_field_type_uses_money(self):
+        # Baseline (already covered) — typed context propagates correctly.
+        out = _rewrite_sum_comprehension(
+            "sum(v.weighted_contribution for v in recent_violations)",
+            field_type="money",
+        )
+        assert "(sum money of " in out
+
+    def test_civil_type_to_catala_sum_type_none_raises(self):
+        with pytest.raises(ValueError, match="sum\\(\\) requires a typed context"):
+            _civil_type_to_catala_sum_type(None)
+
+    def test_sum_with_field_type_none_raises_clear_error(self):
+        # _rewrite_sum_comprehension with no field_type propagates the guard.
+        with pytest.raises(ValueError, match="sum\\(\\) requires a typed context"):
+            _rewrite_sum_comprehension(
+                "sum(v.amount for v in payments)"
+            )
+
+    def test_translate_expr_with_sum_and_no_field_type_raises(self):
+        # The full pipeline path: translate_expr_to_catala without field_type.
+        with pytest.raises(ValueError, match="sum\\(\\) requires a typed context"):
+            translate_expr_to_catala(
+                "sum(v.amount for v in payments)"
+            )
+
+    def test_sum_in_when_guard_raises_clear_error_with_field_id(self):
+        # translate_condition_to_catala wraps the ValueError with field-context
+        # so the user can locate the offending rule/field quickly.
+        with pytest.raises(ValueError, match="rule:my-deny-rule: .*sum\\(\\)"):
+            translate_condition_to_catala(
+                "sum(v.amount for v in payments) > 100",
+                field_id="rule:my-deny-rule",
+            )
+
+    def test_sum_in_when_guard_without_field_id_still_raises(self):
+        # Without a field_id, the unwrapped guard still raises clearly.
+        with pytest.raises(ValueError, match="sum\\(\\) requires a typed context"):
+            translate_condition_to_catala(
+                "sum(v.amount for v in payments) > 100"
+            )
+
+    def test_when_guard_with_no_sum_unaffected(self):
+        # Sanity: the guard only fires when a sum head is present.
+        out = translate_condition_to_catala(
+            "exists(v in items where v.x == 'D')"
+        )
         assert "(exists v among items such that v.x = 'D')" in out
 
 

@@ -605,13 +605,24 @@ def _civil_type_to_catala_sum_type(field_type: str | None) -> str:
     """Map a CIVIL field-type hint to the Catala `sum <type> of <list>` annotation.
 
     Catala requires an explicit numeric type for `sum`. We mirror the host
-    output field's type when known; otherwise default to `decimal` (the most
-    permissive numeric type for collection sums).
+    output field's type when known.
+
+    When `field_type` is None — for example, sums appearing inside `when:` rule
+    guards or `conditional.if` guards where no host output type is in scope —
+    silently defaulting to `decimal` would produce a Catala typecheck failure
+    for money-typed collections. Raise a clear error instead, so the user is
+    nudged to refactor the sum into a typed computed field.
     """
     if field_type == "money":
         return "money"
     if field_type == "int":
         return "integer"
+    if field_type is None:
+        raise ValueError(
+            "sum() requires a typed context — move the sum to a computed field "
+            "with an explicit type (money/int/decimal) and reference that field "
+            "from the when:/conditional.if guard, or pass field_type explicitly"
+        )
     return "decimal"
 
 
@@ -909,11 +920,22 @@ def translate_expr_to_catala(
     return result
 
 
-def translate_condition_to_catala(when_expr: str, constants: dict = None, tables: dict = None, fact_entities: set = None, invoke_bound_entities: set = None) -> str:
-    """Translate a CIVIL when: condition to a Catala condition expression string."""
+def translate_condition_to_catala(when_expr: str, constants: dict = None, tables: dict = None, fact_entities: set = None, invoke_bound_entities: set = None, field_id: str | None = None) -> str:
+    """Translate a CIVIL when: condition to a Catala condition expression string.
+
+    `field_id` is an optional context label (e.g. "rule:<id>" or "<field_name>")
+    used to enrich error messages — when a sum() inside the condition raises the
+    typed-context guard, the error is re-raised with the originating field
+    surfaced so users can locate the offending expression quickly.
+    """
     if when_expr.strip() == "true":
         return "true"
-    return translate_expr_to_catala(when_expr, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+    try:
+        return translate_expr_to_catala(when_expr, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+    except ValueError as exc:
+        if field_id is not None:
+            raise ValueError(f"{field_id}: {exc}") from exc
+        raise
 
 
 # =============================================================================
@@ -1357,13 +1379,15 @@ def emit_table_definition(
         if then_m:
             val_col = then_m.group(3)
 
-    # Translate the conditional.if guard (if any) — AND-ed into every primary row condition
+    # Translate the conditional.if guard (if any) — AND-ed into every primary row condition.
+    # Pass field_type so any sum() inside the guard inherits the host field's type
+    # rather than tripping the typed-context guard in _civil_type_to_catala_sum_type.
     if_catala = None
     if "conditional" in field_def:
         if_expr_raw = field_def["conditional"].get("if", "true")
         if if_expr_raw != "true":
             if_catala = translate_expr_to_catala(
-                if_expr_raw, constants=constants, tables=tables,
+                if_expr_raw, constants=constants, field_type=field_type, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
             )
 
@@ -1650,6 +1674,7 @@ def emit_computed_section_catala(
                 catala_expr = translate_condition_to_catala(
                     raw_expr, constants=constants, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    field_id=field_name,
                 )
                 lines.append(f"scope {scope_name}:")
                 lines.append(f"  definition {field_name} equals")
@@ -1661,6 +1686,7 @@ def emit_computed_section_catala(
                 catala_cond = translate_condition_to_catala(
                     raw_expr, constants=constants, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    field_id=field_name,
                 )
                 cond_lines = _format_condition_block(catala_cond)
                 lines.append(f"scope {scope_name}:")
@@ -1730,7 +1756,11 @@ def emit_rules_section_catala(
 
         # Condition variable rule: default false, exception for the true case.
         # Order matters: base case first, then exception — avoids conflict when condition holds.
-        catala_cond = translate_condition_to_catala(when, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+        catala_cond = translate_condition_to_catala(
+            when, constants=constants, tables=tables,
+            fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+            field_id=f"rule:{rule_id}",
+        )
         cond_lines = _format_condition_block(catala_cond)
 
         lines = []
