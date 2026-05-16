@@ -553,6 +553,15 @@ def _build_constants_and_tables(
 # Atomic writes
 # ---------------------------------------------------------------------------
 
+def _str_representer(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+yaml.SafeDumper.add_representer(str, _str_representer)
+
+
 def _serialize_yaml(doc: Any) -> str:
     return yaml.safe_dump(
         doc,
