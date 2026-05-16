@@ -10,6 +10,7 @@ If `$DOMAINS_DIR` is unknown, read it from `.xlator.local.env` in the project ro
 
 - To run a Python script under `tools/`, use the `xlator` shell shim so env vars are set correctly.
 - For arbitrary Python on the CLI, run `uv run python <args>` (never `python` / `python3`).
+- To run `pytest`, use `uv run pytest`.
 - To install Python dependencies, use `uv pip install`.
 
 ## Index path keys vs content reads
