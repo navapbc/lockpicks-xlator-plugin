@@ -172,6 +172,42 @@ class TestRewriteComprehensionsForAst:
                     "count(v in xs where v.a > 0)"
                 )
 
+    # ---- String-literal-blind outer walker — regression tests (R1) ----
+
+    def test_string_literal_with_count_substring_not_rewritten(self):
+        # `count(...)` inside a single-quoted string literal must be preserved
+        # verbatim. The outer walker must track string state and skip heads
+        # found inside string literals.
+        s = "reason == 'see count(v in xs where v > 0)'"
+        out = _rewrite_comprehensions_for_ast(s)
+        assert out == s, f"string literal content corrupted: {out!r}"
+
+    def test_string_literal_with_exists_substring_not_rewritten(self):
+        s = "reason == 'see exists(v in xs where v > 0)'"
+        out = _rewrite_comprehensions_for_ast(s)
+        assert out == s, f"string literal content corrupted: {out!r}"
+
+    def test_string_literal_with_sum_substring_not_rewritten(self):
+        # Sanity check: civil_expr only rewrites count/exists (sum is lowered
+        # downstream by the transpiler), so this MUST be a no-op regardless.
+        # Included to guard against future regressions if a sum head is added.
+        s = "reason == 'see sum(v.amount for v in xs)'"
+        out = _rewrite_comprehensions_for_ast(s)
+        assert out == s, f"string literal content corrupted: {out!r}"
+
+    def test_double_quoted_string_with_comprehension_substring(self):
+        s = 'reason == "count(v in xs where v.a > 0)"'
+        out = _rewrite_comprehensions_for_ast(s)
+        assert out == s, f"double-quoted string literal content corrupted: {out!r}"
+
+    def test_string_literal_with_escaped_quote_preserves_state(self):
+        # An escaped single-quote inside a single-quoted string must not
+        # terminate the literal — heads after it should still be considered
+        # inside the string.
+        s = r"reason == 'don\'t count(v in xs where v > 0)'"
+        out = _rewrite_comprehensions_for_ast(s)
+        assert out == s, f"escaped-quote string literal corrupted: {out!r}"
+
 
 # ---------------------------------------------------------------------------
 # extract_refs — happy path on comprehensions

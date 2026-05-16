@@ -185,11 +185,46 @@ def _rewrite_comprehensions_for_ast(expr: str) -> str:
     out_parts: list[str] = []
     i = 0
     n = len(expr)
+    in_sq = False  # inside single-quoted string literal at the outer level
+    in_dq = False  # inside double-quoted string literal at the outer level
     while i < n:
+        ch = expr[i]
+        # Track string-literal state so heads inside string literals are not matched.
+        # Mirrors the inner scanner's escape handling: a `\` escapes the next char.
+        if in_sq:
+            if ch == "\\" and i + 1 < n:
+                out_parts.append(expr[i:i + 2])
+                i += 2
+                continue
+            if ch == "'":
+                in_sq = False
+            out_parts.append(ch)
+            i += 1
+            continue
+        if in_dq:
+            if ch == "\\" and i + 1 < n:
+                out_parts.append(expr[i:i + 2])
+                i += 2
+                continue
+            if ch == '"':
+                in_dq = False
+            out_parts.append(ch)
+            i += 1
+            continue
+        if ch == "'":
+            in_sq = True
+            out_parts.append(ch)
+            i += 1
+            continue
+        if ch == '"':
+            in_dq = True
+            out_parts.append(ch)
+            i += 1
+            continue
+
         # Try to find the next `count(` or `exists(` head; respect string literals
-        # only at the top level (we don't want to rewrite inside a string).
-        # For the search itself, a token-boundary check is sufficient because
-        # we re-scan from the new position on each iteration.
+        # via in_sq/in_dq state above. A token-boundary check on the preceding
+        # char ensures we don't match `recount(`, `_exists(`, etc.
         head = None
         head_len = 0
         # count(
@@ -235,9 +270,54 @@ def _rewrite_comprehensions_for_ast(expr: str) -> str:
     # be either flat-form (no ` in ` / ` where `) or already rewritten. If we still see
     # both keywords inside such a substring, the scanner left a comprehension partially
     # consumed.
+    #
+    # Pre-compute the offsets that lie inside outer-level string literals so the
+    # guard doesn't false-fire on `count(` substrings buried inside a string.
+    string_literal_positions: set[int] = set()
+    _i = 0
+    _in_sq = False
+    _in_dq = False
+    while _i < len(result):
+        _ch = result[_i]
+        if _in_sq:
+            string_literal_positions.add(_i)
+            if _ch == "\\" and _i + 1 < len(result):
+                string_literal_positions.add(_i + 1)
+                _i += 2
+                continue
+            if _ch == "'":
+                _in_sq = False
+            _i += 1
+            continue
+        if _in_dq:
+            string_literal_positions.add(_i)
+            if _ch == "\\" and _i + 1 < len(result):
+                string_literal_positions.add(_i + 1)
+                _i += 2
+                continue
+            if _ch == '"':
+                _in_dq = False
+            _i += 1
+            continue
+        if _ch == "'":
+            _in_sq = True
+            string_literal_positions.add(_i)
+            _i += 1
+            continue
+        if _ch == '"':
+            _in_dq = True
+            string_literal_positions.add(_i)
+            _i += 1
+            continue
+        _i += 1
+
     for fn in ("count", "exists"):
         head_re = re.compile(rf"\b{fn}\(")
         for m in head_re.finditer(result):
+            # Skip heads that fall inside a string literal — those are not real
+            # comprehension heads and must not be re-scanned by the guard.
+            if m.start() in string_literal_positions:
+                continue
             # Scan to matching close to find the substring.
             depth = 0
             j = m.end() - 1  # position of the `(`

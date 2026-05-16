@@ -150,6 +150,36 @@ class TestScanComprehensionIterables:
     def test_flat_count_no_iterable(self):
         assert _scan_comprehension_iterables("count(reasons)") == []
 
+    # ---- String-literal-blind outer walker — regression tests (R1) ----
+
+    def test_count_substring_inside_string_literal_ignored(self):
+        # `count(...)` inside a string literal must NOT be reported as a
+        # comprehension iterable — the outer walker tracks string state.
+        out = _scan_comprehension_iterables(
+            "reason == 'see count(v in xs where v > 0)'"
+        )
+        assert out == []
+
+    def test_exists_substring_inside_string_literal_ignored(self):
+        out = _scan_comprehension_iterables(
+            "reason == 'see exists(v in xs where v > 0)'"
+        )
+        assert out == []
+
+    def test_double_quoted_count_substring_ignored(self):
+        out = _scan_comprehension_iterables(
+            'reason == "count(v in xs where v.a > 0)"'
+        )
+        assert out == []
+
+    def test_real_comprehension_after_string_literal_still_found(self):
+        # The walker must still detect comprehensions OUTSIDE string literals
+        # even when an unrelated head sits inside one.
+        out = _scan_comprehension_iterables(
+            "label == 'count(skip)' && count(v in items where v.x > 0)"
+        )
+        assert out == ["items"]
+
 
 # ---------------------------------------------------------------------------
 # Happy path — valid comprehension validates clean

@@ -438,7 +438,37 @@ def _scan_comprehension_iterables(expr: str) -> list[str]:
     iterables: list[str] = []
     i = 0
     n = len(expr)
+    in_sq = False  # inside single-quoted string literal at the outer level
+    in_dq = False  # inside double-quoted string literal at the outer level
     while i < n:
+        ch = expr[i]
+        # Track string-literal state so heads inside string literals are not matched.
+        # Mirrors civil_expr._scan_comprehension_args escape handling.
+        if in_sq:
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == "'":
+                in_sq = False
+            i += 1
+            continue
+        if in_dq:
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == '"':
+                in_dq = False
+            i += 1
+            continue
+        if ch == "'":
+            in_sq = True
+            i += 1
+            continue
+        if ch == '"':
+            in_dq = True
+            i += 1
+            continue
+
         head_len = 0
         if (
             expr.startswith("count(", i)
