@@ -24,35 +24,49 @@ import sys
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from civil_expr import _scan_comprehension_args, _string_literal_positions, extract_refs  # noqa: E402
 from civil_schema import CivilModule  # noqa: E402
 
 from pydantic import ValidationError  # noqa: E402
 
 
-def _collect_expressions(doc: dict) -> list[str]:
-    """Collect all CIVIL expression strings from computed, decisions, and rule when: clauses."""
-    exprs = []
-    for field_def in (doc.get("computed") or {}).values():
+def _collect_expressions(doc: dict) -> list[tuple[str, str]]:
+    """Collect all CIVIL expressions from computed, decisions, and rule when: clauses.
+
+    Yields `(field_id, expr_str)` tuples, where `field_id` is a dotted path
+    like `computed.severity_d_escalation.expr`, `outputs.eligible.conditional.if`,
+    or `rules.FED-SNAP-DENY-001.when`. The field-id prefix is consumed by the
+    expression validator's error-message format (`ERROR: <module>.<field>: ...`).
+    """
+    exprs: list[tuple[str, str]] = []
+    for field_name, field_def in (doc.get("computed") or {}).items():
         if not isinstance(field_def, dict):
             continue
         if "expr" in field_def:
-            exprs.append(str(field_def["expr"]))
+            exprs.append((f"computed.{field_name}.expr", str(field_def["expr"])))
         if "conditional" in field_def and isinstance(field_def["conditional"], dict):
             for key in ("if", "then", "else"):
                 if key in field_def["conditional"]:
-                    exprs.append(str(field_def["conditional"][key]))
-    for field_def in (doc.get("outputs") or {}).values():
+                    exprs.append(
+                        (f"computed.{field_name}.conditional.{key}",
+                         str(field_def["conditional"][key]))
+                    )
+    for field_name, field_def in (doc.get("outputs") or {}).items():
         if not isinstance(field_def, dict):
             continue
         if "expr" in field_def:
-            exprs.append(str(field_def["expr"]))
+            exprs.append((f"outputs.{field_name}.expr", str(field_def["expr"])))
         if "conditional" in field_def and isinstance(field_def["conditional"], dict):
             for key in ("if", "then", "else"):
                 if key in field_def["conditional"]:
-                    exprs.append(str(field_def["conditional"][key]))
+                    exprs.append(
+                        (f"outputs.{field_name}.conditional.{key}",
+                         str(field_def["conditional"][key]))
+                    )
     for rule in (doc.get("rules") or []):
         if isinstance(rule, dict) and "when" in rule:
-            exprs.append(str(rule["when"]))
+            rule_id = rule.get("id", "<unknown>")
+            exprs.append((f"rules.{rule_id}.when", str(rule["when"])))
     return exprs
 
 
@@ -192,7 +206,7 @@ def validate_invoke_references(module_path: str, doc: dict) -> tuple[list[str], 
         # Warn when parent expressions reference a sub-module computed field that
         # lacks tags: [output] — such fields are inaccessible at transpile time.
         sub_computed = sub_doc.get("computed") or {}
-        all_exprs = " ".join(_collect_expressions(doc))
+        all_exprs = " ".join(expr_str for _, expr_str in _collect_expressions(doc))
         pattern = re.compile(rf"\b{re.escape(field_name)}\.(\w+)\b")
         seen_attrs: set[str] = set()
         for match in pattern.finditer(all_exprs):
@@ -348,6 +362,201 @@ def validate_mutex_group_consistency(module: "CivilModule") -> tuple[list[str], 
     return errors, warnings
 
 
+def _build_name_inventory(doc: dict) -> dict[str, tuple[str, str]]:
+    """Build a name → (kind, qualified_name) inventory for shadowing checks.
+
+    Returns a dict mapping every bare identifier in the module's name-space to
+    a tuple `(kind, qualified_name)` where `kind` is one of:
+      - "entity"        (PascalCase entity name from inputs:)
+      - "entity field"  (snake_case field name from inputs.<E>.fields, value = "<E>.<f>")
+      - "computed"      (snake_case computed field name)
+      - "constant"      (UPPER_SNAKE_CASE name from constants:)
+      - "table"         (table name from tables:)
+
+    A bound name that collides with ANY of these is flagged by the shadowing check.
+    The "constant" kind also includes the existing-name for the friendlier error
+    message.
+    """
+    inventory: dict[str, tuple[str, str]] = {}
+    for ename, edef in (doc.get("inputs") or {}).items():
+        inventory.setdefault(ename, ("entity", ename))
+        if isinstance(edef, dict):
+            for fname in (edef.get("fields") or {}):
+                inventory.setdefault(fname, ("entity field", f"{ename}.{fname}"))
+    for cname in (doc.get("computed") or {}):
+        inventory.setdefault(cname, ("computed", cname))
+    for kname in (doc.get("constants") or {}):
+        inventory.setdefault(kname, ("constant", kname))
+    for tname in (doc.get("tables") or {}):
+        inventory.setdefault(tname, ("table", tname))
+    return inventory
+
+
+def _lookup_collection_type(coll: str, doc: dict) -> tuple[str, str] | None:
+    """Look up an iterated collection reference's declared type.
+
+    Returns `(qualified_name, type)` for a found ref, or None if the ref is
+    not resolvable in the module's name-space (e.g., it's a bound name from
+    an outer comprehension scope — `v.items` style nested-comprehension iter).
+
+    Resolution order:
+      1. Computed fields → ("<name>", type)
+      2. Input entity fields (snake_case) → ("<Entity>.<field>", type)
+      3. Constants → ("<name>", "constant")
+    """
+    # Computed
+    for cname, cdef in (doc.get("computed") or {}).items():
+        if cname == coll and isinstance(cdef, dict):
+            return (cname, cdef.get("type", "unknown"))
+    # Entity fields (bare snake_case → look up across all entities)
+    for ename, edef in (doc.get("inputs") or {}).items():
+        if not isinstance(edef, dict):
+            continue
+        for fname, fdef in (edef.get("fields") or {}).items():
+            if fname == coll and isinstance(fdef, dict):
+                return (f"{ename}.{fname}", fdef.get("type", "unknown"))
+    # Constants (unusual but cover the case)
+    constants = doc.get("constants") or {}
+    if coll in constants:
+        val = constants[coll]
+        return (coll, "list" if isinstance(val, list) else "constant")
+    return None
+
+
+def _scan_comprehension_iterables(expr: str) -> list[str]:
+    """Walk `expr` left-to-right and collect every comprehension iterable name.
+
+    Uses U1's shared `_scan_comprehension_args` to find each `count(...)` /
+    `exists(...)` comprehension's `coll` token, mirroring the rewrite logic in
+    `_rewrite_comprehensions_for_ast`. Recurses into the predicate so nested
+    comprehensions are captured too.
+
+    The collection token may be a bare identifier (the common case) OR a dotted
+    chain (e.g., `v.items`); we keep the bare-identifier-or-prefix form here so
+    the caller can decide whether to look it up.
+    """
+    iterables: list[str] = []
+    i = 0
+    n = len(expr)
+    literal_positions = _string_literal_positions(expr)
+    while i < n:
+        # Inside a string literal — skip; heads buried in strings are not real.
+        if i in literal_positions:
+            i += 1
+            continue
+
+        head_len = 0
+        if (
+            expr.startswith("count(", i)
+            and (i == 0 or not (expr[i - 1].isalnum() or expr[i - 1] == "_"))
+        ):
+            head_len = 6
+        elif (
+            expr.startswith("exists(", i)
+            and (i == 0 or not (expr[i - 1].isalnum() or expr[i - 1] == "_"))
+        ):
+            head_len = 7
+        if head_len == 0:
+            i += 1
+            continue
+        scan = _scan_comprehension_args(expr, i + head_len)
+        if scan is None:
+            i += head_len
+            continue
+        _var, coll, pred, end = scan
+        iterables.append(coll)
+        # Recurse into predicate for nested comprehensions.
+        iterables.extend(_scan_comprehension_iterables(pred))
+        i = end + 1
+    return iterables
+
+
+def _validate_expressions(doc: dict, module_name: str) -> tuple[list[str], list[str]]:
+    """Expression-aware validation pass (CIVIL v11 — comprehension support).
+
+    For every collected `(field_id, expr_str)` tuple:
+      1. Call `extract_refs` — catch `ValueError` and emit a parse / qualified-access /
+         empty-predicate error with field-id prefix.
+      2. On success, inspect `ExprRefs.bound_names`:
+         - Bound-name shadowing — each bound name is checked against the module's
+           name inventory (entities, entity fields, computed, constants, tables).
+           Any collision emits `ERROR: <module>.<field>: comprehension bound name
+           '<b>' shadows a known <kind> ('<existing>'); rename the bound name`.
+      3. Non-list collection — re-scan the expression with `_scan_comprehension_args`
+         to identify the iterated collection name; if it resolves to a scalar
+         (not `list` / `set`), emit `ERROR: ... iterates over non-list '<coll>'
+         (type: <type>)`. Refs that don't resolve (e.g., `v.items` where `v` is
+         an outer-scope bound name) are skipped — those are validated by U1's
+         walker via `bound_names` scoping.
+
+    Returns `(errors, warnings)`. Warnings are unused at present but the return
+    shape mirrors the sibling validators for consistency.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    computed_names = set((doc.get("computed") or {}).keys())
+    table_names = set((doc.get("tables") or {}).keys())
+    inventory = _build_name_inventory(doc)
+
+    # Comprehension-shape detector — `count(... in ... where ...)` or
+    # `exists(... in ... where ...)`. Used to scope parse-error reporting to
+    # comprehension-related failures only. CIVIL DSL also supports `if/then/else`
+    # ternaries and other constructs that `civil_expr.extract_refs` does not yet
+    # parse; emitting parse errors for those would regress non-comprehension
+    # modules (e.g., ak_doh). U2's mandate is comprehension support — broader
+    # parse-error coverage is a follow-up.
+    _COMPREHENSION_SHAPE_RE = re.compile(
+        r"\b(?:count|exists)\s*\([^)]*\bin\b[^)]*\bwhere\b"
+    )
+
+    for field_id, expr_str in _collect_expressions(doc):
+        is_comprehension = bool(_COMPREHENSION_SHAPE_RE.search(expr_str))
+        try:
+            refs = extract_refs(expr_str, computed_names, table_names)
+        except ValueError as exc:
+            # Only surface parse failures on comprehension-shaped expressions.
+            # Other parse failures (e.g., CIVIL `if x then y else z` ternaries
+            # not yet supported by civil_expr.py) are silently skipped here and
+            # picked up downstream by the transpilers.
+            if is_comprehension:
+                errors.append(f"{module_name}.{field_id}: {exc}")
+            continue
+
+        # Bound-name shadowing — only relevant kinds for the shadow error message.
+        # We surface entity, entity-field, computed, and constant collisions.
+        shadow_kinds = {"entity", "entity field", "computed", "constant", "table"}
+        for b in refs.bound_names:
+            entry = inventory.get(b)
+            if entry is None:
+                continue
+            kind, qualified = entry
+            if kind not in shadow_kinds:
+                continue
+            errors.append(
+                f"{module_name}.{field_id}: comprehension bound name '{b}' "
+                f"shadows a known {kind} ('{qualified}'); rename the bound name"
+            )
+
+        # Non-list collection — re-scan to find each comprehension's iterable token.
+        # Skip dotted iterables (e.g., `v.items` from nested comprehensions) because
+        # the head identifier is an outer-scope bound name, not a module-level ref.
+        for coll in _scan_comprehension_iterables(expr_str):
+            if "." in coll:
+                continue
+            lookup = _lookup_collection_type(coll, doc)
+            if lookup is None:
+                continue
+            qualified, ctype = lookup
+            if ctype not in ("list", "set"):
+                errors.append(
+                    f"{module_name}.{field_id}: comprehension iterates over "
+                    f"non-list '{coll}' (type: {ctype})"
+                )
+
+    return errors, warnings
+
+
 def validate(path: str) -> bool:
     try:
         with open(path) as f:
@@ -390,6 +599,16 @@ def validate(path: str) -> bool:
         for err in tl_errors:
             print(f"ERROR: {err}", file=sys.stderr)
         print(f"\n{len(tl_errors)} table_lookup error(s) found in {path}", file=sys.stderr)
+        return False
+
+    # CIVIL v11: expression-aware validation (parse errors, comprehension scope checks).
+    expr_errors, expr_warnings = _validate_expressions(data, module.module)
+    for warn in expr_warnings:
+        print(f"WARNING: {warn}", file=sys.stderr)
+    if expr_errors:
+        for err in expr_errors:
+            print(f"ERROR: {err}", file=sys.stderr)
+        print(f"\n{len(expr_errors)} expression error(s) found in {path}", file=sys.stderr)
         return False
 
     # CIVIL v6: maintainability annotation validation

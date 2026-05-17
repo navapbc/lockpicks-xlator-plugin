@@ -244,6 +244,7 @@ xlator rego-pipeline <domain> <module>
   - v8: Rename `rule_set.workflow_stages` to `rule_set.ruleset_groups` and `WorkflowStage` model to `RulesetGroup` for vocabulary consistency with the `/create-ruleset-groups` command.
   - v9: Rename top-level keys `facts:` → `inputs:` and `decisions:` → `outputs:` for plain-language clarity. Rename computed field tag `"output"` → `"expose"` to eliminate naming overlap between the new `outputs:` section and the tag used to expose computed fields to parent modules.
   - v10: Split `source:` provenance from a flat citation string into a structured object with `file:` (source-doc path relative to the domain root, e.g. `input/policy_docs/<rel>.md`) and `section:` (citation + heading) subfields on `FactField`, `ComputedField`, `TableDef`, and `Rule`. The transpiler now renders the two subfields jointly in Catala prose. No migration — existing `*.civil.yaml` files regenerate via `/extract-ruleset` (per `CLAUDE.md` "Don't migrate old files").
+  - v11: Add three collection-op expressions — `count(v in coll where v.field ...)`, `exists(v in coll where v.field ...)`, and `sum(<expr> for v in coll [if <pred>])` — lowered to Catala via `transpile_to_catala.py` (Rego target deferred). Bound name is scoped to the predicate; iterated-row fields must be qualified (`v.field`); bare-name predicate access inside a comprehension is rejected unconditionally (strict rule).
 
 ---
 
