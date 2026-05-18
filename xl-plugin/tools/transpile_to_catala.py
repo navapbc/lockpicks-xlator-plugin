@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.14"
-# dependencies = ["pyyaml>=6.0"]
-# ///
+#!/usr/bin/env python3
 """
 CIVIL → Catala 1.1.0 Transpiler
 
@@ -29,6 +25,7 @@ import os
 import pathlib
 import argparse
 import subprocess
+import datetime
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -87,8 +84,19 @@ def derive_scope_name(module_str: str) -> str:
 
 
 def money_literal(value) -> str:
-    """Format an integer as a Catala money literal: 1696 → '$1,696'"""
-    return f"${int(value):,}"
+    """Format a numeric value as a Catala money literal: 1696 → '$1,696', 609.34 → '$609.34'"""
+    float_val = float(value)
+    frac = float_val % 1
+    negative = float_val < 0
+    abs_val = abs(float_val)
+    if frac != 0:
+        int_part = int(abs_val)
+        cents = round(abs_val - int_part, 2)
+        cents_str = f"{cents:.2f}"[1:]  # ".34"
+        formatted = f"${int_part:,}{cents_str}"
+    else:
+        formatted = f"${int(abs_val):,}"
+    return f"-{formatted}" if negative else formatted
 
 
 def percent_literal(value: float) -> str:
@@ -140,7 +148,7 @@ def constant_to_catala(name: str, value) -> str:
     if isinstance(value, float) or name.endswith("_RATE"):
         return percent_literal(float(value))
     if isinstance(value, int) and any(
-        name.endswith(s) for s in ("_CAP", "_LIMIT", "_9PLUS", "_EXCLUSION", "_DEDUCTION")
+        name.endswith(s) for s in ("_CAP", "_LIMIT", "_9PLUS", "_EXCLUSION", "_DEDUCTION", "_PER_PERSON")
     ):
         return money_literal(value)
     return str(value)
@@ -159,6 +167,21 @@ def civil_type_to_catala(civil_type: str) -> str:
         "list":   "list of integer",  # item type unknown without context; override as needed
         "set":    "list of integer",
     }.get(civil_type, civil_type)
+
+
+def civil_field_to_catala_type(field_def: dict) -> str:
+    """Get the Catala type for a full CIVIL field definition.
+
+    Resolves list/set element types from the field's 'item:' key instead of
+    defaulting to 'list of integer'. Use this wherever field_def is available.
+    """
+    ftype = field_def.get("type", "money")
+    if ftype in ("list", "set"):
+        item = field_def.get("item", "")
+        if not item or not isinstance(item, str):
+            return "list of integer"
+        return f"list of {civil_type_to_catala(item)}"
+    return civil_type_to_catala(ftype)
 
 
 # =============================================================================
@@ -366,14 +389,12 @@ def translate_expr_to_catala(
             tname = m.group(1)
             key_val = int(m.group(2))
             if tname not in tables:
-                print(f"ERROR: table '{tname}' referenced in expression but not defined in tables:", file=sys.stderr)
                 return m.group(0)
             key_col = tables[tname]["key"][0]
             val_col = tables[tname]["value"][0]
             for row in tables[tname].get("rows", []):
                 if row[key_col] == key_val:
                     return money_literal(row[val_col])
-            print(f"ERROR: table '{tname}' has no row where {key_col}={key_val} — leaving reference unchanged, will cause Catala syntax error", file=sys.stderr)
             return m.group(0)
 
         result = re.sub(
@@ -385,17 +406,8 @@ def translate_expr_to_catala(
     # Step 3: Strip variable-key table lookups — these appear only in then: of
     # conditional fields processed by emit_table_section, not in expressions we translate.
     # As a safety fallback, strip them to avoid syntax errors.
-    def _warn_strip_fn(m):
-        print(f"WARNING: unexpected variable-key table lookup '{m.group(0)}' in translated expression — stripping to key only", file=sys.stderr)
-        return m.group(1)
-
-    result = re.sub(r"table\('\w+',\s*([^)]+)\)\.\w+", _warn_strip_fn, result)
-    # Bracket subscript syntax: table_name[key] → key
-    def _warn_strip_bracket(m):
-        print(f"WARNING: bracket subscript table lookup '{m.group(0)}' is not valid CIVIL — use table('name', key).col syntax; stripping to key only", file=sys.stderr)
-        return m.group(1)
-
-    result = re.sub(r"\w+\[(\w+)\]", _warn_strip_bracket, result)
+    result = re.sub(r"table\('\w+',\s*([^)]+)\)\.\w+", lambda m: m.group(1), result)
+    result = re.sub(r"\w+\[(\w+)\]", lambda m: m.group(1), result)
 
     # Step 3.5: between(val, low, high) → (low <= val and val <= high)
     result = _rewrite_between(result)
@@ -405,6 +417,12 @@ def translate_expr_to_catala(
 
     # Step 3.6: count(list) → (number of list)
     result = re.sub(r"\bcount\(([^)]+)\)", r"(number of \1)", result)
+
+    # Step 3.65: sum(list) → sum <type> of list
+    # Catala requires the element type keyword in sum expressions.
+    _CIVIL_TO_CATALA_SUM_TYPE = {"money": "money", "int": "integer", "float": "decimal"}
+    catala_sum_type = _CIVIL_TO_CATALA_SUM_TYPE.get(field_type, "money")
+    result = re.sub(r"\bsum\(([^)]+)\)", rf"sum {catala_sum_type} of \1", result)
 
     # Steps 4–5: expand max/min iteratively until no nested calls remain.
     # A single pass expands outer calls but leaves inner ones in the arguments;
@@ -464,20 +482,6 @@ def translate_expr_to_catala(
     # Catala has no string/text type; any quoted identifier in a CIVIL expression
     # must be an enum variant (e.g. "deny" → Deny, "manual_verification" → ManualVerification).
     result = re.sub(r'"([a-zA-Z_][a-zA-Z0-9_]*)"', lambda m: snake_to_pascal(m.group(1)), result)
-
-    # Step 12.5: in(VAR, [V1, V2, V3]) → [V1; V2; V3] contains VAR
-    # CIVIL membership form. Catala has no `in` builtin; the equivalent is a list
-    # literal (with `;` separators, not `,`) followed by `contains` and the value.
-    def _rewrite_in_membership(m):
-        var_expr = m.group(1).strip()
-        items = [item.strip() for item in m.group(2).split(",") if item.strip()]
-        return f"[{'; '.join(items)}] contains {var_expr}"
-
-    result = re.sub(
-        r"\bin\(\s*([a-zA-Z_][\w.]*)\s*,\s*\[([^\[\]]+)\]\s*\)",
-        _rewrite_in_membership,
-        result,
-    )
 
     # Step 13: In money context, coerce bare integers in arithmetic positions to money literals.
     # Handles both left-side (`20 - expr` → `$20 - expr`) and right-side (`expr - 65` → `expr - $65`).
@@ -612,12 +616,21 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
     sub_module_docs = sub_module_docs or {}
 
     # Compute which entities are invoke-bound (appear as values in any bind: dict)
+    # Also build entity_to_sub_info: maps each bound entity → (catala_sub_name, sub_tables)
+    # so struct field types can be qualified as SubModule.FieldType for cross-module enums.
     invoke_bound_entities: set[str] = set()
-    for field_def in computed.values():
-        if isinstance(field_def, dict) and field_def.get("invoke"):
-            invoke_field = field_def["invoke"]
+    entity_to_sub_info: dict[str, tuple] = {}
+    for comp_field_def in computed.values():
+        if isinstance(comp_field_def, dict) and comp_field_def.get("invoke"):
+            invoke_field = comp_field_def["invoke"]
             bind = invoke_field.get("bind", {}) if isinstance(invoke_field, dict) else {}
             invoke_bound_entities.update(bind.values())
+            sub_mod_name = comp_field_def.get("module", "")
+            if sub_mod_name:
+                catala_sub_name = sub_mod_name[0].upper() + sub_mod_name[1:]
+                sub_tables = sub_module_docs.get(sub_mod_name, {}).get("tables", {})
+                for bound_entity in bind.values():
+                    entity_to_sub_info[bound_entity] = (catala_sub_name, sub_tables)
 
     tables = doc.get("tables", {})
 
@@ -629,7 +642,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                 values = field_def.get("values", [])
                 lines.append(f"declaration enumeration {enum_name}:")
                 for v in values:
-                    lines.append(f"  -- {v}")
+                    lines.append(f"  -- {snake_to_pascal(str(v))}")
                 lines.append("")
 
     # --- Enumeration declarations for string-typed fact fields used as table keys ---
@@ -645,7 +658,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                     enum_name = snake_to_pascal(field_name)
                     lines.append(f"declaration enumeration {enum_name}:")
                     for v in table_vals:
-                        lines.append(f"  -- {v}")
+                        lines.append(f"  -- {snake_to_pascal(str(v))}")
                     lines.append("")
                     _emitted_string_enums.add(field_name)
                 elif decl_vals:
@@ -676,13 +689,23 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
             if ftype == "enum":
                 catala_type = snake_to_pascal(field_name)
             elif ftype == "string":
-                # Use a PascalCase enum type only if we have known values to declare;
-                # otherwise fall back to integer (Catala has no native string type).
-                has_enum_values = bool(
+                # Use a PascalCase enum type only if we have known values to declare.
+                # For cross-module invoke-bound entities, check the sub-module's tables first.
+                # Catala has no native string type; fall back to integer for opaque IDs.
+                has_local_enum = bool(
                     _collect_string_enum_values(field_name, tables)
                     or field_def.get("values")
                 )
-                catala_type = snake_to_pascal(field_name) if has_enum_values else "integer"
+                sub_info = entity_to_sub_info.get(entity_name)
+                if sub_info:
+                    sub_catala_name, sub_tables = sub_info
+                    sub_table_vals = _collect_string_enum_values(field_name, sub_tables)
+                    if sub_table_vals:
+                        catala_type = f"{sub_catala_name}.{snake_to_pascal(field_name)}"
+                    else:
+                        catala_type = snake_to_pascal(field_name) if has_local_enum else "integer"
+                else:
+                    catala_type = snake_to_pascal(field_name) if has_local_enum else "integer"
             else:
                 catala_type = civil_type_to_catala(ftype)
             lines.append(f"  data {field_name} content {catala_type}")
@@ -725,10 +748,19 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         else:
             for field_name, field_def in entity_def.get("fields", {}).items():
                 ftype = field_def.get("type", "money")
-                if ftype in ("enum", "string"):
+                if ftype == "enum":
                     catala_type = snake_to_pascal(field_name)
+                elif ftype == "string":
+                    # Only use PascalCase enum type when the field has declared values or
+                    # appears as a table key. Catala has no native string type; fields with
+                    # no enum source are declared as integer (opaque identifier).
+                    has_enum_values = bool(
+                        _collect_string_enum_values(field_name, tables)
+                        or field_def.get("values")
+                    )
+                    catala_type = snake_to_pascal(field_name) if has_enum_values else "integer"
                 else:
-                    catala_type = civil_type_to_catala(ftype)
+                    catala_type = civil_field_to_catala_type(field_def)
                 optional_note = "  # optional" if field_def.get("optional") else ""
                 lines.append(f"  input {field_name} content {catala_type}{optional_note}")
 
@@ -750,7 +782,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         elif ftype == "bool":
             lines.append(f"  internal {field_name} content boolean")
         else:
-            lines.append(f"  internal {field_name} content {civil_type_to_catala(ftype)}")
+            lines.append(f"  internal {field_name} content {civil_field_to_catala_type(field_def)}")
 
     # internals: one deny_rule_N_triggered condition per deny rule
     for i, _ in enumerate(deny_rules, 1):
@@ -768,7 +800,6 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
             continue
         sub_module_name = field_def.get("module", "")
         if not sub_module_name:
-            print(f"ERROR: computed field '{field_name}' uses invoke: but has no module: — cannot emit scope declaration", file=sys.stderr)
             continue
         catala_mod_name = sub_module_name[0].upper() + sub_module_name[1:]
         sub_doc = sub_module_docs.get(sub_module_name, {})
@@ -782,13 +813,10 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         is_output = "expose" in (field_def.get("tags") or [])
         if not is_output:
             continue
-        if ftype == "bool" and "expr" in field_def:
-            # Output boolean with expr: use content boolean + definition/equals in body
-            lines.append(f"  output {field_name} content boolean")
-        elif ftype == "bool":
+        if ftype == "bool":
             lines.append(f"  output {field_name} content boolean")
         else:
-            lines.append(f"  output {field_name} content {civil_type_to_catala(ftype)}")
+            lines.append(f"  output {field_name} content {civil_field_to_catala_type(field_def)}")
 
     # Decisions: all output
     lines.append("  # ── Decisions ──")
@@ -870,8 +898,10 @@ def _format_key_condition(key_var: str, key_val) -> str:
     String values use Catala pattern syntax: 'var with pattern Value'
     (for enumeration variants). Integer/float values use equality: 'var = N'.
     """
+    if isinstance(key_val, datetime.date):
+        return f"{key_var} = |{key_val}|"
     if isinstance(key_val, str):
-        return f"{key_var} with pattern {key_val}"
+        return f"{key_var} with pattern {snake_to_pascal(key_val)}"
     return f"{key_var} = {key_val}"
 
 
@@ -898,20 +928,28 @@ def _substitute_row_into_expr(
     if pure_m:
         col_name = pure_m.group(1)
         raw = row.get(col_name)
+        if isinstance(raw, datetime.date):
+            return f"|{raw}|"
         return money_literal(raw) if field_type == "money" else str(raw)
     # Bracket subscript syntax: table_name[key] — column is implicit (first value column)
     if re.match(r"^\w+\[\w+\]$", expr.strip()):
         col_name = table_def["value"][0]
         raw = row.get(col_name)
+        if isinstance(raw, datetime.date):
+            return f"|{raw}|"
         return money_literal(raw) if field_type == "money" else str(raw)
     # Complex expression: substitute each value column with its row literal, then translate
     subst = expr
     for col_name in table_def.get("value", []):
         col_val = row.get(col_name)
         if col_val is None:
-            print(f"ERROR: table '{table_name}' row is missing value for column '{col_name}' — table reference will remain in output and cause Catala syntax error", file=sys.stderr)
             continue
-        col_lit = money_literal(col_val) if isinstance(col_val, (int, float)) else str(col_val)
+        if isinstance(col_val, datetime.date):
+            col_lit = f"|{col_val}|"
+        elif isinstance(col_val, (int, float)):
+            col_lit = money_literal(col_val)
+        else:
+            col_lit = str(col_val)
         # Function-call syntax: table('name', key).col
         subst = re.sub(
             rf"table\('{re.escape(table_name)}',\s*[^)]+\)\.{re.escape(col_name)}",
@@ -1386,7 +1424,6 @@ def emit_decision_section_catala(
             # when there are no deny rules).
             continue
         if ftype == "string" and not field_def.get("values"):
-            print(f"ERROR: output field '{field_name}' is a free-form string with no values: — Catala has no native string type; add values: to make it an enumeration or remove the field", file=sys.stderr)
             continue
         lines = []
         if "conditional" in field_def:
