@@ -9,10 +9,11 @@
 
 ## Background
 
-Two investigation documents provided the raw material for this analysis:
+Three investigation sources provided the raw material for this analysis:
 
-- `doc/investigations/2026-05-14-catala-errors-collated.md` — 11 error classes inventoried from production session logs
+- `doc/investigations/2026-05-14-catala-errors-collated.md` — 11 error classes inventoried from production session logs through 2026-05-14
 - `doc/investigations/2026-05-18-app-support-transpiler-patches.md` — 28 patches (A1–A14, B1–B14) applied in-place to the running app on top of v2.5.1, now at risk of being dropped when the upstream v2.6.3b branch merges
+- Direct review of all `tests-*.jsonl` and `tests:<module>-*.jsonl` logs across all six domains in `/Users/bradley/Documents/PolicyBridge/domains/` (ak-doh, snap, nj-payments), covering runs from 2026-05-07 through 2026-05-18
 
 This document extends those analyses with a language-level comparison of CIVIL and Catala, groups the patch set and error classes by root cause, and proposes three layers of remediation: immediate patch re-application, CIVIL spec changes, and transpiler process improvements.
 
@@ -234,23 +235,106 @@ The 28 patches (A1–A14 on `transpile_to_catala.py`, B1–B14 on `transpile_to_
 
 ---
 
+## 3B. New Error Classes Discovered in 2026-05-18 Log Review
+
+The direct log review of all domains uncovered four error classes not present in the prior investigation documents.
+
+### Error 12 — `type: string` fields emit the field name as the Catala type (nj-payments)
+
+**Symptom:** `weekly_eligibility.catala_en:159` — `Unknown type "ClaimWeekId", not a struct or enum previously declared` followed by 28 cascading `unknown identifier` errors for every field in the scope.
+
+**Root cause:** The transpiler's `civil_type_to_catala("string")` path emits the field name converted to PascalCase (`claim_week_id` → `ClaimWeekId`) as the Catala type, rather than a primitive. This appears to be an unimplemented case in `civil_type_to_catala()`: when `ftype == "string"` and the field has no `values:` list and is not a table key, the function falls through to a name-based path intended for struct types.
+
+**Impact:** Any module with a `type: string` input field that has no `values:` enum list will fail to compile. The entire scope becomes unresolvable — all 29 compilation errors are cascade failures from this one mistyped declaration.
+
+**Fix needed:** In `civil_type_to_catala` (and `civil_field_to_catala_type`), add a branch: when `ftype == "string"` and no enum is available for the field, emit `text`. Then separately address Error 13.
+
+---
+
+### Error 13 — Catala 1.1.0 has no `text` or `string` primitive type (nj-payments)
+
+**Symptom:** After patching Error 12 to emit `text`, the next error was `Unknown built-in type "text"` at the same line.
+
+**Root cause:** The `civil_type_to_catala` mapping `"string": "text"` was speculative. Catala 1.1.0's type primitives are: `Integer`, `Decimal`, `Boolean`, `Money`, `Duration`, `Date`, `Position`. There is no string/text primitive.
+
+**Implication:** CIVIL's `type: string` has no valid direct Catala equivalent. Every `type: string` field in CIVIL must be either:
+1. An enumeration (if `values:` is declared) — map to `declaration enumeration` + PascalCase variants
+2. An opaque identifier (like `claim_week_id`) — no good Catala representation; declare as `integer` with a comment, or omit from scope if unused in expressions
+3. A free-text field (notes, messages) — no Catala equivalent; cannot be included in a typechecked Catala scope
+
+**Impact:** This is a fundamental CIVIL↔Catala incompatibility for string fields without enumerated values. The `nj-payments/weekly_eligibility` fix worked because `claim_week_id` was unused in all rule expressions — it could be simply declared but its type was irrelevant to computation. Future modules with string fields used in expressions will hit a harder wall.
+
+**Fix needed:** The transpiler should detect `type: string` fields that are:
+- Used in rule expressions → error at CIVIL validation time ("string fields used in comparisons must have `values:` declared")
+- Not used in any expression → emit as `integer` with a `# opaque identifier` comment, or suppress from scope declaration entirely
+- Have `values:` → emit as `declaration enumeration` (existing path)
+
+The CIVIL spec should document that `type: string` without `values:` is only valid for fields that are never referenced in `when:`, `expr:`, or `computed:` expressions.
+
+---
+
+### Error 14 — Enum case identifiers emitted lowercase in `declaration enumeration` blocks (snap)
+
+**Symptom:** `eligibility.catala_en:154` — `Syntax error at "citizen": expected the name of an enum case`. The generated Catala contained `-- citizen` (lowercase).
+
+**Root cause:** The transpiler has `snake_to_pascal()` for converting CIVIL string values to PascalCase enum variants, but at least one of the enum declaration emit paths does not apply this conversion. The Catala compiler requires enum case identifiers to start with a capital letter.
+
+**Affected path:** Likely the decisions-output enum pass in `emit_declarations` or the table-key enum pass — the same paths not covered by Patch A10 (which added a new pass for non-invoke-bound input string fields). Alternatively, the `values:` list for the `citizen_status` field in `snap/eligibility` uses lowercase values that are emitted directly without PascalCase conversion.
+
+**Impact:** Any module whose enum declaration emit path skips `snake_to_pascal()` will produce a Catala syntax error on the first enum case, blocking the entire module's compilation.
+
+**Fix needed:** Audit every `emit_declarations` path that appends `-- <variant>` lines and confirm each applies `snake_to_pascal()` to the variant name. The three passes are: (1) table-key enum pass, (2) decisions/output enum pass, (3) Patch A10's input string-with-values pass. All three must apply the transformation.
+
+---
+
+### Error 15 — "No applicable rule" runtime error (snap/income_calculation)
+
+**Symptom:** `TestDenyEdge001` and `TestSynDenyEdge001` fail with `income_calculation.catala_en:93`/`:97` — `During evaluation: no applicable rule to define this variable in this situation`.
+
+**Root cause:** These test cases exercise an input combination where no `when:` clause in the ruleset fires for some internal variable. Catala requires every `internal` scope variable to have at least one applicable rule definition; when the condition space has a gap, this runtime error fires.
+
+**Impact:** 2 of 27 tests fail. The test cases exist and compile but assert a code path the CIVIL rules don't cover.
+
+**Fix needed:** This is most likely a CIVIL authoring gap (missing rule coverage) rather than a transpiler bug. The fix is to inspect `income_calculation.catala_en:93` and `:97` to identify which variable has no applicable rule, trace it back to the CIVIL computed/output definition, and add a base-case rule or default expression.
+
+---
+
+### Error 16 — Output fields `eligible`/`manual_review_required` silently skipped in test assertions (snap)
+
+**Symptom:** `WARN  case 'allow_001': expected: field 'eligible' not found in decisions or computed; skipping` — repeated for all 6 test cases in both `income_calculation` and `resource_determination`.
+
+**Root cause:** The test transpiler's `emit_test_scope` looks for `eligible` and `manual_review_required` in the `decisions` and `computed` dicts of the module metadata (from `*_meta.py`). If those fields are present in the CIVIL `outputs:` but are omitted from the metadata (e.g. because they are emitted as Catala `output` rather than being tracked in the decisions dict), the test assertion is silently skipped.
+
+**Impact:** Non-fatal — tests pass, but the assertions for the most important output fields are never checked. Tests that should catch a wrong `eligible` value become vacuous.
+
+**Fix needed:** Ensure the `*_meta.py` generation in `transpile_to_catala.py` includes all fields declared as `outputs:` in the CIVIL spec, including `eligible` and `manual_review_required`. Cross-check that the test transpiler's field-lookup covers both `output` and `internal` Catala declarations.
+
+---
+
 ## 4. Error Class → Root Cause Map
 
-| Error # | Description | Root cause category | Patch(es) addressing it |
-|---|---|---|---|
-| 1 | Cross-module type mismatch (`int` vs `Module.EnumType` / `money`) | Cat. III (enum resolution) | A5, A9 — fixes transpiler-side; extraction-side (AI authoring `int`) unaddressed |
-| 2a | Test syntax: list `,` vs `;` | §2D type mismatch | B5 |
-| 2b | Test syntax: bare date literal | Cat. II (type system) | B4, B5 |
-| 2c | Test syntax: `client_data` unknown identifier | Cat. V (struct mode) | B9, B10 |
-| 3 | Division-by-zero in derived expressions | §2D semantic mismatch | A6 (Step 10.5, money context only); general case unguarded |
-| 4 | `sum(list)` no type keyword | Cat. IV (expression rewriting) | A6 (Step 3.65) |
-| 5 | Unused variable warning | CIVIL extraction quality | Not a transpiler bug; see §5 Proposal 2 |
-| 6 | Naming-manifest divergence | Process gap | Not a transpiler bug; not addressed here |
-| 7 | Ambiguous prompts logged as success | UI session classification | Not a transpiler bug |
-| 8 | Required field defaulted in test transpile | Cat. II (type system) + Cat. III (enum) | B4, B6 (partial); Cat. III patches improve enum defaults |
-| 9 | `PackageNotFoundError: gmpy2` | Deployment / packaging | Not a transpiler bug; fixed in `xlator-ui.spec` |
-| 10 | "No demo directory found" | Simulator precondition | Not a transpiler bug; see §5 Proposal 6 |
-| 11 | Transient `tool_end: "Error"` events | Bash exit code noise | Not relevant |
+The following table covers all error classes observed across the three prior investigation documents **plus** the direct log review of all domains conducted 2026-05-18. Errors 12–16 are newly discovered.
+
+| Error # | Description | Domain(s) | Root cause category | Patch(es) addressing it |
+|---|---|---|---|---|
+| 1 | Cross-module type mismatch (`int` vs `Module.EnumType` / `money`) | ak-doh | Cat. III (enum resolution) | A5, A9 — transpiler-side; extraction-side (AI authoring `int`) unaddressed |
+| 2a | Test syntax: list `,` vs `;` | ak-doh | §2D type mismatch | B5 |
+| 2b | Test syntax: bare date literal | ak-doh | Cat. II (type system) | A7, A8, B4, B5 |
+| 2c | Test syntax: `client_data` unknown identifier | ak-doh | Cat. V (struct mode) | B9, B10 |
+| 3 | Division-by-zero at runtime | ak-doh | §2D semantic mismatch | A6 (Step 10.5, money×int/int only); general case unguarded |
+| 4 | `sum(list)` no type keyword | ak-doh | Cat. IV (expression rewriting) | A6 (Step 3.65) |
+| 5 | Unused variable warning | ak-doh, snap | CIVIL extraction quality | Not a transpiler bug |
+| 6 | Naming-manifest divergence | snap | Process gap | Not a transpiler bug |
+| 7 | Ambiguous prompts logged as success | — | UI session classification | Not a transpiler bug |
+| 8 | Required field defaulted in test transpile | ak-doh, nj-payments | Cat. II + Cat. III | B4, B6 (partial) |
+| 9 | `PackageNotFoundError: gmpy2` | snap | Deployment / packaging | Fixed in `xlator-ui.spec` |
+| 10 | "No demo directory found" / "Demo missing main.py" | snap, nj-payments | Simulator precondition | Not a transpiler bug |
+| 11 | Transient `tool_end: "Error"` events | — | Bash exit code noise | Not relevant |
+| **12** | **`type: string` input fields emit field name as Catala type** (`content ClaimWeekId`) | **nj-payments** | **Cat. III (type mapping)** | **No existing patch — new bug** |
+| **13** | **Catala 1.1.0 has no `text`/`string` primitive** — `civil_type_to_catala("string")` mapping invalid | **nj-payments** | **§2D type mismatch** | **No existing patch — new bug** |
+| **14** | **Enum case identifiers emitted lowercase** (`-- citizen` instead of `-- Citizen`) | **snap** | **Cat. III (enum casing)** | **No existing patch — new bug** |
+| **15** | **"No applicable rule" runtime error** — rule set has uncovered input space | **snap** | CIVIL rule logic gap | Not a transpiler bug; test input or rule gap |
+| **16** | **Output field `eligible`/`manual_review_required` not found in decisions or computed** — test assertions silently skipped | **snap** | Cat. III / test emitter | No existing patch — likely CIVIL output field not exposed |
 
 ---
 
@@ -295,6 +379,15 @@ After the `update-xlator-plugin` branch merges into `main`, the vendored files a
 | B14 | `transpile_to_catala_tests.py` | Simplify string decision assertion to `snake_to_pascal(str(val))` |
 
 **Verification after re-application:** Run `/xl:transpile-and-test ak-doh` on the merged branch and confirm errors 2 and 4 from the error inventory (§4) are absent, and that the `ak-doh eligibility` build no longer produces `integer vs Module.HouseholdType` errors for list-typed fields.
+
+**Additional fixes required for Errors 12–14 (discovered 2026-05-18):**
+
+| Priority | Bug | File | Action |
+|---|---|---|---|
+| P0 | Error 14 — enum case lowercase | `transpile_to_catala.py` | Audit every `-- <variant>` emit path in `emit_declarations`; apply `snake_to_pascal()` uniformly. The three passes (table-key, decisions/output, A10 input-string) must all convert values. Verify by compiling `snap/eligibility.catala_en` and checking that `-- citizen` becomes `-- Citizen`. |
+| P0 | Error 12 — `type: string` emits field name as type | `transpile_to_catala.py` | In `civil_type_to_catala()` and `civil_field_to_catala_type()`, add an explicit branch for `ftype == "string"` with no enum: emit a stub (see Error 13 note) rather than falling through to the PascalCase-name path. |
+| P1 | Error 13 — no Catala `text` primitive | `transpile_to_catala.py` + `validate_civil.py` | For string fields with no `values:` that are unreferenced in expressions: emit as `integer` with a comment, or omit from scope declaration. For string fields used in expressions: raise a CIVIL validation error. |
+| P1 | Error 16 — `eligible`/`manual_review_required` skipped in test assertions | `transpile_to_catala.py` | Check `*_meta.py` generation: ensure all CIVIL `outputs:` fields are written to the decisions dict. Check `transpile_to_catala_tests.py`: ensure test assertion lookup covers Catala `output` declarations, not only the decisions/computed split. |
 
 ---
 
@@ -443,6 +536,11 @@ These are improvements to the transpilation pipeline and tooling, not requiring 
 | `is_null(field)` not desugared | Semantic gap | Spec + transpiler | No current fix; requires optional type support |
 | Overlay composition | Feature gap | Spec + transpiler | Out of scope for this pass; §CIVIL spec already notes as unimplemented |
 | `allow_overrides_deny` / `first_match` | Semantic gap | Spec + transpiler | Out of scope for this pass; high complexity |
+| `type: string` (no values) emits field name as type (`ClaimWeekId`) | **Blocking** | Transpiler | §5A additional fix (Error 12); add explicit `string` branch in `civil_type_to_catala` |
+| Catala 1.1.0 has no `text` primitive — string fields without enum have no valid type | **Blocking** | Spec + transpiler | §5A additional fix (Error 13); spec must restrict bare `type: string` to non-expression contexts |
+| Enum case identifiers emitted lowercase (`-- citizen` not `-- Citizen`) | **Blocking** | Transpiler | §5A additional fix (Error 14); apply `snake_to_pascal()` to all `-- <variant>` emit paths |
+| "No applicable rule" runtime gap in rule coverage | Runtime error | CIVIL rules | Error 15; inspect `income_calculation.catala_en:93,97`; add base-case rule in CIVIL |
+| Output fields `eligible`/`manual_review_required` silently skipped in test assertions | Silent test gap | Transpiler | §5A additional fix (Error 16); audit `*_meta.py` generation and test emitter field lookup |
 
 ---
 
