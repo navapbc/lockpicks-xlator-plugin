@@ -3,6 +3,7 @@
 # requires-python = ">=3.14"
 # dependencies = [
 #   "mammoth>=1.8",
+#   "openpyxl>=3.0",
 #   "pymupdf>=1.24",
 #   "anthropic>=0.39",
 # ]
@@ -32,6 +33,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -52,7 +55,11 @@ SCANNED_PDF_CHARS_PER_PAGE_THRESHOLD = 50
 CHARS_PER_TOKEN_ESTIMATE = 4
 
 
-FormatLabel = Literal["docx", "pdf-text", "pdf-scanned"]
+FormatLabel = Literal["docx", "pdf-text", "pdf-scanned", "csv", "xlsx", "json"]
+
+# Structured data formats: cleanup is a document-artifact pass and doesn't
+# apply to tabular or serialised data.
+NO_CLEANUP_FORMATS: frozenset[str] = frozenset({"csv", "xlsx", "json"})
 
 
 @dataclass
@@ -114,14 +121,16 @@ def estimate_tokens(text: str) -> int:
 
 
 def detect_format(source: Path, content: bytes) -> FormatLabel:
-    """Classify the source file as docx / text-PDF / scanned-PDF.
-
-    .docx is determined by extension. PDFs are parsed once to measure
-    extracted-text density (chars per page) — below the threshold means scanned.
-    """
+    """Classify the source file by extension; PDFs are further probed for text density."""
     suffix = source.suffix.lower()
     if suffix == ".docx":
         return "docx"
+    if suffix == ".csv":
+        return "csv"
+    if suffix == ".xlsx":
+        return "xlsx"
+    if suffix == ".json":
+        return "json"
     if suffix != ".pdf":
         raise ValueError(f"Unsupported extension: {suffix!r}")
 
@@ -166,6 +175,129 @@ def parse_docx(content: bytes) -> ParseResult:
     # mammoth does not surface a page count for .docx; treat the whole doc as one page.
     return ParseResult(
         markdown=result.value or "", page_count=1, warnings=warnings
+    )
+
+
+def _escape_table_cell(value: str) -> str:
+    """Pure: make a string safe for use inside a GFM table cell."""
+    return value.replace("|", "\\|").replace("\r", "").replace("\n", " ")
+
+
+def rows_to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
+    """Pure: render headers + rows as a GFM pipe table."""
+    escaped_headers = [_escape_table_cell(h) for h in headers]
+    separator = ["-" * max(3, len(h)) for h in escaped_headers]
+    lines: list[str] = [
+        "| " + " | ".join(escaped_headers) + " |",
+        "| " + " | ".join(separator) + " |",
+    ]
+    for row in rows:
+        padded = list(row) + [""] * max(0, len(headers) - len(row))
+        cells = [_escape_table_cell(str(cell)) for cell in padded[: len(headers)]]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def parse_csv(content: bytes) -> ParseResult:
+    """Convert CSV bytes to a single markdown table."""
+    import csv  # noqa: PLC0415
+    import io  # noqa: PLC0415
+
+    text = content.decode("utf-8-sig")  # strip BOM if present
+    reader = csv.reader(io.StringIO(text))
+    all_rows = [row for row in reader if any(cell.strip() for cell in row)]
+
+    warnings: list[Warning_] = []
+    if not all_rows:
+        return ParseResult(markdown="*(empty CSV)*\n", page_count=1, warnings=warnings)
+
+    headers = all_rows[0]
+    data_rows = all_rows[1:]
+
+    col_counts = {len(row) for row in data_rows}
+    if len(col_counts) > 1:
+        warnings.append(
+            Warning_(
+                code="inconsistent_column_count",
+                detail=f"Row widths vary: {sorted(col_counts)}",
+            )
+        )
+
+    return ParseResult(
+        markdown=rows_to_markdown_table(headers, data_rows) + "\n",
+        page_count=1,
+        warnings=warnings,
+    )
+
+
+def parse_xlsx(content: bytes) -> ParseResult:
+    """Convert XLSX bytes to markdown — one `##`-headed section per sheet."""
+    import io  # noqa: PLC0415
+
+    import openpyxl  # noqa: PLC0415
+
+    workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    sections: list[str] = []
+    warnings: list[Warning_] = []
+
+    for sheet_name in workbook.sheetnames:
+        sheet = workbook[sheet_name]
+        all_rows = [
+            [str(cell.value) if cell.value is not None else "" for cell in row]
+            for row in sheet.iter_rows()
+            if any(cell.value is not None for cell in row)
+        ]
+        if not all_rows:
+            warnings.append(
+                Warning_(code="empty_sheet", detail=f"Sheet '{sheet_name}' has no data")
+            )
+            continue
+        headers = all_rows[0]
+        data_rows = all_rows[1:]
+        sections.append(f"## {sheet_name}\n\n{rows_to_markdown_table(headers, data_rows)}")
+
+    sheet_count = len(workbook.sheetnames)
+    workbook.close()
+    markdown = "\n\n".join(sections) + "\n" if sections else "*(no sheet data)*\n"
+    return ParseResult(markdown=markdown, page_count=sheet_count, warnings=warnings)
+
+
+def _json_data_to_markdown(data: Any) -> str:
+    """Pure: render JSON data as markdown — table for uniform arrays, code block otherwise."""
+    if (
+        isinstance(data, list)
+        and data
+        and all(isinstance(item, dict) for item in data)
+    ):
+        first_keys = list(data[0].keys())
+        uniform = all(list(item.keys()) == first_keys for item in data)
+        all_scalar = all(
+            isinstance(value, (str, int, float, bool, type(None)))
+            for item in data
+            for value in item.values()
+        )
+        if uniform and all_scalar:
+            headers = [str(key) for key in first_keys]
+            rows = [
+                [str(item[key]) if item[key] is not None else "" for key in first_keys]
+                for item in data
+            ]
+            return rows_to_markdown_table(headers, rows) + "\n"
+    return "```json\n" + json.dumps(data, indent=2, ensure_ascii=False) + "\n```\n"
+
+
+def parse_json(content: bytes) -> ParseResult:
+    """Convert JSON bytes to markdown — table for uniform arrays, code block otherwise."""
+    warnings: list[Warning_] = []
+    try:
+        data = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        warnings.append(Warning_(code="json_parse_error", detail=str(exc)))
+        return ParseResult(markdown="*(unparseable JSON)*\n", page_count=1, warnings=warnings)
+    return ParseResult(
+        markdown=_json_data_to_markdown(data),
+        page_count=1,
+        warnings=warnings,
     )
 
 
@@ -389,10 +521,8 @@ _CLEANUP_PROMPT = (
 )
 
 
-def cleanup_markdown(
-    raw_markdown: str, *, anthropic_client: Any
-) -> str:
-    """Run a single Claude cleanup pass on the parsed markdown."""
+def _cleanup_via_sdk(raw_markdown: str, *, anthropic_client: Any) -> str:
+    """Run cleanup via the Anthropic Python SDK (requires ANTHROPIC_API_KEY)."""
     response = anthropic_client.messages.create(
         model=CLEANUP_MODEL,
         max_tokens=8192,
@@ -409,6 +539,24 @@ def cleanup_markdown(
         block.text for block in response.content if hasattr(block, "text")
     ]
     return "\n".join(text_blocks).strip() + "\n"
+
+
+def _cleanup_via_cli(raw_markdown: str) -> str:
+    """Run cleanup via the `claude` CLI using the authenticated session."""
+    result = subprocess.run(
+        ["claude", "-p", "--output-format", "text", _CLEANUP_PROMPT + raw_markdown],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip() + "\n"
+
+
+def cleanup_markdown(raw_markdown: str, *, anthropic_client: Any | None) -> str:
+    """Run a single Claude cleanup pass, using the SDK client or CLI fallback."""
+    if anthropic_client is not None:
+        return _cleanup_via_sdk(raw_markdown, anthropic_client=anthropic_client)
+    return _cleanup_via_cli(raw_markdown)
 
 
 def should_auto_run_cleanup(
@@ -452,6 +600,11 @@ def find_anthropic_client() -> Any | None:
     except ImportError:
         return None
     return anthropic.Anthropic(api_key=api_key)
+
+
+def claude_cli_available() -> bool:
+    """Return True when the `claude` CLI is on PATH (authenticated session usable)."""
+    return shutil.which("claude") is not None
 
 
 def project_paths(domain: str, basename: str, extension: str) -> dict[str, Path]:
@@ -533,7 +686,18 @@ def run_conversion(
         parse_result = parse_docx(source_content)
     elif format_label == "pdf-text":
         parse_result = parse_pdf_text(source_content)
+    elif format_label == "csv":
+        parse_result = parse_csv(source_content)
+    elif format_label == "xlsx":
+        parse_result = parse_xlsx(source_content)
+    elif format_label == "json":
+        parse_result = parse_json(source_content)
     else:
+        # Scanned PDFs require the Anthropic vision API — image bytes are sent
+        # page-by-page and there is no equivalent claude CLI path.
+        # Local OCR alternatives (marker-pdf, pymupdf4llm + rapidocr-onnxruntime,
+        # docling) could serve as fallbacks but involve 1–3 GB model downloads and
+        # lower quality on dense policy documents; not implemented for now.
         if anthropic_client is None:
             sys.stderr.write(
                 "Scanned PDF requires ANTHROPIC_API_KEY and the `anthropic` SDK.\n"
@@ -554,15 +718,18 @@ def run_conversion(
     cleanup_applied = False
     final_markdown = raw_markdown
 
+    cleanup_via_cli = anthropic_client is None and claude_cli_available()
+    if format_label in NO_CLEANUP_FORMATS:
+        no_cleanup = True
     if no_cleanup:
         cleanup_applied = False
     elif force_cleanup or cleanup_decision_auto:
-        if anthropic_client is None:
+        if anthropic_client is None and not claude_cli_available():
             # Don't fail; just record a warning and keep raw markdown.
             parse_result.warnings.append(
                 Warning_(
                     code="cleanup_skipped_no_api_key",
-                    detail="ANTHROPIC_API_KEY not set or anthropic SDK missing",
+                    detail="ANTHROPIC_API_KEY not set or anthropic SDK missing, and `claude` CLI not found",
                 )
             )
         else:
@@ -594,7 +761,7 @@ def run_conversion(
         raw_markdown_bytes=len(raw_markdown.encode("utf-8")),
         estimated_input_tokens=estimated_tokens,
         cleanup_applied=cleanup_applied,
-        cleanup_model=CLEANUP_MODEL if cleanup_applied else None,
+        cleanup_model=(None if not cleanup_applied else ("claude-cli" if cleanup_via_cli else CLEANUP_MODEL)),
         warnings=parse_result.warnings,
         duration_ms=duration_ms,
     )
@@ -623,10 +790,10 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="xlator convert-doc",
-        description="Convert a .docx or .pdf into clean markdown for indexing.",
+        description="Convert a .docx, .pdf, .csv, .xlsx, or .json file into markdown for indexing.",
     )
     parser.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
-    parser.add_argument("source", help="Path to .docx or .pdf source file")
+    parser.add_argument("source", help="Path to source file (.docx, .pdf, .csv, .xlsx, .json)")
     parser.add_argument(
         "--force-cleanup",
         action="store_true",
@@ -667,9 +834,13 @@ __all__ = [
     "estimate_tokens",
     "hash_cache_hit",
     "main",
+    "parse_csv",
     "parse_docx",
+    "parse_json",
     "parse_pdf_text",
+    "parse_xlsx",
     "project_paths",
+    "rows_to_markdown_table",
     "run_conversion",
     "should_auto_run_cleanup",
 ]
