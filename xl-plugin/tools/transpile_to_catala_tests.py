@@ -48,8 +48,8 @@ def load_yaml_file(path):
 
 
 def snake_to_pascal(name: str) -> str:
-    """Convert snake_case or kebab-case to PascalCase."""
-    return "".join(word.capitalize() for word in re.split(r"[_-]", name) if word)
+    """Convert snake_case or kebab-case to PascalCase, preserving existing uppercase letters."""
+    return "".join(word[0].upper() + word[1:] for word in re.split(r"[_-]", name) if word)
 
 
 def entity_to_var_name(entity_name: str) -> str:
@@ -325,6 +325,7 @@ def emit_test_scope(
     numeric_decision_fields: list = None,
     computed_field_types: dict = None,
     invoke_bound_entities: set = None,
+    entity_field_module: dict = None,
 ) -> list:
     """Emit Catala lines for one #[test] scope.
 
@@ -342,6 +343,9 @@ def emit_test_scope(
       multi-entity mode (e.g. Eligibility.ClientIncome).
     invoke_bound_entities: set of entity names referenced via invoke.bind — when non-empty,
       multi-entity mode is forced regardless of entity_fields count.
+    entity_field_module: {(entity_name, field_name): sub_module_name} — when a string enum
+      field in an invoke-bound entity has its type declared in a sub-module, maps to the
+      correct module qualifier (e.g. ("Household", "household_type") → "Program_standards_lookup").
     """
     if enum_variants is None:
         enum_variants = {}
@@ -389,11 +393,14 @@ def emit_test_scope(
                     input_val = inputs[field_name]
                 else:
                     input_val = None
-                # B8: pass module_name=catala_module_name
+                # Use sub-module name for cross-module string enum fields (B8 + entity_field_module)
+                field_module = (
+                    (entity_field_module or {}).get((entity_name, field_name), catala_module_name)
+                )
                 catala_val, note = emit_field_value(
                     case_id, field_name, civil_type, is_optional,
                     input_val, enum_variants, note_prefix=f"{entity_name}.",
-                    module_name=catala_module_name,
+                    module_name=field_module,
                 )
                 suffix = f"  # NOTE: {note}" if note else ""
                 struct_lines.append(f"    -- {field_name}: {catala_val}{suffix}")
@@ -589,6 +596,36 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
                 if pascal not in sub_module_names and pascal != catala_module_name:
                     sub_module_names.append(pascal)
 
+    # Build entity_field_module: {(entity_name, field_name) → sub_module_name} for
+    # string enum fields in invoke-bound entities whose enum type lives in a sub-module.
+    # Used in emit_test_scope to qualify cross-module enum constructors correctly.
+    entity_field_module: dict = {}
+    for field_def in civil_doc.get("computed", {}).values():
+        if not isinstance(field_def, dict) or not field_def.get("invoke"):
+            continue
+        raw_sub_module = field_def.get("module", "")
+        if not raw_sub_module:
+            continue
+        pascal_sub = raw_sub_module[0].upper() + raw_sub_module[1:]
+        bind = (field_def.get("invoke") or {}).get("bind", {})
+        sub_spec_path = os.path.join(
+            os.path.dirname(os.path.abspath(civil_spec_path)),
+            f"{raw_sub_module}.civil.yaml",
+        )
+        if not os.path.exists(sub_spec_path):
+            continue
+        sub_doc = load_yaml_file(sub_spec_path)
+        sub_tables = sub_doc.get("tables", {})
+        for parent_entity_name in bind.keys():
+            entity_def = civil_doc.get("inputs", {}).get(parent_entity_name, {})
+            for fname, fdef in entity_def.get("fields", {}).items():
+                if fdef.get("type") != "string":
+                    continue
+                for tdef in sub_tables.values():
+                    if fname in tdef.get("key", []):
+                        entity_field_module[(parent_entity_name, fname)] = pascal_sub
+                        break
+
     # Build output
     md_lines = []
 
@@ -616,6 +653,7 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
             numeric_decision_fields=numeric_decision_fields,
             computed_field_types=computed_field_types,
             invoke_bound_entities=invoke_bound_entities,
+            entity_field_module=entity_field_module,
         )
         md_lines.extend(catala_block(scope_lines))
         md_lines.append("")

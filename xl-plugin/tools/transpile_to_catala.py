@@ -65,8 +65,8 @@ def validate_before_transpile(path):
 # =============================================================================
 
 def snake_to_pascal(name: str) -> str:
-    """Convert snake_case or kebab-case to PascalCase."""
-    return "".join(word.capitalize() for word in re.split(r"[_-]", name) if word)
+    """Convert snake_case or kebab-case to PascalCase, preserving existing uppercase letters."""
+    return "".join(word[0].upper() + word[1:] for word in re.split(r"[_-]", name) if word)
 
 
 def reason_code_to_pascal(code: str) -> str:
@@ -707,7 +707,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                 else:
                     catala_type = snake_to_pascal(field_name) if has_local_enum else "integer"
             else:
-                catala_type = civil_type_to_catala(ftype)
+                catala_type = civil_field_to_catala_type(field_def)
             lines.append(f"  data {field_name} content {catala_type}")
         lines.append("")
 
