@@ -15,7 +15,7 @@ Generate a working FastAPI + browser demo for a domain's policy module using the
 /rego-create-demo <domain> <module>      # skip scanning entirely
 ```
 
-If no args are provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
+If no args are provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and emit a `:::user_input` fence block with `[a]`/`[b]`/... options for the user to choose. Do NOT use AskUserQuestion.
 
 Read `../../core/output-fencing.md` now.
 

@@ -30,6 +30,9 @@ Typical user actions (no domain/module):
 Slash command support actions:
   manifest-update <domain>             Refresh git SHAs in extraction-manifest.yaml
   detect-changes  <domain>             Exit 0 = no changes; exit 1 = changes detected
+  convert-doc     <domain> <source-file> [--force-cleanup] [--no-cleanup]
+        Convert a .docx or .pdf into a clean .md under input/policy_docs/ and
+        archive the original under input/_originals/ with a diagnostics JSON.
   validate        <domain> <module>    Validate CIVIL YAML
   graph           <domain> <module>    Generate computation graph
   preflight       <domain> <module> [--backend rego|catala]   Validate CIVIL file exists and tool is in PATH
@@ -49,9 +52,9 @@ import subprocess
 import sys
 import time
 import urllib.request
-import yaml
 from pathlib import Path
 
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -82,16 +85,17 @@ def _print_info(msg):
 # Path resolution
 # ---------------------------------------------------------------------------
 
+
 def resolve_paths(domain, module):
     base = DOMAINS_FULLPATH / domain
     return {
-        "civil":    base / "specs" / f"{module}.civil.yaml",
-        "rego":     base / "output" / f"{module}.rego",
-        "catala":   base / "output" / f"{module}.catala_en",
-        "tests":    base / "specs" / "tests" / f"{module}_tests.yaml",
-        "package":  f"{domain}.{module}",
+        "civil": base / "specs" / f"{module}.civil.yaml",
+        "rego": base / "output" / f"{module}.rego",
+        "catala": base / "output" / f"{module}.catala_en",
+        "tests": base / "specs" / "tests" / f"{module}_tests.yaml",
+        "package": f"{domain}.{module}",
         "opa_path": f"/v1/data/{domain}/{module}/decision",
-        "demo_rego_sh":   base / "output" / f"demo-rego-{module}" / "start.sh",
+        "demo_rego_sh": base / "output" / f"demo-rego-{module}" / "start.sh",
         "demo_catala_sh": base / "output" / f"demo-catala-{module}" / "start.sh",
     }
 
@@ -106,6 +110,7 @@ def require_file(path, label):
 # Manifest helpers (shared by manifest-update and detect-changes)
 # ---------------------------------------------------------------------------
 
+
 def _manifest_path(domain):
     return DOMAINS_FULLPATH / domain / "specs" / "extraction-manifest.yaml"
 
@@ -114,7 +119,9 @@ def _get_file_sha(repo_relative_path):
     """Return current HEAD git SHA for a file, or None if not tracked/committed."""
     result = subprocess.run(
         ["git", "log", "-1", "--format=%H", "--", repo_relative_path],
-        capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
+        capture_output=True,
+        text=True,
+        cwd=str(DOMAINS_FULLPATH),
     )
     return result.stdout.strip() or None
 
@@ -133,6 +140,7 @@ def _parse_source_doc(entry):
 # ---------------------------------------------------------------------------
 # OPA lifecycle
 # ---------------------------------------------------------------------------
+
 
 def start_opa(rego_path, port=8181):
     """Start OPA server as a subprocess. Poll health endpoint. Return Popen."""
@@ -168,6 +176,7 @@ def stop_opa(proc):
 # Subprocess helper
 # ---------------------------------------------------------------------------
 
+
 def run(cmd, **kwargs):
     """Run a command. Exit 1 on non-zero return code."""
     result = subprocess.run(cmd, **kwargs)
@@ -179,6 +188,7 @@ def run(cmd, **kwargs):
 # Actions
 # ---------------------------------------------------------------------------
 
+
 def cmd_validate(domain, module):
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
@@ -189,17 +199,23 @@ def cmd_transpile(domain, module):
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
     paths["rego"].parent.mkdir(parents=True, exist_ok=True)
-    run([
-        sys.executable, str(SCRIPT_DIR_TOOLS / "transpile_to_rego.py"),
-        str(paths["civil"].relative_to(CWD)),
-        str(paths["rego"].relative_to(CWD)),
-        "--package", paths["package"],
-    ], cwd=str(CWD))
+    run(
+        [
+            sys.executable,
+            str(SCRIPT_DIR_TOOLS / "transpile_to_rego.py"),
+            str(paths["civil"].relative_to(CWD)),
+            str(paths["rego"].relative_to(CWD)),
+            "--package",
+            paths["package"],
+        ],
+        cwd=str(CWD),
+    )
 
 
 def _get_invoke_modules(civil_path: Path) -> list[str]:
     """Return list of sub-module names referenced by invoke: fields in a CIVIL file."""
     import yaml as _yaml
+
     try:
         with open(civil_path) as f:
             doc = _yaml.safe_load(f)
@@ -225,14 +241,20 @@ def cmd_catala_transpile(domain, module):
 
     paths["catala"].parent.mkdir(parents=True, exist_ok=True)
     from transpile_to_catala import derive_scope_name, load_civil
+
     doc = load_civil(str(paths["civil"]))
     scope_name = derive_scope_name(doc.get("module", module))
-    run([
-        sys.executable, str(SCRIPT_DIR_TOOLS / "transpile_to_catala.py"),
-        str(paths["civil"].resolve().relative_to(CWD.resolve())),
-        str(paths["catala"].resolve().relative_to(CWD.resolve())),
-        "--scope", scope_name,
-    ], cwd=str(CWD))
+    run(
+        [
+            sys.executable,
+            str(SCRIPT_DIR_TOOLS / "transpile_to_catala.py"),
+            str(paths["civil"].resolve().relative_to(CWD.resolve())),
+            str(paths["catala"].resolve().relative_to(CWD.resolve())),
+            "--scope",
+            scope_name,
+        ],
+        cwd=str(CWD),
+    )
 
 
 def cmd_test(domain, module):
@@ -244,11 +266,15 @@ def cmd_test(domain, module):
     _print_ok("OPA ready")
     sys.stdout.flush()
     try:
-        result = subprocess.run([
-            sys.executable, str(SCRIPT_DIR_TOOLS / "rego-run_tests.py"),
-            str(paths["tests"]),
-            "--opa-path", paths["opa_path"],
-        ])
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR_TOOLS / "rego-run_tests.py"),
+                str(paths["tests"]),
+                "--opa-path",
+                paths["opa_path"],
+            ]
+        )
         sys.exit(result.returncode)
     finally:
         stop_opa(opa)
@@ -278,6 +304,7 @@ def cmd_catala_test_transpile(domain, module):
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
     from transpile_to_catala import derive_scope_name, load_civil
+
     doc = load_civil(str(paths["civil"]))
     scope_name = derive_scope_name(doc.get("module", module))
     domain_base = DOMAINS_FULLPATH / domain
@@ -285,6 +312,7 @@ def cmd_catala_test_transpile(domain, module):
     out_dir = domain_base / "output" / "tests"
     out_dir.mkdir(parents=True, exist_ok=True)
     import glob as _glob
+
     pattern = str(tests_dir / f"{module}*_tests.yaml")
     test_files = sorted(_glob.glob(pattern))
     if not test_files:
@@ -293,32 +321,91 @@ def cmd_catala_test_transpile(domain, module):
     for tests_yaml in test_files:
         stem = Path(tests_yaml).stem  # e.g. eligibility_tests
         out_catala = out_dir / f"{stem}.catala_en"
-        run([
-            sys.executable, str(SCRIPT_DIR_TOOLS / "transpile_to_catala_tests.py"),
-            str(Path(tests_yaml).resolve().relative_to(CWD.resolve())),
-            str(out_catala.resolve().relative_to(CWD.resolve())),
-            "--scope", scope_name,
-            "--civil-spec", str(paths["civil"].resolve().relative_to(CWD.resolve())),
-        ], cwd=str(CWD))
+        run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR_TOOLS / "transpile_to_catala_tests.py"),
+                str(Path(tests_yaml).resolve().relative_to(CWD.resolve())),
+                str(out_catala.resolve().relative_to(CWD.resolve())),
+                "--scope",
+                scope_name,
+                "--civil-spec",
+                str(paths["civil"].resolve().relative_to(CWD.resolve())),
+            ],
+            cwd=str(CWD),
+        )
 
 
-def cmd_catala_test(domain, module):
-    """Run clerk test in domains/<domain>/output/."""
+def cmd_catala_test(domain, module, *, requested_module: str | None = None):
+    """Run clerk test in domains/<domain>/output/.
+
+    When requested_module is provided and the build fails, emit an attribution
+    summary distinguishing failures in the requested module from sibling failures.
+    """
     out_dir = DOMAINS_FULLPATH / domain / "output"
     if not out_dir.exists():
         _print_err(f"Output dir not found: {out_dir}")
         sys.exit(1)
-    # cwd= is forwarded to subprocess.run via run()'s **kwargs
-    run(["clerk", "test"], cwd=str(out_dir))
+
+    if requested_module is None:
+        run(["clerk", "test"], cwd=str(out_dir))
+        return
+
+    proc = subprocess.run(
+        ["clerk", "test"],
+        capture_output=True,
+        text=True,
+        cwd=str(out_dir),
+    )
+    sys.stdout.write(proc.stdout)
+    sys.stderr.write(proc.stderr)
+
+    if proc.returncode != 0:
+        from catala_pipeline_checks import attribute_errors, format_attribution_summary
+
+        errors_by_module = attribute_errors(proc.stdout + proc.stderr)
+        standard_artifacts = [
+            f"{requested_module}.catala_en",
+            f"{requested_module}_meta.py",
+            f"tests/{requested_module}_tests.catala_en",
+        ]
+        output_artifacts = [
+            artifact
+            for artifact in standard_artifacts
+            if (out_dir / artifact).exists()
+        ]
+        summary = format_attribution_summary(requested_module, errors_by_module, output_artifacts)
+        if summary:
+            print(summary)
+
+    sys.exit(proc.returncode)
 
 
 def cmd_catala_pipeline(domain, module):
-    """validate → catala-transpile → catala-test-transpile → catala-test."""
+    """validate → catala-transpile → pre-build staleness check → catala-test-transpile → catala-test."""
     _print_info(f"Catala pipeline: {domain}/{module}")
     cmd_validate(domain, module)
     cmd_catala_transpile(domain, module)
+
+    from catala_pipeline_checks import stale_catala_files
+
+    domain_base = DOMAINS_FULLPATH / domain
+    stale = stale_catala_files(
+        output_dir=domain_base / "output",
+        specs_dir=domain_base / "specs",
+        transpiler_path=SCRIPT_DIR_TOOLS / "transpile_to_catala.py",
+    )
+    if stale:
+        for report in stale:
+            _print_err(
+                f"Stale {report.catala_file.name} ({report.reason}). "
+                f"Run: xlator catala-transpile {domain} {report.program}"
+            )
+        _print_err("Pre-build staleness check failed. Re-transpile the listed programs.")
+        sys.exit(1)
+
     cmd_catala_test_transpile(domain, module)
-    cmd_catala_test(domain, module)
+    cmd_catala_test(domain, module, requested_module=module)
 
 
 def cmd_pipeline(domain, module):
@@ -404,6 +491,7 @@ def cmd_extract_sections(domain, exclude_paths):
     exclude_paths are omitted; all others are preserved verbatim.
     """
     import re as _re
+
     index_path = DOMAINS_FULLPATH / domain / "specs" / "input-sections.yaml"
 
     if not index_path.exists():
@@ -418,7 +506,7 @@ def cmd_extract_sections(domain, exclude_paths):
     if pos == -1:
         return  # No sections block — nothing to output
 
-    after_header = content[pos + len(marker):]
+    after_header = content[pos + len(marker) :]
     # Strip the newline immediately after 'sections:'
     after_header = after_header.lstrip("\n")
 
@@ -487,7 +575,6 @@ def cmd_detect_changes(domain):
     sys.exit(0)
 
 
-
 def cmd_list():
     pattern = str(DOMAINS_FULLPATH / "*" / "specs" / "*.civil.yaml")
     module_rows = []
@@ -500,7 +587,9 @@ def cmd_list():
         domains_with_modules.add(domain)
 
     exclude_domains = {".shared", "guidance-templates"}
-    domain_dirs = sorted(p.name for p in (DOMAINS_FULLPATH).iterdir() if p.is_dir() and p.name not in exclude_domains)
+    domain_dirs = sorted(
+        p.name for p in (DOMAINS_FULLPATH).iterdir() if p.is_dir() and p.name not in exclude_domains
+    )
     initialized_only = [d for d in domain_dirs if d not in domains_with_modules]
 
     if not module_rows and not initialized_only:
@@ -521,6 +610,7 @@ def cmd_list():
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         prog="xlator",
@@ -539,32 +629,50 @@ examples:
     sub = parser.add_subparsers(dest="action", required=True, metavar="action")
 
     for action, help_text in [
-        ("validate",              "Validate CIVIL YAML"),
-        ("rego-transpile",        "Generate Rego from CIVIL"),
-        ("catala-transpile",      "Generate Catala from CIVIL"),
+        ("validate", "Validate CIVIL YAML"),
+        ("rego-transpile", "Generate Rego from CIVIL"),
+        ("catala-transpile", "Generate Catala from CIVIL"),
         ("catala-test-transpile", "Generate Catala test file from YAML tests"),
-        ("catala-test",           "Run Catala tests via clerk test"),
-        ("rego-test",             "Start OPA, run tests, stop OPA"),
-        ("rego-demo",             "Start OPA + FastAPI demo (foreground)"),
-        ("catala-demo",           "Start Catala-Python demo (foreground)"),
-        ("graph",                 "Generate computation graph"),
-        ("catala-pipeline",       "validate -> catala-transpile -> catala-test-transpile -> catala-test"),
-        ("rego-pipeline",         "validate -> rego-transpile -> rego-test (OPA/Rego)"),
+        ("catala-test", "Run Catala tests via clerk test"),
+        ("rego-test", "Start OPA, run tests, stop OPA"),
+        ("rego-demo", "Start OPA + FastAPI demo (foreground)"),
+        ("catala-demo", "Start Catala-Python demo (foreground)"),
+        ("graph", "Generate computation graph"),
+        ("catala-pipeline", "validate -> catala-transpile -> catala-test-transpile -> catala-test"),
+        ("rego-pipeline", "validate -> rego-transpile -> rego-test (OPA/Rego)"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
         p.add_argument("module", help="Module name (e.g. eligibility, apa_adltc)")
 
-    sub.add_parser("list",            help="Show all domain/module pairs")
+    sub.add_parser("list", help="Show all domain/module pairs")
 
     # Domain-only subcommands (no module arg)
     for action, help_text in [
-        ("new-domain",      "Scaffold standard domain directory structure"),
+        ("new-domain", "Scaffold standard domain directory structure"),
         ("manifest-update", "Refresh git SHAs in extraction-manifest.yaml"),
-        ("detect-changes",  "Exit 0 if no source doc changes; exit 1 if changes detected"),
+        ("detect-changes", "Exit 0 if no source doc changes; exit 1 if changes detected"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+
+    # convert-doc: convert .docx / .pdf -> .md and archive the original
+    p_cd = sub.add_parser(
+        "convert-doc",
+        help="Convert a .docx or .pdf into clean markdown for indexing",
+    )
+    p_cd.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_cd.add_argument("source", help="Path to .docx or .pdf source file")
+    p_cd.add_argument(
+        "--force-cleanup",
+        action="store_true",
+        help="Run cleanup even when the doc exceeds auto-cleanup thresholds.",
+    )
+    p_cd.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="Skip cleanup entirely (used by hermetic tests).",
+    )
 
     # extract-sections: used by /index-inputs UPDATE mode to preserve SKIP sections
     p_es = sub.add_parser(
@@ -573,7 +681,10 @@ examples:
     )
     p_es.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_es.add_argument(
-        "--exclude", metavar="PATH", action="append", default=[],
+        "--exclude",
+        metavar="PATH",
+        action="append",
+        default=[],
         help="Domain-relative path to exclude (repeat for multiple paths)",
     )
 
@@ -582,42 +693,67 @@ examples:
     p_pre.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_pre.add_argument("module", help="Module name (e.g. eligibility)")
     p_pre.add_argument(
-        "--backend", choices=["rego", "catala"], default=None,
+        "--backend",
+        choices=["rego", "catala"],
+        default=None,
         help="Also check that the backend tool (opa/clerk) is in PATH",
     )
 
     # CSV test case authoring
-    p_ett = sub.add_parser("export-test-template",
-                           help="Generate CSV template from CIVIL spec")
+    p_ett = sub.add_parser("export-test-template", help="Generate CSV template from CIVIL spec")
     p_ett.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_ett.add_argument("module", help="Module name (e.g. eligibility)")
-    p_ett.add_argument("--output-dir", default=None,
-                       help="Output directory (default: domains/<domain>/specs/tests/)")
+    p_ett.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory (default: domains/<domain>/specs/tests/)",
+    )
 
-    p_etc = sub.add_parser("export-test-cases",
-                           help="Export existing test cases to CSV for review/editing")
+    p_etc = sub.add_parser(
+        "export-test-cases", help="Export existing test cases to CSV for review/editing"
+    )
     p_etc.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_etc.add_argument("module", help="Module name (e.g. eligibility)")
-    p_etc.add_argument("--output-dir", default=None,
-                       help="Output directory (default: domains/<domain>/specs/tests/)")
-    p_etc.add_argument("--test-file", default=None,
-                       help="Source _tests.yaml (default: domains/<domain>/specs/tests/<module>_tests.yaml)")
+    p_etc.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory (default: domains/<domain>/specs/tests/)",
+    )
+    p_etc.add_argument(
+        "--test-file",
+        default=None,
+        help="Source _tests.yaml (default: domains/<domain>/specs/tests/<module>_tests.yaml)",
+    )
 
-    p_it = sub.add_parser("import-tests",
-                          help="Import test cases from CSV (or YAML) into _tests.yaml")
+    p_it = sub.add_parser(
+        "import-tests", help="Import test cases from CSV (or YAML) into _tests.yaml"
+    )
     p_it.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_it.add_argument("module", help="Module name (e.g. eligibility)")
     p_it.add_argument("input", help="Path to CSV or YAML file, or '-' for stdin")
-    p_it.add_argument("--format", choices=["csv", "yaml"], default="csv",
-                      help="Input format (default: csv; use yaml for direct YAML test case input)")
-    p_it.add_argument("--test-file", default=None,
-                      help="Target _tests.yaml (default: domains/<domain>/specs/tests/<module>_tests.yaml)")
-    p_it.add_argument("--dry-run", action="store_true",
-                      help="Validate and report without writing")
-    p_it.add_argument("--no-comment-check", action="store_true",
-                      help="Skip the comment-loss warning prompt (for non-interactive use)")
-    p_it.add_argument("--output-format", choices=["text", "json"], default="text",
-                      help="Error/result output format (default: text; use json for machine-parseable output)")
+    p_it.add_argument(
+        "--format",
+        choices=["csv", "yaml"],
+        default="csv",
+        help="Input format (default: csv; use yaml for direct YAML test case input)",
+    )
+    p_it.add_argument(
+        "--test-file",
+        default=None,
+        help="Target _tests.yaml (default: domains/<domain>/specs/tests/<module>_tests.yaml)",
+    )
+    p_it.add_argument("--dry-run", action="store_true", help="Validate and report without writing")
+    p_it.add_argument(
+        "--no-comment-check",
+        action="store_true",
+        help="Skip the comment-loss warning prompt (for non-interactive use)",
+    )
+    p_it.add_argument(
+        "--output-format",
+        choices=["text", "json"],
+        default="text",
+        help="Error/result output format (default: text; use json for machine-parseable output)",
+    )
 
     args = parser.parse_args()
 
@@ -654,19 +790,51 @@ examples:
             cmd_manifest_update(args.domain)
         case "detect-changes":
             cmd_detect_changes(args.domain)
+        case "convert-doc":
+            extra: list[str] = []
+            if args.force_cleanup:
+                extra.append("--force-cleanup")
+            if args.no_cleanup:
+                extra.append("--no-cleanup")
+            # Delegate to doc_conversion.py via uv run so its inline script
+            # dependencies (mammoth, pymupdf, anthropic) are auto-installed.
+            run(
+                [
+                    "uv",
+                    "run",
+                    "--script",
+                    str(SCRIPT_DIR_TOOLS / "doc_conversion.py"),
+                    args.domain,
+                    args.source,
+                    *extra,
+                ]
+            )
         case "extract-sections":
             cmd_extract_sections(args.domain, args.exclude)
         case "export-test-template":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
-            run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
-                 str(resolve_paths(args.domain, args.module)["civil"]),
-                 "--output-dir", out])
+            run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
+                    str(resolve_paths(args.domain, args.module)["civil"]),
+                    "--output-dir",
+                    out,
+                ]
+            )
         case "export-test-cases":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
             tf = args.test_file or str(resolve_paths(args.domain, args.module)["tests"])
-            run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_cases.py"),
-                 str(resolve_paths(args.domain, args.module)["civil"]), tf,
-                 "--output-dir", out])
+            run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR_TOOLS / "export_test_cases.py"),
+                    str(resolve_paths(args.domain, args.module)["civil"]),
+                    tf,
+                    "--output-dir",
+                    out,
+                ]
+            )
         case "import-tests":
             if args.test_file:
                 tf = args.test_file
@@ -684,9 +852,16 @@ examples:
                 extra += ["--format", args.format]
             if args.output_format != "text":
                 extra += ["--output-format", args.output_format]
-            run([sys.executable, str(SCRIPT_DIR_TOOLS / "import_tests.py"),
-                 str(resolve_paths(args.domain, args.module)["civil"]),
-                 args.input, tf, *extra])
+            run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR_TOOLS / "import_tests.py"),
+                    str(resolve_paths(args.domain, args.module)["civil"]),
+                    args.input,
+                    tf,
+                    *extra,
+                ]
+            )
 
 
 if __name__ == "__main__":

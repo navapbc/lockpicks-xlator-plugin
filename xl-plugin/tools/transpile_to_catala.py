@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pyyaml>=6.0"]
+# ///
 """
 CIVIL → Catala 1.1.0 Transpiler
 
@@ -19,13 +23,13 @@ Exit codes:
     1 — error (message printed to stderr)
 """
 
+import datetime
 import re
 import sys
 import os
 import pathlib
 import argparse
 import subprocess
-import datetime
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -60,13 +64,54 @@ def validate_before_transpile(path):
         fail(f"CIVIL validation failed for {path}. Fix errors above before transpiling.")
 
 
+def check_bind_forwarding(parent_doc: dict, sub_module_docs: dict, computed: dict) -> list[str]:
+    """Return error strings for each bind where parent entity is missing sub-module fields.
+
+    Pure calculation — no I/O, no sys.exit. Caller decides how to report.
+    Empty list means all binds are valid.
+    """
+    errors = []
+    for field_name, field_def in (computed or {}).items():
+        if not isinstance(field_def, dict) or not field_def.get("invoke"):
+            continue
+        sub_module_name = field_def.get("module", "")
+        invoke_field = field_def["invoke"]
+        bind = invoke_field.get("bind", {}) if isinstance(invoke_field, dict) else {}
+
+        sub_doc = sub_module_docs.get(sub_module_name, {})
+        sub_tables = sub_doc.get("tables", {})
+
+        for sub_entity, parent_entity in bind.items():
+            sub_entity_fields = sub_doc.get("inputs", {}).get(sub_entity, {}).get("fields", {})
+            # Only fields the sub-module actually declares in its Catala scope need forwarding.
+            required_sub_fields = {
+                fname
+                for fname, fdef in sub_entity_fields.items()
+                if not _scope_input_omits_field(fdef, tables=sub_tables, field_name=fname)
+            }
+            parent_fields = set(
+                parent_doc.get("inputs", {}).get(parent_entity, {}).get("fields", {}).keys()
+            )
+            missing = required_sub_fields - parent_fields
+            if missing:
+                errors.append(
+                    f"Sub-module {sub_module_name!r} (bound as {sub_entity!r} → {parent_entity!r}) "
+                    f"requires fields not declared on parent's "
+                    f"inputs.{parent_entity}.fields: {sorted(missing)}. "
+                    f"Either add the fields (with `optional: true` if appropriate) "
+                    f"to the parent CIVIL spec, or remove the entity-to-entity bind "
+                    f"and forward fields individually."
+                )
+    return errors
+
+
 # =============================================================================
 # HELPERS
 # =============================================================================
 
 def snake_to_pascal(name: str) -> str:
-    """Convert snake_case or kebab-case to PascalCase, preserving existing uppercase letters."""
-    return "".join(word[0].upper() + word[1:] for word in re.split(r"[_-]", name) if word)
+    """Convert snake_case or kebab-case to PascalCase."""
+    return "".join(word.capitalize() for word in re.split(r"[_-]", name) if word)
 
 
 def reason_code_to_pascal(code: str) -> str:
@@ -84,7 +129,7 @@ def derive_scope_name(module_str: str) -> str:
 
 
 def money_literal(value) -> str:
-    """Format a numeric value as a Catala money literal: 1696 → '$1,696', 609.34 → '$609.34'"""
+    """Format a number as a Catala money literal: 1696 → '$1,696', 609.34 → '$609.34'"""
     float_val = float(value)
     frac = float_val % 1
     negative = float_val < 0
@@ -148,14 +193,19 @@ def constant_to_catala(name: str, value) -> str:
     if isinstance(value, float) or name.endswith("_RATE"):
         return percent_literal(float(value))
     if isinstance(value, int) and any(
-        name.endswith(s) for s in ("_CAP", "_LIMIT", "_9PLUS", "_EXCLUSION", "_DEDUCTION", "_PER_PERSON")
+        name.endswith(s) for s in ("_CAP", "_LIMIT", "_9PLUS", "_EXCLUSION", "_DEDUCTION")
     ):
         return money_literal(value)
     return str(value)
 
 
 def civil_type_to_catala(civil_type: str) -> str:
-    """Map a CIVIL input fact field type to its Catala equivalent."""
+    """Map a CIVIL scalar field type to its Catala equivalent.
+
+    For list/set types (which depend on an item: element type), use
+    field_to_catala_type(field_def) which consults the declaration as a whole.
+    The list fallback here is only reached when caller has no field_def context.
+    """
     return {
         "int":    "integer",
         "float":  "decimal",
@@ -164,24 +214,38 @@ def civil_type_to_catala(civil_type: str) -> str:
         "date":   "date",
         "string": "text",
         "enum":   "enumeration",
-        "list":   "list of integer",  # item type unknown without context; override as needed
+        "list":   "list of integer",  # fallback when item: is unknown
         "set":    "list of integer",
     }.get(civil_type, civil_type)
 
 
-def civil_field_to_catala_type(field_def: dict) -> str:
-    """Get the Catala type for a full CIVIL field definition.
+def field_to_catala_type(field_def: dict) -> str:
+    """Map a CIVIL field declaration to its Catala type, honouring `item:` for lists.
 
-    Resolves list/set element types from the field's 'item:' key instead of
-    defaulting to 'list of integer'. Use this wherever field_def is available.
+    For `type: list, item: <T>` returns `list of <civil_type_to_catala(T)>`.
+    For scalars defers to civil_type_to_catala. Defaults item to "money" because
+    every list in current CIVIL specs carries monetary payments.
     """
     ftype = field_def.get("type", "money")
     if ftype in ("list", "set"):
-        item = field_def.get("item", "")
-        if not item or not isinstance(item, str):
-            return "list of integer"
-        return f"list of {civil_type_to_catala(item)}"
+        item_type = field_def.get("item", "money")
+        return f"list of {civil_type_to_catala(item_type)}"
     return civil_type_to_catala(ftype)
+
+
+def build_list_item_types(inputs_block: dict) -> dict:
+    """Scan a CIVIL `inputs:` block and return {field_name: catala_element_type}.
+
+    Used by translate_expr_to_catala()'s sum() rewrite to look up the element
+    type that Catala requires after the `sum` keyword.
+    """
+    result: dict[str, str] = {}
+    for entity_def in (inputs_block or {}).values():
+        for field_name, field_def in entity_def.get("fields", {}).items():
+            if isinstance(field_def, dict) and field_def.get("type") in ("list", "set"):
+                item_type = field_def.get("item", "money")
+                result[field_name] = civil_type_to_catala(item_type)
+    return result
 
 
 # =============================================================================
@@ -345,6 +409,7 @@ def translate_expr_to_catala(
     tables: dict = None,
     fact_entities: set = None,
     invoke_bound_entities: set = None,
+    list_item_types: dict = None,
 ) -> str:
     """Translate a CIVIL expression to Catala syntax.
 
@@ -389,12 +454,14 @@ def translate_expr_to_catala(
             tname = m.group(1)
             key_val = int(m.group(2))
             if tname not in tables:
+                print(f"ERROR: table '{tname}' referenced in expression but not defined in tables:", file=sys.stderr)
                 return m.group(0)
             key_col = tables[tname]["key"][0]
             val_col = tables[tname]["value"][0]
             for row in tables[tname].get("rows", []):
                 if row[key_col] == key_val:
                     return money_literal(row[val_col])
+            print(f"ERROR: table '{tname}' has no row where {key_col}={key_val} — leaving reference unchanged, will cause Catala syntax error", file=sys.stderr)
             return m.group(0)
 
         result = re.sub(
@@ -406,8 +473,17 @@ def translate_expr_to_catala(
     # Step 3: Strip variable-key table lookups — these appear only in then: of
     # conditional fields processed by emit_table_section, not in expressions we translate.
     # As a safety fallback, strip them to avoid syntax errors.
-    result = re.sub(r"table\('\w+',\s*([^)]+)\)\.\w+", lambda m: m.group(1), result)
-    result = re.sub(r"\w+\[(\w+)\]", lambda m: m.group(1), result)
+    def _warn_strip_fn(m):
+        print(f"WARNING: unexpected variable-key table lookup '{m.group(0)}' in translated expression — stripping to key only", file=sys.stderr)
+        return m.group(1)
+
+    result = re.sub(r"table\('\w+',\s*([^)]+)\)\.\w+", _warn_strip_fn, result)
+    # Bracket subscript syntax: table_name[key] → key
+    def _warn_strip_bracket(m):
+        print(f"WARNING: bracket subscript table lookup '{m.group(0)}' is not valid CIVIL — use table('name', key).col syntax; stripping to key only", file=sys.stderr)
+        return m.group(1)
+
+    result = re.sub(r"\w+\[(\w+)\]", _warn_strip_bracket, result)
 
     # Step 3.5: between(val, low, high) → (low <= val and val <= high)
     result = _rewrite_between(result)
@@ -418,11 +494,21 @@ def translate_expr_to_catala(
     # Step 3.6: count(list) → (number of list)
     result = re.sub(r"\bcount\(([^)]+)\)", r"(number of \1)", result)
 
-    # Step 3.65: sum(list) → sum <type> of list
-    # Catala requires the element type keyword in sum expressions.
-    _CIVIL_TO_CATALA_SUM_TYPE = {"money": "money", "int": "integer", "float": "decimal"}
-    catala_sum_type = _CIVIL_TO_CATALA_SUM_TYPE.get(field_type, "money")
-    result = re.sub(r"\bsum\(([^)]+)\)", rf"sum {catala_sum_type} of \1", result)
+    # Step 3.65: sum(IDENT) → (sum <ELEM_TYPE> of IDENT)
+    # Catala requires the element type after the `sum` keyword. The element type
+    # comes from the `item:` field on the CIVIL list declaration, looked up via
+    # list_item_types. Falls back to "money" when the field is unknown -- the
+    # near-universal case in CIVIL rulesets (pay amounts, exclusions, deductions).
+    # Parentheses ensure the aggregate scope ends at the list identifier so the
+    # surrounding arithmetic (e.g. `/ number_of_payments`) is not absorbed into
+    # the `sum ... of ...` form.
+    def _rewrite_sum(match):
+        list_field_ref = match.group(1).strip()
+        bare_field = list_field_ref.split(".")[-1]
+        element_type = (list_item_types or {}).get(bare_field, "money")
+        return f"(sum {element_type} of {list_field_ref})"
+
+    result = re.sub(r"\bsum\(\s*([a-zA-Z_][\w.]*)\s*\)", _rewrite_sum, result)
 
     # Steps 4–5: expand max/min iteratively until no nested calls remain.
     # A single pass expands outer calls but leaves inner ones in the arguments;
@@ -474,6 +560,28 @@ def translate_expr_to_catala(
             result,
         )
 
+    # Step 10.7: In money context, zero-guard a top-level division by an integer field.
+    # Catala's test runner forces all scope outputs to evaluate, so an unused
+    # computed field that divides by an int input will divide by 0 whenever the
+    # test does not supply that input. Wrap the whole expression with a guard.
+    # Matches `<paren-expr-or-simple-ident> / <bare-int-field>` only when it is
+    # the entire expression -- divisions by integer literals (e.g. `... / 2`) and
+    # nested infix arithmetic involving additional operators are left unchanged.
+    if field_type == "money":
+        div_match = re.match(
+            r"^\s*(\([^()]*(?:\([^()]*\)[^()]*)*\)|[a-zA-Z_]\w*(?:\.\w+)*)"
+            r"\s*/\s*"
+            r"([a-zA-Z_]\w*(?:\.\w+)*)\s*$",
+            result,
+        )
+        if div_match:
+            numerator_expr = div_match.group(1).strip()
+            int_denom = div_match.group(2).strip()
+            result = (
+                f"(if {int_denom} = 0 then $0 "
+                f"else {numerator_expr} / {int_denom})"
+            )
+
     # Step 11: Convert bare "0" to "$0" for money-typed fields
     if field_type == "money" and result == "0":
         result = "$0"
@@ -482,6 +590,20 @@ def translate_expr_to_catala(
     # Catala has no string/text type; any quoted identifier in a CIVIL expression
     # must be an enum variant (e.g. "deny" → Deny, "manual_verification" → ManualVerification).
     result = re.sub(r'"([a-zA-Z_][a-zA-Z0-9_]*)"', lambda m: snake_to_pascal(m.group(1)), result)
+
+    # Step 12.5: in(VAR, [V1, V2, V3]) → [V1; V2; V3] contains VAR
+    # CIVIL membership form. Catala has no `in` builtin; the equivalent is a list
+    # literal (with `;` separators, not `,`) followed by `contains` and the value.
+    def _rewrite_in_membership(m):
+        var_expr = m.group(1).strip()
+        items = [item.strip() for item in m.group(2).split(",") if item.strip()]
+        return f"[{'; '.join(items)}] contains {var_expr}"
+
+    result = re.sub(
+        r"\bin\(\s*([a-zA-Z_][\w.]*)\s*,\s*\[([^\[\]]+)\]\s*\)",
+        _rewrite_in_membership,
+        result,
+    )
 
     # Step 13: In money context, coerce bare integers in arithmetic positions to money literals.
     # Handles both left-side (`20 - expr` → `$20 - expr`) and right-side (`expr - 65` → `expr - $65`).
@@ -516,11 +638,11 @@ def translate_expr_to_catala(
     return result
 
 
-def translate_condition_to_catala(when_expr: str, constants: dict = None, tables: dict = None, fact_entities: set = None, invoke_bound_entities: set = None) -> str:
+def translate_condition_to_catala(when_expr: str, constants: dict = None, tables: dict = None, fact_entities: set = None, invoke_bound_entities: set = None, list_item_types: dict = None) -> str:
     """Translate a CIVIL when: condition to a Catala condition expression string."""
     if when_expr.strip() == "true":
         return "true"
-    return translate_expr_to_catala(when_expr, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+    return translate_expr_to_catala(when_expr, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities, list_item_types=list_item_types)
 
 
 # =============================================================================
@@ -616,23 +738,19 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
     sub_module_docs = sub_module_docs or {}
 
     # Compute which entities are invoke-bound (appear as values in any bind: dict)
-    # Also build entity_to_sub_info: maps each bound entity → (catala_sub_name, sub_tables)
-    # so struct field types can be qualified as SubModule.FieldType for cross-module enums.
     invoke_bound_entities: set[str] = set()
-    entity_to_sub_info: dict[str, tuple] = {}
-    for comp_field_def in computed.values():
-        if isinstance(comp_field_def, dict) and comp_field_def.get("invoke"):
-            invoke_field = comp_field_def["invoke"]
+    for field_def in computed.values():
+        if isinstance(field_def, dict) and field_def.get("invoke"):
+            invoke_field = field_def["invoke"]
             bind = invoke_field.get("bind", {}) if isinstance(invoke_field, dict) else {}
             invoke_bound_entities.update(bind.values())
-            sub_mod_name = comp_field_def.get("module", "")
-            if sub_mod_name:
-                catala_sub_name = sub_mod_name[0].upper() + sub_mod_name[1:]
-                sub_tables = sub_module_docs.get(sub_mod_name, {}).get("tables", {})
-                for bound_entity in bind.values():
-                    entity_to_sub_info[bound_entity] = (catala_sub_name, sub_tables)
 
     tables = doc.get("tables", {})
+
+    # Build cross-module enum map: fields whose enum type is defined in a sub-module's
+    # constant tables.  Used below to emit qualified type references instead of "integer"
+    # and to skip re-declaring those enums locally (they live in the sub-module).
+    cross_module_enums = build_cross_module_enums(sub_module_docs)
 
     # --- Enumeration declarations for ALL enum-typed fact fields (must precede structs) ---
     for entity_name, entity_def in facts.items():
@@ -642,12 +760,14 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                 values = field_def.get("values", [])
                 lines.append(f"declaration enumeration {enum_name}:")
                 for v in values:
-                    lines.append(f"  -- {snake_to_pascal(str(v))}")
+                    lines.append(f"  -- {v}")
                 lines.append("")
 
     # --- Enumeration declarations for string-typed fact fields used as table keys ---
     # Catala has no native text/string type; string fields that serve as table lookup
     # keys, or carry an explicit values: list, are represented as enumerations.
+    # Fields whose enum is defined in a sub-module (cross_module_enums) are skipped here
+    # because they use a qualified type reference and are already declared in the sub-module.
     _emitted_string_enums: set = set()
     for entity_name, entity_def in facts.items():
         for field_name, field_def in entity_def.get("fields", {}).items():
@@ -658,7 +778,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                     enum_name = snake_to_pascal(field_name)
                     lines.append(f"declaration enumeration {enum_name}:")
                     for v in table_vals:
-                        lines.append(f"  -- {snake_to_pascal(str(v))}")
+                        lines.append(f"  -- {v}")
                     lines.append("")
                     _emitted_string_enums.add(field_name)
                 elif decl_vals:
@@ -667,6 +787,9 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                     for v in decl_vals:
                         lines.append(f"  -- {snake_to_pascal(v)}")
                     lines.append("")
+                    _emitted_string_enums.add(field_name)
+                elif field_name in cross_module_enums:
+                    # Enum lives in a sub-module — no local declaration needed.
                     _emitted_string_enums.add(field_name)
 
     # --- Enumeration declarations for string-typed decisions with values: (must precede scope decl) ---
@@ -689,25 +812,27 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
             if ftype == "enum":
                 catala_type = snake_to_pascal(field_name)
             elif ftype == "string":
-                # Use a PascalCase enum type only if we have known values to declare.
-                # For cross-module invoke-bound entities, check the sub-module's tables first.
-                # Catala has no native string type; fall back to integer for opaque IDs.
-                has_local_enum = bool(
-                    _collect_string_enum_values(field_name, tables)
-                    or field_def.get("values")
-                )
-                sub_info = entity_to_sub_info.get(entity_name)
-                if sub_info:
-                    sub_catala_name, sub_tables = sub_info
-                    sub_table_vals = _collect_string_enum_values(field_name, sub_tables)
-                    if sub_table_vals:
-                        catala_type = f"{sub_catala_name}.{snake_to_pascal(field_name)}"
-                    else:
-                        catala_type = snake_to_pascal(field_name) if has_local_enum else "integer"
+                local_vals = _collect_string_enum_values(field_name, tables)
+                local_decl = field_def.get("values")
+                if local_vals or local_decl:
+                    # Local table or values: declaration — emit local enum name
+                    catala_type = snake_to_pascal(field_name)
+                elif field_name in cross_module_enums:
+                    # Enum defined in a sub-module — emit qualified type reference
+                    catala_type = cross_module_enums[field_name][0]
+                elif field_def.get("optional"):
+                    # Free-form optional string with no enum variants — Catala has no usable
+                    # text input type, so omit the field from the struct declaration entirely.
+                    continue
                 else:
-                    catala_type = snake_to_pascal(field_name) if has_local_enum else "integer"
+                    raise ValueError(
+                        f"Field '{field_name}' in structure '{entity_name}' has type 'string' "
+                        f"with no enum variants (no table key, no values:, no cross-module enum) "
+                        f"and is not marked optional. Either declare a values: list, use the "
+                        f"field as a table key, mark it optional: true, or change the field type."
+                    )
             else:
-                catala_type = civil_field_to_catala_type(field_def)
+                catala_type = field_to_catala_type(field_def)
             lines.append(f"  data {field_name} content {catala_type}")
         lines.append("")
 
@@ -751,16 +876,26 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
                 if ftype == "enum":
                     catala_type = snake_to_pascal(field_name)
                 elif ftype == "string":
-                    # Only use PascalCase enum type when the field has declared values or
-                    # appears as a table key. Catala has no native string type; fields with
-                    # no enum source are declared as integer (opaque identifier).
                     has_enum_values = bool(
                         _collect_string_enum_values(field_name, tables)
                         or field_def.get("values")
                     )
-                    catala_type = snake_to_pascal(field_name) if has_enum_values else "integer"
+                    if has_enum_values:
+                        catala_type = snake_to_pascal(field_name)
+                    elif field_name in cross_module_enums:
+                        catala_type = cross_module_enums[field_name][0]
+                    elif _scope_input_omits_field(field_def, tables=tables, field_name=field_name):
+                        continue
+                    else:
+                        raise ValueError(
+                            f"Field '{field_name}' (scope input in '{entity_name}') has type "
+                            f"'string' with no enum variants (no table key, no values:, no "
+                            f"cross-module enum) and is not marked optional. Either declare a "
+                            f"values: list, use the field as a table key, mark it optional: true, "
+                            f"or change the field type."
+                        )
                 else:
-                    catala_type = civil_field_to_catala_type(field_def)
+                    catala_type = field_to_catala_type(field_def)
                 optional_note = "  # optional" if field_def.get("optional") else ""
                 lines.append(f"  input {field_name} content {catala_type}{optional_note}")
 
@@ -782,7 +917,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         elif ftype == "bool":
             lines.append(f"  internal {field_name} content boolean")
         else:
-            lines.append(f"  internal {field_name} content {civil_field_to_catala_type(field_def)}")
+            lines.append(f"  internal {field_name} content {civil_type_to_catala(ftype)}")
 
     # internals: one deny_rule_N_triggered condition per deny rule
     for i, _ in enumerate(deny_rules, 1):
@@ -800,6 +935,7 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
             continue
         sub_module_name = field_def.get("module", "")
         if not sub_module_name:
+            print(f"ERROR: computed field '{field_name}' uses invoke: but has no module: — cannot emit scope declaration", file=sys.stderr)
             continue
         catala_mod_name = sub_module_name[0].upper() + sub_module_name[1:]
         sub_doc = sub_module_docs.get(sub_module_name, {})
@@ -813,10 +949,13 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         is_output = "expose" in (field_def.get("tags") or [])
         if not is_output:
             continue
-        if ftype == "bool":
+        if ftype == "bool" and "expr" in field_def:
+            # Output boolean with expr: use content boolean + definition/equals in body
+            lines.append(f"  output {field_name} content boolean")
+        elif ftype == "bool":
             lines.append(f"  output {field_name} content boolean")
         else:
-            lines.append(f"  output {field_name} content {civil_field_to_catala_type(field_def)}")
+            lines.append(f"  output {field_name} content {civil_type_to_catala(ftype)}")
 
     # Decisions: all output
     lines.append("  # ── Decisions ──")
@@ -857,13 +996,16 @@ def emit_subscope_wiring(
         bind = invoke_field.get("bind", {}) if isinstance(invoke_field, dict) else {}
 
         # Collect all definitions for this invoke field in ONE scope block.
+        sub_tables = sub_doc.get("tables", {})
         definitions = []
         for sub_entity, parent_entity in bind.items():
             sub_entity_fields = (
                 sub_doc.get("inputs", {}).get(sub_entity, {}).get("fields", {})
             )
             parent_var = re.sub(r"(?<!^)(?=[A-Z])", "_", parent_entity).lower()
-            for field in sub_entity_fields:
+            for field, field_def in sub_entity_fields.items():
+                if _scope_input_omits_field(field_def, tables=sub_tables, field_name=field):
+                    continue
                 definitions.append(
                     f"  definition {field_name}.{field} equals {parent_var}.{field}"
                 )
@@ -892,17 +1034,88 @@ def _collect_string_enum_values(field_name: str, tables: dict) -> list:
     return values
 
 
+def _scope_input_omits_field(field_def: dict, *, tables: dict, field_name: str) -> bool:
+    """True when this field is omitted from Catala scope/struct declarations.
+
+    Ticket 11 rule: optional + type:string + no enum variants
+    (no values: list, no constants-table column).
+    """
+    if field_def.get("type") != "string":
+        return False
+    if not field_def.get("optional"):
+        return False
+    has_enum_values = bool(
+        _collect_string_enum_values(field_name, tables)
+        or field_def.get("values")
+    )
+    return not has_enum_values
+
+
+def build_cross_module_enums(sub_module_docs: dict) -> dict[str, tuple[str, list]]:
+    """Scan loaded sub-module CIVIL docs for string fields inferred as enums via table keys.
+
+    Returns {field_name: (qualified_catala_type, variants)} for each field where at
+    least one sub-module's constants table infers an enum.  The qualified type includes
+    the Catala module prefix (e.g. "Program_standards_lookup.HouseholdType").
+
+    Layer 2 divergence check: fails fast if two sub-modules infer DIFFERENT variant sets
+    for the same field name, naming both modules and both variant sets.
+
+    Pure calculation — no file I/O beyond what's already in sub_module_docs.
+    """
+    result: dict = {}
+    for sub_name, sub_doc in (sub_module_docs or {}).items():
+        catala_sub_name = sub_name[0].upper() + sub_name[1:]
+        sub_tables = sub_doc.get("tables", {})
+        sub_inputs = sub_doc.get("inputs", {})
+
+        for entity_def in sub_inputs.values():
+            for field_name, field_def in (entity_def.get("fields") or {}).items():
+                if not isinstance(field_def, dict) or field_def.get("type") != "string":
+                    continue
+                local_vals = _collect_string_enum_values(field_name, sub_tables)
+                if not local_vals:
+                    local_vals = [str(v) for v in (field_def.get("values") or [])]
+                if not local_vals:
+                    continue
+
+                qualified_type = f"{catala_sub_name}.{snake_to_pascal(field_name)}"
+
+                if field_name in result:
+                    existing_type, existing_vals = result[field_name]
+                    if sorted(existing_vals) != sorted(local_vals):
+                        existing_module = existing_type.split(".")[0]
+                        fail(
+                            f"Field {field_name!r} is inferred as different enums across sub-modules:\n"
+                            f"  - {existing_module}: variants {sorted(existing_vals)}\n"
+                            f"  - {catala_sub_name}: variants {sorted(local_vals)}\n"
+                            f"Choose one variant set and declare explicit `values:` in any module "
+                            f"that diverges, or rename one of the fields."
+                        )
+                else:
+                    result[field_name] = (qualified_type, local_vals)
+
+    return result
+
+
 def _format_key_condition(key_var: str, key_val) -> str:
     """Format a single table key condition.
 
     String values use Catala pattern syntax: 'var with pattern Value'
-    (for enumeration variants). Integer/float values use equality: 'var = N'.
+    (for enumeration variants). Date values use Catala's `|YYYY-MM-DD|`
+    date literal. Integer/float values use equality: 'var = N'.
     """
-    if isinstance(key_val, datetime.date):
-        return f"{key_var} = |{key_val}|"
     if isinstance(key_val, str):
-        return f"{key_var} with pattern {snake_to_pascal(key_val)}"
-    return f"{key_var} = {key_val}"
+        return f"{key_var} with pattern {key_val}"
+    if isinstance(key_val, (datetime.date, datetime.datetime)):
+        return f"{key_var} = |{key_val.isoformat()[:10]}|"
+    if isinstance(key_val, (int, float)):
+        return f"{key_var} = {key_val}"
+    raise ValueError(
+        f"_format_key_condition: unsupported key value type {type(key_val).__name__!r} "
+        f"for {key_var}={key_val!r}. Expected str (enum variant), datetime.date, "
+        f"or numeric. Fix the table row in CIVIL or extend this helper."
+    )
 
 
 def _substitute_row_into_expr(
@@ -915,6 +1128,7 @@ def _substitute_row_into_expr(
     tables: dict,
     fact_entities: set,
     invoke_bound_entities: set,
+    list_item_types: dict = None,
 ) -> str:
     """Compute the Catala consequence for one table row given an expression.
 
@@ -928,28 +1142,20 @@ def _substitute_row_into_expr(
     if pure_m:
         col_name = pure_m.group(1)
         raw = row.get(col_name)
-        if isinstance(raw, datetime.date):
-            return f"|{raw}|"
         return money_literal(raw) if field_type == "money" else str(raw)
     # Bracket subscript syntax: table_name[key] — column is implicit (first value column)
     if re.match(r"^\w+\[\w+\]$", expr.strip()):
         col_name = table_def["value"][0]
         raw = row.get(col_name)
-        if isinstance(raw, datetime.date):
-            return f"|{raw}|"
         return money_literal(raw) if field_type == "money" else str(raw)
     # Complex expression: substitute each value column with its row literal, then translate
     subst = expr
     for col_name in table_def.get("value", []):
         col_val = row.get(col_name)
         if col_val is None:
+            print(f"ERROR: table '{table_name}' row is missing value for column '{col_name}' — table reference will remain in output and cause Catala syntax error", file=sys.stderr)
             continue
-        if isinstance(col_val, datetime.date):
-            col_lit = f"|{col_val}|"
-        elif isinstance(col_val, (int, float)):
-            col_lit = money_literal(col_val)
-        else:
-            col_lit = str(col_val)
+        col_lit = money_literal(col_val) if isinstance(col_val, (int, float)) else str(col_val)
         # Function-call syntax: table('name', key).col
         subst = re.sub(
             rf"table\('{re.escape(table_name)}',\s*[^)]+\)\.{re.escape(col_name)}",
@@ -961,6 +1167,7 @@ def _substitute_row_into_expr(
     return translate_expr_to_catala(
         subst, constants=constants, field_type=field_type, tables=tables,
         fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+        list_item_types=list_item_types,
     )
 
 
@@ -975,6 +1182,7 @@ def emit_table_definition(
     tables: dict,
     fact_entities: set = None,
     invoke_bound_entities: set = None,
+    list_item_types: dict = None,
 ) -> list[str]:
     """Emit stacked 'under condition' definitions for one table-driven computed field.
 
@@ -1006,6 +1214,7 @@ def emit_table_definition(
             if_catala = translate_expr_to_catala(
                 if_expr_raw, constants=constants, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
 
     # Source expression for each row's consequence (then: branch or expr:)
@@ -1018,6 +1227,7 @@ def emit_table_definition(
         catala_val = _substitute_row_into_expr(
             source_expr, table_name, table_def, row, field_type,
             constants, tables, fact_entities or set(), invoke_bound_entities or set(),
+            list_item_types=list_item_types,
         )
 
         # Build compound condition: optional if-guard AND all key columns
@@ -1062,6 +1272,7 @@ def emit_table_definition(
                 catala_val = _substitute_row_into_expr(
                     else_expr, else_table_name, else_table_def, row, field_type,
                     constants, tables, fact_entities or set(), invoke_bound_entities or set(),
+                    list_item_types=list_item_types,
                 )
                 cond_parts = []
                 if else_cond != "true":
@@ -1085,6 +1296,7 @@ def emit_table_definition(
                 tables=tables,
                 fact_entities=fact_entities,
                 invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             lines.append(f"scope {scope_name}:")
             lines.append(f"  definition {field_name}")
@@ -1106,6 +1318,7 @@ def emit_table_definition_elseif(
     tables: dict,
     fact_entities: set = None,
     invoke_bound_entities: set = None,
+    list_item_types: dict = None,
 ) -> list[str]:
     """Emit a single if/else if/else chain definition for a table-driven computed field.
 
@@ -1129,6 +1342,7 @@ def emit_table_definition_elseif(
         catala_val = _substitute_row_into_expr(
             source_expr, table_name, table_def, row, field_type,
             constants, tables, fact_entities or set(), invoke_bound_entities or set(),
+            list_item_types=list_item_types,
         )
         # Build compound condition for all key columns
         cond_parts = []
@@ -1151,6 +1365,8 @@ def emit_table_definition_elseif(
             field_type=field_type,
             tables=tables,
             fact_entities=fact_entities,
+            invoke_bound_entities=invoke_bound_entities,
+            list_item_types=list_item_types,
         )
         lines.append(f"    else {else_catala}")
 
@@ -1158,7 +1374,7 @@ def emit_table_definition_elseif(
     return lines
 
 
-def emit_table_section(doc: dict, scope_name: str, constants: dict, table_style: str = "stacked") -> list[tuple]:
+def emit_table_section(doc: dict, scope_name: str, constants: dict, table_style: str = "stacked", list_item_types: dict = None) -> list[tuple]:
     """Emit table-driven computed field definitions for all table-driven computed fields.
 
     Returns a list of (field_name, description, source, code_lines) tuples — one per
@@ -1207,6 +1423,7 @@ def emit_table_section(doc: dict, scope_name: str, constants: dict, table_style:
                 table_def, scope_name, constants, tables,
                 fact_entities=fact_entities,
                 invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
         else:
             code_lines = emit_table_definition(
@@ -1214,6 +1431,7 @@ def emit_table_section(doc: dict, scope_name: str, constants: dict, table_style:
                 table_def, scope_name, constants, tables,
                 fact_entities=fact_entities,
                 invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
         chunks.append((
             field_name,
@@ -1245,6 +1463,7 @@ def emit_computed_section_catala(
     tables: dict,
     fact_entities: set = None,
     invoke_bound_entities: set = None,
+    list_item_types: dict = None,
 ) -> list[tuple]:
     """Emit definitions for computed fields not handled by emit_table_section.
 
@@ -1270,14 +1489,17 @@ def emit_computed_section_catala(
             if_expr = translate_expr_to_catala(
                 cond["if"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             then_expr = translate_expr_to_catala(
                 cond["then"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             else_expr = translate_expr_to_catala(
                 cond["else"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             lines.append(f"scope {scope_name}:")
             lines.append(f"  definition {field_name} equals")
@@ -1291,6 +1513,7 @@ def emit_computed_section_catala(
                 catala_expr = translate_condition_to_catala(
                     raw_expr, constants=constants, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    list_item_types=list_item_types,
                 )
                 lines.append(f"scope {scope_name}:")
                 lines.append(f"  definition {field_name} equals")
@@ -1302,6 +1525,7 @@ def emit_computed_section_catala(
                 catala_cond = translate_condition_to_catala(
                     raw_expr, constants=constants, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    list_item_types=list_item_types,
                 )
                 cond_lines = _format_condition_block(catala_cond)
                 lines.append(f"scope {scope_name}:")
@@ -1318,6 +1542,7 @@ def emit_computed_section_catala(
                 catala_expr = translate_expr_to_catala(
                     raw_expr, constants=constants, field_type=ftype, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    list_item_types=list_item_types,
                 )
                 lines.append(f"scope {scope_name}:")
                 lines.append(f"  definition {field_name} equals")
@@ -1352,6 +1577,7 @@ def emit_rules_section_catala(
     tables: dict,
     fact_entities: set = None,
     invoke_bound_entities: set = None,
+    list_item_types: dict = None,
 ) -> list[tuple]:
     """Emit condition variables for deny rules (deny_rule_N_triggered).
 
@@ -1371,7 +1597,7 @@ def emit_rules_section_catala(
 
         # Condition variable rule: default false, exception for the true case.
         # Order matters: base case first, then exception — avoids conflict when condition holds.
-        catala_cond = translate_condition_to_catala(when, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+        catala_cond = translate_condition_to_catala(when, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities, list_item_types=list_item_types)
         cond_lines = _format_condition_block(catala_cond)
 
         lines = []
@@ -1399,6 +1625,7 @@ def emit_decision_section_catala(
     tables: dict = None,
     fact_entities: set = None,
     invoke_bound_entities: set = None,
+    list_item_types: dict = None,
 ) -> tuple[list[tuple], list[str]]:
     """Emit decision definitions, all_reason_entries, and reasons filter.
 
@@ -1424,6 +1651,7 @@ def emit_decision_section_catala(
             # when there are no deny rules).
             continue
         if ftype == "string" and not field_def.get("values"):
+            print(f"ERROR: output field '{field_name}' is a free-form string with no values: — Catala has no native string type; add values: to make it an enumeration or remove the field", file=sys.stderr)
             continue
         lines = []
         if "conditional" in field_def:
@@ -1431,14 +1659,17 @@ def emit_decision_section_catala(
             if_expr = translate_expr_to_catala(
                 cond["if"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             then_expr = translate_expr_to_catala(
                 cond["then"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             else_expr = translate_expr_to_catala(
                 cond["else"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             lines.append(f"scope {scope_name}:")
             lines.append(f"  definition {field_name} equals")
@@ -1448,6 +1679,7 @@ def emit_decision_section_catala(
             catala_expr = translate_expr_to_catala(
                 field_def["expr"], constants=constants, field_type=ftype, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                list_item_types=list_item_types,
             )
             lines.append(f"scope {scope_name}:")
             lines.append(f"  definition {field_name} equals")
@@ -1558,10 +1790,12 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     catala_module_name = target_name_base[0].upper() + target_name_base[1:] if target_name_base else "Module"
 
     fact_entities = set(doc.get("inputs", {}).keys())
+    # CIVIL list/set inputs → Catala element-type lookup for sum(...) rewriting
+    list_item_types = build_list_item_types(doc.get("inputs", {}))
 
     # --- Load sub-module docs for invoke: fields (3f) ---
     sub_module_docs: dict = {}
-    for field_def in (computed or {}).values():
+    for invoke_field_name, field_def in (computed or {}).items():
         if isinstance(field_def, dict) and field_def.get("invoke") and field_def.get("module"):
             sub_name = field_def["module"]
             if sub_name not in sub_module_docs:
@@ -1569,6 +1803,12 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
                     os.path.dirname(os.path.abspath(civil_path)),
                     f"{sub_name}.civil.yaml",
                 )
+                if not os.path.exists(sub_path):
+                    fail(
+                        f"Sub-module {sub_name!r} not found at {sub_path!r}. "
+                        f"Check that the module name in computed.{invoke_field_name}.module "
+                        f"matches a .civil.yaml file in the same directory."
+                    )
                 sub_module_docs[sub_name] = load_civil(sub_path)
 
     # Compute invoke-bound entity set for step 0 prefix rewriting (3f)
@@ -1578,6 +1818,14 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
             invoke_field = field_def["invoke"]
             bind = invoke_field.get("bind", {}) if isinstance(invoke_field, dict) else {}
             invoke_bound_entities.update(bind.values())
+
+    # --- Fail-fast bind forwarding validation (ticket 14) ---
+    # Runs before any file I/O so a broken .catala_en is never written.
+    bind_errors = check_bind_forwarding(doc, sub_module_docs, computed)
+    for bind_error in bind_errors:
+        print(f"ERROR: {bind_error}", file=sys.stderr)
+    if bind_errors:
+        sys.exit(1)
 
     # Collect unique sub-module names for > Using directives (3a)
     sub_modules: list[str] = []
@@ -1643,7 +1891,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     # --- Table Lookups ---
     # Emit table-level description+source once as prose at the top of the section,
     # then one fence per computed field with its own H4 + prose.
-    table_chunks = emit_table_section(doc, scope_name, constants, table_style=table_style)
+    table_chunks = emit_table_section(doc, scope_name, constants, table_style=table_style, list_item_types=list_item_types)
     if table_chunks:
         md_lines.append("## Table Lookups")
         md_lines.append("")
@@ -1671,6 +1919,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
     computed_chunks = emit_computed_section_catala(
         computed, scope_name, constants, tables,
         fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+        list_item_types=list_item_types,
     )
     if computed_chunks:
         md_lines.append("## Computed Values")
@@ -1688,6 +1937,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
         rule_chunks = emit_rules_section_catala(
             rules, scope_name, constants, tables,
             fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+            list_item_types=list_item_types,
         )
         for rule_id, desc, source, code_lines in rule_chunks:
             _emit_prose_heading(md_lines, rule_id, desc, source)
@@ -1701,6 +1951,7 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
         doc, scope_name,
         constants=constants, tables=tables,
         fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+        list_item_types=list_item_types,
     )
     for name, desc, _source, code_lines in decision_chunks:
         _emit_prose_heading(md_lines, name, desc, None)

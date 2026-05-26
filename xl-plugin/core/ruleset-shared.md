@@ -302,16 +302,28 @@ SP-ResolveRulesetModules
       the role: main entry is not expected in sub_modules: — skip this check for it)
 
 3. If context == 'update':
-   For each ruleset_modules: entry WHERE role != 'main' (or role absent)
-     whose name does NOT appear in extraction-manifest.yaml sub_modules::
-     → Emit:
-       "⚠️  New ruleset module candidates found in guidance.yaml that were not in the initial extraction:
-             <names>.
-        Run /extract-ruleset <domain> to generate them before running /update-ruleset."
-     → Abort SP-ResolveRulesetModules (caller must stop — do not proceed with partial work-list)
+   Partition ruleset_modules: entries (WHERE role != 'main' or role absent) into:
+     - existing: name appears in extraction-manifest.yaml sub_modules:
+     - new:      name does NOT appear in extraction-manifest.yaml sub_modules:
 
-4. Build binding confirmation table (extract context only):
-   Skip entirely when context == 'update' — bindings are already resolved in the existing manifest.
+   If any 'new' entries exist:
+     → Emit:
+       ":::important
+        guidance.yaml declares ruleset modules that haven't been extracted yet:
+          <names>.
+        These will be extracted with /extract-ruleset semantics; existing modules
+        in extraction-manifest.yaml will be refreshed with /update-ruleset semantics.
+        :::"
+     → Set per-entry context: 'extract' for new entries, 'update' for existing entries
+     → Continue (do NOT abort)
+   Else:
+     → All entries use context: 'update'; continue normally
+
+4. Build binding confirmation table:
+   Skip entirely when context == 'update' AND no entries have per-entry context 'extract'
+   — bindings are already resolved in the existing manifest.
+   Otherwise run for all sub-module entries that have per-entry context 'extract' (or where
+   the top-level context is 'extract').
    For each sub-module entry in ruleset_modules: (skip the role: main entry — it has no binding),
    derive bind: dict from bound_entities::
    - If sub-module has exactly one entity in its inputs: section, derive {SubEntity: BoundEntity} for each entry in bound_entities:

@@ -17,7 +17,7 @@ Update an existing CIVIL DSL ruleset for a domain when input policy documents ha
 
 `<filename>` is the basename of a `.md` file in `$DOMAINS_DIR/<domain>/input/policy_docs/` (e.g., `APA.md`). The `.md` extension is appended automatically if omitted. When given, `<filename>` scopes the full pipeline: only that file is read as the policy corpus, and only its manifest entry is updated.
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories and prompt the user to choose.
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories and emit a `:::user_input` fence block with numbered options. Do NOT use AskUserQuestion.
 
 ---
 

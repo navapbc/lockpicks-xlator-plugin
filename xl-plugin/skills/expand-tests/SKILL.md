@@ -14,7 +14,7 @@ Generate additional test cases for an existing CIVIL module test suite without d
 /expand-tests [<domain> <program>]        # target a specific <program>.civil.yaml
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and emit a `:::user_input` fence block with `[a]`/`[b]`/... options. Do NOT use AskUserQuestion.
 
 Read `../../core/output-fencing.md` now.
 

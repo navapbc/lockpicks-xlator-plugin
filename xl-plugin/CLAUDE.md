@@ -137,20 +137,25 @@ After the user adds/updates .md policy documents in `$DOMAINS_DIR/<domain>/input
 
 When a skill has more than 3 steps, show a checklist of the steps at the completion of each step to help the user track their progress.
 
-## AskUserQuestion
+## Asking the user a question
 
-When asking the user a question, never present the option of "Press Enter to ...".
-Instead, if the question expects a boolean response, then show "[y/n]".
-If there are multiple response options, present it as:
+Always use a `:::user_input` fence block. Never call the `AskUserQuestion` tool — PolicyBridge runs Claude Code as a non-interactive subprocess where that tool cannot display prompts and silently resolves to "user declined", leaving the user confused.
 
-```
-[a] Option one
-[b] Option two
-[c] Option three
-(or type in difference response)
-```
+If the question expects a boolean response, end with `[y/n]`. For multiple options:
 
-If the user responds with more than 1 character, then use the user's response as the answer.
+:::user_input
+Which module would you like to build the demo for?
+
+[a] earned_income
+[b] eligibility
+[c] program_standards_lookup
+
+(or type in a different response)
+:::
+
+If the user responds with more than 1 character, treat their response as the literal answer. Single-character responses select the labeled option.
+
+See `core/output-fencing.md` for the full fencing reference.
 
 ## Catala Conventions
 

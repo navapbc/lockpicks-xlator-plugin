@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pyyaml>=6.0"]
+# ///
 """
 CIVIL YAML Tests → Catala Test File Transpiler
 
@@ -22,10 +26,14 @@ Exit codes:
 """
 
 import os
+import pathlib
 import re
 import sys
 import argparse
 import yaml
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from transpile_to_catala import build_cross_module_enums  # noqa: E402
 
 
 # =============================================================================
@@ -48,8 +56,8 @@ def load_yaml_file(path):
 
 
 def snake_to_pascal(name: str) -> str:
-    """Convert snake_case or kebab-case to PascalCase, preserving existing uppercase letters."""
-    return "".join(word[0].upper() + word[1:] for word in re.split(r"[_-]", name) if word)
+    """Convert snake_case or kebab-case to PascalCase."""
+    return "".join(word.capitalize() for word in re.split(r"[_-]", name) if word)
 
 
 def entity_to_var_name(entity_name: str) -> str:
@@ -96,37 +104,50 @@ def money_literal(value) -> str:
 # FIELD TYPE HELPERS
 # =============================================================================
 
-def build_field_type_map(civil_doc: dict) -> dict:
+def build_field_type_map(civil_doc: dict, sub_module_docs: dict = None) -> dict:
     """Build field type/optional/enum maps and an ordered entity→fields map.
+
+    sub_module_docs: {module_name: civil_doc} for sibling modules (mirrors main
+    transpiler's parameter). Used to resolve cross-module string enum fields —
+    those declared `type: string` locally but keyed in a sub-module's tables:.
 
     Returns:
         types: {field_name: civil_type}
         optional_flags: {field_name: bool}
-        enum_variants: {field_name: [str]} — list of raw values. Table-derived
-            variants keep the raw string; values:-declared variants also keep
-            the raw string (PascalCasing happens at emit time).
+        enum_variants: {field_name: {raw_value: emit_form}} — raw_value is the
+            value as-it-appears in CIVIL inputs; emit_form is the Catala enum
+            variant identifier to emit. Table-derived variants emit raw;
+            values:-declared variants are PascalCased to match the enum
+            declaration emitted by transpile_to_catala.emit_declarations.
+            Cross-module variants emit as ModulePrefix.VariantName.
         entity_fields: {entity_name: [(field_name, civil_type, is_optional)]}
         computed_field_types: {field_name: civil_type} for computed: fields
+        table_key_defaults: {field_name: first_row_raw_value} — first-seen value
+            for every table key column, regardless of type. Used as a default for
+            optional or missing fields so the emitted test picks a value that
+            matches at least one rule (first-row-wins).
     """
     types = {}
     optional_flags = {}
     enum_variants = {}
     entity_fields = {}
     tables = civil_doc.get("tables", {})
+    sub_module_docs = sub_module_docs or {}
+    cross_module_enums = build_cross_module_enums(sub_module_docs)
     for entity_name, entity_def in civil_doc.get("inputs", {}).items():
         fields = []
         for field_name, field_def in entity_def.get("fields", {}).items():
             civil_type = field_def.get("type", "int")
-            # B6: expand list type to include item type
-            if civil_type == "list":
+            is_optional = bool(field_def.get("optional", False))
+            # For list/set fields, preserve the item type so defaults and value
+            # serialisation can emit `[]` and `[ $456; $398; $430 ]` respectively.
+            if civil_type in ("list", "set"):
                 item_type = field_def.get("item", "money")
                 civil_type = f"list:{item_type}"
-            is_optional = bool(field_def.get("optional", False))
             types[field_name] = civil_type
             optional_flags[field_name] = is_optional
             if civil_type == "enum" and "values" in field_def:
-                # B3: store as list of raw values
-                enum_variants[field_name] = [str(v) for v in field_def["values"]]
+                enum_variants[field_name] = {str(v): str(v) for v in field_def["values"]}
             elif civil_type == "string":
                 # Collect enum variants from table key columns for string fields.
                 # Table-derived: emit raw (matches `-- VAL` declaration in emit_declarations).
@@ -138,20 +159,28 @@ def build_field_type_map(civil_doc: dict) -> dict:
                             if val is not None and isinstance(val, str) and val not in table_variants:
                                 table_variants.append(val)
                 if table_variants:
-                    # B3: store as list
-                    enum_variants[field_name] = list(table_variants)
+                    enum_variants[field_name] = {v: v for v in table_variants}
                 elif "values" in field_def:
-                    # Declared values: store raw strings; PascalCase at emit time.
-                    # B3: store as list of raw values
-                    enum_variants[field_name] = [str(v) for v in field_def.get("values", [])]
+                    # Declared values: PascalCase emit form to match the enum declaration.
+                    enum_variants[field_name] = {
+                        str(v): snake_to_pascal(str(v)) for v in field_def.get("values", [])
+                    }
+                elif field_name in cross_module_enums:
+                    # Enum declared in a sub-module via a table key column.
+                    # Catala resolves enum constructors by name alone (no module prefix needed
+                    # in struct literals), so emit bare variant names (e.g. A1E, not
+                    # Program_standards_lookup.A1E).
+                    _, variants = cross_module_enums[field_name]
+                    enum_variants[field_name] = {v: v for v in variants}
             fields.append((field_name, civil_type, is_optional))
         entity_fields[entity_name] = fields
     # Output decision fields: string-with-values: declarations also map to Catala
-    # enums; their raw value list is needed when emitting test assertions.
+    # enums; their {raw → emit} mapping is needed when emitting test assertions.
     for field_name, field_def in civil_doc.get("outputs", {}).items():
         if field_def.get("type") == "string" and field_def.get("values"):
-            # B3: store as list of raw values
-            enum_variants[field_name] = [str(v) for v in field_def["values"]]
+            enum_variants[field_name] = {
+                str(v): snake_to_pascal(str(v)) for v in field_def["values"]
+            }
     # Only include computed fields tagged [expose] — these become scope outputs.
     # Internal computed fields are inaccessible outside the scope and cannot be asserted.
     computed_field_types = {
@@ -160,7 +189,26 @@ def build_field_type_map(civil_doc: dict) -> dict:
         if isinstance(fdef, dict) and "type" in fdef
         and "expose" in (fdef.get("tags") or [])
     }
-    return types, optional_flags, enum_variants, entity_fields, computed_field_types
+    # Collect first-row value for every table key column (any type).
+    # Provides a default for optional/missing fields that matches at least one rule.
+    # Also scan sub-module tables — fields forwarded via bind may only have matching
+    # rows in a sub-module's tables (e.g. effective_date in eligibility forwarded to
+    # program_standards_lookup.expanded_refused_cash_income_limits).
+    table_key_defaults = {}
+    all_tables_to_scan = list(tables.values()) + [
+        sub_table
+        for sub_doc in sub_module_docs.values()
+        for sub_table in sub_doc.get("tables", {}).values()
+    ]
+    for table_def in all_tables_to_scan:
+        table_rows = table_def.get("rows", [])
+        if not table_rows:
+            continue
+        first_row = table_rows[0]
+        for key_col in table_def.get("key", []):
+            if key_col not in table_key_defaults and key_col in first_row:
+                table_key_defaults[key_col] = first_row[key_col]
+    return types, optional_flags, enum_variants, entity_fields, computed_field_types, table_key_defaults
 
 
 def default_value_for_type(civil_type: str) -> str:
@@ -174,25 +222,19 @@ def default_value_for_type(civil_type: str) -> str:
     elif civil_type == "float":
         return "0.0"
     elif civil_type == "date":
-        # B4: default for date type
-        return "|2024-01-01|"
-    elif civil_type.startswith("list:"):
-        # B4: default for list types
+        return "|2020-01-01|"
+    elif civil_type.startswith("list:") or civil_type.startswith("set:"):
         return "[]"
     else:
         return "0"
 
 
-def value_to_catala(value, civil_type: str, valid_enum_variants=None, field_name: str = None, module_name: str = None):
+def value_to_catala(value, civil_type: str, valid_enum_variants=None):
     """Convert a YAML test input value to a Catala literal.
 
-    valid_enum_variants is a [str] list of raw values (or None). When provided,
-    the raw input must appear in the list — the emitted enum variant identifier
-    is derived by PascalCasing the raw value (optionally qualified with
-    field_name and module_name).
-
-    field_name: when provided, emit a qualified enum variant for enum/string types.
-    module_name: when provided together with field_name, fully qualify the variant.
+    valid_enum_variants is a {raw_value: emit_form} dict (or None). When
+    provided, the raw input must match a key — the emitted enum variant
+    identifier comes from the value side of the map.
 
     Returns None if the value cannot be represented (e.g. non-numeric money,
     non-numeric int, or unrecognised enum variant).
@@ -205,48 +247,44 @@ def value_to_catala(value, civil_type: str, valid_enum_variants=None, field_name
         str_val = str(value)
         if valid_enum_variants is not None and str_val not in valid_enum_variants:
             return None  # invalid variant — caller will default and warn
-        # B2: qualified enum variant emit
-        if valid_enum_variants is not None and field_name is not None:
-            field_part = snake_to_pascal(field_name)
-            variant_part = snake_to_pascal(str_val)
-            if module_name:
-                return f"{module_name}.{field_part}.{variant_part}"
-            return f"{field_part}.{variant_part}"
-        return snake_to_pascal(str_val) if valid_enum_variants else str_val
-    elif civil_type in ("int", "float"):
+        return valid_enum_variants[str_val] if valid_enum_variants else str_val
+    elif civil_type == "int":
         try:
-            int(value) if civil_type == "int" else float(value)
-            return str(value)
+            return str(int(value))
         except (TypeError, ValueError):
-            return None  # non-numeric string — caller will default and warn
-    elif civil_type == "date":
-        # B5: date type → Catala date literal
-        return f"|{value}|"
-    elif civil_type.startswith("list:"):
-        # B5: list type → Catala list literal
-        item_type = civil_type.split(":", 1)[1]
-        if not isinstance(value, list):
-            return "[]"
-        item_vals = []
-        for item in value:
-            item_catala = value_to_catala(item, item_type)
-            if item_catala is not None:
-                item_vals.append(item_catala)
-        return "[ " + "; ".join(item_vals) + " ]" if item_vals else "[]"
+            return None  # non-numeric — caller will default and warn
+    elif civil_type == "float":
+        # Catala decimal literals require a decimal point; bare `20` is parsed as
+        # integer and triggers a type mismatch against a `decimal` declaration.
+        try:
+            return repr(float(value))
+        except (TypeError, ValueError):
+            return None  # non-numeric — caller will default and warn
     elif civil_type == "string" and valid_enum_variants:
         # String field with declared/derived enum variants — must map to a
         # Catala enum constructor, never a free-form identifier.
         str_val = str(value)
         if str_val not in valid_enum_variants:
             return None  # invalid variant — caller will default and warn
-        # B2: qualified variant emit for string type
-        if field_name is not None:
-            field_part = snake_to_pascal(field_name)
-            variant_part = snake_to_pascal(str_val)
-            if module_name:
-                return f"{module_name}.{field_part}.{variant_part}"
-            return f"{field_part}.{variant_part}"
-        return snake_to_pascal(str_val)
+        return valid_enum_variants[str_val]
+    elif civil_type.startswith("list:") or civil_type.startswith("set:"):
+        # Catala list literal: `[ elem; elem; elem ]` for non-empty, `[]` for empty.
+        # Element type is the suffix after `list:` (e.g. `list:money` → money).
+        if not isinstance(value, list):
+            return None  # non-list value supplied for a list field
+        if not value:
+            return "[]"
+        elem_type = civil_type.split(":", 1)[1]
+        elem_literals = []
+        for element in value:
+            elem_lit = value_to_catala(element, elem_type)
+            if elem_lit is None:
+                return None
+            elem_literals.append(elem_lit)
+        return "[ " + "; ".join(elem_literals) + " ]"
+    elif civil_type == "date":
+        # Catala date literal: |YYYY-MM-DD|
+        return f"|{value}|"
     else:
         return str(value)
 
@@ -272,7 +310,7 @@ def emit_field_value(
     input_val,
     enum_variants: dict,
     note_prefix: str = "",
-    module_name: str = None,
+    table_key_defaults: dict = None,
 ) -> tuple:
     """Resolve a field's Catala value and an optional warning note.
 
@@ -282,12 +320,26 @@ def emit_field_value(
     # string fields that map to Catala enums (table-derived) need variant lookup too
     valid_variants = enum_variants.get(field_name) if civil_type in ("enum", "string") else None
 
+    if civil_type == "string" and not valid_variants:
+        if is_optional:
+            # Optional string with no enum variants — main transpiler omits this field
+            # from the Catala scope declaration (ticket 11 rule). Match that here.
+            return None, None
+        # Required string with no local or cross-module enum variants. The main transpiler
+        # raises ValueError at transpile time for this case, so it should never reach the
+        # test transpiler. If it does, sub-module docs were not loaded — fail loudly.
+        raise ValueError(
+            f"Test transpiler cannot emit field '{field_name}' (required string, no variants "
+            f"found). Sub-module CIVIL docs may not have been loaded — verify that the "
+            f"entrypoint passes sub_module_docs to build_field_type_map()."
+        )
+
+    effective_type = civil_type
+
     if input_val is not None:
-        # B8: pass field_name and module_name to value_to_catala
-        catala_val = value_to_catala(input_val, civil_type, valid_variants, field_name=field_name, module_name=module_name)
+        catala_val = value_to_catala(input_val, effective_type, valid_variants)
         if catala_val is None:
-            # B7: valid_variants is now a list; use index 0 and PascalCase
-            default = snake_to_pascal(str(valid_variants[0])) if valid_variants else default_value_for_type(civil_type)
+            default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(effective_type)
             print(
                 f"  WARN  case '{case_id}': field '{note_prefix}{field_name}' has non-representable "
                 f"value '{input_val}'; defaulting to {default}",
@@ -296,12 +348,26 @@ def emit_field_value(
             return default, "non-representable input value; defaulted"
         return catala_val, None
     elif is_optional:
-        # B7: valid_variants is now a list; use index 0 and PascalCase
-        default = snake_to_pascal(str(valid_variants[0])) if valid_variants else default_value_for_type(civil_type)
+        if valid_variants:
+            default = next(iter(valid_variants.values()))
+        elif table_key_defaults and field_name in table_key_defaults:
+            default = (
+                value_to_catala(table_key_defaults[field_name], effective_type, None)
+                or default_value_for_type(effective_type)
+            )
+        else:
+            default = default_value_for_type(effective_type)
         return default, None
     else:
-        # B7: valid_variants is now a list; use index 0 and PascalCase
-        default = snake_to_pascal(str(valid_variants[0])) if valid_variants else default_value_for_type(civil_type)
+        if valid_variants:
+            default = next(iter(valid_variants.values()))
+        elif table_key_defaults and field_name in table_key_defaults:
+            default = (
+                value_to_catala(table_key_defaults[field_name], effective_type, None)
+                or default_value_for_type(effective_type)
+            )
+        else:
+            default = default_value_for_type(effective_type)
         print(
             f"  WARN  case '{case_id}': required field '{note_prefix}{field_name}' not in inputs; "
             f"defaulting to {default}",
@@ -325,7 +391,7 @@ def emit_test_scope(
     numeric_decision_fields: list = None,
     computed_field_types: dict = None,
     invoke_bound_entities: set = None,
-    entity_field_module: dict = None,
+    table_key_defaults: dict = None,
 ) -> list:
     """Emit Catala lines for one #[test] scope.
 
@@ -341,11 +407,6 @@ def emit_test_scope(
       remaining expected: keys not covered by decisions.
     catala_module_name: e.g. 'Eligibility' — used to qualify struct type names in
       multi-entity mode (e.g. Eligibility.ClientIncome).
-    invoke_bound_entities: set of entity names referenced via invoke.bind — when non-empty,
-      multi-entity mode is forced regardless of entity_fields count.
-    entity_field_module: {(entity_name, field_name): sub_module_name} — when a string enum
-      field in an invoke-bound entity has its type declared in a sub-module, maps to the
-      correct module qualifier (e.g. ("Household", "household_type") → "Program_standards_lookup").
     """
     if enum_variants is None:
         enum_variants = {}
@@ -371,8 +432,10 @@ def emit_test_scope(
     # --- Scope body ---
     lines.append(f"scope {test_scope}:")
 
-    # B9: multi_entity is driven by invoke_bound_entities
-    invoke_bound_entities = invoke_bound_entities or set()
+    # Multi-entity (struct-literal) mode applies only to root modules that pass
+    # entity structs to sub-scopes. Sub-modules with multiple entities but no
+    # invoke-bind have their fields flattened by the main transpiler, so tests
+    # must use flat field assignment (PLUGIN_IMPROVEMENTS.md #8a).
     multi_entity = bool(invoke_bound_entities)
 
     if multi_entity:
@@ -393,15 +456,13 @@ def emit_test_scope(
                     input_val = inputs[field_name]
                 else:
                     input_val = None
-                # Use sub-module name for cross-module string enum fields (B8 + entity_field_module)
-                field_module = (
-                    (entity_field_module or {}).get((entity_name, field_name), catala_module_name)
-                )
                 catala_val, note = emit_field_value(
                     case_id, field_name, civil_type, is_optional,
                     input_val, enum_variants, note_prefix=f"{entity_name}.",
-                    module_name=field_module,
+                    table_key_defaults=table_key_defaults,
                 )
+                if catala_val is None:
+                    continue
                 suffix = f"  # NOTE: {note}" if note else ""
                 struct_lines.append(f"    -- {field_name}: {catala_val}{suffix}")
             lines.append(f"  definition result.{var_name} equals {type_ref} {{")
@@ -412,12 +473,13 @@ def emit_test_scope(
         for field_name, civil_type, is_optional in all_fields:
             raw_val = inputs.get(field_name)
             input_val = raw_val if field_name in inputs else None
-            # B8: pass module_name=catala_module_name
             catala_val, note = emit_field_value(
                 case_id, field_name, civil_type, is_optional,
                 input_val, enum_variants,
-                module_name=catala_module_name,
+                table_key_defaults=table_key_defaults,
             )
+            if catala_val is None:
+                continue
             suffix = f"  # NOTE: {note}" if note else ""
             lines.append(f"  definition result.{field_name} equals {catala_val}{suffix}")
 
@@ -429,12 +491,24 @@ def emit_test_scope(
             catala_bool = "true" if val else "false"
             lines.append(f"  assertion (result.{field} = {catala_bool})")
 
-    # B14: String-enum decisions — simplified emit (just PascalCase the value)
+    # String-enum decisions (e.g. eligible: "deny" → Deny)
     for field in (string_decision_fields or []):
         val = expected.get(field)
-        if val is not None:
-            catala_variant = snake_to_pascal(str(val))
-            lines.append(f"  assertion (result.{field} = {catala_variant})")
+        if val is None:
+            continue
+        valid_variants = (enum_variants or {}).get(field)
+        str_val = str(val)
+        if valid_variants is not None and str_val not in valid_variants:
+            print(
+                f"  WARN  case '{case_id}': expected.{field} value '{str_val}' is not in "
+                f"declared values {list(valid_variants)} — skipping assertion",
+                file=sys.stderr,
+            )
+            continue
+        catala_variant = (
+            valid_variants[str_val] if valid_variants else snake_to_pascal(str_val)
+        )
+        lines.append(f"  assertion (result.{field} = {catala_variant})")
 
     # Denial reasons list
     denial_reasons = expected.get(denial_field)
@@ -492,7 +566,31 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
     tests_doc = load_yaml_file(tests_path)
     civil_doc = load_yaml_file(civil_spec_path)
 
-    field_types, optional_flags, enum_variants, entity_fields, computed_field_types = build_field_type_map(civil_doc)
+    # Load sibling sub-module docs for cross-module enum resolution (mirrors main transpiler).
+    sub_module_docs: dict = {}
+    for field_def in (civil_doc.get("computed") or {}).values():
+        if isinstance(field_def, dict) and field_def.get("invoke") and field_def.get("module"):
+            sub_name = field_def["module"]
+            if sub_name not in sub_module_docs:
+                sub_path = os.path.join(
+                    os.path.dirname(os.path.abspath(civil_spec_path)),
+                    f"{sub_name}.civil.yaml",
+                )
+                if os.path.exists(sub_path):
+                    sub_module_docs[sub_name] = load_yaml_file(sub_path)
+
+    field_types, optional_flags, enum_variants, entity_fields, computed_field_types, table_key_defaults = build_field_type_map(civil_doc, sub_module_docs)
+
+    # Identify invoke-bound entities — these are the only ones the main transpiler
+    # emits as Catala struct inputs. Sub-modules with multiple entities but no
+    # invoke-bind have their fields flattened, so the tests must do flat field
+    # assignments rather than struct-literal assignments (PLUGIN_IMPROVEMENTS.md #8a).
+    invoke_bound_entities: set = set()
+    for field_def in (civil_doc.get("computed") or {}).values():
+        if isinstance(field_def, dict) and field_def.get("invoke"):
+            invoke_field = field_def["invoke"]
+            bind = invoke_field.get("bind", {}) if isinstance(invoke_field, dict) else {}
+            invoke_bound_entities.update(bind.values())
 
     # Ordered list of (field_name, civil_type, is_optional) for the scope call (single-entity mode)
     all_fields = [
@@ -527,22 +625,6 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
             break
 
     tests = tests_doc.get("tests", [])
-
-    # B13: Supplement enum_variants from test case input values for string fields
-    # with no table or values: declaration (handles cross-module enum types).
-    for field_name, civil_type in field_types.items():
-        if civil_type == "string" and field_name not in enum_variants:
-            scanned: list = []
-            for case in tests:
-                for key, val in case.get("inputs", {}).items():
-                    bare_key = key.split(".")[-1] if "." in key else key
-                    if bare_key == field_name and val is not None:
-                        str_val = str(val)
-                        if str_val not in scanned:
-                            scanned.append(str_val)
-            if scanned:
-                enum_variants[field_name] = scanned
-
     if not tests:
         # Intentionally-empty test files (e.g. auto-generated derived suites where
         # no derivable scenarios remain after deduplication) are valid — emit a
@@ -579,60 +661,20 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
     test_suite = tests_doc.get("test_suite", {})
     description = test_suite.get("description", os.path.basename(tests_path))
 
-    # B10: Build invoke_bound_entities before calling emit_test_scope
-    invoke_bound_entities: set = set()
-    for field_def in civil_doc.get("computed", {}).values():
-        if isinstance(field_def, dict) and field_def.get("invoke"):
-            bind = (field_def["invoke"] or {}).get("bind", {})
-            invoke_bound_entities.update(bind.values())
-
-    # B11: Scan for sub-module names referenced via invoke
-    sub_module_names: list = []
-    for field_def in civil_doc.get("computed", {}).values():
-        if isinstance(field_def, dict) and field_def.get("invoke"):
-            raw_module = field_def.get("module", "")
-            if raw_module:
-                pascal = raw_module[0].upper() + raw_module[1:]
-                if pascal not in sub_module_names and pascal != catala_module_name:
-                    sub_module_names.append(pascal)
-
-    # Build entity_field_module: {(entity_name, field_name) → sub_module_name} for
-    # string enum fields in invoke-bound entities whose enum type lives in a sub-module.
-    # Used in emit_test_scope to qualify cross-module enum constructors correctly.
-    entity_field_module: dict = {}
-    for field_def in civil_doc.get("computed", {}).values():
-        if not isinstance(field_def, dict) or not field_def.get("invoke"):
-            continue
-        raw_sub_module = field_def.get("module", "")
-        if not raw_sub_module:
-            continue
-        pascal_sub = raw_sub_module[0].upper() + raw_sub_module[1:]
-        bind = (field_def.get("invoke") or {}).get("bind", {})
-        sub_spec_path = os.path.join(
-            os.path.dirname(os.path.abspath(civil_spec_path)),
-            f"{raw_sub_module}.civil.yaml",
-        )
-        if not os.path.exists(sub_spec_path):
-            continue
-        sub_doc = load_yaml_file(sub_spec_path)
-        sub_tables = sub_doc.get("tables", {})
-        for parent_entity_name in bind.keys():
-            entity_def = civil_doc.get("inputs", {}).get(parent_entity_name, {})
-            for fname, fdef in entity_def.get("fields", {}).items():
-                if fdef.get("type") != "string":
-                    continue
-                for tdef in sub_tables.values():
-                    if fname in tdef.get("key", []):
-                        entity_field_module[(parent_entity_name, fname)] = pascal_sub
-                        break
-
     # Build output
     md_lines = []
 
     md_lines.append(f"> Using {catala_module_name}")
-    # B11: emit > Using directives for sub-modules
-    for sub_module in sub_module_names:
-        md_lines.append(f"> Using {sub_module}")
+    # Emit > Using for sub-modules that define enum types used in this module's structs.
+    # Catala does not transitively expose enum constructors — each defining module must
+    # be explicitly imported so bare constructor names (e.g. A1E) resolve correctly.
+    cross_enums = build_cross_module_enums(sub_module_docs)
+    cross_module_providers = sorted(set(
+        qualified_type.split(".")[0]
+        for qualified_type, _ in cross_enums.values()
+    ))
+    for provider in cross_module_providers:
+        md_lines.append(f"> Using {provider}")
     md_lines.append("")
     md_lines.append(f"# Tests: {description}")
     md_lines.append("")
@@ -653,7 +695,7 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
             numeric_decision_fields=numeric_decision_fields,
             computed_field_types=computed_field_types,
             invoke_bound_entities=invoke_bound_entities,
-            entity_field_module=entity_field_module,
+            table_key_defaults=table_key_defaults,
         )
         md_lines.extend(catala_block(scope_lines))
         md_lines.append("")

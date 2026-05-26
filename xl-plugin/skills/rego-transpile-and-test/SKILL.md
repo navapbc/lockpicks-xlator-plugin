@@ -14,7 +14,7 @@ Transpile a CIVIL module to Rego and run the test suite.
 /transpile-and-test [<domain> <program>]       # target a specific program
 ```
 
-If `<domain>` is not provided, run `xlator list` and prompt the user to choose.
+If `<domain>` is not provided, run `xlator list` and emit a `:::user_input` fence block with `[a]`/`[b]`/... options. Do NOT use AskUserQuestion.
 
 Read `../../core/output-fencing.md` now.
 
