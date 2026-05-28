@@ -1,9 +1,10 @@
 # CIVIL Test DSL — Authoring Quick Reference
 
-<!-- Last verified against tools/rego-run_tests.py + tools/transpile_to_catala_tests.py: 2026-03-19 -->
+<!-- Last verified against tools/transpile_to_catala_tests.py: 2026-03-19 -->
+<!-- Note (2026-05-28): Rego backend retired in plugin v12.x; OPA runner removed. This whole file retires in U8 of refactor/replace-civil-with-catala. -->
 
 This is a **Claude authoring cheat sheet** for writing valid CIVIL test YAML files.
-Test files drive both the Catala test transpiler (`tools/transpile_to_catala_tests.py`) and the OPA runner (`tools/rego-run_tests.py`).
+Test files drive the Catala test transpiler (`tools/transpile_to_catala_tests.py`).
 
 ---
 
@@ -19,7 +20,7 @@ Examples:
 - `$DOMAINS_DIR/ak_doh/specs/tests/eligibility_tests.yaml`
 
 > ⚠️ **Files ending in `_null_input_expanded_tests.yaml` are skipped by the Catala transpiler.**
-> Use this suffix for tests that rely on OPA's undefined-result behavior (not encodable in Catala).
+> Historical: this suffix marked tests that relied on OPA's undefined-result behavior, which was not encodable in Catala. Rego is retired (plugin v12.x); the suffix is now legacy and can be dropped when the file is regenerated.
 
 ---
 
@@ -41,7 +42,7 @@ tests:
 | Field | Required | Notes |
 |-------|----------|-------|
 | `spec` | ✅ | Basename of the CIVIL spec being tested, e.g. `"eligibility.civil.yaml"` |
-| `description` | ✅ | Human-readable suite description. Shown as the test run header by `rego-run_tests.py`. |
+| `description` | ✅ | Human-readable suite description. Carried through to the generated Catala test file as a header comment. |
 | `version` | ✅ | Schema version, e.g. `"1.0"` |
 
 ---

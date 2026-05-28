@@ -21,13 +21,6 @@ Typical user actions (no domain/module):
   catala-pipeline       <domain> <module>   validate -> catala-transpile -> catala-test-transpile -> catala-test
   catala-demo           <domain> <module>   Start Catala-Python demo (foreground)
 
-  rego-transpile        <domain> <module>   Generate Rego from CIVIL
-  rego-test             <domain> <module>   Start OPA, run tests, stop OPA
-        Reads a CIVIL specs/tests/<module>_tests.yaml file and submits each test case
-        to the OPA REST server, reporting pass/fail per case.
-  rego-pipeline         <domain> <module>   validate -> rego-transpile -> rego-test (OPA/Rego)
-  rego-demo             <domain> <module>   Start OPA + FastAPI demo (foreground)
-
 Slash command support actions:
   manifest-update <domain>             Refresh git SHAs in extraction-manifest.yaml
   detect-changes  <domain>             Exit 0 = no changes; exit 1 = changes detected
@@ -36,7 +29,7 @@ Slash command support actions:
         archive the original under input/_originals/ with a diagnostics JSON.
   validate        <domain> <module>    Validate CIVIL YAML
   graph           <domain> <module>    Generate computation graph
-  preflight       <domain> <module> [--backend rego|catala]   Validate CIVIL file exists and tool is in PATH
+  preflight       <domain> <module> [--backend catala]   Validate CIVIL file exists and tool is in PATH
 
 CSV test-case authoring:
   export-test-template  <domain> <module>   Generate CSV template from CIVIL spec
@@ -51,8 +44,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
-import urllib.request
 import yaml
 from pathlib import Path
 
@@ -90,12 +81,9 @@ def resolve_paths(domain, module):
     base = DOMAINS_FULLPATH / domain
     return {
         "civil":    base / "specs" / f"{module}.civil.yaml",
-        "rego":     base / "output" / f"{module}.rego",
         "catala":   base / "output" / f"{module}.catala_en",
         "tests":    base / "specs" / "tests" / f"{module}_tests.yaml",
         "package":  f"{domain}.{module}",
-        "opa_path": f"/v1/data/{domain}/{module}/decision",
-        "demo_rego_sh":   base / "output" / f"demo-rego-{module}" / "start.sh",
         "demo_catala_sh": base / "output" / f"demo-catala-{module}" / "start.sh",
     }
 
@@ -143,40 +131,6 @@ def _parse_source_doc(entry):
 
 
 # ---------------------------------------------------------------------------
-# OPA lifecycle
-# ---------------------------------------------------------------------------
-
-def start_opa(rego_path, port=8181):
-    """Start OPA server as a subprocess. Poll health endpoint. Return Popen."""
-    proc = subprocess.Popen(
-        ["opa", "run", "--server", "--addr", f":{port}", str(rego_path)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    health_url = f"http://localhost:{port}/health"
-    for _ in range(10):
-        try:
-            urllib.request.urlopen(health_url, timeout=1)
-            return proc
-        except Exception:
-            time.sleep(0.5)
-    proc.kill()
-    _print_err(
-        f"OPA failed to start within 5 seconds. "
-        f"Port {port} may already be in use, or OPA is not installed."
-    )
-    sys.exit(1)
-
-
-def stop_opa(proc):
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-
-
-# ---------------------------------------------------------------------------
 # Subprocess helper
 # ---------------------------------------------------------------------------
 
@@ -195,18 +149,6 @@ def cmd_validate(domain, module):
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
     run([sys.executable, str(SCRIPT_DIR_TOOLS / "validate_civil.py"), str(paths["civil"])])
-
-
-def cmd_transpile(domain, module):
-    paths = resolve_paths(domain, module)
-    require_file(paths["civil"], "CIVIL spec")
-    paths["rego"].parent.mkdir(parents=True, exist_ok=True)
-    run([
-        sys.executable, str(SCRIPT_DIR_TOOLS / "transpile_to_rego.py"),
-        str(paths["civil"].relative_to(CWD)),
-        str(paths["rego"].relative_to(CWD)),
-        "--package", paths["package"],
-    ], cwd=str(CWD))
 
 
 def _get_invoke_modules(civil_path: Path) -> list[str]:
@@ -245,26 +187,6 @@ def cmd_catala_transpile(domain, module):
         str(paths["catala"].resolve().relative_to(CWD.resolve())),
         "--scope", scope_name,
     ], cwd=str(CWD))
-
-
-def cmd_test(domain, module):
-    paths = resolve_paths(domain, module)
-    require_file(paths["rego"], "Rego file (run rego-transpile first)")
-    require_file(paths["tests"], "Test cases")
-    _print_info(f"Starting OPA server with {paths['rego'].name}...")
-    opa = start_opa(paths["rego"])
-    _print_ok("OPA ready")
-    sys.stdout.flush()
-    try:
-        result = subprocess.run([
-            sys.executable, str(SCRIPT_DIR_TOOLS / "rego-run_tests.py"),
-            str(paths["tests"]),
-            "--opa-path", paths["opa_path"],
-        ])
-        sys.exit(result.returncode)
-    finally:
-        stop_opa(opa)
-        _print_info("OPA stopped")
 
 
 def cmd_demo(domain, module, backend):
@@ -333,14 +255,6 @@ def cmd_catala_pipeline(domain, module):
     cmd_catala_test(domain, module)
 
 
-def cmd_pipeline(domain, module):
-    """validate → rego-transpile → rego-test. Stops on first failure."""
-    _print_info(f"Pipeline: {domain}/{module}")
-    cmd_validate(domain, module)
-    cmd_transpile(domain, module)
-    cmd_test(domain, module)
-
-
 def cmd_new_domain(domain):
     base = DOMAINS_FULLPATH / domain
     for d in [
@@ -354,7 +268,7 @@ def cmd_new_domain(domain):
     _print_info(f"  input/policy_docs/    ← add .md policy documents here")
     _print_info(f"  policy_facets/        ← derived views of the policy docs (compressed/, etc.)")
     _print_info(f"  specs/                ← ruleset specs and guidance (guidance/ created on demand)")
-    _print_info(f"  output/               ← generated Catala or Rego files and demo folder(s)")
+    _print_info(f"  output/               ← generated Catala files and demo folder(s)")
     _print_info(
         f"\nDomain '{domain}' created. "
         f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs "
@@ -391,9 +305,6 @@ def cmd_preflight(domain, module, backend):
         sys.exit(1)
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
-    if backend == "rego" and shutil.which("opa") is None:
-        _print_err("opa not found in PATH. Install OPA to run Rego tests (`./xlator setup`).")
-        sys.exit(1)
     if backend == "catala" and shutil.which("clerk") is None:
         _print_err("clerk not found in PATH. Install the Catala toolchain to run tests.")
         sys.exit(1)
@@ -516,26 +427,20 @@ def main():
 examples:
   xlator list
   xlator validate snap eligibility
-  xlator rego-pipeline snap eligibility
   xlator catala-test snap eligibility
   xlator catala-pipeline snap eligibility
-  xlator rego-test ak_doh apa_adltc
         """,
     )
     sub = parser.add_subparsers(dest="action", required=True, metavar="action")
 
     for action, help_text in [
         ("validate",              "Validate CIVIL YAML"),
-        ("rego-transpile",        "Generate Rego from CIVIL"),
         ("catala-transpile",      "Generate Catala from CIVIL"),
         ("catala-test-transpile", "Generate Catala test file from YAML tests"),
         ("catala-test",           "Run Catala tests via clerk test"),
-        ("rego-test",             "Start OPA, run tests, stop OPA"),
-        ("rego-demo",             "Start OPA + FastAPI demo (foreground)"),
         ("catala-demo",           "Start Catala-Python demo (foreground)"),
         ("graph",                 "Generate computation graph"),
         ("catala-pipeline",       "validate -> catala-transpile -> catala-test-transpile -> catala-test"),
-        ("rego-pipeline",         "validate -> rego-transpile -> rego-test (OPA/Rego)"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
@@ -577,8 +482,8 @@ examples:
     p_pre.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_pre.add_argument("module", help="Module name (e.g. eligibility)")
     p_pre.add_argument(
-        "--backend", choices=["rego", "catala"], default=None,
-        help="Also check that the backend tool (opa/clerk) is in PATH",
+        "--backend", choices=["catala"], default=None,
+        help="Also check that the backend tool (clerk) is in PATH",
     )
 
     # CSV test case authoring
@@ -619,26 +524,18 @@ examples:
     match args.action:
         case "validate":
             cmd_validate(args.domain, args.module)
-        case "rego-transpile":
-            cmd_transpile(args.domain, args.module)
         case "catala-transpile":
             cmd_catala_transpile(args.domain, args.module)
         case "catala-test-transpile":
             cmd_catala_test_transpile(args.domain, args.module)
         case "catala-test":
             cmd_catala_test(args.domain, args.module)
-        case "rego-test":
-            cmd_test(args.domain, args.module)
-        case "rego-demo":
-            cmd_demo(args.domain, args.module, "rego")
         case "catala-demo":
             cmd_demo(args.domain, args.module, "catala")
         case "graph":
             cmd_graph(args.domain, args.module)
         case "catala-pipeline":
             cmd_catala_pipeline(args.domain, args.module)
-        case "rego-pipeline":
-            cmd_pipeline(args.domain, args.module)
         case "list":
             cmd_list()
         case "new-domain":
