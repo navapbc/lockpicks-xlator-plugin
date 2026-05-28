@@ -1,9 +1,9 @@
 # Proposed Transpilation Fixes
 
-**Date:** 2026-05-18  
-**Authors:** Analysis by Claude Code, commissioned by Bradley Smock  
-**Scope:** CIVIL ↔ Catala compatibility gaps, root-cause analysis of observed transpilation errors, and proposals for spec and process improvements  
-**Status:** Analysis only — no code changed in this pass
+**Date:** 2026-05-18 (analysis); 2026-05-28 (status update)
+**Authors:** Analysis by Claude Code, commissioned by Bradley Smock
+**Scope:** CIVIL ↔ Catala compatibility gaps, root-cause analysis of observed transpilation errors, and proposals for spec and process improvements
+**Status:** Implementation in progress. As of 2026-05-28, the bulk of A1–A14 and B1–B14 transpiler patches have been applied on the `worktree-proposed-transpilation-fixes` branch (see commits `f11c894`, `776cea2`, `9a21c31`, `72bd60a`). Status markers below: **[FIXED]** = implemented in this branch, **[PARTIAL]** = some sub-points done, **[PENDING]** = not yet implemented. Refer to `PLUGIN_IMPROVEMENTS.md` (Fixes #1–#34) for the live status tracker of all applied changes including non-transpilation work.
 
 ---
 
@@ -315,26 +315,26 @@ The CIVIL spec should document that `type: string` without `values:` is only val
 
 The following table covers all error classes observed across the three prior investigation documents **plus** the direct log review of all domains conducted 2026-05-18. Errors 12–16 are newly discovered.
 
-| Error # | Description | Domain(s) | Root cause category | Patch(es) addressing it |
-|---|---|---|---|---|
-| 1 | Cross-module type mismatch (`int` vs `Module.EnumType` / `money`) | ak-doh | Cat. III (enum resolution) | A5, A9 — transpiler-side; extraction-side (AI authoring `int`) unaddressed |
-| 2a | Test syntax: list `,` vs `;` | ak-doh | §2D type mismatch | B5 |
-| 2b | Test syntax: bare date literal | ak-doh | Cat. II (type system) | A7, A8, B4, B5 |
-| 2c | Test syntax: `client_data` unknown identifier | ak-doh | Cat. V (struct mode) | B9, B10 |
-| 3 | Division-by-zero at runtime | ak-doh | §2D semantic mismatch | A6 (Step 10.5, money×int/int only); general case unguarded |
-| 4 | `sum(list)` no type keyword | ak-doh | Cat. IV (expression rewriting) | A6 (Step 3.65) |
-| 5 | Unused variable warning | ak-doh, snap | CIVIL extraction quality | Not a transpiler bug |
-| 6 | Naming-manifest divergence | snap | Process gap | Not a transpiler bug |
-| 7 | Ambiguous prompts logged as success | — | UI session classification | Not a transpiler bug |
-| 8 | Required field defaulted in test transpile | ak-doh, nj-payments | Cat. II + Cat. III | B4, B6 (partial) |
-| 9 | `PackageNotFoundError: gmpy2` | snap | Deployment / packaging | Fixed in `xlator-ui.spec` |
-| 10 | "No demo directory found" / "Demo missing main.py" | snap, nj-payments | Simulator precondition | Not a transpiler bug |
-| 11 | Transient `tool_end: "Error"` events | — | Bash exit code noise | Not relevant |
-| **12** | **`type: string` input fields emit field name as Catala type** (`content ClaimWeekId`) | **nj-payments** | **Cat. III (type mapping)** | **No existing patch — new bug** |
-| **13** | **Catala 1.1.0 has no `text`/`string` primitive** — `civil_type_to_catala("string")` mapping invalid | **nj-payments** | **§2D type mismatch** | **No existing patch — new bug** |
-| **14** | **Enum case identifiers emitted lowercase** (`-- citizen` instead of `-- Citizen`) | **snap** | **Cat. III (enum casing)** | **No existing patch — new bug** |
-| **15** | **"No applicable rule" runtime error** — rule set has uncovered input space | **snap** | CIVIL rule logic gap | Not a transpiler bug; test input or rule gap |
-| **16** | **Output field `eligible`/`manual_review_required` not found in decisions or computed** — test assertions silently skipped | **snap** | Cat. III / test emitter | No existing patch — likely CIVIL output field not exposed |
+| Error # | Description | Domain(s) | Root cause category | Patch(es) addressing it | Status |
+|---|---|---|---|---|---|
+| 1 | Cross-module type mismatch (`int` vs `Module.EnumType` / `money`) | ak-doh | Cat. III (enum resolution) | A5, A9 — transpiler-side; `check-binds` repair pass for extraction-side | **[FIXED]** |
+| 2a | Test syntax: list `,` vs `;` | ak-doh | §2D type mismatch | B5 | **[FIXED]** |
+| 2b | Test syntax: bare date literal | ak-doh | Cat. II (type system) | A7, A8, B4, B5 | **[FIXED]** |
+| 2c | Test syntax: `client_data` unknown identifier | ak-doh | Cat. V (struct mode) | B9, B10 | **[FIXED]** |
+| 3 | Division-by-zero at runtime | ak-doh | §2D semantic mismatch | A6 (Step 10.5, money×int/int only); general case unguarded | **[PENDING]** (symptom patches Fix #9, #31) |
+| 4 | `sum(list)` no type keyword | ak-doh | Cat. IV (expression rewriting) | A6 (Step 3.65) | **[FIXED]** (see also Fix #7) |
+| 5 | Unused variable warning | ak-doh, snap | CIVIL extraction quality | Not a transpiler bug | — |
+| 6 | Naming-manifest divergence | snap | Process gap | Not a transpiler bug | — |
+| 7 | Ambiguous prompts logged as success | — | UI session classification | Not a transpiler bug | — |
+| 8 | Required field defaulted in test transpile | ak-doh, nj-payments | Cat. II + Cat. III | B4, B6 + Fix #18 (cross-module enums in test transpiler) | **[FIXED]** |
+| 9 | `PackageNotFoundError: gmpy2` | snap | Deployment / packaging | Fixed in `xlator-ui.spec` | — |
+| 10 | "No demo directory found" / "Demo missing main.py" | snap, nj-payments | Simulator precondition | Not a transpiler bug | — |
+| 11 | Transient `tool_end: "Error"` events | — | Bash exit code noise | Not relevant | — |
+| **12** | **`type: string` input fields emit field name as Catala type** (`content ClaimWeekId`) | **nj-payments** | **Cat. III (type mapping)** | Scope-input declaration paths split enum/string branches explicitly | **[FIXED]** Fix #16 |
+| **13** | **Catala 1.1.0 has no `text`/`string` primitive** | **nj-payments** | **§2D type mismatch** | Special-case branches intercept before the `text` fallback; required string-no-variants raises `ValueError` | **[PARTIAL]** Fix #16 |
+| **14** | **Enum case identifiers emitted lowercase** (`-- citizen` instead of `-- Citizen`) | **snap** | **Cat. III (enum casing)** | `snake_to_pascal()` / `_to_catala_constructor()` applied at all enum emit paths | **[FIXED]** (commits `f11c894`, `72bd60a`; Fix #26, #29) |
+| **15** | **"No applicable rule" runtime error** — rule set has uncovered input space | **snap** | CIVIL rule logic gap | Test transpiler intersection defaults reduce symptom (Fix #33); root cause is CIVIL authoring | **[PARTIAL]** |
+| **16** | **Output field `eligible`/`manual_review_required` not found in decisions or computed** | **snap** | Cat. III / test emitter | No existing patch | **[PENDING]** |
 
 ---
 
@@ -344,50 +344,50 @@ The following table covers all error classes observed across the three prior inv
 
 After the `update-xlator-plugin` branch merges into `main`, the vendored files at `vendor/lockpicks-xlator-plugin/xl-plugin/tools/` will be the v2.6.3b versions. All patches below must be evaluated and re-applied.
 
-**Highest priority (breakage without these):**
+**Highest priority (breakage without these):** all **[FIXED]** in commit `f11c894`.
 
-| Priority | Patch | File | Action |
+| Priority | Patch | File | Action | Status |
+|---|---|---|---|---|
+| 1 | A1 / B1 | Both | Change shebang back to `#!/usr/bin/env python3`; remove `uv` script header lines | **[FIXED]** |
+| 2 | A3 | `transpile_to_catala.py` | Replace `money_literal` with float/negative-aware version | **[FIXED]** |
+| 3 | A5 | `transpile_to_catala.py` | Add `civil_field_to_catala_type()` (now `field_to_catala_type()`); replace `civil_type_to_catala(ftype)` with it in `emit_declarations` where `field_def` is in scope | **[FIXED]** (also extended to struct field declarations in commit `776cea2`) |
+| 4 | A10 | `transpile_to_catala.py` | Add enum-declaration pass for non-invoke-bound input `string` fields with `values:` | **[FIXED]** |
+| 5 | B2, B7, B8 | `transpile_to_catala_tests.py` | Extend `value_to_catala()` with qualified enum output; add `_enum_default()`; thread `module_name` | **[FIXED]** |
+| 6 | B9, B10 | `transpile_to_catala_tests.py` | Change `multi_entity` to use `invoke_bound_entities`; build and pass that set from `transpile_file` | **[FIXED]** |
+
+**Additional patches:** all **[FIXED]** in commit `f11c894` (except B12, which became fail-fast in `transpile()`).
+
+| Patch | File | Summary | Status |
 |---|---|---|---|
-| 1 | A1 / B1 | Both | Change shebang back to `#!/usr/bin/env python3`; remove `uv` script header lines |
-| 2 | A3 | `transpile_to_catala.py` | Replace `money_literal` with float/negative-aware version |
-| 3 | A5 | `transpile_to_catala.py` | Add `civil_field_to_catala_type()`; replace `civil_type_to_catala(ftype)` with it in `emit_declarations` where `field_def` is in scope |
-| 4 | A10 | `transpile_to_catala.py` | Add enum-declaration pass for non-invoke-bound input `string` fields with `values:` |
-| 5 | B2, B7, B8 | `transpile_to_catala_tests.py` | Extend `value_to_catala()` with qualified enum output; add `_enum_default()`; thread `module_name` |
-| 6 | B9, B10 | `transpile_to_catala_tests.py` | Change `multi_entity` to use `invoke_bound_entities`; build and pass that set from `transpile_file` |
-
-**Additional patches (apply all):**
-
-| Patch | File | Summary |
-|---|---|---|
-| A2 | `transpile_to_catala.py` | Add `import datetime` |
-| A4 | `transpile_to_catala.py` | Add `_PER_PERSON` to money-hint suffixes |
-| A6 | `transpile_to_catala.py` | Add Step 3.65: `sum(list)` → `sum {type} of list` |
-| A7 | `transpile_to_catala.py` | `_format_key_condition`: wrap `datetime.date` in `\|...\|` |
-| A8 | `transpile_to_catala.py` | `_substitute_row_into_expr`: wrap `datetime.date` in `\|...\|` |
-| A9 | `transpile_to_catala.py` | Add `entity_to_sub_info`; extend struct field type selection |
-| A11 | `transpile_to_catala.py` | Split `enum`/`string` branch in scope input declarations |
-| A12 | `transpile_to_catala.py` | Convert noisy `sys.stderr` prints to silent fallbacks |
-| A13 | `transpile_to_catala.py` | Remove bracket subscript `table_name[key]` support (verify no CIVIL files use it first) |
-| A14 | `transpile_to_catala.py` | Remove Step 12.5 `in(VAR, [...])` rewrite (verify no CIVIL files use it first) |
-| B3 | `transpile_to_catala_tests.py` | Change `enum_variants` from `{raw: emit}` dict to `[str]` list |
-| B4 | `transpile_to_catala_tests.py` | Add `date` and `list:*` branches to `default_value_for_type()` |
-| B5 | `transpile_to_catala_tests.py` | Add `date` and `list:*` branches to `value_to_catala()` |
-| B6 | `transpile_to_catala_tests.py` | Tag list fields as `"list:{item_type}"` in `build_field_type_map()` |
-| B11 | `transpile_to_catala_tests.py` | Add `sub_module_names` scan; emit `> Using SubModule` in test file header |
-| B12 | `transpile_to_catala_tests.py` | Replace empty-test placeholder with `fail()` |
-| B13 | `transpile_to_catala_tests.py` | Supplement `enum_variants` from test case input values |
-| B14 | `transpile_to_catala_tests.py` | Simplify string decision assertion to `snake_to_pascal(str(val))` |
+| A2 | `transpile_to_catala.py` | Add `import datetime` (now module-level — see Fix #21b) | **[FIXED]** |
+| A4 | `transpile_to_catala.py` | Add `_PER_PERSON` to money-hint suffixes | **[FIXED]** |
+| A6 | `transpile_to_catala.py` | Add Step 3.65: `sum(list)` → `sum {type} of list` | **[FIXED]** (see Fix #7) |
+| A7 | `transpile_to_catala.py` | `_format_key_condition`: wrap `datetime.date` in `\|...\|` | **[FIXED]** (hardened in Fix #21b to fail-fast on unsupported types) |
+| A8 | `transpile_to_catala.py` | `_substitute_row_into_expr`: wrap `datetime.date` in `\|...\|` | **[FIXED]** |
+| A9 | `transpile_to_catala.py` | Add `entity_to_sub_info`; extend struct field type selection | **[FIXED]** (generalized via `build_cross_module_enums()` — see Fix #13) |
+| A11 | `transpile_to_catala.py` | Split `enum`/`string` branch in scope input declarations | **[FIXED]** (further refined by Fix #16: required-string-no-variants now raises `ValueError`) |
+| A12 | `transpile_to_catala.py` | Convert noisy `sys.stderr` prints to silent fallbacks | **[FIXED]** |
+| A13 | `transpile_to_catala.py` | Remove bracket subscript `table_name[key]` support | **[FIXED]** |
+| A14 | `transpile_to_catala.py` | Remove Step 12.5 `in(VAR, [...])` rewrite | **[FIXED]** |
+| B3 | `transpile_to_catala_tests.py` | Change `enum_variants` from `{raw: emit}` dict to `[str]` list | **[FIXED]** |
+| B4 | `transpile_to_catala_tests.py` | Add `date` and `list:*` branches to `default_value_for_type()` | **[FIXED]** |
+| B5 | `transpile_to_catala_tests.py` | Add `date` and `list:*` branches to `value_to_catala()` | **[FIXED]** |
+| B6 | `transpile_to_catala_tests.py` | Tag list fields as `"list:{item_type}"` in `build_field_type_map()` | **[FIXED]** |
+| B11 | `transpile_to_catala_tests.py` | Add `sub_module_names` scan; emit `> Using SubModule` in test file header | **[FIXED]** |
+| B12 | `transpile_to_catala_tests.py` | Replace empty-test placeholder with `fail()` | **[FIXED]** |
+| B13 | `transpile_to_catala_tests.py` | Supplement `enum_variants` from test case input values | **[FIXED]** |
+| B14 | `transpile_to_catala_tests.py` | Simplify string decision assertion to `snake_to_pascal(str(val))` | **[FIXED]** |
 
 **Verification after re-application:** Run `/xl:transpile-and-test ak-doh` on the merged branch and confirm errors 2 and 4 from the error inventory (§4) are absent, and that the `ak-doh eligibility` build no longer produces `integer vs Module.HouseholdType` errors for list-typed fields.
 
 **Additional fixes required for Errors 12–14 (discovered 2026-05-18):**
 
-| Priority | Bug | File | Action |
-|---|---|---|---|
-| P0 | Error 14 — enum case lowercase | `transpile_to_catala.py` | Audit every `-- <variant>` emit path in `emit_declarations`; apply `snake_to_pascal()` uniformly. The three passes (table-key, decisions/output, A10 input-string) must all convert values. Verify by compiling `snap/eligibility.catala_en` and checking that `-- citizen` becomes `-- Citizen`. |
-| P0 | Error 12 — `type: string` emits field name as type | `transpile_to_catala.py` | In `civil_type_to_catala()` and `civil_field_to_catala_type()`, add an explicit branch for `ftype == "string"` with no enum: emit a stub (see Error 13 note) rather than falling through to the PascalCase-name path. |
-| P1 | Error 13 — no Catala `text` primitive | `transpile_to_catala.py` + `validate_civil.py` | For string fields with no `values:` that are unreferenced in expressions: emit as `integer` with a comment, or omit from scope declaration. For string fields used in expressions: raise a CIVIL validation error. |
-| P1 | Error 16 — `eligible`/`manual_review_required` skipped in test assertions | `transpile_to_catala.py` | Check `*_meta.py` generation: ensure all CIVIL `outputs:` fields are written to the decisions dict. Check `transpile_to_catala_tests.py`: ensure test assertion lookup covers Catala `output` declarations, not only the decisions/computed split. |
+| Priority | Bug | File | Action | Status |
+|---|---|---|---|---|
+| P0 | Error 14 — enum case lowercase | `transpile_to_catala.py` | Audit every `-- <variant>` emit path in `emit_declarations`; apply `snake_to_pascal()` uniformly. | **[FIXED]** in commit `f11c894`; further generalized in commit `72bd60a` via `_to_catala_constructor()` which preserves UPPER_SNAKE_CASE values like `QMB`/`SLMB_PLUS` (see Fix #29). Fix #26 in `PLUGIN_IMPROVEMENTS.md` covers the lowercase→PascalCase auto-capitalization of CIVIL table values. |
+| P0 | Error 12 — `type: string` emits field name as type | `transpile_to_catala.py` | In `civil_type_to_catala()` / `field_to_catala_type()`, add explicit branch for `ftype == "string"` with no enum. | **[FIXED]** in commits `f11c894` + later refinement. The scope-input declaration path (lines ~1092, 1162, 1255) splits enum-vs-string branches explicitly; required `type: string` with no enum now raises `ValueError` (Fix #16). |
+| P1 | Error 13 — no Catala `text` primitive | `transpile_to_catala.py` + `validate_civil.py` | For string fields with no `values:`: emit as `integer` or omit; for those used in expressions: validation error. | **[PARTIAL]** Fix #16 in `PLUGIN_IMPROVEMENTS.md` resolves this: optional string-no-variants → omitted from scope; required string-no-variants → `ValueError` with explicit remediation list. The `civil_type_to_catala()` mapping still has `"string": "text"` as a fallback, but the special-case branches above intercept it before that path is reached. |
+| P1 | Error 16 — `eligible`/`manual_review_required` skipped in test assertions | `transpile_to_catala.py` | Audit `*_meta.py` generation; ensure test assertion lookup covers Catala `output` declarations. | **[PENDING]** Not yet addressed in this branch. Tracked separately. |
 
 ---
 
@@ -395,7 +395,7 @@ After the `update-xlator-plugin` branch merges into `main`, the vendored files a
 
 These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of transpilation errors at the source by making CIVIL more explicit.
 
-#### 5B-1. Formalize `type: enum` as the canonical constrained-string type
+#### 5B-1. Formalize `type: enum` as the canonical constrained-string type — **[PENDING]**
 
 **Problem:** The spec documents two ways to express an enumerated value: `type: enum, values: [opt1, opt2]` (used in the tax filing example for `filing_status`) and `type: string, values: [opt1, opt2]` (implicitly equivalent but not documented as such). The transpiler must handle both, and the two-pass enum declaration logic in `emit_declarations` covers different surfaces for each.
 
@@ -407,7 +407,9 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 ---
 
-#### 5B-2. Require `item:` on all `type: list` and `type: set` fields
+#### 5B-2. Require `item:` on all `type: list` and `type: set` fields — **[PARTIAL]**
+
+Transpiler side resolved: `field_to_catala_type()` honours `item:` and the fallback default has shifted from silent `list of integer` to a documented fallback (still `list of integer` when item is missing — see commit `776cea2`). The CIVIL spec change to make `item:` a hard requirement at validation time has not yet been made.
 
 **Problem:** The spec allows `item:` to be omitted on list fields (it appears as a comment in the module skeleton but is not marked required). The transpiler defaults to `list of integer` when `item:` is missing, which is almost never correct — most list fields hold `money` values.
 
@@ -417,7 +419,7 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 ---
 
-#### 5B-3. Add `type: duration` as a first-class field type
+#### 5B-3. Add `type: duration` as a first-class field type — **[PENDING]**
 
 **Problem:** The spec has no `duration` type. Policies that compute elapsed time (e.g., `residency_months`, benefit period length) use `type: int` and implicitly track units in the field name. Catala has a native `duration` type and date+duration arithmetic.
 
@@ -427,7 +429,9 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 ---
 
-#### 5B-4. Restrict numeric type coercion: make cross-type arithmetic explicit
+#### 5B-4. Restrict numeric type coercion: make cross-type arithmetic explicit — **[PARTIAL]**
+
+Auto-coercion has been extended in this branch beyond the original Steps 10–13.9: Step 13c (Fix #24) auto-coerces bare integers in `then`/`else` branch positions for money-typed fields, and Step 14 (Fix #25) adds fail-fast type-mismatch detection for non-literal cases via `_check_cond_branch_type_compat`. The proposed CIVIL spec documentation update is still pending.
 
 **Problem:** CIVIL's expression language implicitly allows mixed-type arithmetic (e.g., `count * RATE` where `count` is `int` and `RATE` is `decimal`). Catala strictly segregates `integer`, `decimal`, and `money`; mixed arithmetic requires explicit casts (`decimal of count`, `money of val`). The transpiler attempts to paper over this with regex-based coercions (Steps 10–13.9) but these are fragile for nested expressions.
 
@@ -437,7 +441,7 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 ---
 
-#### 5B-5. Document `invoke:` module naming convention and circular dependency constraint
+#### 5B-5. Document `invoke:` module naming convention and circular dependency constraint — **[PENDING]**
 
 **Problem:** The spec's `invoke:` section says `module:` "resolves to `$DOMAINS_DIR/<domain>/specs/<name>.civil.yaml`" but does not state that the value must match the file name exactly (case-sensitive, no `.civil.yaml` extension). Circular invocation constraint is listed in the constraints table but not in the transpilation section.
 
@@ -447,7 +451,7 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 ---
 
-#### 5B-6. Remove bracket subscript syntax from the expression language
+#### 5B-6. Remove bracket subscript syntax from the expression language — **[FIXED]** (transpiler side, via Patch A13; spec doc update pending)
 
 **Problem:** The spec's "Expression language" section lists `table(name, key...).field` as the canonical table lookup syntax. The transpiler (until Patch A13) also accepted `table_name[key]` as a bracket subscript variant. The running app removed this variant because it introduced ambiguity. No known CIVIL files use bracket syntax.
 
@@ -457,7 +461,7 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 ---
 
-#### 5B-7. Deprecate `in(value, [a,b,c])` from the expression language
+#### 5B-7. Deprecate `in(value, [a,b,c])` from the expression language — **[FIXED]** (transpiler side, via Patch A14; spec doc update pending)
 
 **Problem:** The spec documents `in(value, [a,b,c])` as a valid expression function. Patch A14 removed the transpiler rewrite that converted it to `[a; b; c] contains value` because it conflicted with Catala's `contains` syntax in some contexts. The running app no longer rewrites this expression, meaning any CIVIL file using `in()` will produce an untranslated expression that fails Catala parsing.
 
@@ -471,7 +475,11 @@ These changes to `xl-plugin/core/CIVIL_DSL_spec.md` eliminate categories of tran
 
 These are improvements to the transpilation pipeline and tooling, not requiring spec changes.
 
-#### 5C-1. Cross-module type contract validation at extraction time (P1)
+#### 5C-1. Cross-module type contract validation at extraction time (P1) — **[FIXED]**
+
+Implemented via two mechanisms in this branch:
+1. `build_cross_module_enums()` in `transpile_to_catala.py` (commit `f11c894`, refined in `9a21c31`) — scans every sub-module's `tables:` and `values:` declarations to build a `{field_name: (qualified_catala_type, variants)}` map. When emitting a `type: string` field on an invoke-bound entity, the qualified sub-module type is used so the consuming module gets `Program_standards_lookup.HouseholdType` rather than `integer`. See Fix #13.
+2. `check_bind_forwarding()` + `check_binds.py` (commits `f11c894`, `72bd60a`) — pre-emit pure check that compares each sub-module's input entity fields against the parent's declared fields. Fails fast with a structured error before any `.catala_en` is written. The `check-binds` / `repair-binds` CLI subcommands in `xlator.py` extend this to a whole-domain repair pass. See Fix #12, #27.
 
 **Problem:** The most frequent production error class (Error 1) is a scope-boundary type mismatch: the consuming module declares a field as `type: int` but the producing sub-module exports it as `enum(HouseholdType)` or `money`. This is caught only when `clerk build` runs — after the user has approved the ruleset and clicked "Run Tests."
 
@@ -483,7 +491,9 @@ These are improvements to the transpilation pipeline and tooling, not requiring 
 
 ---
 
-#### 5C-2. Non-money division-by-zero lint rule (P1)
+#### 5C-2. Non-money division-by-zero lint rule (P1) — **[PENDING]**
+
+Symptom-only patches applied at the CIVIL spec level (Fix #9, Fix #31). The fuller validator scanner is documented in Fix #31 in `PLUGIN_IMPROVEMENTS.md` as "proposed fuller fix — not yet implemented." Two recurrences of the same defect class in the same module (`unearned_income_classification`) suggest the validator is needed.
 
 **Problem:** Step 10.5 in `translate_expr_to_catala` inserts a zero-guard for the `money * (int_a / int_b)` pattern. The general case (`int / int`, `decimal / decimal`, `decimal / int`) is not guarded, and Catala will produce a runtime `division by zero` error when the denominator field is 0 (e.g., uninitialized in a test case).
 
@@ -493,7 +503,14 @@ These are improvements to the transpilation pipeline and tooling, not requiring 
 
 ---
 
-#### 5C-3. Structured Catala error parser for debrief and UI (P2)
+#### 5C-3. Structured Catala error parser for debrief and UI (P2) — **[PARTIAL]**
+
+Implemented at the `xlator catala-pipeline` layer via `catala_pipeline_checks.py` (commit `9a21c31`):
+- `attribute_errors()` parses `├─➤ <file>.catala_en:<line>` pointers and groups by module — see Fix #21.
+- `format_attribution_summary()` emits a `:::important` block surfacing which module actually broke the build (vs. the one the user requested).
+- `stale_catala_files()` adds a pre-build staleness check that exits before invoking `clerk` when a sibling `.catala_en` is older than its CIVIL source or the transpiler — see Fix #19.
+
+The `app/services/tech_error.py` `_MEDIUM_PATTERNS` integration for debrief/UI surfacing is still pending.
 
 **Problem:** Catala's `[ERROR n/N] Error during typechecking, …` output format is not matched by any pattern in `app/services/tech_error.py`'s `_MEDIUM_PATTERNS`. No debrief files are written for Catala build failures, making support investigation harder.
 
@@ -504,7 +521,9 @@ These are improvements to the transpilation pipeline and tooling, not requiring 
 
 ---
 
-#### 5C-4. Aggregate defaulted-field warnings into a test-suite report (P2)
+#### 5C-4. Aggregate defaulted-field warnings into a test-suite report (P2) — **[PARTIAL]**
+
+The per-field WARN volume has been reduced indirectly by Fix #33 (intersection-based default selection for table-key fields, and unknown-input-name validation in `emit_test_scope`). A dedicated aggregated `test-defaults-report.yaml` artifact is still pending.
 
 **Problem:** `transpile_to_catala_tests.py` emits one `WARN` line per defaulted field per test case — a test with 17 fields can produce 17 warning lines, making it hard to see which fields are systematically missing.
 
@@ -514,33 +533,43 @@ These are improvements to the transpilation pipeline and tooling, not requiring 
 
 ## 6. Compatibility Gap Summary Table
 
-| Gap | Severity | Fix location | Proposed fix |
-|---|---|---|---|
-| `==` → `=` operator | Blocking | Transpiler (existing Step 9) | Already fixed; verify in regression test |
-| List separator `,` → `;` | Blocking | Transpiler | Patch B5 |
-| String enum PascalCase | Blocking | Transpiler + spec | Patches A10, B2, B7, B8; §5B-1 (enum type formalization) |
-| Money literal format (floats) | Blocking | Transpiler | Patch A3 |
-| Date literal `\|...\|` format | Blocking | Transpiler | Patches A7, A8, B4, B5 |
-| `list of integer` default for untyped lists | Blocking | Transpiler + spec | Patch A5; §5B-2 (require `item:`) |
-| Cross-module enum type mismatch | Blocking | Transpiler + process | Patch A9; §5C-1 (contract validation) |
-| `sum(list)` missing type keyword | Breaking | Transpiler | Patch A6 |
-| `multi_entity` gate (invoke-bound structs) | Test failure | Transpiler | Patches B9, B10 |
-| Sub-module `> Using` in test files | Test failure | Transpiler | Patch B11 |
-| Money literal truncation (float cents) | Silent wrong answer | Transpiler | Patch A3 |
-| Division by zero (non-money) | Runtime error | Process | §5C-2 (lint rule) |
-| `in(x, list)` not rewritten | Parse error | Spec | §5B-7 (deprecate `in()`) |
-| Bracket subscript `table[key]` | Parse error | Spec + transpiler | Patch A13; §5B-6 (remove from spec) |
-| `type: list` without `item:` | Blocking | Spec | §5B-2 (require `item:`) |
-| Cross-module type contract | Blocking | Process | §5C-1 |
-| `duration` type missing | Semantic gap | Spec | §5B-3 (add `type: duration`) |
-| `is_null(field)` not desugared | Semantic gap | Spec + transpiler | No current fix; requires optional type support |
-| Overlay composition | Feature gap | Spec + transpiler | Out of scope for this pass; §CIVIL spec already notes as unimplemented |
-| `allow_overrides_deny` / `first_match` | Semantic gap | Spec + transpiler | Out of scope for this pass; high complexity |
-| `type: string` (no values) emits field name as type (`ClaimWeekId`) | **Blocking** | Transpiler | §5A additional fix (Error 12); add explicit `string` branch in `civil_type_to_catala` |
-| Catala 1.1.0 has no `text` primitive — string fields without enum have no valid type | **Blocking** | Spec + transpiler | §5A additional fix (Error 13); spec must restrict bare `type: string` to non-expression contexts |
-| Enum case identifiers emitted lowercase (`-- citizen` not `-- Citizen`) | **Blocking** | Transpiler | §5A additional fix (Error 14); apply `snake_to_pascal()` to all `-- <variant>` emit paths |
-| "No applicable rule" runtime gap in rule coverage | Runtime error | CIVIL rules | Error 15; inspect `income_calculation.catala_en:93,97`; add base-case rule in CIVIL |
-| Output fields `eligible`/`manual_review_required` silently skipped in test assertions | Silent test gap | Transpiler | §5A additional fix (Error 16); audit `*_meta.py` generation and test emitter field lookup |
+| Gap | Severity | Fix location | Proposed fix | Status |
+|---|---|---|---|---|
+| `==` → `=` operator | Blocking | Transpiler (existing Step 9) | Already fixed; verify in regression test | **[FIXED]** |
+| List separator `,` → `;` | Blocking | Transpiler | Patch B5 | **[FIXED]** |
+| String enum PascalCase | Blocking | Transpiler + spec | Patches A10, B2, B7, B8; §5B-1 (enum type formalization) | **[FIXED]** (transpiler); spec still pending |
+| Money literal format (floats) | Blocking | Transpiler | Patch A3 | **[FIXED]** |
+| Date literal `\|...\|` format | Blocking | Transpiler | Patches A7, A8, B4, B5 | **[FIXED]** |
+| `list of integer` default for untyped lists | Blocking | Transpiler + spec | Patch A5; §5B-2 (require `item:`) | **[FIXED]** (transpiler); spec validation pending |
+| Cross-module enum type mismatch | Blocking | Transpiler + process | Patch A9; §5C-1 (contract validation) | **[FIXED]** via `build_cross_module_enums()` and `check_bind_forwarding()` |
+| `sum(list)` missing type keyword | Breaking | Transpiler | Patch A6 | **[FIXED]** |
+| `multi_entity` gate (invoke-bound structs) | Test failure | Transpiler | Patches B9, B10 | **[FIXED]** |
+| Sub-module `> Using` in test files | Test failure | Transpiler | Patch B11 | **[FIXED]** |
+| Money literal truncation (float cents) | Silent wrong answer | Transpiler | Patch A3 | **[FIXED]** |
+| Division by zero (non-money) | Runtime error | Process | §5C-2 (lint rule) | **[PENDING]** (symptom patches only; see Fix #9, #31) |
+| `in(x, list)` not rewritten | Parse error | Spec | §5B-7 (deprecate `in()`) | **[FIXED]** transpiler (Patch A14); spec doc pending |
+| Bracket subscript `table[key]` | Parse error | Spec + transpiler | Patch A13; §5B-6 (remove from spec) | **[FIXED]** transpiler (Patch A13); spec doc pending |
+| `type: list` without `item:` | Blocking | Spec | §5B-2 (require `item:`) | **[PARTIAL]** transpiler honours item; spec hard-requirement pending |
+| Cross-module type contract | Blocking | Process | §5C-1 | **[FIXED]** |
+| `duration` type missing | Semantic gap | Spec | §5B-3 (add `type: duration`) | **[PENDING]** |
+| `is_null(field)` not desugared | Semantic gap | Spec + transpiler | No current fix; requires optional type support | **[PENDING]** |
+| Overlay composition | Feature gap | Spec + transpiler | Out of scope for this pass | **[PENDING]** |
+| `allow_overrides_deny` / `first_match` | Semantic gap | Spec + transpiler | Out of scope for this pass; high complexity | **[PENDING]** |
+| `type: string` (no values) emits field name as type (`ClaimWeekId`) | **Blocking** | Transpiler | §5A additional fix (Error 12) | **[FIXED]** |
+| Catala 1.1.0 has no `text` primitive — string fields without enum have no valid type | **Blocking** | Spec + transpiler | §5A additional fix (Error 13); restrict bare `type: string` to non-expression contexts | **[PARTIAL]** transpiler omits/errors per Fix #16; spec doc pending |
+| Enum case identifiers emitted lowercase (`-- citizen` not `-- Citizen`) | **Blocking** | Transpiler | §5A additional fix (Error 14) | **[FIXED]** (Fix #26 covers lowercase CIVIL table values via `_to_catala_constructor`) |
+| "No applicable rule" runtime gap in rule coverage | Runtime error | CIVIL rules | Error 15; inspect `income_calculation.catala_en:93,97`; add base-case rule in CIVIL | **[PENDING]** (CIVIL authoring issue; partially addressed by Fix #33 intersection defaults) |
+| Output fields `eligible`/`manual_review_required` silently skipped in test assertions | Silent test gap | Transpiler | §5A additional fix (Error 16) | **[PENDING]** |
+| Conditional-branch type mismatch (`then money else int`) | Blocking | Transpiler | (new) auto-coerce + fail-fast | **[FIXED]** Fix #24 (Step 13c) + Fix #25 (`_check_cond_branch_type_compat`, Step 14) |
+| Optional sub-module fields not on parent (zero-default emit) | Blocking | Transpiler | (new) `emit_subscope_wiring` zero defaults | **[FIXED]** Fix #27 |
+| Per-field forwarding for computed/cross-entity values to sub-module inputs | Feature gap | Spec + transpiler | (new) `field_bind:` syntax | **[FIXED]** CIVIL v10 in commit `72bd60a` (`field_bind:` in `civil_schema.py`); also see Fix #28 |
+| UPPER_SNAKE_CASE enum values mangled (`SLMB_PLUS` → `SlmbPlus`) | Blocking | Transpiler | (new) `_to_catala_constructor()` preserves uppercase | **[FIXED]** Fix #29 |
+| Disjoint table key domains (single field keys two tables with no overlap) | Runtime error | Spec + transpiler | (new) preflight check + symptom patch | **[PARTIAL]** Symptom patches applied (Fix #30); test transpiler intersection defaults landed (Fix #33); preflight validator pending |
+| Test YAML asserts orphan reason codes | Test failure | Validator | (new) `validate_orphan_reason_codes` | **[PENDING]** symptom-only patch applied (Fix #32) |
+| Stale sibling `.catala_en` causes misattributed OCaml errors | Misleading error | Pipeline | (new) `stale_catala_files()` + `attribute_errors()` | **[FIXED]** Fix #19, #21 |
+| Plugin loaded from marketplace cache instead of vendored source | Stale code at runtime | Plugin install | (new) use `claude --plugin-dir` | **[FIXED]** Fix #22 |
+| Bind-consistency repair (auto-import missing fields onto parent entity) | Process gap | Tooling | (new) `check_binds.py`, `xlator check-binds` / `repair-binds` | **[FIXED]** in commit `72bd60a` |
+| `_default_catala_literal` error message is not diagnosable | Diagnostic gap | Transpiler | (new) name field, sub-module, parent entity in error | **[PENDING]** Fix #34 |
 
 ---
 
@@ -559,7 +588,30 @@ These are improvements to the transpilation pipeline and tooling, not requiring 
 | File | Role |
 |---|---|
 | `xl-plugin/core/CIVIL_DSL_spec.md` | Authoritative CIVIL spec; target for §5B changes |
-| `xl-plugin/tools/transpile_to_catala.py` | Main transpiler (1,812 lines); target for §5A patches |
-| `xl-plugin/tools/transpile_to_catala_tests.py` | Test transpiler (594 lines); target for §5A patches |
+| `xl-plugin/tools/transpile_to_catala.py` | Main transpiler (~2,500 lines after this branch); target for §5A patches |
+| `xl-plugin/tools/transpile_to_catala_tests.py` | Test transpiler (~750 lines after this branch); target for §5A patches |
+| `xl-plugin/tools/civil_schema.py` | CIVIL schema; extended in this branch for v10 `field_bind:` (commit `72bd60a`) |
 | `xl-plugin/tools/civil_expr.py` | Expression reference extractor; normalizes `table_lookup:` fields |
 | `xl-plugin/tools/validate_civil.py` | CIVIL validator; target for §5C-1 and §5C-2 additions |
+| `xl-plugin/tools/check_binds.py` | **NEW (commit `72bd60a`):** bind-consistency repair pass; auto-imports missing fields onto parent entities (`xlator check-binds` / `repair-binds`) |
+| `xl-plugin/tools/catala_pipeline_checks.py` | **NEW (commit `9a21c31`):** `stale_catala_files()`, `attribute_errors()`, `format_attribution_summary()` for pipeline diagnostics |
+| `xl-plugin/tools/doc_conversion.py` | **NEW (commit `9a21c31`):** PDF/DOCX/HTML → Markdown for the `convert-doc` skill |
+| `PLUGIN_IMPROVEMENTS.md` | **NEW (commit `72bd60a`):** live status tracker; Fixes #1–#34 with implementation status |
+
+## Appendix B: New Transpiler Helpers Added by This Branch
+
+| Helper | Purpose | Origin |
+|---|---|---|
+| `_to_catala_constructor(value)` | Preserves UPPER_SNAKE_CASE; only PascalCases lowercase-initial values | Fix #29 (commit `72bd60a`) |
+| `_default_catala_literal(civil_type)` | Returns the Catala zero/empty literal for a CIVIL scalar type | Fix #27 (commit `72bd60a`) |
+| `field_to_catala_type(field_def)` | Honours `item:` for list/set fields | A5 + commit `776cea2` |
+| `build_list_item_types(inputs_block)` | Threads list item types through `translate_expr_to_catala()` for `sum {type} of` | Fix #7 |
+| `_build_all_field_type_map(civil_doc)` | Field-type map for conditional-branch type checks | Fix #25 (commit `72bd60a`) |
+| `_infer_civil_type(expr, field_type_map)` | Classifies a simple expression to a CIVIL type | Fix #25 |
+| `_check_cond_branch_type_compat(then_raw, else_raw, ...)` | Fail-fast pre-emit check for mismatched `if … then … else` branches | Fix #25 |
+| `build_cross_module_enums(sub_module_docs)` | `{field_name: (qualified_catala_type, variants)}` for cross-module enum types | Fix #13 (commit `f11c894`) |
+| `_scope_input_omits_field(field_def, *, tables, field_name)` | Shared predicate for "omit string-no-variants" — used by scope-input emit, subscope wiring, and bind validation | Fix #16/#18 |
+| `required_sub_fields(sub_doc, sub_entity)` | Sub-module field set for bind validation | Fix #27 |
+| `check_bind_forwarding(parent_doc, sub_module_docs, computed)` | Pre-emit pure check returning structured errors for unsatisfied binds | Fix #12 (extended by Fix #27 to honour optionals) |
+| `emit_subscope_wiring(...)` w/ `parent_inputs=` | Emits zero/empty defaults when an optional sub-module field is absent from the parent | Fix #27 |
+| `pick_representative(values)` | Deterministic intersection-based default for shared table-key fields | Fix #33 |

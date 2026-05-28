@@ -2100,3 +2100,169 @@ preflight check is added later.
 - `xl-plugin/tools/test_transpile_catala_tests.py` — updated assertions
 - `xl-plugin/.claude-plugin/plugin.json` — version bumped to 2.13.1
 - `doc/design/transpiler-default-fix.md` — design rationale
+
+## Fix #34 — `_default_catala_literal` ValueError doesn't name the field, sub-module, or parent entity
+
+**Observed in:** ah-doh2/medicaid_eligibility transpile, 2026-05-28.
+
+When a sub-module declares an optional field whose CIVIL type has no zero/empty
+default (`string`, `date`, `enum`, `object`), and the parent entity that field is
+bound to doesn't declare it, the transpiler raises:
+
+```
+ERROR: _default_catala_literal: no zero/empty default for CIVIL type 'string'.
+Add this field to the parent entity, or supply an explicit default in the CIVIL spec.
+```
+
+The error names the **type** but not the **field name**, the **sub-module** it
+came from, or the **parent entity** it's bound to. With ~10 sub-modules each
+declaring 5–20 fields, locating the offending field by hand requires scanning
+every sub-module CIVIL for optional fields with the named type. The user has to
+run a custom Python scan against the parent's binds to find the culprit.
+
+**Reproducer:** In `ah-doh2/medicaid_eligibility`, sub-module `program_standards`
+declares `apa_household_type: { type: string, optional: true, values: [...] }`
+on `Household`. The parent binds `Household → ClientData` for that sub-module
+but doesn't declare `apa_household_type` on `ClientData`. The transpiler tries
+to synthesize a zero default in the subscope wiring and fails with the message
+above — without naming `apa_household_type`, `program_standards`, or `ClientData`.
+
+**Root cause:** the helper at `transpile_to_catala.py:279-302` is called from
+`emit_subscope_wiring` at `:1339`, but the helper only receives `civil_type`.
+The call site has all the context (`field`, `field_name`, `sub_doc["module"]`,
+`parent_entity`) but doesn't pass it.
+
+**Proposed fix:**
+
+```python
+# transpile_to_catala.py:1335-1346  (emit_subscope_wiring)
+if (
+    parent_entity_fields is not None
+    and field not in parent_entity_fields
+    and isinstance(sub_field_def, dict)
+    and sub_field_def.get("optional")
+):
+    civil_type = sub_field_def.get("type", "money")
+    try:
+        default_val = _default_catala_literal(civil_type)
+    except ValueError as exc:
+        raise ValueError(
+            f"Cannot auto-default optional field "
+            f"{sub_doc.get('module')}.{sub_entity}.{field} "
+            f"(type={civil_type!r}, bound as {sub_entity!r}→{parent_entity!r} "
+            f"by computed.{field_name}): {exc}. Either declare "
+            f"{parent_entity}.{field} on the parent CIVIL, or add an explicit "
+            f"default: in the sub-module's spec."
+        ) from exc
+    definitions.append(...)
+```
+
+Or, equivalently, pass the four context values into `_default_catala_literal`
+and have the helper format the full message. Either shape works; the call-site
+wrapper is slightly less invasive.
+
+**Relationship to bind-consistency pass (Fix #?):** The bind-consistency pass
+introduced in v2.14.0 auto-imports **required** sub-module fields that the
+parent doesn't declare. It deliberately leaves **optional** sub-module fields
+to the transpiler, which is the correct boundary — but when the optional field
+has a no-default type, the resulting error needs to be diagnosable. Today it
+isn't.
+
+**Out of scope (separate decision):** whether the bind-consistency pass should
+also auto-add optional sub-module fields whose type has no zero default. Doing
+so would mask spec under-specification; current thinking is "no, surface the
+error after #34 lands."
+
+**Files affected:**
+
+- `xl-plugin/tools/transpile_to_catala.py:1335-1346` — call-site wrapper
+- (optional) `xl-plugin/tools/transpile_to_catala.py:279-302` — helper signature
+- `xl-plugin/tools/test_transpile_*.py` — add a test that asserts the field name,
+  sub-module, and parent entity appear in the error message
+
+**Status:** **[PENDING]** Symptom only documented; remediation deferred.
+
+---
+
+## Fix #35 — `xlator check-binds` / `repair-binds` bind-consistency CLI commands
+
+**Status:** **[FIXED]** Landed in commit `72bd60a` (v2.14.0).
+
+**Motivation:** Fix #12 introduced the pre-emit `check_bind_forwarding()` pure check
+that fails fast when a parent entity is missing fields its sub-modules require. That
+check is reactive — it tells the user what's missing but does not change the spec.
+For domains with 9+ sub-modules each declaring 5–20 fields, hand-copying the missing
+fields onto the parent entity is mechanical and error-prone.
+
+`xl-plugin/tools/check_binds.py` adds two CLI subcommands surfaced by `xlator.py`:
+
+- **`xlator check-binds <domain>`** — pure read-only diagnostic. Walks every
+  `.civil.yaml` under `$DOMAINS_DIR/<domain>/specs/`, runs `compute_domain_repairs()`
+  across the whole domain, prints `FieldAddition` / `FieldConflict` records, exits 0
+  when clean and non-zero when any spec needs repair.
+- **`xlator repair-binds <domain> [--dry-run]`** — applies the additions. Atomic
+  writes via `_atomic_write()`; preserves YAML formatting; insertion points found by
+  `_find_fields_block_end()`. Dry-run prints unified diffs without writing.
+
+**Key pure functions (no I/O):**
+
+- `compute_bind_repairs(parent_doc, sub_module_docs)` — returns
+  `(list[FieldAddition], list[FieldConflict])` for one parent module.
+- `compute_domain_repairs(domain_civil_docs)` — runs the per-module pass across
+  the whole domain in one call so cross-module field declarations are reconciled
+  consistently.
+- `_combine_specs(declarers)` — merges multiple sub-module declarations of the
+  same field, preserving compatible attributes and surfacing conflicts.
+- `apply_bind_repairs(civil_path, additions)` — single-file mutation; pure aside
+  from one atomic file write.
+
+`/extract-ruleset` skill now invokes `repair-binds` automatically as Step 6b after
+the per-module extraction loop (see `xl-plugin/skills/extract-ruleset/SKILL.md`),
+so the parent-module CIVIL stays consistent with its sub-modules across iterative
+extraction runs.
+
+**Test coverage:** `xl-plugin/tools/test_check_binds.py` — 929 lines / ~50 unit
+tests covering field-spec merging, conflict detection, insertion-point search,
+and end-to-end `compute_domain_repairs` on the `ah-doh2/medicaid_eligibility`
+fixture (5 sample sub-module specs under `xl-plugin/tools/pipeline/`).
+
+**Files:**
+
+- `xl-plugin/tools/check_binds.py` (new, 582 lines)
+- `xl-plugin/tools/test_check_binds.py` (new, 929 lines)
+- `xl-plugin/tools/xlator.py` — `cmd_check_binds`, `cmd_repair_binds`
+- `xl-plugin/tools/pipeline/*.civil.yaml` — 5 fixture specs from ah-doh2 used as
+  regression input
+- `xl-plugin/skills/extract-ruleset/SKILL.md` — Step 6b auto-repair invocation
+
+---
+
+## Fix #36 — `convert-doc` skill: PDF/DOCX policy document → Markdown ingestion
+
+**Status:** **[FIXED]** Landed in commit `9a21c31`, mirrored from vendor in `72bd60a`.
+
+**Motivation:** Policy documents arrive as `.docx` and `.pdf` files. Before this
+fix, users had to hand-convert them to Markdown before running `/index-inputs`,
+losing formatting, footnotes, and tables along the way and producing inconsistent
+inputs across domains. The conversion is mechanical and benefits from being
+folded into the toolchain so the index pipeline can rely on clean Markdown.
+
+**What's added:**
+
+- **`xl-plugin/skills/convert-doc/SKILL.md`** (new) — user-facing slash command
+  `/convert-doc <domain> <source-file> [--force-cleanup] [--no-cleanup]`. Parses
+  the source with the chosen backend, optionally hands the raw Markdown to
+  Claude for a cleanup pass (heading levels, list normalization, table fixup),
+  archives the original under `input/_originals/`, and places the cleaned
+  Markdown under `input/policy_docs/`. Emits a diagnostics JSON alongside the
+  archived original so the UI can surface parse warnings.
+- **`xl-plugin/tools/doc_conversion.py`** (new, 847 lines) — pure conversion
+  helpers. PDF backend uses `pdfminer.six`; DOCX backend uses `python-docx`.
+  Both produce a normalized Markdown AST that the cleanup pass post-processes.
+- The skill obeys the project's non-interactive subprocess constraint (see
+  Fix #18 — no `AskUserQuestion`; uses `:::user_input` fences).
+
+**Files:**
+
+- `xl-plugin/skills/convert-doc/SKILL.md` (new, 103 lines)
+- `xl-plugin/tools/doc_conversion.py` (new, 847 lines)
