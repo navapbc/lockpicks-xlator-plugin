@@ -140,6 +140,9 @@ case "$1" in
     evaluate-civil)
         exec uv run "$TOOLS_DIR/evaluate_civil.py" "${@:2}"
         ;;
+    evaluate-catala)
+        exec uv run "$TOOLS_DIR/catala_eval.py" "${@:2}"
+        ;;
     detect-stale-cases)
         exec uv run "$TOOLS_DIR/detect_stale_cases.py" "${@:2}"
         ;;

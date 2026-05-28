@@ -28,8 +28,10 @@ Slash command support actions:
         Convert a .docx or .pdf into a clean .md under input/policy_docs/ and
         archive the original under input/_originals/ with a diagnostics JSON.
   validate        <domain> <module>    Validate CIVIL YAML
-  graph           <domain> <module>    Generate computation graph
+  graph           <domain> <module>    Generate computation graph (via catala_depgraph.py)
   clerk-loop      <domain> <module>    Drive clerk typecheck + clerk test, parse diagnostics
+  evaluate-catala <domain> <module> --inputs <path> [--scope <scope>]
+        Evaluate a Catala scope against an inputs JSON file (preserves the JSON contract).
   preflight       <domain> <module> [--backend catala]   Validate CIVIL file exists and tool is in PATH
 
 CSV test-case authoring:
@@ -204,9 +206,46 @@ def cmd_demo(domain, module, backend):
 
 
 def cmd_graph(domain, module):
+    """Generate the computation-graph artifacts from the Catala source.
+
+    U3: retargets `xlator graph` to invoke `catala_depgraph.py` against
+    the Catala source instead of `computation_graph.py` against the
+    CIVIL YAML. Preferred path is `output/<module>.catala_en` (post-U9
+    that's where the build step deposits the generated source); falls
+    back to `specs/<module>.catala_en` when domain regeneration hasn't
+    happened yet.
+    """
     paths = resolve_paths(domain, module)
-    require_file(paths["civil"], "CIVIL spec")
-    run([sys.executable, str(SCRIPT_DIR_TOOLS / "computation_graph.py"), str(paths["civil"])])
+    catala_source = paths["catala"]
+    if not catala_source.exists():
+        # Pre-U9 fallback: hand-authored source under specs/
+        specs_source = DOMAINS_FULLPATH / domain / "specs" / f"{module}.catala_en"
+        if specs_source.exists():
+            catala_source = specs_source
+        else:
+            _print_err(
+                f"Catala source not found for {domain}/{module}. "
+                f"Looked at: {paths['catala']} and {specs_source}. "
+                f"Run `xlator catala-pipeline {domain} {module}` first, or wait "
+                f"for U9 domain regeneration to produce the Catala source."
+            )
+            sys.exit(1)
+    run([sys.executable, str(SCRIPT_DIR_TOOLS / "catala_depgraph.py"), str(catala_source)])
+
+
+def cmd_evaluate_catala(domain, module, inputs_path, scope):
+    """Thin wrapper over catala_eval.main() — U3 deliverable.
+
+    Forwards to the library's CLI entry point so the argparse + JSON
+    contract live in one place (catala_eval.py). Mirrors the
+    cmd_clerk_loop dispatch pattern.
+    """
+    sys.path.insert(0, str(SCRIPT_DIR_TOOLS))
+    import catala_eval  # noqa: E402
+    argv = [domain, module, "--inputs", inputs_path]
+    if scope:
+        argv.extend(["--scope", scope])
+    sys.exit(catala_eval.main(argv))
 
 
 def cmd_clerk_loop(domain, module, max_iterations, no_reset_log):
@@ -460,6 +499,24 @@ examples:
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
         p.add_argument("module", help="Module name (e.g. eligibility, apa_adltc)")
 
+    # evaluate-catala: U3 — Catala-backed evaluator wrapper preserving the
+    # JSON contract historically served by evaluate-civil. Thin shim over
+    # xl-plugin/tools/catala_eval.py.
+    p_ec = sub.add_parser(
+        "evaluate-catala",
+        help="Evaluate a Catala scope against an inputs JSON file",
+    )
+    p_ec.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_ec.add_argument("module", help="Module name (e.g. eligibility)")
+    p_ec.add_argument(
+        "--inputs", required=True,
+        help="Path to JSON file containing the inputs dict.",
+    )
+    p_ec.add_argument(
+        "--scope", default=None,
+        help="Scope name (CamelCase); default derives from module name.",
+    )
+
     # clerk-loop: U2 — drive clerk typecheck + clerk test, parse GNU-format
     # diagnostics, run naming-manifest divergence check, report structured
     # outcome. Thin shim over xl-plugin/tools/clerk_loop.py.
@@ -569,6 +626,9 @@ examples:
         case "clerk-loop":
             cmd_clerk_loop(args.domain, args.module,
                            args.max_iterations, args.no_reset_log)
+        case "evaluate-catala":
+            cmd_evaluate_catala(args.domain, args.module,
+                                args.inputs, args.scope)
         case "catala-pipeline":
             cmd_catala_pipeline(args.domain, args.module)
         case "list":
