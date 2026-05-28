@@ -307,13 +307,14 @@ def test_work_list_no_ruleset_modules_with_program(tmp_path: Path):
         "name": "prog",
         "role": "main",
         "action": "generate",
-        "civil_file": "specs/prog.civil.yaml",
+        "catala_file": "specs/prog.catala_en",
     }]
 
 
-def test_work_list_civil_exists_marks_reference(tmp_path: Path):
+def test_work_list_catala_exists_marks_reference(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "prog.civil.yaml", {"name": "prog"})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "prog.catala_en").write_text("> Module Prog\n")
     wl = lec._build_work_list(domain, "prog", None)
     assert wl[0]["action"] == "reference"
 
@@ -343,7 +344,8 @@ def test_work_list_sub_modules_before_main(tmp_path: Path):
 
 def test_work_list_existing_sub_module_marks_reference(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "sub_a.civil.yaml", {"name": "sub_a"})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "sub_a.catala_en").write_text("> Module Sub_a\n")
     doc = {
         "ruleset_modules": [
             {"name": "sub_a"},
@@ -378,9 +380,10 @@ def test_program_resolves_to_arg_when_no_role_main(tmp_path: Path):
     assert prog == "from_arg"
 
 
-def test_program_auto_detect_single_civil(tmp_path: Path):
+def test_program_auto_detect_single_catala(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "only_one.civil.yaml", {})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "only_one.catala_en").write_text("> Module Only_one\n")
     prog, candidates = lec._resolve_program(domain, None, None)
     assert prog == "only_one"
     assert candidates == []
@@ -396,8 +399,9 @@ def test_program_auto_detect_none(tmp_path: Path):
 
 def test_program_auto_detect_ambiguous(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "a.civil.yaml", {})
-    _write_yaml(domain / "specs" / "b.civil.yaml", {})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "a.catala_en").write_text("> Module A\n")
+    (domain / "specs" / "b.catala_en").write_text("> Module B\n")
     prog, candidates = lec._resolve_program(domain, None, None)
     assert prog is None
     assert candidates == ["a", "b"]
@@ -431,7 +435,7 @@ def test_run_happy_path_emits_json(tmp_path: Path, capsys):
         "name": "prog",
         "role": "main",
         "action": "generate",
-        "civil_file": "specs/prog.civil.yaml",
+        "catala_file": "specs/prog.catala_en",
     }]
 
 

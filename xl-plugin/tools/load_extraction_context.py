@@ -337,13 +337,13 @@ def _build_work_list(
     if not modules:
         if not program:
             return []
-        civil_path = specs_dir / f"{program}.civil.yaml"
-        action = "reference" if civil_path.is_file() else "generate"
+        catala_path = specs_dir / f"{program}.catala_en"
+        action = "reference" if catala_path.is_file() else "generate"
         return [{
             "name": program,
             "role": "main",
             "action": action,
-            "civil_file": f"specs/{program}.civil.yaml",
+            "catala_file": f"specs/{program}.catala_en",
         }]
 
     # Sub-modules first (entries without role: main), main module last.
@@ -363,14 +363,14 @@ def _build_work_list(
         if not isinstance(name, str):
             continue
         role = "main" if m.get("role") == "main" else "sub"
-        civil_rel = f"specs/{name}.civil.yaml"
-        civil_path = specs_dir / f"{name}.civil.yaml"
-        action = "reference" if civil_path.is_file() else "generate"
+        catala_rel = f"specs/{name}.catala_en"
+        catala_path = specs_dir / f"{name}.catala_en"
+        action = "reference" if catala_path.is_file() else "generate"
         entry: dict[str, Any] = {
             "name": name,
             "role": role,
             "action": action,
-            "civil_file": civil_rel,
+            "catala_file": catala_rel,
         }
         bound = m.get("bound_entities")
         if isinstance(bound, list):
@@ -400,7 +400,7 @@ def _resolve_program(
       1. If ruleset_modules.yaml has a `role: main` entry, use its name (the
          skill ignores any conflicting CLI arg per SP-ResolveRulesetModules).
       2. Else if program_arg given, use it.
-      3. Else glob specs/*.civil.yaml: 1 candidate → use; 0 → None;
+      3. Else glob specs/*.catala_en: 1 candidate → use; 0 → None;
          2+ → None + candidate list (caller prompts).
     """
     if isinstance(ruleset_modules_doc, dict):
@@ -419,8 +419,8 @@ def _resolve_program(
     if not specs_dir.is_dir():
         return None, []
     candidates = sorted(
-        p.stem.removesuffix(".civil")
-        for p in specs_dir.glob("*.civil.yaml")
+        p.stem
+        for p in specs_dir.glob("*.catala_en")
     )
     if len(candidates) == 1:
         return candidates[0], []
