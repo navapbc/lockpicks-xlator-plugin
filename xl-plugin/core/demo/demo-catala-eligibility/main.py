@@ -1,3 +1,6 @@
+import gc
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -7,11 +10,19 @@ from python.Eligibility import (
     HouseholdType, HouseholdType_Code,
 )
 from python.eligibility_meta import SCOPE_METADATA
-from catala_runtime import money_of_units_int, integer_of_int, Unit, money_to_float
+from catala_runtime import money_of_units_int, integer_of_int, Unit, money_to_float, reset_log
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    gc.freeze()
+    yield
+
 
 app = FastAPI(
     title="Xlator AK DOH Eligibility Demo",
     description="Evaluates Alaska Medicaid income eligibility using Catala-compiled Python rules",
+    lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -126,6 +137,7 @@ async def check(facts: InputFacts):
 
         inp = EligibilityDecisionIn(client_data_in=client_data, d_o_l_record_in=dol_record)
         result = eligibility_decision(inp)
+        reset_log()
 
         eligible_str = ELIGIBLE_MAP.get(result.eligible.code.name, result.eligible.code.name)
 

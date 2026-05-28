@@ -15,7 +15,9 @@ import dates
 from typing import NewType, List, Generic, Callable, Tuple, TypeVar, Iterable, Union, Any, overload
 from functools import reduce
 from enum import Enum
+import atexit
 import copy
+import gc
 
 Alpha = TypeVar('Alpha')
 Beta = TypeVar('Beta')
@@ -777,6 +779,14 @@ log: List[LogEvent] = []
 
 def reset_log():
     global log; log = []
+
+
+def _shutdown() -> None:
+    reset_log()
+    gc.collect()
+
+
+atexit.register(_shutdown)
 
 
 def retrieve_log() -> List[LogEvent]:
