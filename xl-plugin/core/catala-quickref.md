@@ -1,10 +1,11 @@
-# Catala 1.1.0 — Transpiler Output Quick Reference
+# Catala 1.1.0 — Feature Quick Reference
 
 <!-- Verified against: https://github.com/CatalaLang/catala/blob/master/doc/syntax/syntax_en.catala_en -->
 <!-- Catala 1.1.0 "bac d'Eloka" (released 2026-01-29) -->
 
-Reference for reading and generating `.catala_en` files from `tools/transpile_to_catala.py`.
-For CIVIL YAML authoring see [civil-quickref.md](civil-quickref.md).
+General Catala-feature reference for reading and writing `.catala_en` files.
+For AI-authoring guidance (failure modes, project idioms, citation form), see
+[catala-authoring-quickref.md](catala-authoring-quickref.md).
 
 To verify Catala file: `clerk typecheck <catala_file>`
 To run file: `clerk run <catala_file> --scope=<scope>`
@@ -407,38 +408,13 @@ scope EligibilityDecision:
 
 ---
 
-## CIVIL → Catala Type Mapping
+## Typed Arithmetic
 
-| CIVIL type | Catala type | Notes |
-|---|---|---|
-| `int` | `integer` | |
-| `float` | `decimal` | |
-| `bool` | `boolean` | Use `condition` variable kind for rule flags |
-| `money` | `money` | |
-| `date` | `date` | |
-| `string` | `enumeration` | Emit enum with variants from known string values |
-| `list` | `list of <type>` | |
+When mixed-precision operands need explicit handling, Catala provides type-suffixed operators:
 
----
-
-## CIVIL → Catala Operator Mapping
-
-| CIVIL expr | Catala expr | Notes |
-|---|---|---|
-| `a && b` | `a and b` | Stays in one expression (no splitting unlike Rego) |
-| `a \|\| b` | `a or b` | Stays inline (no OR-splitting needed) |
-| `!a` | `not a` | |
-| `a == b` | `a = b` | Single `=` for equality — `==` is a syntax error |
-| `a != b` | `a != b` | |
-| `Entity.field` | `Entity.field` | Same dot notation |
-| `max(a, b)` | `if a >= b then a else b` | No built-in max; use conditional |
-| `min(a, b)` | `if a <= b then a else b` | No built-in min; use conditional |
-| `in(x, [a, b, c])` | `[a; b; c] contains x` | Catala has no `in(...)` builtin; rewrite to list-`contains` form. Note `;` list separators, not `,` |
-| `CONSTANT` | Inlined literal | Constants substituted at transpile time |
-| `table('name', key).col` | Stacked `under condition` definitions (default) or single `if/else if/else` chain (`--table-style else-if`) | One block per row, or one chained definition |
-
-Typed arithmetic (when mixed types need explicit precision):
 - `+!` integer, `+.` decimal, `+$` money, `+^` duration
+
+`money * decimal` is allowed; `money * integer` is a type error — cast with `decimal of integer`.
 
 ---
 
