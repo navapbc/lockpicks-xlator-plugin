@@ -29,6 +29,7 @@ Slash command support actions:
         archive the original under input/_originals/ with a diagnostics JSON.
   validate        <domain> <module>    Validate CIVIL YAML
   graph           <domain> <module>    Generate computation graph
+  clerk-loop      <domain> <module>    Drive clerk typecheck + clerk test, parse diagnostics
   preflight       <domain> <module> [--backend catala]   Validate CIVIL file exists and tool is in PATH
 
 CSV test-case authoring:
@@ -206,6 +207,19 @@ def cmd_graph(domain, module):
     paths = resolve_paths(domain, module)
     require_file(paths["civil"], "CIVIL spec")
     run([sys.executable, str(SCRIPT_DIR_TOOLS / "computation_graph.py"), str(paths["civil"])])
+
+
+def cmd_clerk_loop(domain, module, max_iterations, no_reset_log):
+    """Thin wrapper over clerk_loop.main() — U2 deliverable.
+
+    Forwards to the library's CLI entry point; clerk_loop owns argument
+    parsing, output fencing, and exit-code semantics."""
+    sys.path.insert(0, str(SCRIPT_DIR_TOOLS))
+    import clerk_loop  # noqa: E402
+    argv = [domain, module, "--max-iterations", str(max_iterations)]
+    if no_reset_log:
+        argv.append("--no-reset-log")
+    sys.exit(clerk_loop.main(argv))
 
 
 def cmd_catala_test_transpile(domain, module):
@@ -446,6 +460,24 @@ examples:
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
         p.add_argument("module", help="Module name (e.g. eligibility, apa_adltc)")
 
+    # clerk-loop: U2 — drive clerk typecheck + clerk test, parse GNU-format
+    # diagnostics, run naming-manifest divergence check, report structured
+    # outcome. Thin shim over xl-plugin/tools/clerk_loop.py.
+    p_cl = sub.add_parser(
+        "clerk-loop",
+        help="Drive clerk typecheck + clerk test, parse diagnostics, report outcome",
+    )
+    p_cl.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_cl.add_argument("module", help="Module name (e.g. eligibility)")
+    p_cl.add_argument(
+        "--max-iterations", type=int, default=5,
+        help="Iteration cap (initial N=5; U9 calibrates).",
+    )
+    p_cl.add_argument(
+        "--no-reset-log", action="store_true",
+        help="Skip the inter-iteration catala_runtime.reset_log() call.",
+    )
+
     sub.add_parser("list",            help="Show all domain/module pairs")
 
     # Domain-only subcommands (no module arg)
@@ -534,6 +566,9 @@ examples:
             cmd_demo(args.domain, args.module, "catala")
         case "graph":
             cmd_graph(args.domain, args.module)
+        case "clerk-loop":
+            cmd_clerk_loop(args.domain, args.module,
+                           args.max_iterations, args.no_reset_log)
         case "catala-pipeline":
             cmd_catala_pipeline(args.domain, args.module)
         case "list":
