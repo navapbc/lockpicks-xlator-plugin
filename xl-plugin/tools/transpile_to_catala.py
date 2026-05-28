@@ -239,20 +239,24 @@ def _emit_prose_heading(md_lines: list, name: str, description: str | None, sour
         md_lines.append("")
 
 
+_MONEY_SUFFIXES = (
+    "_CAP", "_LIMIT", "_9PLUS", "_EXCLUSION", "_DEDUCTION",
+    "_WAGE", "_SALARY", "_COST", "_FEE", "_AMOUNT",
+)
+
+
 def constant_to_catala(name: str, value) -> str:
     """Format a CIVIL constant value as a Catala literal.
 
     Dispatch rules:
-      - float or name ends _RATE  → decimal with %
-      - int and name ends _CAP, _LIMIT, _9PLUS, _EXCLUSION, _DEDUCTION  → money literal
-      - otherwise  → integer
+      - name ends with a money suffix  → money literal (checked first; handles float wages)
+      - float or name ends _RATE       → decimal with %
+      - otherwise                      → integer
     """
+    if any(name.endswith(s) for s in _MONEY_SUFFIXES):
+        return money_literal(value)
     if isinstance(value, float) or name.endswith("_RATE"):
         return percent_literal(float(value))
-    if isinstance(value, int) and any(
-        name.endswith(s) for s in ("_CAP", "_LIMIT", "_9PLUS", "_EXCLUSION", "_DEDUCTION")
-    ):
-        return money_literal(value)
     return str(value)
 
 
@@ -665,6 +669,18 @@ def translate_expr_to_catala(
     # Step 3.6: count(list) → (number of list)
     result = re.sub(r"\bcount\(([^)]+)\)", r"(number of \1)", result)
 
+    # Step 3.7: is_null(field) → field = 0  (or $0 for money optional fields)
+    # CIVIL sentinel convention: optional fields default to zero when absent,
+    # so "is null" means "equals the zero/default sentinel value".
+    def _rewrite_is_null(match):
+        field_ref = match.group(1).strip()
+        bare = field_ref.split(".")[-1]
+        if field_type_map and field_type_map.get(bare) == "money":
+            return f"{field_ref} = $0"
+        return f"{field_ref} = 0"
+
+    result = re.sub(r"\bis_null\(\s*([^)]+?)\s*\)", _rewrite_is_null, result)
+
     # Step 3.65: sum(IDENT) → (sum <ELEM_TYPE> of IDENT)
     # Catala requires the element type after the `sum` keyword. The element type
     # comes from the `item:` field on the CIVIL list declaration, looked up via
@@ -701,6 +717,74 @@ def translate_expr_to_catala(
 
     # Step 9: == → =  (protected: does not touch !=, <=, >=)
     result = result.replace(" == ", " = ")
+
+    # Step 9.5: Coerce integer fields to decimal when multiplied by a percentage literal.
+    # Catala rejects integer × decimal; explicit (decimal of integer) coercion is required.
+    # Only fires when field_type_map is provided so non-integer fields are never wrongly wrapped.
+    if field_type_map:
+        def _coerce_int_lhs_pct(m):
+            ident, pct = m.group(1), m.group(2)
+            if field_type_map.get(ident) == "int":
+                return f"(decimal of {ident}) * {pct}"
+            return m.group(0)
+        result = re.sub(
+            r"\b([a-zA-Z_]\w*)\s*\*\s*(\d+(?:\.\d+)?%)",
+            _coerce_int_lhs_pct,
+            result,
+        )
+
+        def _coerce_pct_int_rhs(m):
+            pct, ident = m.group(1), m.group(2)
+            if field_type_map.get(ident) == "int":
+                return f"{pct} * (decimal of {ident})"
+            return m.group(0)
+        result = re.sub(
+            r"(\d+(?:\.\d+)?%)\s*\*\s*([a-zA-Z_]\w*)\b",
+            _coerce_pct_int_rhs,
+            result,
+        )
+
+    # Step 9.6a: Coerce bare integer literal on the RHS of a comparison with a decimal field.
+    # e.g. average_monthly_hours >= 80  →  average_monthly_hours >= decimal of 80
+    if field_type_map:
+        def _coerce_decimal_field_vs_int_lit(m):
+            ident, op, literal = m.group(1), m.group(2), m.group(3)
+            if field_type_map.get(ident) == "float":
+                return f"{ident} {op} decimal of {literal}"
+            return m.group(0)
+        result = re.sub(
+            r"\b([a-zA-Z_]\w*)\s*(>=|<=|>|<|=)\s*(\d+)\b(?!\s*%|\s*\.\d)",
+            _coerce_decimal_field_vs_int_lit,
+            result,
+        )
+
+    # Step 9.6b: Coerce integer field on the LHS of a comparison when the RHS is already decimal.
+    # After Step 9.5, expressions like `50% * (decimal of x)` produce a decimal RHS.
+    # e.g. current_term_credits >= 50% * (decimal of x)
+    #   →  (decimal of current_term_credits) >= 50% * (decimal of x)
+    if field_type_map:
+        def _coerce_int_field_vs_decimal_expr(m):
+            ident, op, rhs = m.group(1), m.group(2), m.group(3)
+            if field_type_map.get(ident) == "int" and ("%" in rhs or "decimal of" in rhs):
+                return f"(decimal of {ident}) {op} {rhs}"
+            return m.group(0)
+        # The RHS uses non-greedy `.+?` bounded by a lookahead at the first
+        # logical-operator boundary, closing paren, or end of string. A greedy
+        # match would span past `and`/`or` clauses and incorrectly trigger the
+        # "RHS contains 'decimal of'" predicate on an unrelated downstream clause.
+        result = re.sub(
+            r"\b([a-zA-Z_]\w*)\s*(>=|<=|>|<|=)\s*(.+?)(?=\s+(?:and|or)\s+|\)|$)",
+            _coerce_int_field_vs_decimal_expr,
+            result,
+        )
+
+    # Step 9.7: Money literal × integer literal → money × (decimal of integer).
+    # After Fix A1, FEDERAL_MINIMUM_WAGE becomes $7.25; then $7.25 * 20 needs coercion.
+    result = re.sub(
+        r"(\$[\d,]+(?:\.\d+)?)\s*\*\s*(\d+)\b(?!\s*%|\s*\.\d)",
+        r"\1 * (decimal of \2)",
+        result,
+    )
 
     # Step 10: Rewrite integer multiplication by money: (expr) * $N → $N * (decimal of (expr))
     result = re.sub(
@@ -1135,6 +1219,10 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
         lines.append("declaration enumeration ReasonCode:")
         for code in all_reason_codes:
             lines.append(f"  -- {reason_code_to_pascal(code)}")
+        if not all_reason_codes:
+            # Catala rejects empty enumerations; emit a placeholder when the
+            # module has a list output but no deny rules with add_reason actions.
+            lines.append("  -- NoReason")
         lines.append("")
 
         # ReasonEntry structure is only needed when deny rules exist — it is the
@@ -1263,12 +1351,79 @@ def emit_declarations(doc: dict, scope_name: str, sub_module_docs: dict = None) 
     return lines
 
 
+def _emit_enum_conversion_match(
+    source_expr: str,
+    source_qtype: str,
+    target_qtype: str,
+    variants: list[str],
+) -> str:
+    """Build a Catala `match … with pattern` block converting source_expr's enum
+    value to the target qualified type, mapping each variant by identical name.
+
+    Both source and target are fully qualified in each case (`SourceType.Ctor :
+    TargetType.Ctor`) because Catala rejects bare constructor names when the
+    name is ambiguous across multiple enum types in scope — which is precisely
+    the situation that triggers this conversion.
+
+    Constructor names are emitted in PascalCase; CIVIL variants like
+    `less_than_half_time` map to `LessThanHalfTime`.
+    """
+    lines = [f"match {source_expr} with pattern"]
+    for variant in variants:
+        ctor = snake_to_pascal(variant)
+        lines.append(f"    -- {source_qtype}.{ctor} : {target_qtype}.{ctor}")
+    return "\n    ".join(lines)
+
+
+def _wire_enum_or_default(
+    *,
+    field: str,
+    sub_field_def,
+    parent_var: str,
+    sub_module_name: str,
+    cross_module_enums_per_module: dict | None,
+) -> str:
+    """Return the RHS expression for `definition <subscope>.<field> equals <RHS>`.
+
+    Normally this is just `<parent_var>.<field>`. When the field is an enum
+    declared in multiple sub-modules, the parent's struct uses one qualified
+    type (the first-found one) and the current subscope may expect a different
+    qualified type. In that case the RHS is a Catala match expression that
+    converts each variant to the subscope's expected type.
+    """
+    plain = f"{parent_var}.{field}"
+    if (
+        not isinstance(sub_field_def, dict)
+        or sub_field_def.get("type") != "enum"
+        or not cross_module_enums_per_module
+    ):
+        return plain
+    per_module = cross_module_enums_per_module.get(field) or {}
+    if len(per_module) < 2:
+        return plain  # Only one sub-module declares this enum field — no conflict.
+
+    target_qtype = per_module.get(sub_module_name)
+    if not target_qtype:
+        return plain
+    # The parent struct uses the first-found qualified type. Dict iteration
+    # order is insertion order, which mirrors the scan order used by
+    # build_cross_module_enums to populate the parent struct's field type.
+    source_qtype = next(iter(per_module.values()))
+    if source_qtype == target_qtype:
+        return plain
+    variants = [str(v) for v in (sub_field_def.get("values") or [])]
+    if not variants:
+        return plain
+    return _emit_enum_conversion_match(plain, source_qtype, target_qtype, variants)
+
+
 def emit_subscope_wiring(
     computed: dict,
     scope_name: str,
     sub_module_docs: dict,
     parent_inputs: dict = None,
     parent_context: dict = None,
+    cross_module_enums_per_module: dict | None = None,
 ) -> list[tuple]:
     """Emit wiring blocks for invoke: computed fields.
 
@@ -1283,6 +1438,11 @@ def emit_subscope_wiring(
     When parent_context is provided, field_bind: entries are translated via
     translate_expr_to_catala using the parent's constants, tables, fact_entities,
     and invoke_bound_entities.
+
+    When cross_module_enums_per_module is provided, enum fields declared in
+    multiple sub-modules trigger a Catala match-with-pattern conversion at the
+    wiring site when the parent's struct type differs from the subscope's
+    expected type.
     """
     chunks = []
     for field_name, invoke_field_def in computed.items():
@@ -1341,8 +1501,15 @@ def emit_subscope_wiring(
                         f"  definition {field_name}.{field} equals {default_val}"
                     )
                 else:
+                    wiring_expr = _wire_enum_or_default(
+                        field=field,
+                        sub_field_def=sub_field_def,
+                        parent_var=parent_var,
+                        sub_module_name=sub_module_name,
+                        cross_module_enums_per_module=cross_module_enums_per_module,
+                    )
                     definitions.append(
-                        f"  definition {field_name}.{field} equals {parent_var}.{field}"
+                        f"  definition {field_name}.{field} equals {wiring_expr}"
                     )
 
         # Emit field_bind: explicit per-field forwarding lines.
@@ -1425,11 +1592,19 @@ def build_cross_module_enums(sub_module_docs: dict) -> dict[str, tuple[str, list
 
         for entity_def in sub_inputs.values():
             for field_name, field_def in (entity_def.get("fields") or {}).items():
-                if not isinstance(field_def, dict) or field_def.get("type") != "string":
+                if not isinstance(field_def, dict):
                     continue
-                local_vals = _collect_string_enum_values(field_name, sub_tables)
-                if not local_vals:
+                ftype = field_def.get("type")
+
+                if ftype == "string":
+                    local_vals = _collect_string_enum_values(field_name, sub_tables)
+                    if not local_vals:
+                        local_vals = [str(v) for v in (field_def.get("values") or [])]
+                elif ftype == "enum":
                     local_vals = [str(v) for v in (field_def.get("values") or [])]
+                else:
+                    continue
+
                 if not local_vals:
                     continue
 
@@ -1450,6 +1625,47 @@ def build_cross_module_enums(sub_module_docs: dict) -> dict[str, tuple[str, list
                     result[field_name] = (qualified_type, local_vals)
 
     return result
+
+
+def build_cross_module_enums_per_module(sub_module_docs: dict) -> dict[str, dict[str, str]]:
+    """Per-sub-module qualified type for each shared enum field.
+
+    Returns {field_name: {sub_module_name: qualified_catala_type}} covering every
+    sub-module that declares the enum field. Used by emit_subscope_wiring to detect
+    when a field's parent-struct qualified type differs from the subscope's
+    expected qualified type, requiring a `match … with pattern` conversion.
+
+    Mirrors the scanning logic of build_cross_module_enums but does not enforce
+    the divergence check (that is the responsibility of build_cross_module_enums).
+    """
+    per_module: dict[str, dict[str, str]] = {}
+    for sub_name, sub_doc in (sub_module_docs or {}).items():
+        catala_sub_name = sub_name[0].upper() + sub_name[1:]
+        sub_tables = sub_doc.get("tables", {})
+        sub_inputs = sub_doc.get("inputs", {})
+
+        for entity_def in sub_inputs.values():
+            for field_name, field_def in (entity_def.get("fields") or {}).items():
+                if not isinstance(field_def, dict):
+                    continue
+                ftype = field_def.get("type")
+
+                if ftype == "string":
+                    local_vals = _collect_string_enum_values(field_name, sub_tables)
+                    if not local_vals:
+                        local_vals = [str(v) for v in (field_def.get("values") or [])]
+                elif ftype == "enum":
+                    local_vals = [str(v) for v in (field_def.get("values") or [])]
+                else:
+                    continue
+
+                if not local_vals:
+                    continue
+
+                qualified_type = f"{catala_sub_name}.{snake_to_pascal(field_name)}"
+                per_module.setdefault(field_name, {})[sub_name] = qualified_type
+
+    return per_module
 
 
 def _format_key_condition(key_var: str, key_val) -> str:
@@ -1915,7 +2131,7 @@ def emit_computed_section_catala(
                 catala_expr = translate_expr_to_catala(
                     raw_expr, constants=constants, field_type=ftype, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
-                    list_item_types=list_item_types,
+                    list_item_types=list_item_types, field_type_map=field_type_map,
                 )
                 lines.append(f"scope {scope_name}:")
                 lines.append(f"  definition {field_name} equals")
@@ -2269,10 +2485,15 @@ def transpile(doc: dict, output_path: str, scope_name: str, civil_path: str, tab
         "list_item_types": list_item_types,
         "field_type_map": field_type_map,
     }
+    # Per-sub-module qualified types for enum fields shared across multiple sub-modules.
+    # Used by emit_subscope_wiring to insert match-with-pattern conversions when the
+    # parent struct's type differs from the subscope's expected type.
+    cross_module_enums_per_module = build_cross_module_enums_per_module(sub_module_docs)
     wiring_chunks = emit_subscope_wiring(
         computed, scope_name, sub_module_docs,
         parent_inputs=doc.get("inputs", {}),
         parent_context=parent_context,
+        cross_module_enums_per_module=cross_module_enums_per_module,
     )
     if wiring_chunks:
         md_lines.append("## Subscope Wiring")

@@ -147,7 +147,20 @@ def build_field_type_map(civil_doc: dict, sub_module_docs: dict = None) -> dict:
             types[field_name] = civil_type
             optional_flags[field_name] = is_optional
             if civil_type == "enum" and "values" in field_def:
-                enum_variants[field_name] = {str(v): _to_catala_constructor(str(v)) for v in field_def["values"]}
+                if field_name in cross_module_enums:
+                    # Cross-module enum: qualify each constructor with the sub-module
+                    # type so Catala can disambiguate when multiple sub-modules declare
+                    # enums with identical constructor names (e.g. two modules each
+                    # defining EnrollmentIntensity with a FullTime variant).
+                    qualified_type, _ = cross_module_enums[field_name]
+                    enum_variants[field_name] = {
+                        str(v): f"{qualified_type}.{_to_catala_constructor(str(v))}"
+                        for v in field_def["values"]
+                    }
+                else:
+                    enum_variants[field_name] = {
+                        str(v): _to_catala_constructor(str(v)) for v in field_def["values"]
+                    }
             elif civil_type == "string":
                 # Collect enum variants from table key columns for string fields.
                 # Table-derived: emit as Catala constructor (uppercase-initial; matches
@@ -480,34 +493,64 @@ def emit_test_scope(
 
     if multi_entity:
         # Multi-entity mode: inputs are keyed as 'EntityName.field_name' in the YAML.
-        # Emit one struct literal per entity:
-        #   definition result.var_name equals Module.EntityName { -- field: value ... }
+        # The main transpiler emits a Catala struct ONLY for invoke-bound entities;
+        # non-invoke-bound entities have their fields flattened to scalar scope inputs.
+        # Tests must mirror that shape: struct literal for invoke-bound entities,
+        # flat `definition result.<field> equals …` for the rest.
+        invoke_bound_set = invoke_bound_entities or set()
         for entity_name, fields in entity_fields.items():
-            var_name = entity_to_var_name(entity_name)
-            type_ref = f"{catala_module_name}.{entity_name}" if catala_module_name else entity_name
-            struct_lines = []
-            for field_name, civil_type, is_optional in fields:
-                prefixed_key = f"{entity_name}.{field_name}"
-                # Prefer entity-qualified key; fall back to bare field name for tests
-                # that use flat (non-prefixed) input keys.
-                if prefixed_key in inputs:
-                    input_val = inputs[prefixed_key]
-                elif field_name in inputs:
-                    input_val = inputs[field_name]
-                else:
-                    input_val = None
-                catala_val, note = emit_field_value(
-                    case_id, field_name, civil_type, is_optional,
-                    input_val, enum_variants, note_prefix=f"{entity_name}.",
-                    table_key_defaults=table_key_defaults,
+            if entity_name in invoke_bound_set:
+                var_name = entity_to_var_name(entity_name)
+                type_ref = (
+                    f"{catala_module_name}.{entity_name}"
+                    if catala_module_name else entity_name
                 )
-                if catala_val is None:
-                    continue
-                suffix = f"  # NOTE: {note}" if note else ""
-                struct_lines.append(f"    -- {field_name}: {catala_val}{suffix}")
-            lines.append(f"  definition result.{var_name} equals {type_ref} {{")
-            lines.extend(struct_lines)
-            lines.append("  }")
+                struct_lines = []
+                for field_name, civil_type, is_optional in fields:
+                    prefixed_key = f"{entity_name}.{field_name}"
+                    # Prefer entity-qualified key; fall back to bare field name for tests
+                    # that use flat (non-prefixed) input keys.
+                    if prefixed_key in inputs:
+                        input_val = inputs[prefixed_key]
+                    elif field_name in inputs:
+                        input_val = inputs[field_name]
+                    else:
+                        input_val = None
+                    catala_val, note = emit_field_value(
+                        case_id, field_name, civil_type, is_optional,
+                        input_val, enum_variants, note_prefix=f"{entity_name}.",
+                        table_key_defaults=table_key_defaults,
+                    )
+                    if catala_val is None:
+                        continue
+                    suffix = f"  # NOTE: {note}" if note else ""
+                    struct_lines.append(f"    -- {field_name}: {catala_val}{suffix}")
+                lines.append(f"  definition result.{var_name} equals {type_ref} {{")
+                lines.extend(struct_lines)
+                lines.append("  }")
+            else:
+                # Non-invoke-bound entity: fields are flattened on the scope.
+                # Emit one flat definition per field, accepting either prefixed or
+                # bare input keys (matching the struct-literal lookup rules).
+                for field_name, civil_type, is_optional in fields:
+                    prefixed_key = f"{entity_name}.{field_name}"
+                    if prefixed_key in inputs:
+                        input_val = inputs[prefixed_key]
+                    elif field_name in inputs:
+                        input_val = inputs[field_name]
+                    else:
+                        input_val = None
+                    catala_val, note = emit_field_value(
+                        case_id, field_name, civil_type, is_optional,
+                        input_val, enum_variants, note_prefix=f"{entity_name}.",
+                        table_key_defaults=table_key_defaults,
+                    )
+                    if catala_val is None:
+                        continue
+                    suffix = f"  # NOTE: {note}" if note else ""
+                    lines.append(
+                        f"  definition result.{field_name} equals {catala_val}{suffix}"
+                    )
     else:
         # Single-entity mode: inputs are keyed by bare field_name. Emit flat assignments.
         for field_name, civil_type, is_optional in all_fields:

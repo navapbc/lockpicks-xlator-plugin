@@ -267,6 +267,58 @@ def test_emit_test_scope_cross_module_enum_multi_entity():
     assert "-- age: 30" in text
 
 
+def test_emit_test_scope_mixed_entities_flattens_non_invoke_bound():
+    """Multi-entity mode: invoke-bound entity gets struct literal; the other
+    entity (whose fields the main transpiler flattens to scope inputs) must be
+    emitted as flat `definition result.<field>` lines, not as a struct literal.
+    """
+    case = _make_case(
+        inputs={
+            "Applicant.age": 25,
+            "Household.lives_on_campus": True,
+            "Household.weekly_meals_covered": 14,
+        }
+    )
+    entity_fields = {
+        "Applicant": [("age", "int", False)],
+        "Household": [
+            ("lives_on_campus", "bool", False),
+            ("weekly_meals_covered", "int", False),
+        ],
+    }
+    lines = emit_test_scope(
+        case=case,
+        scope_name="EligibilityDecision",
+        all_fields=[],
+        field_types={
+            "age": "int",
+            "lives_on_campus": "bool",
+            "weekly_meals_covered": "int",
+        },
+        optional_flags={
+            "age": False,
+            "lives_on_campus": False,
+            "weekly_meals_covered": False,
+        },
+        bool_decision_fields=["eligible"],
+        denial_field="reasons",
+        enum_variants={},
+        entity_fields=entity_fields,
+        catala_module_name="Eligibility",
+        invoke_bound_entities={"Applicant"},  # Applicant is bound; Household is not
+    )
+    text = "\n".join(lines)
+    # Applicant: struct literal (invoke-bound).
+    assert "definition result.applicant equals Eligibility.Applicant {" in text
+    assert "-- age: 25" in text
+    # Household: flat scalar definitions (not invoke-bound).
+    assert "definition result.lives_on_campus equals true" in text
+    assert "definition result.weekly_meals_covered equals 14" in text
+    # No Household struct literal anywhere.
+    assert "Eligibility.Household" not in text
+    assert "definition result.household equals" not in text
+
+
 def test_emit_test_scope_cross_module_enum_invalid_value_defaults(capsys):
     """Invalid cross-module enum value defaults to first variant with a warning."""
     case = _make_case(inputs={"household_type": "INVALID"})
