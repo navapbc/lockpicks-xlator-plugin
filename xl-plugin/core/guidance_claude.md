@@ -242,7 +242,7 @@ Each entry: `name` (snake_case stage identifier), `description` (what this stage
 
 ### `ruleset-modules.yaml`
 
-All modules that will be generated as separate `.civil.yaml` files — both sub-modules and the main program file. Written by `/create-ruleset-modules`; `sample_rules` sub-entries appended by `/extract-sample-rules`.
+All modules that will be generated as separate `.catala_en` files — both sub-modules and the main program file. Written by `/create-ruleset-modules`; `sample_rules` sub-entries appended by `/extract-sample-rules`.
 
 **Written by:** `/create-ruleset-modules`, `/extract-sample-rules` (appends `sample_rules` sub-entries)
 **Read by:** `/extract-sample-rules`, `/tag-vars-to-include-with-output`, `/create-sample-tests`, `/create-tests`, SP-ResolveRulesetModules
@@ -258,11 +258,11 @@ ruleset_modules:
       - id: after_half_step
         rule_type: computed
         source: "One-half of remaining earned income after steps 1–7 is excluded."
-        civil: |
-          computed:
-            - name: after_half
-              expr: after_irwe * 0.5
-              group: earned_exclusion_chain
+        catala: |
+          ```catala
+          scope ExclusionChain:
+            definition after_half equals after_irwe * 50%
+          ```
   - name: eligibility
     description: "AK DOH Earned Income Exclusions"
     bound_entities: []
@@ -277,7 +277,7 @@ Each entry: `name`, `description`, `bound_entities` (CamelCase entity names; `[]
 
 ### `sample-artifacts.yaml`
 
-Sample CIVIL rules, gaps, and assumptions produced by `/extract-sample-rules`. Written atomically in a single pass.
+Sample Catala rules, gaps, and assumptions produced by `/extract-sample-rules`. Written atomically in a single pass.
 
 **Written by:** `/extract-sample-rules`; `/create-sample-tests` may append to `assumptions`
 **Read by:** `/tag-vars-to-include-with-output`, `/create-sample-tests`
@@ -287,25 +287,24 @@ sample_rules:
   - id: eligibility_determination
     rule_type: categorical
     source: "Provides annual income limit thresholds by household type."
-    civil: |
-      rules:
-        - id: approve_income_within_limit
-          group: eligibility_determination
-          when:
-            - client_result.adjusted_earned_income <= income_limit
-          then:
-            eligible: approve
+    catala: |
+      ```catala
+      scope EligibilityDecision:
+        rule approve_income_within_limit
+          under condition client_result.adjusted_earned_income <= income_limit
+          consequence fulfilled
+      ```
 
 missing_info:
   - "monthly_limit for student exclusion not defined in index; see Addendum 1"
 
 assumptions:
-  - "No expr_hint for blind_work_expenses — expr marked as '?'"
+  - "No expr_hint for blind_work_expenses — definition body marked as '?'"
 ```
 
 #### `sample_rules`
 
-Top-level list of CIVIL rule snippets that did not match any ruleset module. Each entry: `id` (snake_case rule identifier), `rule_type` (`computed`, `categorical`, or `table-lookup`), `source` (verbatim sentence from the input index that grounds the rule), `civil` (full CIVIL YAML snippet as a literal block scalar).
+Top-level list of Catala rule snippets that did not match any ruleset module. Each entry: `id` (snake_case rule identifier), `rule_type` (`computed`, `categorical`, or `table-lookup`), `source` (verbatim sentence from the input index that grounds the rule), `catala` (full Catala fenced-block snippet as a literal block scalar). See `xl-plugin/core/catala-authoring-quickref.md` for the Catala idioms used in these snippets; cross-module exports use the `catala-metadata` fence, internal definitions use the `catala` fence.
 
 #### `missing_info`
 
