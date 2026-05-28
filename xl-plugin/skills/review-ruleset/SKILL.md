@@ -59,9 +59,9 @@ Run these checks before doing anything else:
 
 3. **Input docs present?** — Run shared pre-flight check 3 from `../../core/ruleset-shared.md`.
 
-4. **Load `guidance.yaml`** — Run shared pre-flight check 5 from `../../core/ruleset-shared.md`.
+4. **Load guidance files** — Run shared pre-flight check 5 from `../../core/ruleset-shared.md`.
 
-**After Check 4 (guidance.yaml loaded):** Run **SP-ResolveRulesetModules** with context `extract`. Store the returned work-list for use in Steps 1–3 below.
+**After Check 4 (guidance files loaded):** Run **SP-ResolveRulesetModules** with context `extract`. Store the returned work-list for use in Steps 1–3 below.
 - If SP-ResolveRulesetModules emits an abort signal → stop with the message SP-ResolveRulesetModules printed.
 - If the work-list has exactly one entry (ruleset_modules: empty) → proceed as single-file path throughout.
 
@@ -125,68 +125,39 @@ Format each line as: `<node_key>  ← <depends_on list>  → <used_by list>`
 
 ---
 
-Partition all `rules:` entries and `computed:` fields into three buckets based on their `review:` scores:
+Run the deterministic bucket-partitioning tool:
 
-| Bucket | Condition | Meaning |
-|--------|-----------|---------|
-| **Uncertain Extractions** | `extraction_fidelity` ≤ 2 OR `source_clarity` ≤ 2 | Claude wasn't confident — human must verify |
-| **Complex Rules** | `logic_complexity` ≥ 4 OR `policy_complexity` ≥ 4 | Inherently dense — worth careful review |
-| **Verified** | Not in either bucket above | All scores in range fidelity 3–5, clarity 3–5, logic 1–3, policy 1–3 |
+```bash
+xlator review-buckets <domain> <program>
+```
 
-Items in **both** buckets appear once under Uncertain Extractions with both flags noted.
+**On non-zero exit:** relay stderr in `:::error` and stop.
+
+**On exit 0:** stdout has the shape
+```
+<single-line JSON header>
+--- REVIEW-BUCKETS-HEADER-END ---
+<formatted body>
+```
+
+Parse the JSON header. It carries `summary.{uncertain, complex, verified, unscored, total}` (item counts) and `item_ids.{uncertain, complex, verified, unscored}` (raw IDs, no display prefix). Relay the body verbatim inside `:::detail`:
 
 :::detail
-**Summary header** (always show first):
-```
-Review summary: X uncertain, Y complex, Z verified  (N items total)
-```
-
-**Uncertain Extractions format** (one block per item):
-```
-─────────────────────────────────────────────────────────────────
-⚠️  UNCERTAIN: <rule-id or "computed: <field_name>">
-    Scores: fidelity:<N> clarity:<N> logic:<N> policy:<N>
-    Flagged for: <"low extraction fidelity" and/or "low source clarity">
-                 <+ "high logic complexity" and/or "high policy complexity" if also complex>
-    Policy: "<exact source sentence(s)>"
-    CIVIL:  <when: expression or expr:/conditional:>
-    Notes:  <notes field content, or "(none)" if omitted>
-─────────────────────────────────────────────────────────────────
-```
-
-**Complex Rules format** (one block per item; excludes items already shown under Uncertain):
-```
-─────────────────────────────────────────────────────────────────
-🔍  COMPLEX: <rule-id or "computed: <field_name>">
-    Scores: fidelity:<N> clarity:<N> logic:<N> policy:<N>
-    Flagged for: <"high logic complexity" and/or "high policy complexity">
-    Policy: "<exact source sentence(s)>"
-    CIVIL:  <when: expression or expr:/conditional:>
-    Notes:  <notes field content, or "(none)" if omitted>
-─────────────────────────────────────────────────────────────────
-```
-
-**Verified compact list**:
-```
-✅  VERIFIED (<N> items — not uncertain, not complex)
-    • FED-<PROGRAM>-DENY-001: Gross income exceeds income limit
-    • computed: gross_income — total household gross monthly income
-    ...
-```
-
-**Edge cases:**
-- If no uncertain items → omit the Uncertain Extractions section entirely.
-- If no complex items → omit the Complex Rules section entirely.
-- If no verified items → omit the Verified list.
-- If ALL items verified → show: "All items verified — no uncertain or complex items."
+<contents of body, from after the sentinel line to end of stdout>
 :::
+
+The body is one of:
+- The summary header line (`Review summary: X uncertain, Y complex, Z verified  (N items total)`), followed by per-bucket sections in fixed order: Uncertain → Complex → Verified → Unscored. Empty sections are omitted.
+- The string `All items verified — no uncertain or complex items.` when every item is Verified.
+
+The `Unscored` bucket surfaces entries whose `review:` block is absent. Legacy domains may surface items here; back-fill the scores by re-running `/extract-ruleset` Step 4's scoring pass for those entries.
 
 Ask:
 :::user_input
 Does this translation correctly capture the policy intent? Any rules missing or incorrect?
 :::
 
-**On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Run **SP-Validate** (retry loop, max 3 attempts). Recompute the `review:` scores for the re-drafted item. Re-present the full review gate. Do not proceed until the user confirms.
+**On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Run **SP-Validate** (retry loop, max 3 attempts). Recompute the `review:` scores for the re-drafted item. Re-invoke `xlator review-buckets` and re-present the full review gate. Do not proceed until the user confirms.
 
 ### Step 3: Finalize Outputs
 
@@ -221,4 +192,9 @@ Files created or modified by this command:
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 1) / Refreshed (Step 3) |
 | `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 1) / Refreshed (Step 3) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
+| `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/include-with-output.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/constants-and-tables.yaml` | Read (if present) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/ruleset-modules.yaml` | Read (if present) |

@@ -33,7 +33,7 @@ def _read_jsonl(path: Path) -> list[tuple[int, dict]]:
     """Read a JSONL file, returning (line_number, event) pairs. Skips malformed lines."""
     results = []
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for i, line in enumerate(f, 1):
                 line = line.strip()
                 if not line:
@@ -47,9 +47,28 @@ def _read_jsonl(path: Path) -> list[tuple[int, dict]]:
     return results
 
 
-def _render_turn(turn_number: int, turn_ts: str, user_events: list, tool_events: list, assistant_response: str) -> str:
+def _format_duration(seconds: int) -> str:
+    """Format whole seconds as `{s}s` for sub-minute, `{m}m {s}s` otherwise."""
+    if seconds < 60:
+        return f"{seconds}s"
+    m, s = divmod(seconds, 60)
+    return f"{m}m {s}s"
+
+
+def _render_turn(
+    turn_number: int,
+    turn_ts: str,
+    user_events: list,
+    tool_events: list,
+    assistant_response: str,
+    turn_duration: dict | None = None,
+    skill_duration: dict | None = None,
+) -> str:
     lines = []
-    lines.append(f"### Turn {turn_number} — {turn_ts}")
+    header = f"### Turn {turn_number} — {turn_ts}"
+    if turn_duration is not None:
+        header += f" (⏱ {_format_duration(turn_duration.get('duration_seconds', 0))})"
+    lines.append(header)
     lines.append("")
 
     # User block
@@ -111,6 +130,18 @@ def _render_turn(turn_number: int, turn_ts: str, user_events: list, tool_events:
     else:
         lines.append("*(no response recorded)*")
     lines.append("")
+
+    if skill_duration is not None:
+        active = _format_duration(skill_duration.get("duration_seconds", 0))
+        turns = skill_duration.get("turns", 0)
+        turns_label = "turn" if turns == 1 else "turns"
+        wait = skill_duration.get("wait_seconds", 0)
+        if wait > 0:
+            wait_str = _format_duration(wait)
+            lines.append(f"⏱ Skill total: {active} ({turns} {turns_label}, {wait_str} waiting)")
+        else:
+            lines.append(f"⏱ Skill total: {active} ({turns} {turns_label})")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -182,37 +213,77 @@ def run(domain: str) -> None:
 
         events = sessions[sid]
 
+        # Pre-pass: identify which skill_duration events to render. For each /-prefixed
+        # skill range (a contiguous run starting at a /-prefixed user_prompt), keep only
+        # the LAST skill_duration event before the next /-prefixed user_prompt or end-of-session.
+        keep_skill_duration_ts: set[str] = set()
+        in_slash_skill = False
+        latest_skill_duration_in_range: dict | None = None
+        for event in events:
+            etype = event.get("type")
+            if etype == "user_prompt":
+                if latest_skill_duration_in_range is not None:
+                    keep_skill_duration_ts.add(latest_skill_duration_in_range.get("to_ts", ""))
+                    latest_skill_duration_in_range = None
+                in_slash_skill = event.get("prompt", "").startswith("/")
+            elif etype == "skill_duration" and in_slash_skill:
+                latest_skill_duration_in_range = event
+        if latest_skill_duration_in_range is not None:
+            keep_skill_duration_ts.add(latest_skill_duration_in_range.get("to_ts", ""))
+
         # Group into turns: each user_prompt starts a new turn
-        # A "turn" = [user_prompt events, tool events, last assistant_response]
-        turns: list[dict] = []  # each: {ts, user, tools, responses}
+        # A "turn" = [user_prompt events, tool events, last assistant_response, optional duration events]
+        turns: list[dict] = []  # each: {ts, user, tools, responses, turn_duration, skill_duration}
         current_turn: dict | None = None
+
+        def _new_turn(ts: str, user_events: list) -> dict:
+            return {
+                "ts": ts,
+                "user": user_events,
+                "tools": [],
+                "responses": [],
+                "turn_duration": None,
+                "skill_duration": None,
+            }
 
         for event in events:
             etype = event.get("type")
             if etype == "user_prompt":
                 if current_turn is not None:
                     turns.append(current_turn)
-                current_turn = {
-                    "ts": event.get("ts", ""),
-                    "user": [event],
-                    "tools": [],
-                    "responses": [],
-                }
+                current_turn = _new_turn(event.get("ts", ""), [event])
             elif etype == "assistant_response":
                 if current_turn is None:
-                    current_turn = {"ts": event.get("ts", ""), "user": [], "tools": [], "responses": []}
+                    current_turn = _new_turn(event.get("ts", ""), [])
                 current_turn["responses"].append(event.get("response", ""))
             elif etype in ("file_written", "file_edited", "cli_command", "ai_question"):
                 if current_turn is None:
-                    current_turn = {"ts": event.get("ts", ""), "user": [], "tools": [], "responses": []}
+                    current_turn = _new_turn(event.get("ts", ""), [])
                 current_turn["tools"].append(event)
+            elif etype == "turn_duration":
+                if current_turn is None:
+                    current_turn = _new_turn(event.get("ts", ""), [])
+                current_turn["turn_duration"] = event
+            elif etype == "skill_duration":
+                if current_turn is None:
+                    current_turn = _new_turn(event.get("ts", ""), [])
+                if event.get("to_ts", "") in keep_skill_duration_ts:
+                    current_turn["skill_duration"] = event
 
         if current_turn is not None:
             turns.append(current_turn)
 
         for i, turn in enumerate(turns, 1):
             last_response = turn["responses"][-1] if turn["responses"] else ""
-            output_lines.append(_render_turn(i, turn["ts"], turn["user"], turn["tools"], last_response))
+            output_lines.append(_render_turn(
+                i,
+                turn["ts"],
+                turn["user"],
+                turn["tools"],
+                last_response,
+                turn_duration=turn["turn_duration"],
+                skill_duration=turn["skill_duration"],
+            ))
 
     output_path = DOMAINS_FULLPATH / domain / "logs" / "session-report.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)

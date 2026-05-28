@@ -38,8 +38,8 @@ Read `../../core/output-fencing.md` now.
 After pre-flight, before mode detection, check for input documents and `extracted-tests.yaml`.
 
 ```bash
-ls $DOMAINS_DIR/<domain>/input/**/* 2>/dev/null   # any input docs?
-ls $DOMAINS_DIR/<domain>/specs/extracted-tests.yaml 2>/dev/null
+ls $DOMAINS_DIR/<domain>/policy_facets/compressed/**/* 2>/dev/null   # any input docs?
+ls $DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml 2>/dev/null
 ```
 
 **If `extracted-tests.yaml` already exists:**
@@ -52,16 +52,16 @@ Options: `[u]se` / `[r]e-extract` / `[s]kip`
 - `[r]e-extract`: run `/extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `[s]kip`: proceed to Mode Detection without extracted tests
 
-**If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/input/` contains documents:**
+**If `extracted-tests.yaml` does not exist but `$DOMAINS_DIR/<domain>/policy_facets/compressed/` contains documents:**
 :::user_input
-Found M policy documents in `$DOMAINS_DIR/<domain>/input/`. Extract concrete examples from them to seed tests? (recommended)
+Found M policy documents in `$DOMAINS_DIR/<domain>/policy_facets/compressed/`. Extract concrete examples from them to seed tests? (recommended)
 Options: `[y/n]`
 :::
 
 - `y`: run `/extract-test-cases <domain> <program>`, then proceed to Mode Detection
 - `n`: proceed to Mode Detection without extracted tests
 
-**If `input/` is empty or absent:** proceed to Mode Detection without extracted tests.
+**If `$DOMAINS_DIR/<domain>/policy_facets/compressed/` is empty or absent:** proceed to Mode Detection without extracted tests.
 
 ## Mode Detection
 
@@ -85,18 +85,18 @@ Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` to understand:
 - All computed fields involved in eligibility thresholds
 - All tables and constants referenced in rules
 
-**If extracted tests are available** (from Step 0), copy them into the test suite as-is — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Note which of the 6 coverage tags they already satisfy.
+**If extracted tests are available** (from Step 0), copy all of them into the test suite — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Rename variables to match those in the CIVIL file. Note which of the 6 coverage tags they already satisfy.
 
-**If `$DOMAINS_DIR/<domain>/specs/guidance.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
+**If `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
 
 1. For each entry in `sample_tests:`, validate every key in `inputs` against the input fields declared in the CIVIL file. Collect unrecognised keys.
-2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `inputs`, `expected`, `tags`) are preserved as-is.
+2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `tags`) are preserved.
 3. Accumulate the `tags` from all sample test entries and include them in the 6-tag coverage tally.
 
 :::important
-Seeded N sample test(s) from guidance.yaml (M field name warning(s)).
+Seeded N sample test(s) from guidance/sample-tests.yaml (M field name warning(s)).
 :::
-— or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing.
+— or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tests` is empty/missing.
 
 Draft additional synthetic cases from CIVIL reasoning to reach the 6-tag coverage minimum for any tags **not** already covered by extracted cases or sample tests:
 
@@ -122,7 +122,7 @@ tests:
   - case_id: "ext_001"
     description: "..."
     source:
-      file: "$DOMAINS_DIR/<domain>/input/..."
+      file: "$DOMAINS_DIR/<domain>/policy_facets/compressed/..."
       section: "Example 1"
     inputs:
       household_size: 3
@@ -132,7 +132,7 @@ tests:
       reasons: []
     tags: ["extracted", "allow"]
 
-  # Sample tests from guidance.yaml (if any) come next, preserving their case_ids
+  # Sample tests from guidance/sample-tests.yaml (if any) come next, preserving their case_ids
   - case_id: "allow_001"
     description: "..."
     inputs:
@@ -168,6 +168,14 @@ tests:
 
 Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and this skill's outputs:
+
+```bash
+xlator record-tier-manifest <domain> --tier tests
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop.
+
 ---
 
 ## Process — UPDATE Mode
@@ -177,11 +185,9 @@ Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 
 - **If present** (written by `/extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
-- **If absent** (standalone run after a manual CIVIL edit): compare each test case's `inputs` values against all current `tables:` rows and `constants:` values in the CIVIL file. Flag any case where an input value exactly matches a value that no longer appears in any table row or constant.
+- **If absent** (standalone run after a manual CIVIL edit): run `xlator detect-stale-cases <domain> <program>` and parse the JSON header (everything before the `--- DETECT-STALE-CASES-HEADER-END ---` sentinel). Treat each entry in `stale_cases:` as a stale case; the `diff:` field names the divergent outputs. The evaluator catches value-boundary changes AND logic-only changes (operator shifts, new `when:` clauses, restructured precedence) — no manual review caveat needed.
 
-  :::important
-  No `.stale-cases.yaml` found — using table/constant comparison to detect stale cases. Logic-only rule changes (e.g., operator changes, new conditions) will not be detected; review manually.
-  :::
+  If the tool exits non-zero, surface the stderr in a `:::error` block and stop.
 
 ### Step 2: Update Stale Cases
 
@@ -219,15 +225,15 @@ Skip this step silently if no extracted tests are available.
 
 ### Step 4b: Reconcile Sample Tests
 
-Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance.yaml` (same existence check as CREATE mode). For each entry, compare by `case_id` against the current test suite:
+Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` (same existence check as CREATE mode). For each entry, compare by `case_id` against the current test suite:
 
 - If the `case_id` is already present: skip (do not overwrite).
 - If the `case_id` is absent: validate input fields against the CIVIL file and append the entry, adding a `notes:` field if unrecognised input keys are found.
 
-Print (or skip silently if `guidance.yaml` is absent or `sample_tests` is empty/missing):
+Print (or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tests` is empty/missing):
 - If N > 0:
   :::important
-  Added N sample test(s) from guidance.yaml not previously in the test suite.
+  Added N sample test(s) from guidance/sample-tests.yaml not previously in the test suite.
   :::
 - If N = 0:
   :::important
@@ -241,6 +247,16 @@ Overwrite `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` with the upda
 ### Step 6: Clean Up Sidecar
 
 Delete `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` if it exists (prevents stale hints on the next standalone run).
+
+### Step 7: Record Tests-Tier Manifest
+
+Record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and the updated test suite:
+
+```bash
+xlator record-tier-manifest <domain> --tier tests
+```
+
+If the command exits non-zero, emit `:::error` with the captured stderr and stop.
 
 ---
 

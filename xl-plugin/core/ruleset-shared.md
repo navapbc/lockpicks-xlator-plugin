@@ -5,34 +5,29 @@ Do not invoke this file directly.
 
 ---
 
-## Pre-flight Checks 3–6
+## Pre-flight Checks 3–5
 
 3. **Input docs present?**
    - `$DOMAINS_DIR/<domain>/input/policy_docs/` missing or empty → Print: no input documents found, suggest adding `.md` files. Stop.
 
-4. **`<filename>` valid (if given)?**
-   - If `<filename>` has no `.md` extension, append it automatically (e.g., `APA` → `APA.md`)
-   - Verify `$DOMAINS_DIR/<domain>/input/policy_docs/<filename>` exists on disk
-   - If not found: print file not found, list available `.md` files, then stop.
+4. **Load guidance files**
 
-5. **Load `guidance.yaml`**
-
-   Check for `$DOMAINS_DIR/<domain>/specs/guidance.yaml`:
+   Check for `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`:
 
    **If it exists:**
-   - Read the file
-   - Print: `Using goal: <display_name> (source: <source_template>)`
-   - Store its content for injection in Step 1
+   - Read `guidance/metadata.yaml` — load `display_name`
+   - Print: `Using goal: <display_name>`
+   - Each calling skill loads only the additional guidance files it needs (see per-skill file lists). Missing optional files are silently treated as empty.
 
-   **If it does not exist:**
-   - Print: no `guidance.yaml` found for this domain, suggest running `/refine-guidance <domain>` then re-running. Stop.
+   **If `guidance/metadata.yaml` does not exist:**
+   - Print: no guidance found for this domain, suggest running `/refine-guidance <domain>` then re-running. Stop.
 
-6. **Multiple input docs + no `<filename>`?**
-   - If `$DOMAINS_DIR/<domain>/input/policy_docs/` contains 2+ `.md` files and `<filename>` was **not** given:
+5. **Multiple input docs?**
+   - If `$DOMAINS_DIR/<domain>/input/policy_docs/` contains 2+ `.md` files:
 
-   **If `$DOMAINS_DIR/<domain>/specs/input-index.yaml` exists**, read it and display a context-rich selection prompt:
+   **If `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml` exists**, read it and display a context-rich selection prompt:
      ```
-     Multiple policy documents found. Consulting specs/input-index.yaml for context...
+     Multiple policy documents found. Consulting policy_facets/input-index.yaml for context...
 
        1. input/policy_docs/<file1>.md
           Tags: [tag1, tag2, tag3]
@@ -53,10 +48,10 @@ Do not invoke this file directly.
 
    **If `input-index.yaml` does not exist**, ask the user whether to generate it first:
      ```
-     specs/input-index.yaml not found. An index enables faster and richer file selection with summaries and tags.
+     policy_facets/input-index.yaml not found. An index enables faster and richer file selection with summaries and tags.
      Run /index-inputs <domain> now? [y (recommended) / n — continue without index]:
      ```
-   - **y:** Run `/index-inputs <domain>` now (creating `specs/input-index.yaml`), then re-display the selection prompt using the rich indexed format (same as the "exists" path above).
+   - **y:** Run `/index-inputs <domain>` now (creating `policy_facets/input-index.yaml`), then re-display the selection prompt using the rich indexed format (same as the "exists" path above).
    - **n:** Proceed with all files as a unified corpus (unchanged behavior).
 
 ---
@@ -112,7 +107,9 @@ the prior (e.g., a deduction chain). The `when:` clause references the final com
 ### `source:` vs `citations:` — They Are Distinct
 
 - **`source:`** on a field, table, rule, or computed field identifies *where in the policy document
-  the element was defined* — developer traceability. Example: `"7 CFR § 273.9(a) — Income and Deductions"`
+  the element was defined* — developer traceability. It is an object with optional `file:` (source-doc
+  path relative to the domain root, e.g. `input/policy_docs/snap_eligibility.md`) and `section:`
+  (citation + heading, e.g. `"7 CFR § 273.9(a) — Income and Deductions"`) subfields.
 
 - **`citations:`** inside an `add_reason` action contains the *legal authority shown to applicants
   in a denial explanation* — the statutory basis displayed in user-facing output.
@@ -162,7 +159,7 @@ Continue — the CIVIL file and manifests are already written. Do NOT stop the e
 
 After the Human Review Gate is approved, synthesize candidate guidance items from the review session to improve future extractions.
 
-**Multi-file context:** When called from a multi-file review gate (i.e., after reviewing a sub-module or main module in a multi-file extraction), each candidate guidance item must be prefixed with `[module: <name>]` where `<name>` is the name of the CIVIL module being reviewed at that gate (e.g., `[module: earned_income]`). This prefix appears in the candidate display and is preserved in the written `guidance.yaml` entry. When called from a single-file review gate, no prefix is added.
+**Multi-file context:** When called from a multi-file review gate (i.e., after reviewing a sub-module or main module in a multi-file extraction), each candidate guidance item must be prefixed with `[module: <name>]` where `<name>` is the name of the CIVIL module being reviewed at that gate (e.g., `[module: earned_income]`). This prefix appears in the candidate display and is preserved in the written `prompt-context.yaml` entry. When called from a single-file review gate, no prefix is added.
 
 **Step 1 — Collect signals.**
 
@@ -180,7 +177,7 @@ From the collected signals, draft up to 5 candidate guidance items total across 
 - Assign it to the most appropriate section (`constraints`, `standards`, `guidance`, or `edge_cases`)
 - Write it as a concise, actionable statement (1–2 sentences)
 - In multi-file context, prepend `[module: <name>] ` to the statement text
-- Check the corresponding section in `$DOMAINS_DIR/<domain>/specs/guidance.yaml` — if a semantically equivalent item already exists, skip this candidate
+- Check the corresponding section in `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` — if a semantically equivalent item already exists, skip this candidate
 
 If zero candidates remain after deduplication, proceed silently to SP-CompleteExtraction.
 
@@ -207,14 +204,14 @@ Review them? [y/n]
 **Step 4 — Write to file.**
 
 After all candidates have been reviewed:
-- Append each accepted item to its assigned section in `$DOMAINS_DIR/<domain>/specs/guidance.yaml`
-- Update `generated_at` to today's date (write once after all appends, not after each individual item)
-- Preserve `source_template` and all other sections verbatim
+- Append each accepted item to its assigned section in `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml`
+- Preserve all other fields in `prompt-context.yaml` verbatim (do not modify `role:`, `scope:`, or other sections)
+- Do not write `generated_at`
 
 If 1 or more items were added, print (use "item" for N=1, "items" for N>1):
 ```
-Updated guidance.yaml (+1 item)
-Updated guidance.yaml (+3 items)
+Updated guidance/prompt-context.yaml (+1 item)
+Updated guidance/prompt-context.yaml (+3 items)
 ```
 
 Then proceed to SP-CompleteExtraction.
@@ -225,12 +222,12 @@ Then proceed to SP-CompleteExtraction.
 
 **Extraction complete.**
 
-If `<filename>` was given and other `.md` files exist in `$DOMAINS_DIR/<domain>/input/policy_docs/` that were not processed, print:
+If the caller's in-scope source set selected only a subset of the available `.md` files in `$DOMAINS_DIR/<domain>/input/policy_docs/`, print:
 ```
 Note: this domain has other policy docs not included in this run:
   - <other_file>.md
   ...
-To extract from all files as a unified corpus, run without specifying a filename.
+To extract from all files as a unified corpus, re-run and select all files at the multi-doc prompt.
 ```
 
 ---
@@ -253,7 +250,7 @@ To extract from all files as a unified corpus, run without specifying a filename
    - **Tier 4:** Sub-steps within a single exclusion stage
 5. Display the ranked list with three pre-selection tiers:
    - **`[REQUIRED]`** — fields whose names appear in the main module's `invoke:` dot-access expressions (sub-module files only); locked, cannot be deselected.
-   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (from `intermediate_variables.include_with_output` in `guidance.yaml`); pre-checked, user may uncheck.
+   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (the flat list in `guidance/include-with-output.yaml`); pre-checked, user may uncheck.
    - *(unlabeled)* — the top 5–8 remaining eligible fields by rank; pre-checked, user may uncheck.
    - Fields already tagged `expose` in the CIVIL YAML are always pre-selected regardless of rank.
    - `[REQUIRED]` fields appear first, then `[GUIDANCE]` fields, then unlabeled fields in rank order.
@@ -266,11 +263,11 @@ To extract from all files as a unified corpus, run without specifying a filename
 ### SP-ResolveRulesetModules
 
 **When to call:**
-- `/extract-ruleset`: immediately after pre-flight Check 5 (load `guidance.yaml`)
+- `/extract-ruleset`: immediately after pre-flight Check 5 (load guidance files)
 - `/update-ruleset`: at the start of Step 0, after the naming-manifest divergence check
 
 **Parameter contract:**
-- Input: `guidance.yaml` (already loaded), `extraction-manifest.yaml` (loaded if exists), invocation context (`extract` or `update`)
+- Input: `guidance/ruleset-modules.yaml` (loaded if exists; treated as empty if absent), `extraction-manifest.yaml` (loaded if exists), invocation context (`extract` or `update`)
 - Output: an ordered **work-list** of `{file, name, action, bind_map, is_new}` entries, where `action` is one of `generate` or `reference`
 
 **Logic:**
@@ -278,7 +275,7 @@ To extract from all files as a unified corpus, run without specifying a filename
 ```
 SP-ResolveRulesetModules
 
-1. If ruleset_modules: absent or empty in guidance.yaml:
+1. If guidance/ruleset-modules.yaml is absent or ruleset_modules: is empty:
    → Output: [{file: $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml,
                name: <program>, action: generate, bind_map: {}, is_new: <bool>}]
    → Return immediately (single-file path; caller proceeds as today — no changes to existing behavior)
@@ -289,7 +286,7 @@ SP-ResolveRulesetModules
       main_name = that entry's name
       If <program> CLI arg was given AND differs from main_name:
         Print: "Note: Using declared main module name '<main_name>' from
-                guidance.yaml (ignoring '<program>' argument)."
+                guidance/ruleset-modules.yaml (ignoring '<program>' argument)."
     Else:
       main_name = <program> CLI arg if given (backward compat path — R11).
       If no <program> arg, main_name is resolved later by the caller's Step 3
@@ -305,7 +302,7 @@ SP-ResolveRulesetModules
    For each ruleset_modules: entry WHERE role != 'main' (or role absent)
      whose name does NOT appear in extraction-manifest.yaml sub_modules::
      → Emit:
-       "⚠️  New ruleset module candidates found in guidance.yaml that were not in the initial extraction:
+       "⚠️  New ruleset module candidates found in guidance/ruleset-modules.yaml that were not in the initial extraction:
              <names>.
         Run /extract-ruleset <domain> to generate them before running /update-ruleset."
      → Abort SP-ResolveRulesetModules (caller must stop — do not proceed with partial work-list)
@@ -348,7 +345,7 @@ SP-ResolveRulesetModules
       the emitted module in its depends_on:, decrement their in_degree; enqueue any that reach 0.
    d. If any modules remain after the queue drains (cycle detected):
       → Abort with: "Cycle detected in depends_on: references among ruleset modules: <list of cycle node names>.
-        Fix guidance.yaml depends_on: entries before running /extract-ruleset."
+        Fix guidance/ruleset-modules.yaml depends_on: entries before running /extract-ruleset."
 
    Fallback (no depends_on: declared on any entry, or all depends_on: are empty lists):
    Output work-list in current convention order — sub-module entries in ruleset_modules: declaration order,
@@ -452,7 +449,7 @@ After processing all components:
 
 **In `/update-ruleset` context:** SP-MaintainabilityReview checks only rules and computed fields that were added or modified in the current update (identified in Step 4: Identify Affected CIVIL Sections). It does not re-check unchanged rules.
 
-**Input:** The drafted/merged CIVIL module file (path). Also available: the `ruleset_groups:` defined in `guidance.yaml` for the domain (for context on expected stage names).
+**Input:** The drafted/merged CIVIL module file (path). Also available: the `ruleset_groups:` from `guidance/ruleset-groups.yaml` for the domain (for context on expected stage names).
 
 **Procedure:**
 
@@ -529,12 +526,20 @@ Do not advance to SP-Validate until M5 passes.
 - **Use `computed:` for multi-step formulas** — don't reference undefined identifiers in `when:` clauses; if a value needs multiple steps to compute, define it in `computed:` and reference it by name
 - **Don't use `git diff` alone for change detection** — also run `git status` to catch untracked new files not yet committed
 - **Always update the manifest after extraction** — stale git SHAs in `extraction-manifest.yaml` will cause UPDATE mode to miss real changes on the next run
+- **Don't add a synonym entry when the analyst kept the same name** — only append `{name: <prior-key>}` to `synonyms:` when the analyst's confirmed Field Name in Step 3b differs from the existing `specs/naming-manifest.yaml` entry's key for the same concept.
+- **Don't append a duplicate entry on re-run rename** — when a rename lands in `specs/naming-manifest.yaml`, replace the existing field-name-matched entry rather than appending. Carry the existing entry's `synonyms:` list forward, then append the existing entry's key as a new synonym (so the full rename chain accumulates as synonyms across rounds). Skip the append when the prior key is already present in the carried-forward list.
 
 ---
 
 ## SP-LoadNamingManifest
 
-**If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:** Read it. Build a lookup map `{variable_name → manifest_entry}` from all `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>` keys.
+**Signature:** `SP-LoadNamingManifest(path)`
+
+- `path` — absolute path to `specs/naming-manifest.yaml` (the analyst-authoritative canonical-name file). Confirmed against a doc OR seeded pre-extraction by `/declare-target-ruleset`. Seeded entries have nullable provenance (`policy_phrase`, `source_doc`, `section` may all be absent); `/extract-ruleset` Step 7 fills them in once the analyst maps a seeded name to an observed phrase.
+
+**If the file exists:** Read it. Build a lookup map `{variable_name → manifest_entry}` collecting entries from `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>`. The `manifest_entry` carries `policy_phrase` (may be null/absent on seeded entries), `source_doc` (may be null/absent), `section` (may be null/absent), and (when present) `description`, `type`, `values`, and `synonyms` (the row list `[{name, source_doc?, section?}, ...]` — where `source_doc:` and `section:` are present on observed-phrasing synonyms and absent on rename-anchor synonyms). **Provenance fields are nullable:** seeded entries written by `/declare-target-ruleset` start with all three provenance fields absent; `/extract-ruleset` Step 7 fills them in via the preserve-non-null rule once the analyst confirms a seeded name against an observed phrase. Optional fields (`description:`, `type:`, `values:`, `synonyms:`) are analyst-supplied or AI-inferred from policy text per `/extract-ruleset` Step 7; older specs files lacking these keys are tolerated. For `inputs:` entries, the entity name is also recorded on the entry so callers that surface the table know which entity each field belongs to.
+
+**Rename lookup via `synonyms:`.** When a caller has the analyst's confirmed Field Name for an entry and wants to find the entry's prior key (e.g., to anchor a rename in Step 7's merge), scan every entry's `synonyms[].name` list — a match means the entry's current key is the canonical and the matching `synonyms[].name` is a prior name from an earlier rename. This replaces the v10.0.x `original_name:` lookup which carried the same information as a top-level field.
 
 **Using the map during rule generation:**
 
@@ -546,4 +551,123 @@ Two operations apply:
 
 In both cases these names are **canonical** — never re-derive or rename a variable that already exists in the manifest.
 
-**If absent:** Proceed with an empty lookup map.
+**If absent or malformed:** Proceed with an empty lookup map. Defensive parsing: an unreadable or invalid YAML file is treated as absent (do not abort the caller).
+
+---
+
+## SP-LoadInputIndex
+
+**Signature:** `SP-LoadInputIndex(domain, paths, mode=batch)`
+
+- `domain` — the domain name; resolves to `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml`.
+- `paths` — list of `input/policy_docs/<rel>.md` keys to load. Pass a single-element list when scoping to one file, the full in-scope set when scoping to a multi-doc selection, or `[]` to request the entire (filtered) `files:` map (used by `/update-ruleset` Step 2 to enumerate added files).
+- `mode` — `batch` (default; filter rejected entries with `md_quality.score < 40`) or `strict` (no filtering — caller has already constrained `paths` to known-eligible entries).
+
+**Output:** map `{path → sha}` for the requested paths (or for every eligible entry when `paths == []`), or an abort signal with the `:::error` text the caller should print verbatim.
+
+**When to call:**
+- `/extract-ruleset`: in pre-flight, immediately after Pre-flight Check 5 returns. Pass the in-scope source set (the single available `.md` file or the multi-doc selection chosen in Check 5).
+- `/update-ruleset`: in pre-flight, immediately after Step 0 (naming-manifest divergence + multi-file validation). Pass `paths == []` so the full filtered `files:` map is loaded for use in Steps 1, 2, and 7.
+
+**Procedure:**
+
+```
+1. Resolve and load.
+   Read $DOMAINS_DIR/<domain>/policy_facets/input-index.yaml.
+   If the file is absent or unreadable:
+     → Emit abort signal:
+       :::error
+       policy_facets/input-index.yaml is missing or unreadable for <domain>.
+       Run `/index-inputs <domain>` first to build the input index.
+       :::
+     → Caller stops.
+
+2. Parse files: block.
+   Extract the files: map. Path keys are input/policy_docs/<rel>.md strings.
+   Each entry has shape: { sha: "<40-hex>" | "untracked", md_quality: { score: <int>, flags?: [...] } }.
+
+3. Filter rejected entries (batch mode only).
+   When mode == batch, drop entries where md_quality.score < 40.
+   /index-inputs moved these source files from input/policy_docs/<rel>.md to input/rejected/<rel>.md;
+   their input-index.yaml entry persists but the source is no longer at the index key's path.
+
+4. Materialize requested paths.
+   If paths == []: requested_paths = the full set of keys remaining after step 3.
+   Else: requested_paths = paths.
+
+   For each <path> in requested_paths:
+     If the entry is missing from the (filtered) files: map:
+       → Emit abort signal:
+         :::error
+         no input-index.yaml entry for <path> in <domain> (or the entry is rejected).
+         Run `/index-inputs <domain>` to refresh the index.
+         :::
+       → Caller stops.
+
+5. Drift check.
+   For each <path> in requested_paths, compute:
+     git hash-object $DOMAINS_DIR/<domain>/<path>
+   Compare the result against the index entry's sha: value.
+   If the values differ:
+     → Emit abort signal:
+       :::error
+       policy_facets/input-index.yaml is stale for <path> in <domain> (working tree differs from indexed SHA).
+       Run `/index-inputs <domain>` first to refresh the index, then re-run this skill.
+       :::
+     → Caller stops.
+
+   If git hash-object itself fails (e.g., git unavailable) or the index entry's sha: equals "untracked",
+   skip the drift comparison for that path — the index's sha: value is still returned to the caller as-is.
+
+6. Return.
+   Return the map { <path>: <sha> } covering every path in requested_paths.
+   Each <sha> is the verbatim value from the index's files.<path>.sha field.
+```
+
+**Field-name translation contract.** The index's per-file SHA lives at `files.<path>.sha`. The `extraction-manifest.yaml` field is named `git_sha:`. Callers write the SHA value returned by this SP directly into the manifest's `git_sha:` field — no recomputation, no rename of the field. Only the wire-format field name differs; the value is identical.
+
+**Why the drift check.** Before this SP, callers ran `git hash-object` against the source at extract/update time, so the recorded `git_sha` was guaranteed to match the bytes that were actually extracted — even when source files had uncommitted edits between `/index-inputs` and the calling skill. After this SP, callers consume the index value rather than recomputing; the drift check preserves that guarantee by hard-failing when the index lags the working tree, and directs the analyst to re-run `/index-inputs` rather than silently recording a stale SHA.
+
+**Relationship to Pre-flight Check 5.** Check 5 has its own "input-index.yaml does not exist" branch that allows the caller to proceed without an index (the `n` option). For callers that subsequently invoke `SP-LoadInputIndex` (`/extract-ruleset`, `/update-ruleset`), the SP's hard-fail in step 1 will abort the run regardless. For callers that do not invoke this SP (`/extract-sample-rules`), Check 5's soft fallback continues to apply.
+
+---
+
+## SP-LoadGuidanceShas
+
+**Signature:** `SP-LoadGuidanceShas(domain)`
+
+- `domain` — the domain name; resolves to `$DOMAINS_DIR/<domain>/specs/guidance/` plus `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml`.
+
+**Output:** map `{path → sha}` covering every `specs/guidance/*.yaml` file and `specs/naming-manifest.yaml` that currently exists in the domain. Path keys are repo-relative strings (e.g., `specs/guidance/skeleton.yaml`, `specs/naming-manifest.yaml`). When the guidance tier is empty (no `specs/guidance/` directory or no `*.yaml` files in it), returns an empty map.
+
+**When to call:**
+- `/extract-ruleset`: in pre-flight, immediately after `SP-LoadInputIndex` returns. The resulting map is consumed by Step 5 to fill the `consumed_guidance[].sha:` block in `specs/extraction-manifest.yaml`.
+- `/update-ruleset`: in pre-flight, immediately after `SP-LoadInputIndex` returns. The resulting map is consumed by Step 7 to refresh `consumed_guidance[].sha:` for the program being updated.
+
+**Procedure:**
+
+```
+1. Enumerate upstream guidance files.
+   Build the list of candidate paths:
+     - $DOMAINS_DIR/<domain>/specs/guidance/*.yaml  (non-recursive, direct children only)
+     - $DOMAINS_DIR/<domain>/specs/naming-manifest.yaml
+   Include only paths that currently exist as regular files.
+   Skip dot-prefixed files (e.g. .facets-manifest.yaml is generated by /check-freshness's
+   write-side, not a tier-3 input).
+
+2. Compute working-tree SHAs.
+   For each <path>, compute:
+     git hash-object $DOMAINS_DIR/<domain>/<path>
+   On success, record the SHA. On failure (git unavailable, hash-object exits non-zero),
+   record the literal string "untracked" — same fallback contract as SP-LoadInputIndex
+   step 5.
+
+3. Return.
+   Return the map { <path>: <sha> } covering every enumerated path.
+   When no guidance files exist, return an empty map; callers treat that as
+   "tier-3 has no inputs to record this run."
+```
+
+**Field-name convention.** The new `consumed_guidance[]` block in `extraction-manifest.yaml` uses `path:` + `sha:` (not `git_sha:`). This is intentional: it aligns with `input-index.yaml`'s `files.<path>.sha` wording. The existing `source_docs[].git_sha` field name in the same manifest is preserved unchanged for backward compatibility — only the new block uses the cleaner form.
+
+**Why no drift check.** Unlike `SP-LoadInputIndex`, this SP does not compare against a pre-recorded SHA. It is a fresh capture: the manifest written by the caller this run *is* the new recorded state. Drift between current upstream and the previously-written manifest is the freshness-check tool's job (`xlator check-freshness`), not this SP's. The SP exists to give the caller deterministic, atomic access to a working-tree snapshot at write time, not to enforce historical agreement.

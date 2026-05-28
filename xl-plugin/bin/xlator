@@ -101,6 +101,48 @@ case "$1" in
     reject-low-quality-inputs)
         exec uv run "$TOOLS_DIR/reject_low_quality_inputs.py" "${@:2}"
         ;;
+    compress-inputs)
+        exec uv run "$TOOLS_DIR/compress_inputs.py" "${@:2}"
+        ;;
+    extract-computations)
+        exec uv run "$TOOLS_DIR/extract_computations.py" "${@:2}"
+        ;;
+    emit-per-file-yaml)
+        exec uv run "$TOOLS_DIR/emit_per_file_yaml.py" "${@:2}"
+        ;;
+    validate-guidance)
+        exec uv run "$TOOLS_DIR/validate_guidance.py" "${@:2}"
+        ;;
+    record-tier-manifest)
+        exec uv run "$TOOLS_DIR/record_tier_manifest.py" "${@:2}"
+        ;;
+    check-freshness)
+        exec uv run "$TOOLS_DIR/check_freshness.py" "${@:2}"
+        ;;
+    declare-target-ruleset)
+        exec uv run "$TOOLS_DIR/declare_target_ruleset.py" "${@:2}"
+        ;;
+    tag-vars-include-output)
+        exec uv run "$TOOLS_DIR/tag_vars_include_output.py" "${@:2}"
+        ;;
+    scan-ruleset-groups)
+        exec uv run "$TOOLS_DIR/scan_ruleset_groups.py" "${@:2}"
+        ;;
+    load-extraction-context)
+        exec uv run "$TOOLS_DIR/load_extraction_context.py" "${@:2}"
+        ;;
+    merge-naming-manifest)
+        exec uv run "$TOOLS_DIR/merge_naming_manifest.py" "${@:2}"
+        ;;
+    review-buckets)
+        exec uv run "$TOOLS_DIR/review_buckets.py" "${@:2}"
+        ;;
+    evaluate-civil)
+        exec uv run "$TOOLS_DIR/evaluate_civil.py" "${@:2}"
+        ;;
+    detect-stale-cases)
+        exec uv run "$TOOLS_DIR/detect_stale_cases.py" "${@:2}"
+        ;;
     # For any other command, run xlator.py with the given arguments.
     # This allows users (and Claude) to run any xlator.py command directly via this script,
     # without needing to know where xlator.py is or worry about environment variables,

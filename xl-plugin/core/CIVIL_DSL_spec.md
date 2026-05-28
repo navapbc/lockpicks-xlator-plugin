@@ -232,10 +232,12 @@ rules:
 
 ### 2d) Source provenance (optional, on fact fields, computed fields, tables, and rules)
 
-The `source:` field records where in the source policy document an element was defined. It is a plain free-text string — typically a CFR section plus heading. Its value is purely for human traceability; it has no effect on transpilation or OPA evaluation.
+The `source:` field records where in the source policy document an element was defined. It is an object with two optional subfields — `file:` (the source-doc path relative to the domain root) and `section:` (the citation plus heading inside that document). Both are for human traceability; they have no effect on transpilation or OPA evaluation.
 
 ```yaml
-source: "7 CFR § 273.9(a)(1) — Gross Income Test"
+source:
+  file: "input/policy_docs/snap_eligibility.md"
+  section: "7 CFR § 273.9(a)(1) — Gross Income Test"
 ```
 
 **Where it applies:** `FactField`, `ComputedField`, `TableDef`, `Rule`.
@@ -261,19 +263,25 @@ inputs:
         type: money
         currency: USD
         description: "Total gross monthly income before deductions"
-        source: "7 CFR § 273.9(a) — Income and Deductions"
+        source:
+          file: "input/policy_docs/snap_eligibility.md"
+          section: "7 CFR § 273.9(a) — Income and Deductions"
 
 computed:
   gross_income_exceeds_limit:
     type: bool
     expr: "Household.gross_monthly_income > gross_limit"
-    source: "7 CFR § 273.9(a)(1) — Gross Income Test"
+    source:
+      file: "input/policy_docs/snap_eligibility.md"
+      section: "7 CFR § 273.9(a)(1) — Gross Income Test"
 
 tables:
   gross_income_limits:
     key: [household_size]
     value: [monthly_limit]
-    source: "7 CFR § 273.9(a)(1) — Gross Income Limits Table"
+    source:
+      file: "input/policy_docs/snap_eligibility.md"
+      section: "7 CFR § 273.9(a)(1) — Gross Income Limits Table"
     rows:
       - { household_size: 1, monthly_limit: 1580 }
 
@@ -281,7 +289,9 @@ rules:
   - id: "FED-SNAP-DENY-GROSS"
     kind: deny
     priority: 1
-    source: "7 CFR § 273.9(a)(1) — Gross Income Test"
+    source:
+      file: "input/policy_docs/snap_eligibility.md"
+      section: "7 CFR § 273.9(a)(1) — Gross Income Test"
     when: "gross_income_exceeds_limit"
     then:
       - add_reason:
@@ -521,6 +531,73 @@ rules:
 
 ---
 
+### 2i) Collection comprehension expressions (CIVIL v11)
+
+**CIVIL v11** adds three collection-op expressions usable inside any `expr:` string (in `computed:`, `outputs:`, `rules.when:`, etc.). They iterate over a list-typed field or computed and produce an aggregate result.
+
+```yaml
+computed:
+  adult_count:
+    type: int
+    expr: "count(h in household_members where h.age >= 18)"
+
+  has_minor:
+    type: bool
+    expr: "exists(h in household_members where h.age < 18)"
+
+  total_income:
+    type: money
+    currency: USD
+    expr: "sum(h.income for h in household_members if h.is_earner)"
+```
+
+**Form table:**
+
+| Form | Shape | Lowering (Catala) |
+|------|-------|-------------------|
+| `count(<bound> in <coll> where <pred>)` | Iterates `<coll>`, counts rows satisfying `<pred>` | `(number for v among coll such that pred)` |
+| `exists(<bound> in <coll> where <pred>)` | Iterates `<coll>`, returns true if any row satisfies `<pred>` | `(exists v among coll such that pred)` |
+| `sum(<expr> for <bound> in <coll>)` | Iterates `<coll>`, returns sum of `<expr>` over all rows | `(sum <type> of (map each v among coll to <expr>))` |
+| `sum(<expr> for <bound> in <coll> if <pred>)` | Iterates `<coll>`, returns sum of `<expr>` over rows satisfying `<pred>` | `(sum <type> of (map each v among coll such that pred to <expr>))` |
+
+**Bound name and scoping:**
+
+- The bound name is a valid identifier (`[A-Za-z_][A-Za-z0-9_]*`); single-letter names (`v`, `h`, `r`) and longer names (`violation`, `member`) are both accepted.
+- Iterated-row fields MUST be written as qualified `<bound>.<field>` access (e.g., `h.age`). Bare names inside a comprehension predicate or sum expression are rejected — the only legal bare reference is the bound iterator itself.
+- A bound name that shadows a known entity, computed field, constant, or table fails validation. Choose a non-conflicting name.
+
+**Strict qualified-access rule.** The strict rule applies because CIVIL today has no machine-readable schema link from `<coll>: type: list` to the iterated row's field set (`FactField` has no `item:` field). Bare-name resolution would silently pick a host-rule scalar with the same name as an iterated-row field, producing wrong Catala output. Qualified access eliminates the ambiguity by syntax alone.
+
+To reference a host-rule entity / computed / constant from inside a predicate, either qualify it explicitly (e.g., `Driver.weighted_point_total`) or hoist the reference outside the predicate into a separate computed field.
+
+**Disambiguation from `exists(<field>)`:**
+
+The single-argument `exists(<field>)` form (CIVIL v1) remains a presence check on a single optional field. The comprehension form requires the `<bound> in <coll> where <pred>` structure with at least one `<bound>.<field>` reference in the predicate.
+
+**`sum()` type requirements:**
+
+The Catala sum operator requires an element type. The transpiler derives this from the host output field's `type:`:
+- `type: money` → Catala `sum money of (...)`
+- `type: int` → Catala `sum integer of (...)`
+- `type: decimal` or `type: float` or unannotated → Catala `sum decimal of (...)`
+
+When `sum()` appears inside a `rules.when:` guard or a `conditional.if:` (no host output type to derive from), the transpiler raises a clear error: move the sum to a typed computed field and reference that field from the guard.
+
+**Constraints:**
+
+| Constraint | Description |
+|-----------|-------------|
+| `<coll>` must be list-typed | A scalar iterable fails validation with `comprehension iterates over non-list '<coll>' (type: <type>)` |
+| Bound name shape | `[A-Za-z_][A-Za-z0-9_]*`; nested comprehensions get independent scopes |
+| Bound-name shadowing | Hard validation error against entities, computed fields, constants, and tables |
+| Bare predicate names | Hard validation error: `comprehension predicate references bare name '<name>' — qualified <bound>.<field> access is required, or hoist this reference outside the predicate` |
+| Nested comprehensions | Supported: `count(v in coll where exists(w in v.items where w.flag))` |
+| Rego transpiler | Comprehension forms are Catala-only today; Rego lowering is deferred to a follow-up |
+
+**Transpilation:** Catala-only in v11. The transpiler's pipeline runs comprehension rewrites at Step 3.6 — after table normalization (Steps 1–3, since `table(...)` may appear inside predicates) and before `&&` / `||` / `!` translation (Steps 6–8, because Catala's `such that pred` requires Catala-native `and` / `or` inside the predicate).
+
+---
+
 ### 3) Rule set
 
 ```yaml
@@ -744,9 +821,13 @@ Keep it small so you can transpile to almost anything:
 -   functions:
     -   `table(name, key...).field`
     -   `in(value, [a,b,c])`
-    -   `exists(field)` / `is_null(field)`
+    -   `exists(field)` / `is_null(field)` — single-field presence check (CIVIL v1)
     -   `date("YYYY-MM-DD")`, `between(date, start, end)`
     -   `max(a, b)`, `min(a, b)` — numeric comparison (CIVIL v2; for `computed:` fields)
+    -   collection comprehensions (CIVIL v11; see section 2i for full semantics):
+        -   `count(<bound> in <coll> where <pred>)`
+        -   `exists(<bound> in <coll> where <pred>)`
+        -   `sum(<expr> for <bound> in <coll>)` / `sum(<expr> for <bound> in <coll> if <pred>)`
 
 ---
 

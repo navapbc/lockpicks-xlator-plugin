@@ -12,16 +12,13 @@ Update an existing CIVIL DSL ruleset for a domain when input policy documents ha
 ```
 /update-ruleset <domain>                          # auto-detect program or prompt if ambiguous
 /update-ruleset <domain> <program>                # target a specific <program>.civil.yaml
-/update-ruleset <domain> <program> <filename>     # scope update to one input file
 ```
-
-`<filename>` is the basename of a `.md` file in `$DOMAINS_DIR/<domain>/input/policy_docs/` (e.g., `APA.md`). The `.md` extension is appended automatically if omitted. When given, `<filename>` scopes the full pipeline: only that file is read as the policy corpus, and only its manifest entry is updated.
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories and prompt the user to choose.
 
 ---
 
-Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–6),
+Read `../../core/ruleset-shared.md` now. It contains shared pre-flight logic (checks 3–5),
 the scoring rubric, CIVIL reference, shared procedures (SP-Validate, SP-ComputeGraph, SP-GuidanceCapture, and others), and common mistakes.
 
 ---
@@ -46,18 +43,35 @@ Run these checks before doing anything else:
      :::
      Stop.
 
-Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
+3. **Load extraction context (deterministic).**
+
+   Run:
+   ```bash
+   xlator load-extraction-context <domain> [<program>] --mode update
+   ```
+
+   This tool subsumes pre-flight checks 3–5 from `../../core/ruleset-shared.md`, plus `SP-LoadInputIndex` and `SP-LoadGuidanceShas`. It reads every guidance file + `naming-manifest.yaml` + `policy_facets/input-index.yaml` + `extraction-manifest.yaml`, runs the working-tree drift check on `input-index.yaml`'s recorded SHAs, computes `git hash-object` for every `specs/guidance/*.yaml` + `specs/naming-manifest.yaml`, and emits a single JSON payload to stdout.
+
+   On non-zero exit: relay the tool's stderr in `:::error` and stop.
+
+   Parse the JSON payload. Bind:
+   - `input_index_shas` — `{path → sha}` for every eligible source doc (used in Step 2 change detection and Step 7 manifest refresh).
+   - `guidance_shas` — `{path → sha}` for every `specs/guidance/*.yaml` + `specs/naming-manifest.yaml` (used in Step 7 to refresh `consumed_guidance[]`).
+   - `naming_manifest` — the full parsed manifest (used in Step 0 divergence check, Step 5 name binding, Step 9 inventory build).
+   - `existing_extraction_manifest` — the parsed `extraction-manifest.yaml` (used in Step 1 baseline, Step 2 change detection, Step 1b reconcile).
+   - `program` — resolved program name (from `ruleset-modules.yaml`'s `role: main` entry or auto-detected).
+   - `work_list` — drives multi-file iteration (sub-modules first, main module last).
 
 ---
 
 ## Process
 
-### Step 0: Load Naming Manifest, Check for Divergence, and Ruleset Module Resolution
+### Step 0: Naming Manifest Divergence Check + Ruleset Module Resolution
 
-**If `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` exists:**
+**Naming manifest divergence check.** Use the `naming_manifest` from the pre-flight JSON payload:
 
-1. Run **SP-LoadNamingManifest** (from `../../core/ruleset-shared.md`). Collect the variable names from the resulting map.
-2. Read all fact, computed, and output field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
+1. Collect the variable names from the manifest (entries from `inputs.<Entity>.<field>`, `computed.<field>`, and `outputs.<field>`).
+2. Read all fact, computed, and outputs field names from `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`.
 3. Compare the two sets. If any field name exists in the CIVIL file but not the manifest, or exists in both but with a different spelling, **halt** and list every mismatch:
 
    :::error
@@ -73,71 +87,50 @@ Run shared pre-flight checks 3–6 from `../../core/ruleset-shared.md`.
 
    Do not continue until there are no mismatches.
 
-**If the manifest does not exist** (domain was extracted before this feature was added):
+**Multi-file validation (when `existing_extraction_manifest` is non-null and has multiple modules):**
 
-:::important
-⚠️ No naming manifest found. Field names will not be enforced this run. A manifest will be created after this UPDATE completes.
-:::
-
-**Multi-file validation (if `extraction-manifest.yaml` exists):**
-
-1. Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`.
-2. Verify that every path listed under `programs: <program>: civil_file:` and every path listed under `programs: <program>: sub_modules: [].civil_file:` exists on disk. If any file is missing, stop:
+1. Verify that every path listed under `programs: <program>: civil_file:` and every path listed under `programs: <program>: sub_modules: [].civil_file:` exists on disk. If any file is missing, stop:
    :::error
    ⚠️  Missing CIVIL files listed in extraction-manifest.yaml:
      - $DOMAINS_DIR/<domain>/specs/<missing_file>.civil.yaml
    Restore the missing file(s) or re-run /extract-ruleset <domain>.
    :::
-3. Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `update`.
+2. Run **SP-ResolveRulesetModules** (from `../../core/ruleset-shared.md`) with context `update`.
    - If SP-ResolveRulesetModules emits an abort signal (new `ruleset_modules:` entries not in manifest): stop with SP-ResolveRulesetModules's message.
-   - Otherwise, store the returned work-list for use in Steps 2 and 9.
+   - Otherwise, use the returned work-list in Steps 2 and 9 (it overrides the `work_list` from the pre-flight payload when SP-ResolveRulesetModules produces additional binding-confirmation context).
 
 Proceed to Step 1.
 
 ### Step 1: Load Baseline
 
-Read `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` to get the git SHA for each source doc.
+Use `existing_extraction_manifest` from the pre-flight JSON payload to get the recorded blob SHA for each source doc. Each entry's `git_sha` is the source doc's blob SHA at the time of the last extraction. The drift check inside `xlator load-extraction-context` (run in pre-flight) guarantees the current `input_index_shas` values reflect the source doc's working-tree bytes — so comparing the manifest's `git_sha` against `input_index_shas` is equivalent to comparing the prior extracted bytes against the current bytes.
 
-**Fallback chain (if manifest absent):**
-1. Get the CIVIL file's last commit SHA: `git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`
-2. If no git history at all → treat as CREATE mode (full re-extraction); run `/extract-ruleset <domain>` instead.
+**Fallback (if `existing_extraction_manifest` is null):** there is no baseline to compare against, so re-extraction must be unconditional — stop and run `/extract-ruleset <domain>` instead.
 
 ### Step 1b: Reconcile Manifest
 
-Before change detection, remove stale entries from `extraction-manifest.yaml` for files that no longer exist on disk. For each `source_docs` path under both `programs: <program>:` and `programs: <program>: sub_modules: []:`, check if the file exists; if absent, remove that entry and print `Removed stale manifest entry: <path>`. Runs on every UPDATE invocation — ensures deleted or renamed input files don't cause change detection failures.
+Before change detection, remove stale entries from `extraction-manifest.yaml` for files that no longer exist on disk:
+
+- For each `source_docs` path under both `programs: <program>:` and `programs: <program>: sub_modules: []:`, check if the file exists; if absent, remove that entry and print `Removed stale manifest entry: <path>`.
+- For each `consumed_guidance` path under the same scopes, check if the file exists at `$DOMAINS_DIR/<domain>/<path>`; if absent, remove that entry and print `Removed stale guidance manifest entry: <path>`. The `consumed_guidance[]` block is otherwise preserved verbatim during this step — its SHA values are not refreshed here (Step 7 handles refresh for the program being updated; other programs' blocks remain untouched).
+
+Runs on every UPDATE invocation — ensures deleted or renamed input files don't cause change detection failures.
 
 ### Step 2: Detect Changes
 
-**Multi-file (SP-ResolveRulesetModules work-list has more than one entry):**
+For every source doc to be checked, look up its current blob SHA in `input_index_shas` (from the pre-flight JSON payload). Compare against the SHA stored in the extraction manifest. A mismatch (or a source doc absent from the manifest) means the file changed and must be re-extracted.
 
-For each entry in the SP-ResolveRulesetModules work-list, run change detection against that entry's `source_docs:` from the manifest:
+`input_index_shas` is the canonical SHA source — do not run `git hash-object` here. The drift check inside the pre-flight tool guarantees the index value reflects current working-tree bytes, so committed AND uncommitted edits are caught by the same lookup.
 
-```bash
-# Per work-list entry:
-git diff <entry_source_sha>..HEAD -- <entry_source_doc_path>
-git status <entry_source_doc_path>
-```
+**Multi-file (work_list has more than one entry):**
 
-- If changes are detected for a sub-module entry: include it in the change report with label `[sub-module: <name>]` and add it to the set of files requiring re-extraction.
-- If no changes are detected for a sub-module entry: skip re-extraction for that sub-module (source-provenance-based scoping — only files whose source docs changed are re-extracted).
+For each entry in the work-list, run the comparison above against every path under that entry's `source_docs:`. If any source doc's current blob SHA differs from the stored `git_sha`, the entry is added to the set of files requiring re-extraction. Sub-module entries are reported with label `[sub-module: <name>]`. If no source doc for the entry changed, skip re-extraction for that entry (source-provenance-based scoping).
 
 The main module is re-extracted if its own source docs changed. If only sub-module source docs changed, the main module is not re-extracted (its `invoke:` fields reference sub-module names, which don't change).
 
-**Single-file (SP-ResolveRulesetModules work-list has one entry):**
+**Single-file (work_list has one entry):**
 
-If `<filename>` is given, scope change detection to that file only:
-
-```bash
-# Scoped (when <filename> is given):
-git diff <baseline-sha>..HEAD -- $DOMAINS_DIR/<domain>/input/policy_docs/<filename>
-git status $DOMAINS_DIR/<domain>/input/policy_docs/<filename>
-
-# Full (when <filename> is not given):
-git diff <baseline-sha>..HEAD -- $DOMAINS_DIR/<domain>/input/policy_docs/
-git status $DOMAINS_DIR/<domain>/input/policy_docs/
-```
-
-Collect the list of changed/added/deleted input docs.
+Compare every entry in the manifest's `source_docs:` against `input_index_shas`, and additionally enumerate `input_index_shas`'s keys for paths that are present in the index but absent from the manifest (treat them as added). The pre-flight tool already filtered out entries with `md_quality.score < 40`, so rejected source files (moved to `input/rejected/`) do not surface as false additions. Collect the list of changed/added/deleted input docs.
 
 ### Step 3: No Changes — Exit Early
 
@@ -164,19 +157,21 @@ For each changed doc, read the diff and determine which CIVIL sections need upda
 
 ### Step 5: Re-extract Affected Sections
 
-**If `guidance.yaml` was loaded in pre-flight**, recall the extraction goal before re-reading any policy sections:
+Recall the extraction goal from the pre-flight JSON payload (`metadata`, `prompt_context`, `output_variables`, `input_variables`, `guidance_output_set`, `constants_tables_seed`, plus `naming_manifest`) before re-reading any policy sections:
 
 ```
 ---
-[guidance.yaml content — paste verbatim as loaded]
+[content of metadata, prompt_context, output_variables, input_variables,
+ guidance_output_set, constants_tables_seed, and naming_manifest from the
+ pre-flight JSON payload]
 ---
 
 Apply these constraints and standards when re-extracting the affected CIVIL sections.
 ```
 
-For each affected section, re-read the relevant parts of the changed policy doc and re-extract only that section. Do not touch sections not identified in Step 4.
+For each affected section, re-read the relevant parts of the changed policy doc — read the caveman-compressed copy at `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` rather than the raw source under `input/policy_docs/`. The compressed copy is the canonical content for AI consumption (see "Index path keys vs content reads" in `xl-plugin/CLAUDE.md`). Re-extract only that section. Do not touch sections not identified in Step 4.
 
-When re-extracting any section that contains `inputs:` or `computed:` fields, inject the frozen names from `naming-manifest.yaml` into your extraction reasoning: "These fields must keep their exact current names: [list all names from manifest]. Only introduce new field names for policy concepts not in this list, using the 4-step algorithm: (1) exact noun phrase, (2) strip entity-name words, (3) snake_case, (4) disambiguate if needed." **Never rename an existing field.**
+When re-extracting any section that contains `inputs:` or `computed:` fields, inject the frozen names from `naming_manifest` into your extraction reasoning: "These fields must keep their exact current names: [list all names from manifest]. Only introduce new field names for policy concepts not in this list, using the 4-step algorithm: (1) exact noun phrase, (2) strip entity-name words, (3) snake_case, (4) disambiguate if needed." **Never rename an existing field.**
 
 After re-extracting, run **SP-OrchestrationFilter** (from `../../core/ruleset-shared.md`) on the newly extracted rule components (not the full existing CIVIL file — only rules and computed fields identified in Step 4):
 - Remove flagged components; display the SP-OrchestrationFilter summary table if any were flagged.
@@ -210,18 +205,15 @@ Proceed to Step 7 only after SP-MaintainabilityReview passes (no blocking failur
 
 ### Step 7: Update Manifest
 
-Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`:
+Update `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml`. Each `git_sha:` value is the source doc's blob SHA — read it from `input_index_shas` (already loaded in pre-flight; do not run `git hash-object` here). Field-name translation: the index field is `sha:`, the manifest field is `git_sha:`; the value is identical.
 
-**Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated).
+Refresh the `consumed_guidance[]` block for the program being updated, using `guidance_shas` from the pre-flight JSON payload. Enumerate every path in `guidance_shas` and write one `{path, sha}` entry per file. When `guidance_shas` is empty, write `consumed_guidance: []`. The same refresh rule applies to every sub-module of the program being updated. Other programs' `consumed_guidance[]` blocks (programs not touched by this run) are preserved verbatim — do not refresh them; their entries reflect provenance from their last `/extract-ruleset` or `/update-ruleset` run.
 
-**Single-file, `<filename>` given (partial update):**
-- Update `extracted_at` to today's date
-- In `source_docs:`, find the entry for `<filename>` and update its `git_sha` and `last_extracted`
-- If no entry exists yet for `<filename>`, add one
-- Preserve all other `source_docs:` entries verbatim (files not processed this run keep their existing SHA)
+**Multi-file:** After successful re-extraction, update `extracted_at` and source doc SHAs for each regenerated file (main module and sub-modules). Files that were not re-extracted (no source doc changes) retain their existing manifest entries verbatim. Sub-modules with `referenced: true` in the manifest retain their entry unchanged (they were not regenerated). Refresh `consumed_guidance[]` for every regenerated entry per the rule above.
 
-**Single-file, `<filename>` not given (full update):**
+**Single-file:**
 - Update `git_sha` for each changed source doc
+- Refresh `consumed_guidance[]` for this program using `guidance_shas`
 - Update `extracted_at` to today's date
 
 ### Step 8: Validate
@@ -230,9 +222,42 @@ Run **SP-Validate**.
 
 ### Step 9: Update Naming Manifest
 
-If any new fact, computed, or outputs fields were added: derive canonical names using the 4-step algorithm from `/extract-ruleset` Step 3b, then append them to `naming-manifest.yaml` under the appropriate `inputs:` entity, `computed:`, or `outputs:` section. Preserve all existing entries unchanged.
+If any new fact, computed, or outputs fields were added during this update: derive canonical names using the 4-step algorithm from `/extract-ruleset` Step 3b. Build an inventory JSON containing **one entry per new field** (and only the new fields), then call:
 
-If no manifest exists yet, create it now from all current CIVIL field names. No user confirmation needed — this runs automatically after validation.
+```bash
+xlator merge-naming-manifest <domain> <program> --inventory <tmpfile> --preserve-unmentioned
+```
+
+The `--preserve-unmentioned` flag is what differentiates this call from `/extract-ruleset` Step 7: `/update-ruleset` adds new fields without re-presenting the full inventory, so existing entries not referenced by this run's inventory must survive verbatim. (`/extract-ruleset` Step 7 presents the full inventory and the merge tool drops unmentioned entries by default.)
+
+Inventory entry shape (same as `/extract-ruleset` Step 7):
+
+```json
+{
+  "name": "<new snake_case field name>",
+  "section": "inputs.<Entity>" | "computed" | "outputs",
+  "policy_phrase": "<verbatim noun phrase from policy doc>" | null,
+  "source_doc": "input/policy_docs/<rel>.md" | null,
+  "section_text": "<§ citation> — <heading>" | null,
+  "prior_name": null,           // /update-ruleset rarely renames; leave null
+  "description": "<AI-inferred>" | null,
+  "type": "<money|bool|int|float|string|enum|list|set|date|object>" | null,
+  "values": null,
+  "observed_synonyms": null
+}
+```
+
+Rules:
+- **Add only new fields.** Existing entries are preserved by the `--preserve-unmentioned` flag.
+- **`policy_phrase`** is the verbatim noun phrase from the source policy doc, scoped to the section where the new field was introduced. Read the caveman-compressed source at `policy_facets/compressed/<rel>.md`.
+- **`prior_name`** is almost always `null` in `/update-ruleset` — fields aren't normally renamed during an update. If a rename does occur, set `prior_name` and the merge tool will append the rename-anchor synonym (idempotent on subsequent runs).
+- **Optional fields** (`description`, `type`) are AI-inferred from policy text where the signal is unambiguous; otherwise omit.
+
+If no new fields were added, skip the `merge-naming-manifest` call entirely — no inventory needed.
+
+On non-zero exit from the tool: relay stderr in `:::error` and stop.
+
+If no manifest exists yet (this should not happen because Step 0 requires it, but defensive case), `merge-naming-manifest` initializes it.
 
 ### Step 10: Write Stale-Cases Hint
 
@@ -274,9 +299,11 @@ Files created or modified by this command:
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Updated (affected sections only) |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Updated |
-| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated (Step 9, after validation) |
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Updated by `xlator merge-naming-manifest --preserve-unmentioned` (Step 9, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` | Created (Step 10; consumed by `/create-tests`) |
-| `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |
-| `$DOMAINS_DIR/<domain>/specs/guidance.yaml` | Read (required — run `/refine-guidance <domain>` first) |
+| `$DOMAINS_DIR/<domain>/policy_facets/computations/<rel>.md.yaml` | Read-only (per-file section data; if present) |
+| `$DOMAINS_DIR/<domain>/policy_facets/compressed/<rel>.md` | Read-only (canonical content for AI consumption) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/*.yaml` | Read (via `xlator load-extraction-context`) |
+| `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml` | Read (via `xlator load-extraction-context`) |
 
 Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests and transpilation are handled by `/create-tests` and `/transpile-and-test`.

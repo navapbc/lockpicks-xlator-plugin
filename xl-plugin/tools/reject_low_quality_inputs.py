@@ -6,7 +6,7 @@
 """
 Move low-quality markdown files from input/policy_docs/ to input/rejected/.
 
-Reads specs/input-index.yaml, finds files whose md_quality.score is below the
+Reads policy_facets/input-index.yaml, finds files whose md_quality.score is below the
 given threshold, and moves each one to input/rejected/ preserving its subdirectory
 structure relative to input/policy_docs/.
 
@@ -39,7 +39,7 @@ _REJECTED_PREFIX = 'input/rejected/'
 
 
 def reject_low_quality(domain_dir: Path, threshold: int) -> dict[str, object]:
-    index_path = domain_dir / 'specs' / 'input-index.yaml'
+    index_path = domain_dir / 'policy_facets' / 'input-index.yaml'
     if not index_path.exists():
         raise FileNotFoundError(f'Index not found: {index_path}')
 

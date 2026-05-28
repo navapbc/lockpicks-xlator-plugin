@@ -1,6 +1,6 @@
 # CIVIL DSL — Authoring Quick Reference
 
-<!-- Last verified against tools/civil_schema.py: 2026-03-26 -->
+<!-- Last verified against tools/civil_schema.py: 2026-05-16 -->
 
 This is a **Claude authoring cheat sheet** for writing valid CIVIL YAML modules.
 For full specification and design rationale, see [CIVIL_DSL_spec.md](CIVIL_DSL_spec.md).
@@ -42,7 +42,7 @@ Entity names use **PascalCase** (e.g. `Household`, `Applicant`).
 |-------|----------|-------|
 | `type` | ✅ | See valid fact types below |
 | `description` | — | Human-readable field description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a) — Income and Deductions"` |
+| `source` | — | Policy document provenance — object with optional `file:` (path under `input/policy_docs/`) and `section:` (citation + heading) subfields |
 | `optional` | — | `true` if the field may be absent (default: `false`) |
 | `currency` | — | Currency code for `money` type, e.g. `USD` |
 | `values` | — | List of allowed strings for `enum` type |
@@ -64,7 +64,7 @@ Valid `type` values for fact fields:
 | `module` | ✅ for `invoke:` | Sub-module name (no extension). E.g. `earned_income` |
 | `currency` | — | Currency code for `money` type |
 | `description` | — | Human-readable description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(d)(1) — Earned Income Deduction"` |
+| `source` | — | Policy document provenance — object with optional `file:` and `section:` subfields |
 | `expr` | ✅ or `conditional`/`invoke` | CIVIL expression (mutually exclusive with the others) |
 | `conditional` | ✅ or `expr`/`invoke` | If/then/else branch (mutually exclusive with the others) |
 | `invoke` | ✅ or `expr`/`conditional` | (CIVIL v4) Sub-ruleset invocation. Requires `module:` and `type: object` |
@@ -172,7 +172,9 @@ computed:
     type: money
     currency: USD
     description: "Income standard from Expanded Refused Cash Income Limits"
-    source: "Addendum 1 (ADLTC)"
+    source:
+      file: "input/policy_docs/adltc_manual/addendum_1.md"
+      section: "Addendum 1 (ADLTC)"
     table_lookup:
       table: expanded_refused_cash_income_limits  # must exist in tables:
       key: [household_type, benefit_year]         # column names resolved by name match
@@ -182,6 +184,43 @@ computed:
 **Key resolution order:** computed field name (bare) → entity field (`Entity.field`). Ambiguous or missing names fail at validation.
 
 **When to use:** Prefer `table_lookup` over `expr: "table(...).col"` for AI-extracted rulesets — it's structured, validator-checked, and more readable.
+
+---
+
+## Collection Comprehensions (CIVIL v11)
+
+Filtered collection operations over `list`-typed fields. Three forms ship today: `count`, `exists`, and `sum`. All lower to Catala collection ops; Rego target is deferred.
+
+| Form | Shape | Catala lowering |
+|------|-------|-----------------|
+| count | `count(<bound> in <coll> where <pred>)` | `(number for <bound> among <coll> such that <pred>)` |
+| exists | `exists(<bound> in <coll> where <pred>)` | `(exists <bound> among <coll> such that <pred>)` |
+| sum | `sum(<expr> for <bound> in <coll> [if <pred>])` | Catala `sum` collection op |
+
+**Worked example:**
+
+```yaml
+# Example: count, exists, sum across a collection
+computed:
+  adult_count:
+    type: int
+    expr: "count(h in household_members where h.age >= 18)"
+
+  has_minor:
+    type: bool
+    expr: "exists(h in household_members where h.age < 18)"
+
+  total_income:
+    type: money
+    expr: "sum(h.income for h in household_members if h.is_earner)"
+```
+
+**Notes:**
+
+- **Bound-name shape:** The bound name is a valid identifier (`[A-Za-z_][A-Za-z0-9_]*`).
+- **Strict qualified-access rule:** Inside the predicate or sum expression, iterated-row fields MUST be qualified as `<bound>.<field>` (e.g., `h.age`). Bare names (e.g., `age` alone) inside the predicate are rejected unconditionally — the only legal bare reference is the bound iterator itself. To reference a host-rule constant or computed value, hoist it outside the predicate.
+- **Shadowing:** A bound name that shadows a known entity, computed field, constant, or table fails validation.
+- **Single-arg `exists` disambiguation:** The single-argument `exists(<field>)` form is a presence check; the comprehension form requires the `<bound> in <coll> where <pred>` structure.
 
 ---
 
@@ -247,7 +286,7 @@ outputs:
 | Field | Required | Notes |
 |-------|----------|-------|
 | `description` | — | Human-readable description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a)(1) — Gross Income Limits Table"` |
+| `source` | — | Policy document provenance — object with optional `file:` and `section:` subfields |
 | `key` | ✅ | List of key column name(s), e.g. `[household_size]` |
 | `value` | ✅ | List of value column name(s), e.g. `[max_gross_monthly]` |
 | `rows` | ✅ | List of row dicts, e.g. `[{household_size: 1, max_gross_monthly: 1580}]` |
@@ -266,7 +305,7 @@ Table reference in expressions: `table('table_name', key_expr).value_column`
 | `when` | ✅ | Boolean CIVIL expression |
 | `then` | ✅ | List of `Action` objects — **must be non-empty** |
 | `description` | — | Human-readable description |
-| `source` | — | Policy document location, e.g. `"7 CFR § 273.9(a)(1) — Gross Income Test"` |
+| `source` | — | Policy document provenance — object with optional `file:` and `section:` subfields |
 | `review` | — | `ReviewBlock` with extraction quality scores |
 | `group` | — | (CIVIL v6) Ruleset group name, e.g. `"income_test"`. Must match a name in `rule_set.ruleset_groups` when that list is non-empty. **Transpiler no-op.** |
 | `mutex_group` | — | (CIVIL v6) Mutual-exclusion group name. Rules sharing a `mutex_group` are competing alternatives; all must have unique `priority` values. **Transpiler no-op.** |
@@ -395,9 +434,9 @@ The structured output object is always at `decision` (e.g., query `/v1/data/<pkg
 
 The following YAML schemas are used by `/refine-guidance`, `/extract-ruleset`, and `/update-ruleset`. They are not part of the CIVIL DSL itself.
 
-### `guidance.yaml` — `ruleset_modules:` key
+### `guidance/ruleset-modules.yaml` — `ruleset_modules:` key
 
-Place after `ruleset_groups:`, before `constraints:`. Populated by `/create-ruleset-modules` (and `/refine-guidance` Step 3 in the monolithic workflow). Lists all modules — sub-modules and the main program file — that will be generated as separate `.civil.yaml` files.
+Populated by `/create-ruleset-modules` (and `/refine-guidance` Step 3 in the monolithic workflow). Lists all modules — sub-modules and the main program file — that will be generated as separate `.civil.yaml` files.
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -434,7 +473,7 @@ ruleset_modules:
 | `depth_threshold` | ≥5 variable names in skeleton whose names suggest sequential dependence (e.g., `after_*` chain, `net_*` ← `gross_*` ← `total_*`) |
 | `variable_coupling` | ≥3 intermediate variables each referencing ≥2 others' outputs, forming a mutual dependency clique |
 | `shared_gate` | ≥3 intermediate variables share a common guard-variable prefix (e.g., `eligible_*`, `applies_if_*`) |
-| `user_hint` | `ruleset_modules:` already populated in `guidance.yaml` (UPDATE mode only) |
+| `user_hint` | `ruleset_modules:` already populated in `guidance/ruleset-modules.yaml` (UPDATE mode only) |
 | `main_module` | Main program entry — written by `/create-ruleset-modules` after sub-module detection |
 
 ---

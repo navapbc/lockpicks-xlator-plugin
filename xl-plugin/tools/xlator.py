@@ -12,6 +12,7 @@ Usage:
 Typical user actions (no domain/module):
   list                                 Show all domain/module pairs
   new-domain      <domain>             Scaffold standard domain directory structure
+  ensure-guidance <domain>             Create specs/guidance/ and seed CLAUDE.md (idempotent)
 
   catala-transpile      <domain> <module>   Generate Catala from CIVIL
   catala-test-transpile <domain> <module>   Generate Catala test file from YAML tests
@@ -111,9 +112,17 @@ def _manifest_path(domain):
 
 
 def _get_file_sha(repo_relative_path):
-    """Return current HEAD git SHA for a file, or None if not tracked/committed."""
+    """Return git blob SHA of the file's current working-tree content, or None
+    if the file is missing / unreadable.
+
+    Uses `git hash-object` rather than `git log -1` so that uncommitted edits to
+    tracked files produce a new SHA (the commit-based form would return the SHA
+    of the file's last commit even after a working-tree edit, missing the change).
+    """
+    if not Path(repo_relative_path).exists():
+        return None
     result = subprocess.run(
-        ["git", "log", "-1", "--format=%H", "--", repo_relative_path],
+        ["git", "hash-object", repo_relative_path],
         capture_output=True, text=True, cwd=str(DOMAINS_FULLPATH),
     )
     return result.stdout.strip() or None
@@ -331,16 +340,45 @@ def cmd_pipeline(domain, module):
 
 def cmd_new_domain(domain):
     base = DOMAINS_FULLPATH / domain
-    for d in [base / "input" / "policy_docs", base / "specs", base / "output"]:
+    for d in [
+        base / "input" / "policy_docs",
+        base / "policy_facets",
+        base / "specs",
+        base / "output",
+    ]:
         d.mkdir(parents=True, exist_ok=True)
     _print_ok(f"{base}/")
     _print_info(f"  input/policy_docs/    ← add .md policy documents here")
-    _print_info(f"  specs/")
+    _print_info(f"  policy_facets/        ← derived views of the policy docs (compressed/, etc.)")
+    _print_info(f"  specs/                ← ruleset specs and guidance (guidance/ created on demand)")
     _print_info(f"  output/               ← generated Catala or Rego files and demo folder(s)")
     _print_info(
         f"\nDomain '{domain}' created. "
-        f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs."
+        f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs "
+        f"(which fans out parallel per-file workers that compress and extract each file)."
     )
+
+
+def cmd_ensure_guidance(domain):
+    """Create specs/guidance/ and seed CLAUDE.md from core/guidance_claude.md.
+
+    Idempotent: skips the copy if CLAUDE.md is already present. Called by
+    skills (e.g., /declare-target-ruleset, /refine-guidance) just before they
+    write into specs/guidance/.
+    """
+    base = DOMAINS_FULLPATH / domain
+    if not base.exists():
+        _print_err(f"Domain not found: {base}/")
+        sys.exit(1)
+    guidance_dir = base / "specs" / "guidance"
+    guidance_dir.mkdir(parents=True, exist_ok=True)
+    guidance_src = SCRIPT_DIR_TOOLS.parent / "core" / "guidance_claude.md"
+    guidance_dest = guidance_dir / "CLAUDE.md"
+    if not guidance_dest.exists():
+        shutil.copy2(guidance_src, guidance_dest)
+        _print_ok(f"{guidance_dest.relative_to(DOMAINS_FULLPATH)} (created)")
+    else:
+        _print_ok(f"{guidance_dir.relative_to(DOMAINS_FULLPATH)}/ (already present)")
 
 
 def cmd_preflight(domain, module, backend):
@@ -374,7 +412,7 @@ def cmd_manifest_update(domain):
             domain_rel, _ = _parse_source_doc(entry)
             sha = _get_file_sha(f"{DOMAINS_FULLPATH}/{domain}/{domain_rel}")
             if sha is None:
-                _print_info(f"    [dim]dropped[/dim] {domain_rel} (no longer in git)")
+                _print_info(f"    [dim]dropped[/dim] {domain_rel} (file missing)")
                 continue
             new_entry = {"path": domain_rel, "git_sha": sha}
             if "last_extracted" in entry:
@@ -396,68 +434,13 @@ def cmd_manifest_update(domain):
     _print_ok(f"manifest updated: {mpath.relative_to(DOMAINS_FULLPATH)}")
 
 
-def cmd_extract_sections(domain, exclude_paths):
-    """Print sections block entries from input-sections.yaml, excluding specified file paths.
-
-    Outputs raw YAML text (the section entries only, without the 'sections:' header)
-    suitable for appending directly to a new sections file. Entries for paths in
-    exclude_paths are omitted; all others are preserved verbatim.
-    """
-    import re as _re
-    index_path = DOMAINS_FULLPATH / domain / "specs" / "input-sections.yaml"
-
-    if not index_path.exists():
-        _print_err(f"input-sections.yaml not found: {index_path.relative_to(DOMAINS_FULLPATH)}")
-        sys.exit(1)
-
-    with open(index_path) as f:
-        content = f.read()
-
-    marker = "\nsections:"
-    pos = content.find(marker)
-    if pos == -1:
-        return  # No sections block — nothing to output
-
-    after_header = content[pos + len(marker):]
-    # Strip the newline immediately after 'sections:'
-    after_header = after_header.lstrip("\n")
-
-    if not after_header.strip():
-        return  # Empty sections block
-
-    if not exclude_paths:
-        sys.stdout.write(after_header)
-        return
-
-    exclude_set = set(exclude_paths)
-
-    # Find the start position of each entry (lines beginning with '  - path:')
-    entry_starts = [m.start() for m in _re.finditer(r"^  - path:", after_header, _re.MULTILINE)]
-    if not entry_starts:
-        return
-
-    kept = []
-    for i, start in enumerate(entry_starts):
-        end = entry_starts[i + 1] if i + 1 < len(entry_starts) else len(after_header)
-        entry_text = after_header[start:end]
-        path_match = _re.match(r'  - path: "?([^"\n]+)"?', entry_text)
-        if path_match:
-            path = path_match.group(1).strip()
-            if path not in exclude_set:
-                kept.append(entry_text)
-        else:
-            kept.append(entry_text)
-
-    if kept:
-        sys.stdout.write("".join(kept))
-
-
 def cmd_detect_changes(domain):
     """Exit 0 = no changes (nothing to do). Exit 1 = changes detected.
 
-    Compares git SHA values stored in extraction-manifest.yaml against the current
-    HEAD SHA for each source document. Only committed changes are detected — this
-    intentionally matches the pipeline's behaviour of tracking committed policy versions.
+    Compares the blob SHA stored in extraction-manifest.yaml against the
+    current working-tree blob SHA (`git hash-object`) for each source document.
+    Detects both committed and uncommitted edits — any byte-level change to the
+    source flips the SHA.
     """
     mpath = _manifest_path(domain)
     if not mpath.exists():
@@ -499,7 +482,7 @@ def cmd_list():
         module_rows.append((domain, module))
         domains_with_modules.add(domain)
 
-    exclude_domains = {".shared", "guidance-templates"}
+    exclude_domains = {".shared", "guidance-examples"}
     domain_dirs = sorted(p.name for p in (DOMAINS_FULLPATH).iterdir() if p.is_dir() and p.name not in exclude_domains)
     initialized_only = [d for d in domain_dirs if d not in domains_with_modules]
 
@@ -560,22 +543,12 @@ examples:
     # Domain-only subcommands (no module arg)
     for action, help_text in [
         ("new-domain",      "Scaffold standard domain directory structure"),
+        ("ensure-guidance", "Create specs/guidance/ and seed CLAUDE.md (idempotent)"),
         ("manifest-update", "Refresh git SHAs in extraction-manifest.yaml"),
         ("detect-changes",  "Exit 0 if no source doc changes; exit 1 if changes detected"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
-
-    # extract-sections: used by /index-inputs UPDATE mode to preserve SKIP sections
-    p_es = sub.add_parser(
-        "extract-sections",
-        help="Print section entries from input-sections.yaml, excluding specified file paths",
-    )
-    p_es.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
-    p_es.add_argument(
-        "--exclude", metavar="PATH", action="append", default=[],
-        help="Domain-relative path to exclude (repeat for multiple paths)",
-    )
 
     # Preflight: domain + module + optional backend
     p_pre = sub.add_parser("preflight", help="Validate domain, module, and tool prerequisites")
@@ -648,14 +621,14 @@ examples:
             cmd_list()
         case "new-domain":
             cmd_new_domain(args.domain)
+        case "ensure-guidance":
+            cmd_ensure_guidance(args.domain)
         case "preflight":
             cmd_preflight(args.domain, args.module, args.backend)
         case "manifest-update":
             cmd_manifest_update(args.domain)
         case "detect-changes":
             cmd_detect_changes(args.domain)
-        case "extract-sections":
-            cmd_extract_sections(args.domain, args.exclude)
         case "export-test-template":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),

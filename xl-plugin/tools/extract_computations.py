@@ -1,0 +1,422 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.14"
+# dependencies = ["pyyaml>=6.0"]
+# ///
+"""
+xlator extract-computations: maintain <domain>/policy_facets/computations/ as
+a per-source-file mirror of <domain>/input/policy_docs/, where each output is
+a YAML list of {heading, summary, tags, stage?, stage_source?, computations?}
+section blocks.
+
+This tool handles the non-AI half of /extract-computations: file enumeration,
+manifest read/write, mirror-deletes, and the plan/finalize handoff. The
+orchestrating skill invokes the AI half (per-file content generation by
+/extract-computations) between --plan and --finalize.
+
+Unlike compress-inputs, --plan does NOT pre-copy source files into the
+destination — the AI generates each output file from scratch. As a side
+effect, "noop" classification must verify that the destination file actually
+exists on disk; a manifest entry whose destination has been deleted (manual
+cleanup, partial git checkout) is reclassified as to_extract so the next AI
+pass regenerates it.
+
+Usage:
+    xlator extract-computations <domain> --plan
+    xlator extract-computations <domain> --finalize
+
+--plan:
+  - mkdir policy_facets/computations/ if missing.
+  - Enumerate allowed source files (.md only for v1).
+  - Compute a work plan {to_extract, to_delete, noop, skipped} by comparing
+    each source file's git SHA against the manifest's recorded SHA AND
+    confirming the destination file exists.
+  - Write the work plan + an empty `succeeded`/`failed` list to a transient
+    file at policy_facets/.extract-plan.tmp. The skill mutates these lists
+    as it processes each file.
+  - Emit the work plan as JSON on stdout.
+  - Note: any pre-existing input-sections.yaml is ignored by design. Legacy
+    migration is out of scope; existing domains re-extract from scratch.
+
+--finalize:
+  - Read .extract-plan.tmp; abort if absent.
+  - For to_extract entries NOT in `succeeded`, delete the (partially-written)
+    destination at the destination so the next run reattempts it.
+  - Apply mirror-deletes from to_delete and prune their manifest entries.
+  - For each `succeeded` entry, write {source_path: source_sha} into the
+    manifest using atomic write (tmp + os.replace).
+  - Remove .extract-plan.tmp.
+  - Emit a summary line on stdout.
+
+Output (JSON, --plan only):
+    {
+      "to_extract":      [ {src, dst, source_sha}, ... ],
+      "to_delete":       [ "policy_facets/computations/<rel>.md.yaml", ... ],
+      "noop":            [ {src, reason: "unchanged"}, ... ],
+      "skipped":         [ {src, reason: "not_allowed"}, ... ],
+      "succeeded":       [],
+      "failed":          []
+    }
+
+Exit codes:
+    0 — success
+    1 — error (missing domain, corrupt plan, ...)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+sys.path.insert(0, os.path.dirname(__file__))
+
+import outcome_markers  # noqa: E402
+
+
+_POLICY_DOCS = "input/policy_docs"
+_POLICY_FACETS = "policy_facets"
+_COMPUTATIONS = "policy_facets/computations"
+_MANIFEST = "policy_facets/.computations-manifest.yaml"
+_PLAN_TMP = "policy_facets/.extract-plan.tmp"
+_PLAN_TMP_DIR = "policy_facets/.extract-plan.d"
+
+_ALLOWED_SUFFIXES = {".md"}
+
+
+# ---------------------------------------------------------------------------
+# Allowed
+# ---------------------------------------------------------------------------
+
+def is_allowed(rel_path: Path) -> bool:
+    return rel_path.suffix.lower() in _ALLOWED_SUFFIXES
+
+
+# ---------------------------------------------------------------------------
+# Manifest
+# ---------------------------------------------------------------------------
+
+def read_manifest(domain_dir: Path) -> dict[str, str]:
+    """Return {source_path: source_sha}. Treat unreadable/corrupt as empty."""
+    path = domain_dir / _MANIFEST
+    if not path.exists():
+        return {}
+    try:
+        with path.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError):
+        # Corrupt or unparseable — treat as empty; --finalize will rewrite cleanly.
+        print(
+            f"# warning: {path.relative_to(domain_dir)} unreadable; treating as empty",
+            file=sys.stderr,
+        )
+        return {}
+    sources = (data.get("sources") or {}) if isinstance(data, dict) else {}
+    return {str(k): str(v.get("source_sha", "")) for k, v in sources.items() if isinstance(v, dict)}
+
+
+def write_manifest(domain_dir: Path, sources: dict[str, str]) -> None:
+    """Atomic write: tmp file + os.replace."""
+    path = domain_dir / _MANIFEST
+    payload = {
+        "sources": {
+            src: {"source_sha": sha}
+            for src, sha in sorted(sources.items())
+        }
+    }
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        f.write("# Auto-generated by xlator extract-computations — do not edit manually\n")
+        yaml.safe_dump(payload, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    os.replace(tmp, path)
+
+
+# ---------------------------------------------------------------------------
+# Git SHA
+# ---------------------------------------------------------------------------
+
+def git_sha(domain_dir: Path, abs_path: Path) -> str:
+    """git hash-object <path>; SHA of current file content (working-tree blob).
+
+    Uses hash-object, not `git log`, so changes to a tracked-but-uncommitted file
+    produce a new SHA. Returns 'untracked' only when git/hash-object cannot run.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "hash-object", str(abs_path)],
+            cwd=str(domain_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return "untracked"
+    sha = result.stdout.strip()
+    return sha or "untracked"
+
+
+# ---------------------------------------------------------------------------
+# Plan
+# ---------------------------------------------------------------------------
+
+def cmd_plan(domain_dir: Path) -> dict[str, object]:
+    if not domain_dir.is_dir():
+        raise RuntimeError(f"Domain directory not found: {domain_dir}")
+
+    (domain_dir / _COMPUTATIONS).mkdir(parents=True, exist_ok=True)
+
+    source_root = domain_dir / _POLICY_DOCS
+    if not source_root.is_dir():
+        raise RuntimeError(
+            f"{_POLICY_DOCS}/ not found under {domain_dir.name}/. "
+            f"Add .md policy documents first."
+        )
+
+    manifest = read_manifest(domain_dir)
+    seen_sources: set[str] = set()
+
+    to_extract: list[dict[str, str]] = []
+    noop: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+
+    # Walk source files in sorted order for deterministic output.
+    for abs_src in sorted(source_root.rglob("*")):
+        if not abs_src.is_file():
+            continue
+        rel = abs_src.relative_to(domain_dir)  # e.g. input/policy_docs/sub/foo.md
+        rel_str = str(rel)
+
+        if not is_allowed(rel):
+            skipped.append({"src": rel_str, "reason": "not_allowed"})
+            continue
+
+        seen_sources.add(rel_str)
+        sha = git_sha(domain_dir, abs_src)
+        prev_sha = manifest.get(rel_str)
+
+        sub_rel = rel.relative_to(_POLICY_DOCS)
+        dst_rel = Path(_COMPUTATIONS) / f"{sub_rel}.yaml"
+        abs_dst = domain_dir / dst_rel
+
+        # noop only if SHA matches manifest AND destination file exists.
+        # A missing destination (manual deletion / partial checkout) must
+        # reclassify as to_extract — otherwise downstream readers see a
+        # silently missing per-file file.
+        sha_matches = sha != "untracked" and prev_sha == sha
+        dst_exists = abs_dst.exists()
+
+        if sha_matches and dst_exists:
+            noop.append({"src": rel_str, "reason": "unchanged"})
+        else:
+            # Ensure parent dir exists so the AI step can write the file.
+            abs_dst.parent.mkdir(parents=True, exist_ok=True)
+            to_extract.append({
+                "src": rel_str,
+                "dst": str(dst_rel),
+                "source_sha": sha,
+            })
+
+    # Mirror-deletes: manifest entries with no current source.
+    to_delete: list[str] = []
+    for src_rel in manifest:
+        if src_rel in seen_sources:
+            continue
+        try:
+            sub_rel = Path(src_rel).relative_to(_POLICY_DOCS)
+        except ValueError:
+            # Manifest key not under input/policy_docs/ — keep entry, log skip.
+            continue
+        to_delete.append(str(Path(_COMPUTATIONS) / f"{sub_rel}.yaml"))
+
+    plan = {
+        "to_extract": to_extract,
+        "to_delete": to_delete,
+        "noop": noop,
+        "skipped": skipped,
+    }
+
+    # Persist transient plan for --finalize.
+    plan_path = domain_dir / _PLAN_TMP
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    with plan_path.open("w", encoding="utf-8") as f:
+        json.dump(plan, f, indent=2)
+
+    # Clear and recreate the per-file marker directory. Stale markers from a
+    # prior crashed run are obsolete because --plan reclassifies all sources
+    # by current SHA; collation in --finalize must not pick them up.
+    plan_dir = domain_dir / _PLAN_TMP_DIR
+    if plan_dir.exists():
+        shutil.rmtree(plan_dir)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+
+    # Human-readable summary on stderr.
+    print(
+        f"# plan: {len(to_extract)} to extract, {len(to_delete)} to delete, "
+        f"{len(noop)} unchanged, {len(skipped)} skipped",
+        file=sys.stderr,
+    )
+
+    return plan
+
+
+# ---------------------------------------------------------------------------
+# Finalize
+# ---------------------------------------------------------------------------
+
+def cmd_finalize(domain_dir: Path) -> dict[str, int]:
+    if not domain_dir.is_dir():
+        raise RuntimeError(f"Domain directory not found: {domain_dir}")
+
+    plan_path = domain_dir / _PLAN_TMP
+    if not plan_path.exists():
+        raise RuntimeError(
+            f"{_PLAN_TMP} not found. Run 'xlator extract-computations <domain> --plan' first."
+        )
+
+    with plan_path.open(encoding="utf-8") as f:
+        plan = json.load(f)
+
+    # Defensive schema check: a plan file with non-empty succeeded/failed arrays
+    # is the v3.0.0 schema. Aborting protects against silent dst-deletion when
+    # an analyst upgrades plugin v3.0.0 → v4.0.0 with an in-flight run on disk.
+    if plan.get("succeeded") or plan.get("failed"):
+        raise RuntimeError(
+            f"{_PLAN_TMP} has the v3.0.0 schema (non-empty succeeded/failed arrays). "
+            f"This run was started under an older plugin version. Delete "
+            f"{_PLAN_TMP} and {_PLAN_TMP_DIR} and re-run /index-inputs."
+        )
+
+    to_extract: list[dict[str, str]] = plan.get("to_extract") or []
+    to_delete: list[str] = plan.get("to_delete") or []
+
+    # Read per-file outcome markers (replaces the v3.0.0 succeeded/failed lists).
+    plan_dir = domain_dir / _PLAN_TMP_DIR
+    markers = outcome_markers.read_markers(plan_dir)
+
+    succeeded: set[str] = {
+        src for src, m in markers.items() if m.get("status") == "succeeded"
+    }
+    failed: list[dict[str, str]] = [
+        {"src": src, "error": str(m.get("error", ""))}
+        for src, m in markers.items() if m.get("status") == "failed"
+    ]
+
+    # 1. For to_extract entries NOT in succeeded, delete the partially-written
+    #    destination so the next run reattempts. A missing marker is "no marker
+    #    written" (worker died before/at marker init); an in_progress marker is
+    #    "action aborted mid-flight" (worker died after caveman/extract started
+    #    mutating dst). Both are unsafe to keep — caveman in particular leaves
+    #    dst in an indeterminate state.
+    aborted = 0
+    aborted_no_marker = 0
+    aborted_in_progress = 0
+    for entry in to_extract:
+        src = entry["src"]
+        if src in succeeded:
+            continue
+        marker = markers.get(src)
+        if marker is None:
+            failed.append({"src": src, "error": "no marker written"})
+            aborted_no_marker += 1
+        elif marker.get("status") == "in_progress":
+            failed.append({"src": src, "error": "action aborted mid-flight"})
+            aborted_in_progress += 1
+        # else: status == "failed" — already in failed list above.
+        dst_abs = domain_dir / entry["dst"]
+        if dst_abs.exists():
+            dst_abs.unlink()
+            aborted += 1
+
+    # 2. Mirror-deletes: remove computations counterparts whose source is gone.
+    deleted = 0
+    for rel_dst in to_delete:
+        dst_abs = domain_dir / rel_dst
+        if dst_abs.exists():
+            dst_abs.unlink()
+            deleted += 1
+
+    # 3. Update the manifest: keep noop entries, write succeeded entries,
+    #    drop deleted entries.
+    manifest = read_manifest(domain_dir)
+    deleted_sources = set()
+    for rel_dst in to_delete:
+        try:
+            sub = Path(rel_dst).relative_to(_COMPUTATIONS)
+        except ValueError:
+            continue
+        # Strip the trailing ".yaml" we appended to the source filename.
+        sub_str = str(sub)
+        if sub_str.endswith(".yaml"):
+            sub_str = sub_str[: -len(".yaml")]
+        deleted_sources.add(str(Path(_POLICY_DOCS) / sub_str))
+    for src in deleted_sources:
+        manifest.pop(src, None)
+
+    src_to_sha = {entry["src"]: entry["source_sha"] for entry in to_extract}
+    for src in succeeded:
+        if src in src_to_sha:
+            manifest[src] = src_to_sha[src]
+
+    write_manifest(domain_dir, manifest)
+
+    # 4. Remove the transient plan file and the marker directory.
+    plan_path.unlink()
+    outcome_markers.cleanup_marker_dir(plan_dir)
+
+    summary = {
+        "extracted": len(succeeded),
+        "deleted": deleted,
+        "unchanged": len(plan.get("noop") or []),
+        "skipped": len(plan.get("skipped") or []),
+        "aborted": aborted_no_marker + aborted_in_progress,
+        "failed": len(failed),
+    }
+    print(
+        f"extracted: {summary['extracted']}, deleted: {summary['deleted']}, "
+        f"unchanged: {summary['unchanged']}, skipped: {summary['skipped']}, "
+        f"aborted: {summary['aborted']}, failed: {summary['failed']}"
+    )
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Maintain <domain>/policy_facets/computations/ via /extract-computations."
+    )
+    parser.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--plan", action="store_true",
+                      help="Enumerate, classify, write transient plan; emit JSON.")
+    mode.add_argument("--finalize", action="store_true",
+                      help="Apply succeeded list to manifest; clean up aborted partial writes.")
+    args = parser.parse_args()
+
+    domains_root = os.environ.get("DOMAINS_FULLPATH")
+    if not domains_root:
+        print("Error: DOMAINS_FULLPATH not set in environment.", file=sys.stderr)
+        sys.exit(1)
+    domain_dir = Path(domains_root) / args.domain
+
+    try:
+        if args.plan:
+            plan = cmd_plan(domain_dir)
+            print(json.dumps(plan, indent=2))
+        else:
+            cmd_finalize(domain_dir)
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

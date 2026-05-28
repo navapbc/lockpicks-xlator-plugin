@@ -98,7 +98,23 @@ copy_if_diff() {
     fi
 }
 
-: ${BRANCH_OR_TAG:="main"}
+if [ -z "${BRANCH_OR_TAG:-}" ]; then
+    echo "No BRANCH_OR_TAG specified, defaulting to 'main'"
+    BRANCH_OR_TAG="main"
+else
+    echo "Using BRANCH_OR_TAG='$BRANCH_OR_TAG'"
+fi
+
+MARKETPLACE_LOCATION=$(get_marketplace_install_location)
+if [ -d "$MARKETPLACE_LOCATION" ]; then
+    CURRENT_BRANCH=$(cd "$MARKETPLACE_LOCATION" && git rev-parse --abbrev-ref HEAD)
+    echo "  Plugin installed at $MARKETPLACE_LOCATION is using branch '$CURRENT_BRANCH'"
+    if [ "$CURRENT_BRANCH" != "$BRANCH_OR_TAG" ]; then
+        echo "Error: BRANCH_OR_TAG='$BRANCH_OR_TAG' does not match the currently installed branch '$CURRENT_BRANCH'."
+        echo "If BRANCH_OR_TAG is correct, run './xlator_setup.sh uninstall' first then re-run your command."
+        exit 9
+    fi
+fi
 
 update_this_script(){
     echo "0. Checking for updates to xlator_setup.sh..."
@@ -118,7 +134,7 @@ setup_xlator_plugin() {
     fi
 
     # Fortunately, we don't need to authenticate claude to add plugins
-    if claude plugins marketplace list --json | grep -q '"lockpicks-marketplace"'; then
+    if claude plugins marketplace list --json | grep -q '"name": "lockpicks-marketplace"'; then
         # Update git repo at ~/.claude/plugins/marketplaces/lockpicks-marketplace
         claude plugin marketplace update lockpicks-marketplace
     else
@@ -133,6 +149,11 @@ setup_xlator_plugin() {
     rm -rf "$HOME/.claude/plugins/cache/lockpicks-marketplace/xl"
     # Install the plugin from the marketplace
     claude plugin install --scope project xl@lockpicks-marketplace
+
+    if ! claude plugins marketplace list --json | grep -q '"name": "caveman"'; then
+        claude plugin marketplace add --scope project JuliusBrussee/caveman
+    fi
+    claude plugin install --scope project caveman@caveman
 
     if ! command -v uv >/dev/null 2>&1; then
         curl -fsSL https://astral.sh/uv/install.sh | sh

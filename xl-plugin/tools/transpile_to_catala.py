@@ -29,14 +29,20 @@ import os
 import pathlib
 import argparse
 import subprocess
+from typing import Callable
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from civil_expr import normalize_computed_doc  # noqa: E402
+from civil_expr import (  # noqa: E402
+    _find_outside_strings,
+    _scan_comprehension_args,
+    _string_literal_positions,
+    normalize_computed_doc,
+)
 
 
 # =============================================================================
-# UTILITIES (copied from transpile_to_rego.py)
+# UTILITIES
 # =============================================================================
 
 def fail(msg):
@@ -99,7 +105,22 @@ def percent_literal(value: float) -> str:
     return f"{pct}%"
 
 
-def _prose_block(description: str | None, source: str | None) -> str:
+def _format_source(source: dict | None) -> str:
+    """Render a CIVIL `source:` object as a single prose-friendly string.
+
+    Returns '' for None, empty dict, or an object whose `file:` and `section:`
+    are both blank.
+    """
+    if not isinstance(source, dict):
+        return ""
+    section = (source.get("section") or "").strip()
+    file = (source.get("file") or "").strip()
+    if section and file:
+        return f"{section} — {file}"
+    return section or file
+
+
+def _prose_block(description: str | None, source: dict | None) -> str:
     """Return Markdown prose text for a CIVIL field's description and source.
 
     Empty/whitespace-only strings are treated the same as None — not emitted.
@@ -107,7 +128,7 @@ def _prose_block(description: str | None, source: str | None) -> str:
     """
     parts = []
     desc = (description or "").strip()
-    src = (source or "").strip()
+    src = _format_source(source)
     if desc:
         parts.append(desc)
     if src:
@@ -115,7 +136,7 @@ def _prose_block(description: str | None, source: str | None) -> str:
     return "\n\n".join(parts)
 
 
-def _emit_prose_heading(md_lines: list, name: str, description: str | None, source: str | None):
+def _emit_prose_heading(md_lines: list, name: str, description: str | None, source: dict | None):
     """Append H4 heading and optional prose block to md_lines.
 
     Always emits the H4 for Markdown anchor navigation. Prose body is only
@@ -307,6 +328,352 @@ def _rewrite_between(expr: str) -> str:
     return "".join(result)
 
 
+def _find_head_outside_strings(s: str, head: str, start: int) -> int:
+    """Find the next occurrence of `head` in `s` at index >= `start`, skipping
+    matches that fall inside a single- or double-quoted string literal.
+
+    Delegates to the shared `_find_outside_strings` primitive in `civil_expr`,
+    so a head-like substring buried inside a CIVIL `expr:` string literal
+    (e.g., `reason == 'see count(v in xs where v > 0)'`) is NOT mistaken for
+    a real comprehension head and rewritten.
+
+    Returns the index of the next head occurrence outside any string literal,
+    or -1 if none remains.
+    """
+    return _find_outside_strings(s, head, start)
+
+
+def _rewrite_comprehension(expr: str, head: str, emit: Callable[[str, str, str], str]) -> str:
+    """Generic comprehension rewriter for `count(...)` / `exists(...)` forms.
+
+    Walks `expr` left-to-right looking for token-bounded `<head>(`. For each
+    occurrence, invokes the shared string-literal-aware scanner from
+    `civil_expr._scan_comprehension_args`. On success, splices in the Catala
+    fragment produced by `emit(var, coll, pred)`. On `None`, leaves the head
+    untouched so the flat-form path (e.g. the existing `count(<list>)` regex)
+    can still consume it.
+
+    The scan recurses into the predicate so nested comprehensions are lowered.
+
+    String-literal awareness: head lookups use `_find_head_outside_strings` so
+    a head-like substring embedded inside a quoted string in the `expr:` is
+    NOT rewritten. This mirrors the R1 fix already applied to civil_expr's
+    pre-AST walker.
+
+    Trust boundary: this transpiler trusts U1's validator gate; malformed
+    comprehensions that escape validation simply pass through unchanged here
+    and surface as Catala typecheck errors downstream.
+    """
+    pattern = head + "("
+    head_len = len(pattern)
+    n = len(expr)
+    out: list[str] = []
+    i = 0
+    while i < n:
+        idx = _find_head_outside_strings(expr, pattern, i)
+        if idx == -1:
+            out.append(expr[i:])
+            break
+        # Token boundary: previous char must not be alnum/underscore (else this
+        # is part of a longer identifier like `discount(...)`).
+        if idx > 0 and (expr[idx - 1].isalnum() or expr[idx - 1] == "_"):
+            out.append(expr[i:idx + head_len])
+            i = idx + head_len
+            continue
+        scan = _scan_comprehension_args(expr, idx + head_len)
+        if scan is None:
+            # Not a comprehension shape — leave the head + `(` untouched.
+            out.append(expr[i:idx + head_len])
+            i = idx + head_len
+            continue
+        var, coll, pred, end = scan
+        # Recursively lower nested comprehensions inside the predicate.
+        pred_rewritten = _rewrite_comprehension(pred, head, emit)
+        # Also run the sibling rewrite — a `count(...)` may contain `exists(...)` inside.
+        other = "exists" if head == "count" else "count"
+        other_emit = _emit_exists if other == "exists" else _emit_count
+        pred_rewritten = _rewrite_comprehension(pred_rewritten, other, other_emit)
+        out.append(expr[i:idx])
+        out.append(emit(var, coll, pred_rewritten))
+        i = end + 1  # skip the matching closing `)`
+    return "".join(out)
+
+
+def _emit_count(var: str, coll: str, pred: str) -> str:
+    """Catala emission for `count(v in coll where pred)`."""
+    return f"(number for {var} among {coll} such that {pred})"
+
+
+def _emit_exists(var: str, coll: str, pred: str) -> str:
+    """Catala emission for `exists(v in coll where pred)`."""
+    return f"(exists {var} among {coll} such that {pred})"
+
+
+def _rewrite_count_comprehension(s: str) -> str:
+    """Rewrite `count(v in coll where pred)` → `(number for v among coll such that pred)`.
+
+    Preserves the flat-form `count(<list>)` invocation for the downstream regex
+    by leaving it untouched when the scanner returns `None`.
+    """
+    return _rewrite_comprehension(s, "count", _emit_count)
+
+
+def _rewrite_exists_comprehension(s: str) -> str:
+    """Rewrite `exists(v in coll where pred)` → `(exists v among coll such that pred)`.
+
+    The single-arg `exists(<field>)` flat-form path (handled elsewhere) is
+    preserved by leaving the head untouched when the scanner returns `None`.
+    """
+    return _rewrite_comprehension(s, "exists", _emit_exists)
+
+
+# Identifier regex shared by the sum scanner.
+_SUM_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _scan_sum_args(s: str, start: int) -> tuple[str, str, str, str | None, int] | None:
+    """Scan a Python-generator-expression argument list starting just after `sum(`.
+
+    Expects the shape `<elt_expr> for <var> in <coll>[ if <pred>]` and walks
+    forward tracking:
+      - paren / bracket depth (incremented on `(` / `[`, decremented on `)` / `]`)
+      - single-quote string state (inside, parens / keywords are ignored)
+      - double-quote string state (same)
+
+    Backslash-escaped quotes inside string literals are honored.
+
+    Args:
+        s: the full expression string.
+        start: offset immediately after the opening `(` of `sum(...)`.
+
+    Returns:
+        `(elt_expr, var, coll, optional_pred, end_offset)` where `end_offset` is
+        the index of the matching closing `)` of the outer `sum(...)` call. The
+        `optional_pred` is `None` when no `if`-filter is present.
+        Returns None if the shape doesn't match.
+    """
+    n = len(s)
+
+    def _skip_ws(j: int) -> int:
+        while j < n and s[j].isspace():
+            j += 1
+        return j
+
+    def _is_kw_at(j: int, kw: str) -> bool:
+        """True when `kw` appears at offset j surrounded by whitespace boundaries."""
+        end = j + len(kw)
+        if not s.startswith(kw, j) or end >= n:
+            return False
+        if j > 0 and (s[j - 1].isalnum() or s[j - 1] == "_"):
+            return False
+        if not s[end].isspace():
+            return False
+        return True
+
+    # String-aware position lookup, shared with the post-`for` walker below.
+    literal_positions = _string_literal_positions(s)
+
+    # Walk forward until we hit a top-level ` for ` keyword (outside strings/brackets).
+    i = start
+    depth = 0
+    elt_start = _skip_ws(i)
+    for_at = -1
+    j = elt_start
+    while j < n:
+        if j in literal_positions:
+            j += 1
+            continue
+        ch = s[j]
+        if ch in "([{":
+            depth += 1
+            j += 1
+            continue
+        if ch in ")]}":
+            if depth == 0:
+                # End of outer call before any `for` — not a generator expression.
+                return None
+            depth -= 1
+            j += 1
+            continue
+        if depth == 0 and ch.isspace() and _is_kw_at(j + 1, "for"):
+            # Match the leading whitespace as the separator boundary.
+            elt_end = j
+            for_at = j + 1
+            break
+        j += 1
+    if for_at < 0:
+        return None
+
+    elt_expr = s[elt_start:elt_end].rstrip()
+    if not elt_expr:
+        return None
+
+    # Past `for`.
+    i = for_at + 3  # len("for")
+    if i >= n or not s[i].isspace():
+        return None
+    i = _skip_ws(i)
+
+    # Bound variable identifier.
+    m = _SUM_IDENT_RE.match(s, i)
+    if not m:
+        return None
+    var = m.group(0)
+    i = m.end()
+
+    # Expect whitespace, then `in`, then whitespace.
+    if i >= n or not s[i].isspace():
+        return None
+    i = _skip_ws(i)
+    if not s.startswith("in", i) or i + 2 >= n or not s[i + 2].isspace():
+        return None
+    i += 2
+    i = _skip_ws(i)
+
+    # Collection: bare ident or dotted attribute chain (mirrors _scan_comprehension_args).
+    m = _SUM_IDENT_RE.match(s, i)
+    if not m:
+        return None
+    coll_start = m.start()
+    i = m.end()
+    while i < n and s[i] == ".":
+        m2 = _SUM_IDENT_RE.match(s, i + 1)
+        if not m2:
+            return None
+        i = m2.end()
+    coll = s[coll_start:i]
+
+    # Optional ` if <pred>` clause. Walk the remainder tracking depth (strings
+    # handled via the shared `literal_positions` from above); an unguarded
+    # top-level ` if ` introduces the predicate. Otherwise the remainder up
+    # to the matching `)` is empty whitespace.
+    depth = 0
+    pred: str | None = None
+    pred_start = -1
+    while i < n:
+        if i in literal_positions:
+            i += 1
+            continue
+        ch = s[i]
+        if ch in "([{":
+            depth += 1
+            i += 1
+            continue
+        if ch in "]}":
+            if depth > 0:
+                depth -= 1
+            i += 1
+            continue
+        if ch == ")":
+            if depth == 0:
+                # End of outer sum(...) call.
+                if pred_start >= 0:
+                    pred = s[pred_start:i].rstrip()
+                    if not pred:
+                        return None
+                return (elt_expr, var, coll, pred, i)
+            depth -= 1
+            i += 1
+            continue
+        if pred_start < 0 and depth == 0 and ch.isspace() and _is_kw_at(i + 1, "if"):
+            # Step over `<ws>if<ws>` to the predicate start.
+            i = _skip_ws(i + 1 + 2)
+            pred_start = i
+            continue
+        i += 1
+    return None
+
+
+def _civil_type_to_catala_sum_type(field_type: str | None) -> str:
+    """Map a CIVIL field-type hint to the Catala `sum <type> of <list>` annotation.
+
+    Catala requires an explicit numeric type for `sum`. We mirror the host
+    output field's type when known.
+
+    When `field_type` is None — for example, sums appearing inside `when:` rule
+    guards or `conditional.if` guards where no host output type is in scope —
+    silently defaulting to `decimal` would produce a Catala typecheck failure
+    for money-typed collections. Raise a clear error instead, so the user is
+    nudged to refactor the sum into a typed computed field.
+    """
+    if field_type == "money":
+        return "money"
+    if field_type == "int":
+        return "integer"
+    if field_type is None:
+        raise ValueError(
+            "sum() requires a typed context — move the sum to a computed field "
+            "with an explicit type (money/int/decimal) and reference that field "
+            "from the when:/conditional.if guard, or pass field_type explicitly"
+        )
+    return "decimal"
+
+
+def _rewrite_sum_comprehension(s: str, field_type: str | None = None) -> str:
+    """Rewrite `sum(<expr> for v in coll [if pred])` to Catala's sum-over-collection form.
+
+    Catala has no direct generator-expression form for sum; the equivalent is
+    `sum <type> of (map each v among coll [such that pred] to <expr>)`.
+
+    Walks `s` left-to-right looking for token-bounded `sum(`. On match, invokes
+    `_scan_sum_args`. On `None`, leaves the head untouched (defensive — there
+    is no flat-form `sum(<list>)` rewrite today, but future additions remain
+    composable).
+
+    String-literal awareness: head lookups use `_find_head_outside_strings` so
+    a `sum(` substring embedded inside a quoted string in the `expr:` is NOT
+    rewritten. This mirrors the R1 fix already applied to civil_expr's
+    pre-AST walker.
+
+    The element expression and predicate are rewritten recursively so nested
+    comprehensions (including nested `sum`, `count`, `exists`) are lowered.
+    """
+    pattern = "sum("
+    head_len = len(pattern)
+    n = len(s)
+    out: list[str] = []
+    i = 0
+    while i < n:
+        idx = _find_head_outside_strings(s, pattern, i)
+        if idx == -1:
+            out.append(s[i:])
+            break
+        if idx > 0 and (s[idx - 1].isalnum() or s[idx - 1] == "_"):
+            out.append(s[i:idx + head_len])
+            i = idx + head_len
+            continue
+        scan = _scan_sum_args(s, idx + head_len)
+        if scan is None:
+            out.append(s[i:idx + head_len])
+            i = idx + head_len
+            continue
+        elt_expr, var, coll, pred, end = scan
+        # Recursively lower nested comprehensions inside the element expr and predicate.
+        elt_rewritten = _rewrite_sum_comprehension(elt_expr, field_type)
+        elt_rewritten = _rewrite_comprehension(elt_rewritten, "count", _emit_count)
+        elt_rewritten = _rewrite_comprehension(elt_rewritten, "exists", _emit_exists)
+        if pred is not None:
+            pred_rewritten = _rewrite_sum_comprehension(pred, field_type)
+            pred_rewritten = _rewrite_comprehension(pred_rewritten, "count", _emit_count)
+            pred_rewritten = _rewrite_comprehension(pred_rewritten, "exists", _emit_exists)
+        else:
+            pred_rewritten = None
+        type_ann = _civil_type_to_catala_sum_type(field_type)
+        if pred_rewritten is None:
+            emitted = (
+                f"(sum {type_ann} of (map each {var} among {coll} to {elt_rewritten}))"
+            )
+        else:
+            emitted = (
+                f"(sum {type_ann} of (map each {var} among {coll} "
+                f"such that {pred_rewritten} to {elt_rewritten}))"
+            )
+        out.append(s[i:idx])
+        out.append(emitted)
+        i = end + 1
+    return "".join(out)
+
+
 def negate_simple_condition(cond: str) -> str:
     """Flip a simple comparison operator: 'X <= N' → 'X > N', etc."""
     for op, neg in [("<=", ">"), (">=", "<"), (" < ", " >= "), (" > ", " <= ")]:
@@ -331,6 +698,13 @@ def translate_expr_to_catala(
     1. Inline constants as Catala-formatted literals
     2. Resolve literal-key table lookups: table('name', INT).col → money literal
     3. Strip variable-key table lookups (handled by stacked defs in emit_table_section)
+    3.5. between(val, low, high) → (low <= val and val <= high)
+    3.55. abs(expr) → (if expr >= $0 then expr else $0 - (expr))
+    3.6a. count(v in coll where pred) → (number for v among coll such that pred)
+    3.6b. exists(v in coll where pred) → (exists v among coll such that pred)
+    3.6c. sum(<expr> for v in coll [if pred])
+            → (sum <type> of (map each v among coll [such that pred] to <expr>))
+    3.6d. count(list) → (number of list)  (flat-form, preserved)
     4. max(a, b)  → (if a >= b then a else b)
     5. min(a, b)  → (if a <= b then a else b)
     6. &&  → and
@@ -403,7 +777,29 @@ def translate_expr_to_catala(
     # Step 3.55: abs(expr) → (if expr >= $0 then expr else $0 - (expr))
     result = _rewrite_abs(result)
 
-    # Step 3.6: count(list) → (number of list)
+    # Step 3.6: comprehension lowerings.
+    # ORDERING INVARIANT: comprehension lowerings MUST run AFTER table
+    # normalization (Steps 1-3, since table(...) may appear inside predicates)
+    # AND BEFORE the &&/||/! translations (Steps 6-8, because Catala's
+    # `such that pred` requires Catala-native and/or inside pred, while
+    # inputs are still CIVIL-native &&/||).
+    # The comprehension rewrites also run BEFORE the existing flat-form
+    # `count(<list>)` regex (Step 3.6c) so comprehension shapes are consumed
+    # first; the flat regex `\bcount\(([^)]+)\)` is paren-unsafe and would
+    # mis-match `count(v in coll where pred)` otherwise.
+    # Step 3.6a: count(v in coll where pred) → (number for v among coll such that pred)
+    result = _rewrite_count_comprehension(result)
+
+    # Step 3.6b: exists(v in coll where pred) → (exists v among coll such that pred)
+    result = _rewrite_exists_comprehension(result)
+
+    # Step 3.6c: sum(<expr> for v in coll [if pred])
+    #           → (sum <type> of (map each v among coll [such that pred] to <expr>))
+    # Same ordering rationale as 3.6a/b: predicate may contain `&&`/`||` that
+    # need Catala-native `and`/`or` translation downstream (Steps 6–7).
+    result = _rewrite_sum_comprehension(result, field_type)
+
+    # Step 3.6d: count(list) → (number of list)  (flat-form, preserved)
     result = re.sub(r"\bcount\(([^)]+)\)", r"(number of \1)", result)
 
     # Steps 4–5: expand max/min iteratively until no nested calls remain.
@@ -512,11 +908,22 @@ def translate_expr_to_catala(
     return result
 
 
-def translate_condition_to_catala(when_expr: str, constants: dict = None, tables: dict = None, fact_entities: set = None, invoke_bound_entities: set = None) -> str:
-    """Translate a CIVIL when: condition to a Catala condition expression string."""
+def translate_condition_to_catala(when_expr: str, constants: dict = None, tables: dict = None, fact_entities: set = None, invoke_bound_entities: set = None, field_id: str | None = None) -> str:
+    """Translate a CIVIL when: condition to a Catala condition expression string.
+
+    `field_id` is an optional context label (e.g. "rule:<id>" or "<field_name>")
+    used to enrich error messages — when a sum() inside the condition raises the
+    typed-context guard, the error is re-raised with the originating field
+    surfaced so users can locate the offending expression quickly.
+    """
     if when_expr.strip() == "true":
         return "true"
-    return translate_expr_to_catala(when_expr, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+    try:
+        return translate_expr_to_catala(when_expr, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+    except ValueError as exc:
+        if field_id is not None:
+            raise ValueError(f"{field_id}: {exc}") from exc
+        raise
 
 
 # =============================================================================
@@ -960,13 +1367,15 @@ def emit_table_definition(
         if then_m:
             val_col = then_m.group(3)
 
-    # Translate the conditional.if guard (if any) — AND-ed into every primary row condition
+    # Translate the conditional.if guard (if any) — AND-ed into every primary row condition.
+    # Pass field_type so any sum() inside the guard inherits the host field's type
+    # rather than tripping the typed-context guard in _civil_type_to_catala_sum_type.
     if_catala = None
     if "conditional" in field_def:
         if_expr_raw = field_def["conditional"].get("if", "true")
         if if_expr_raw != "true":
             if_catala = translate_expr_to_catala(
-                if_expr_raw, constants=constants, tables=tables,
+                if_expr_raw, constants=constants, field_type=field_type, tables=tables,
                 fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
             )
 
@@ -1253,6 +1662,7 @@ def emit_computed_section_catala(
                 catala_expr = translate_condition_to_catala(
                     raw_expr, constants=constants, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    field_id=field_name,
                 )
                 lines.append(f"scope {scope_name}:")
                 lines.append(f"  definition {field_name} equals")
@@ -1264,6 +1674,7 @@ def emit_computed_section_catala(
                 catala_cond = translate_condition_to_catala(
                     raw_expr, constants=constants, tables=tables,
                     fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+                    field_id=field_name,
                 )
                 cond_lines = _format_condition_block(catala_cond)
                 lines.append(f"scope {scope_name}:")
@@ -1333,7 +1744,11 @@ def emit_rules_section_catala(
 
         # Condition variable rule: default false, exception for the true case.
         # Order matters: base case first, then exception — avoids conflict when condition holds.
-        catala_cond = translate_condition_to_catala(when, constants=constants, tables=tables, fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities)
+        catala_cond = translate_condition_to_catala(
+            when, constants=constants, tables=tables,
+            fact_entities=fact_entities, invoke_bound_entities=invoke_bound_entities,
+            field_id=f"rule:{rule_id}",
+        )
         cond_lines = _format_condition_block(catala_cond)
 
         lines = []

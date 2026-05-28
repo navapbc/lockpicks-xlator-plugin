@@ -5,7 +5,7 @@ description: Declare Ruleset Input-Output from a Suggestion File
 
 # Declare Ruleset Input-Output from a Suggestion File
 
-Bootstrap `guidance.yaml` for a domain from a ruleset file produced by `/suggest-target-ruleset`. No template selection is required — the ruleset file already encodes the ruleset's name, input-output shape, role, and scope. Writes `source_template: suggestion--<ruleset_name>` as a sentinel recording which ruleset the file was created from.
+Bootstrap the `guidance/` folder for a domain from a ruleset file produced by `/suggest-target-ruleset`. The deterministic write logic lives in `xlator declare-target-ruleset`; this skill owns the menu prompts and overwrite confirmation.
 
 ## Input
 
@@ -17,27 +17,25 @@ Read `../../core/output-fencing.md` now.
 
 ## Pre-flight
 
-Run these checks before doing anything else:
-
 1. **Domain argument provided?**
    - NO → List all directories matching `$DOMAINS_DIR/*/` as a numbered menu and prompt:
      :::user_input
      Available domains:
        1. snap
-       2. example_domain
+       2. ak_doh
      Which domain? Enter a number or domain name:
      :::
      Await the user's response and use it as `<domain>`. Then continue.
 
 2. **Domain folder exists?**
-   - NO → Print:
+   - NO →
      :::error
      Domain not found: $DOMAINS_DIR/<domain>/
      :::
      Then stop.
 
 3. **`suggested_targets/` directory exists and has at least one `.yaml` file?**
-   - Directory absent or empty → Print:
+   - Directory absent or empty →
      :::error
      No ruleset files found. Run /suggest-target-ruleset <domain> first.
      :::
@@ -45,7 +43,7 @@ Run these checks before doing anything else:
 
 4. **Ruleset file resolved:**
    - If `<ruleset_name>` was provided: check `$DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml` exists.
-     - NOT FOUND → Print:
+     - NOT FOUND →
        :::error
        Ruleset file not found: $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml
        Available ruleset files:
@@ -53,135 +51,59 @@ Run these checks before doing anything else:
          - <file2>.yaml
        :::
        Then stop.
-   - If `<ruleset_name>` was NOT provided: list all `.yaml` files in `$DOMAINS_DIR/<domain>/specs/suggested_targets/` as a numbered menu and prompt:
+   - If `<ruleset_name>` was NOT provided: list `.yaml` files in `$DOMAINS_DIR/<domain>/specs/suggested_targets/` as a numbered menu and prompt:
      :::user_input
      Available ruleset files:
        1. <file1>
        2. <file2>
      Which ruleset file? Enter a number or file name:
      :::
-     Await the user's response and use the resolved file as the ruleset file. Then continue.
+     Await the user's response and use the resolved stem as `<ruleset_name>`. Then continue.
 
-5. **`guidance.yaml` already exists?**
-   - `$DOMAINS_DIR/<domain>/specs/guidance.yaml` present → Prompt:
+5. **`guidance/metadata.yaml` already exists?**
+   - `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` present → Prompt:
      :::user_input
-     guidance.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance.yaml. Overwrite? [y/n]
+     guidance/metadata.yaml already exists at $DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml. Overwrite? [y/n]
      :::
      - `n` → Stop without writing.
-     - `y` → Continue.
+     - `y` → continue.
 
 ## Process
 
-### Step 1: Display ruleset
+1. Ensure the `guidance/` folder exists and seed `CLAUDE.md`:
 
-Read the resolved ruleset file and display a summary:
+   ```bash
+   xlator ensure-guidance <domain>
+   ```
 
-:::detail
-Ruleset: <display_name>
-Description: <description>
-Inputs: <comma-separated category names>
-Output: <primary.name> (<primary.type>)
-Secondary: <secondary_decisions names, or "none">
-:::
+   This is idempotent — safe to run when the folder already exists.
 
-### Step 2: Create `guidance.yaml`
+2. Run the deterministic bootstrap tool:
 
-Use the following as the baseline constraint, standard, and guidance entries.
-Write `$DOMAINS_DIR/<domain>/specs/guidance.yaml` with this exact field ordering:
+   ```bash
+   xlator declare-target-ruleset <domain> <ruleset_name>
+   ```
 
-```yaml
-template_id: <ruleset_name from ruleset>
-source_template: suggestion--<ruleset_name>
-generated_at: <today YYYY-MM-DD>
-display_name: "<display_name from ruleset>"
-description: "<description from ruleset>"
+   The tool reads `specs/suggested_targets/<ruleset_name>.yaml` and writes the three bootstrap files atomically.
 
-role: "<role from ruleset>"
-scope: "<scope from ruleset>"
+   Open a `:::important` fence. Relay the tool's stdout verbatim. Close the fence.
 
-constraints:
-  - "Do not interpret beyond the text; do not add requirements that aren't stated."
-  - "Ensure every rule has citations."
-  - "Create a list of unknowns/gaps (things needed but not defined in the text)."
-  - "List any assumptions made."
-  - "Do not invent verification requirements."
-  - "Ensure no rule introduces concepts not present in the policy."
+   If the tool exits non-zero, emit `:::error` with the captured stderr and stop.
 
-standards:
-  - "<standard from ruleset>"
-  # (repeat for each standard in the ruleset file's standards list)
+3. Suggest the next step:
 
-guidance:
-  - "<guidance item from ruleset>"
-  # (repeat for each guidance item in the ruleset file's guidance list)
-
-edge_cases: []
-
-input_variables:
-  categories:
-    - category: <category from ruleset>
-      description: "<description from ruleset>"
-      examples: []
-    # (repeat for each category in the ruleset file's input_variables.categories)
-
-output_variables:
-  primary:
-    name: <name from ruleset>
-    type: "<type from ruleset>"
-    description: "<description from ruleset>"
-  secondary_decisions:
-    - name: <name from ruleset>
-      type: "<type from ruleset>"
-      description: "<description from ruleset>"
-    # (secondary_decisions: [] when the ruleset has no secondary decisions)
-
-intermediate_variables:
-  include_with_output: []
-  categories: []
-```
-
-**Field population rules:**
-
-- `template_id`: the `ruleset_name` field from the ruleset file (snake_case, e.g., `eligibility_check`)
-- `source_template`: `suggestion--<ruleset_name>` (e.g., `suggestion--eligibility_check`) — never a template filename, never just `suggestion-`
-- `generated_at`: today's date in `YYYY-MM-DD` format
-- `display_name`, `description`, `role`, `scope`: copied verbatim from the ruleset file as quoted strings
-- `constraints`, `standards`, `guidance`: copy all entries from `xl-plugin/core/guidance-templates/assess-eligibility.yaml` exactly as listed in that file — do not summarize or reword
-- `edge_cases: []`: always empty at creation; `/create-skeleton`'s Step 2 pass will populate
-- `input_variables.categories`: copy each `category` and `description` from the ruleset file; add `examples: []` to every category (template placeholder — skeleton building fills these in during `/create-skeleton`)
-- `output_variables.primary`: copy `name`, `type`, and `description` from the ruleset file
-- `output_variables.secondary_decisions`: copy from the ruleset file; write `secondary_decisions: []` when the ruleset had none — never omit the key
-- `intermediate_variables.include_with_output: []`: always initialized empty — never omit this key
-- `intermediate_variables.categories: []`: always initialized empty
-
-**Fields to omit entirely:** `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, `sample_rules:` — those are written by later AI skills (`/create-skeleton`, `/create-ruleset-groups`, `/create-ruleset-modules`).
-
-After writing, print:
-
-:::important
-Created $DOMAINS_DIR/<domain>/specs/guidance.yaml
-:::
-
-Then suggest the next step:
-
-:::next_step
-Next: Run /create-skeleton <domain> to extract document signals and build the computation skeleton.
-:::
+   :::next_step
+   Next: Run `/refine-guidance <domain>` to populate descriptive guidance files.
+   :::
 
 ## Output
 
-:::important
-$DOMAINS_DIR/<domain>/specs/guidance.yaml    [CREATED]
-:::
+| File | Action |
+|------|--------|
+| `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml`         | Created (or overwritten) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml`       | Created (or overwritten) |
+| `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Created (or overwritten) |
 
 ## Common Mistakes to Avoid
 
-- `source_template` must be `suggestion--<ruleset_name>` — never a template filename (e.g., not `assess-eligibility`), never just `suggestion-`
-- `source_template` is never updated after creation — do not modify it on re-runs or updates
-- Do not omit `intermediate_variables.include_with_output: []` — downstream AI skills (`/create-skeleton`, `/extract-ruleset`) expect this key to exist
-- Do not include `ruleset_groups:`, `ruleset_modules:`, `skeleton:`, `constants_and_tables:`, or `sample_rules:` — those are written by later AI skills
-- Do not add `edge_cases:` content here — `edge_cases: []` is always empty at creation; `/create-skeleton` populates it
-- `secondary_decisions: []` must be present even when the ruleset had no secondary decisions — never omit the key
-- `examples: []` in each `input_variables` category is intentional — it is a placeholder that `/create-skeleton` will fill in with domain-specific variable names
-- Do not add `edge_cases:` to the guidance template files in `../../core/guidance-templates/` — `edge_cases:` belongs only in per-domain `guidance.yaml`
-- `template_id` is the `ruleset_name` from the ruleset file (snake_case) — not the `display_name`, not a path, not a template id from `guidance-templates/`
+- **Do not write `policy_phrase:`, `source_doc:`, or `section:` on seeded `naming-manifest.yaml` entries** — these provenance fields are nullable at seed time. The tool omits them; `/extract-ruleset` Step 7 fills them in once the analyst confirms a seeded name against an observed phrase.
