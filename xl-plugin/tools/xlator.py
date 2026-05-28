@@ -31,6 +31,9 @@ Typical user actions (no domain/module):
 Slash command support actions:
   manifest-update <domain>             Refresh git SHAs in extraction-manifest.yaml
   detect-changes  <domain>             Exit 0 = no changes; exit 1 = changes detected
+  convert-doc     <domain> <source-file> [--force-cleanup] [--no-cleanup]
+        Convert a .docx or .pdf into a clean .md under input/policy_docs/ and
+        archive the original under input/_originals/ with a diagnostics JSON.
   validate        <domain> <module>    Validate CIVIL YAML
   graph           <domain> <module>    Generate computation graph
   preflight       <domain> <module> [--backend rego|catala]   Validate CIVIL file exists and tool is in PATH
@@ -550,6 +553,25 @@ examples:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
 
+    # convert-doc: convert .docx / .pdf -> .md and archive the original
+    p_cd = sub.add_parser(
+        "convert-doc",
+        help="Convert a .docx or .pdf into clean markdown for indexing",
+    )
+    p_cd.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_cd.add_argument("source", help="Path to .docx or .pdf source file")
+    p_cd.add_argument(
+        "--force-cleanup",
+        action="store_true",
+        help="Run cleanup even when the doc exceeds auto-cleanup thresholds.",
+    )
+    p_cd.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="Skip cleanup entirely (used by hermetic tests).",
+    )
+
+
     # Preflight: domain + module + optional backend
     p_pre = sub.add_parser("preflight", help="Validate domain, module, and tool prerequisites")
     p_pre.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
@@ -629,6 +651,25 @@ examples:
             cmd_manifest_update(args.domain)
         case "detect-changes":
             cmd_detect_changes(args.domain)
+        case "convert-doc":
+            extra: list[str] = []
+            if args.force_cleanup:
+                extra.append("--force-cleanup")
+            if args.no_cleanup:
+                extra.append("--no-cleanup")
+            # Delegate to convert_doc.py via uv run so its inline script
+            # dependencies (mammoth, pymupdf, anthropic) are auto-installed.
+            run(
+                [
+                    "uv",
+                    "run",
+                    "--script",
+                    str(SCRIPT_DIR_TOOLS / "convert_doc.py"),
+                    args.domain,
+                    args.source,
+                    *extra,
+                ]
+            )
         case "export-test-template":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
