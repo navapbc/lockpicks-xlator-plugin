@@ -389,7 +389,7 @@ def test_build_field_type_map_collects_date_table_key_default():
 
 
 def test_build_field_type_map_collects_int_table_key_default():
-    """table_key_defaults contains int field with first-row value when used as table key."""
+    """table_key_defaults contains int field with a representative value when used as table key."""
     civil_doc = {
         "module": "test_module",
         "inputs": {
@@ -414,12 +414,13 @@ def test_build_field_type_map_collects_int_table_key_default():
     }
     _, _, _, _, _, table_key_defaults = build_field_type_map(civil_doc)
 
+    # Int key with a single table covering {2023, 2024}: pick_representative returns max.
     assert "program_year" in table_key_defaults
-    assert table_key_defaults["program_year"] == 2023
+    assert table_key_defaults["program_year"] == 2024
 
 
-def test_build_field_type_map_table_key_defaults_first_row_wins():
-    """First-row value is used when field appears in multiple tables."""
+def test_build_field_type_map_disjoint_table_key_warns_and_picks_from_larger_set(capsys):
+    """When two tables share a key but their value sets are disjoint, WARN and pick from the larger set."""
     civil_doc = {
         "module": "test_module",
         "inputs": {
@@ -448,7 +449,10 @@ def test_build_field_type_map_table_key_defaults_first_row_wins():
     }
     _, _, _, _, _, table_key_defaults = build_field_type_map(civil_doc)
 
-    # First table's first row wins; table_b's earlier date is not substituted
+    # No value is common to both tables → WARN; pick from larger set (table_a, 2 rows).
+    # Strings fall back to lex-min within that set.
+    captured = capsys.readouterr()
+    assert "WARN" in captured.err
     assert table_key_defaults["effective_date"] == "2024-01-01"
 
 

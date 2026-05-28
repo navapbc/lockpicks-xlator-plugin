@@ -220,6 +220,7 @@ xlator rego-pipeline <domain> <module>
   - v7: Add `table_lookup` as a 4th computed field variant — declarative table lookup with implicit key resolution by name match; desugars to `expr:` at transpile time via `civil_expr.normalize_computed_doc()`.
   - v8: Rename `rule_set.workflow_stages` to `rule_set.ruleset_groups` and `WorkflowStage` model to `RulesetGroup` for vocabulary consistency with the `/create-ruleset-groups` command.
   - v9: Rename top-level keys `facts:` → `inputs:` and `decisions:` → `outputs:` for plain-language clarity. Rename computed field tag `"output"` → `"expose"` to eliminate naming overlap between the new `outputs:` section and the tag used to expose computed fields to parent modules.
+  - v10: Add `field_bind:` under `invoke:` — per-field forwarding that maps individual sub-module input fields to parent-scope CIVIL expressions. Enables computed subscope outputs, cross-entity fields, and arbitrary expressions as sub-module inputs, supplementing entity-level `bind:` for fields that bulk entity forwarding cannot reach.
 
 ---
 

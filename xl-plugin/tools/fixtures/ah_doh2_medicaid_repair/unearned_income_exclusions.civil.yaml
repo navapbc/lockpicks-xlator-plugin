@@ -1,0 +1,174 @@
+# === User-approved example rules (module: unearned_income_exclusions) ===
+# ancsa_excluded_amount             = min(ancsa_cash_distributions_calendar_year, 2000)
+# ancsa_countable_income            = max(0, ancsa_cash_distributions_calendar_year - 2000)
+# countable_education_income        = total_education_assistance - tuition_and_fees - books_and_supplies - childcare_costs - transportation_costs
+# one_third_child_support_excluded  = child_support_received / 3
+# countable_child_support_to_child  = child_support_received * 2 / 3
+# =========================================================
+module: "unearned_income_exclusions"
+description: "Apply §442-3 unearned-income exclusions (ANCSA $2000 cap, education assistance budgeting, one-third child support, federal-law exclusions)."
+version: "2026Q2"
+jurisdiction:
+  level: state
+  country: US
+  state: AK
+effective:
+  start: 2026-01-01
+
+inputs:
+  Household:
+    description: "Pre-exclusion unearned-income amounts and exclusion-eligibility inputs."
+    fields:
+      gross_unearned_income:
+        type: money
+        currency: USD
+        description: "Gross unearned income before any §442-3 exclusions."
+        source: "442-3 — Unearned Income Exclusions"
+      ancsa_cash_distributions_calendar_year:
+        type: money
+        currency: USD
+        description: "Cumulative ANCSA cash distributions received this calendar year (across all ANCSA corporations)."
+        source: "442-3 §A.8 — Alaska Native Claims Settlement Act payments"
+        optional: true
+      total_education_assistance:
+        type: money
+        currency: USD
+        description: "Total education assistance received (Title-IV/BIA fully excluded; other-source budgeted per §442-3 A.7.c)."
+        source: "442-3 §A.7 — Education Assistance"
+        optional: true
+      tuition_and_fees:
+        type: money
+        currency: USD
+        description: "Tuition and fees charged by the school."
+        source: "442-3 §A.7.c — Budgeting Countable Education Income"
+        optional: true
+      books_and_supplies:
+        type: money
+        currency: USD
+        description: "Cost of books, school supplies, special clothing, and tools."
+        source: "442-3 §A.7.c — Budgeting Countable Education Income"
+        optional: true
+      childcare_costs:
+        type: money
+        currency: USD
+        description: "Childcare costs necessary for student to attend school."
+        source: "442-3 §A.7.c — Budgeting Countable Education Income"
+        optional: true
+      transportation_costs:
+        type: money
+        currency: USD
+        description: "Transportation costs to/from school (actual or IRS standard mileage)."
+        source: "442-3 §A.7.c — Budgeting Countable Education Income"
+        optional: true
+      child_support_received:
+        type: money
+        currency: USD
+        description: "Child support received by/on behalf of an SSI/APA-eligible child."
+        source: "442-3 §I — Child Support Payments from an Absent Parent"
+        optional: true
+      is_ssi_apa_eligible_child:
+        type: bool
+        description: "Recipient is a child (unmarried, not head of household, under 22, regularly attending school) eligible for SSI or APA."
+        source: "442-3 §I — Child Support Payments from an Absent Parent"
+        optional: true
+      federal_law_unearned_excluded_amount:
+        type: money
+        currency: USD
+        description: "Total federal-law-authorized unearned-income exclusions (volunteer corps, housing, relocation, restitution, etc.)."
+        source: "442-3 §A — Income Exclusions Authorized by Federal Laws"
+        optional: true
+
+outputs:
+  countable_unearned_income:
+    type: money
+    currency: USD
+    description: "Module result — countable unearned income after §442-3 exclusions."
+    expr: "max(0, Household.gross_unearned_income - Household.federal_law_unearned_excluded_amount - ancsa_excluded_amount - excluded_education_assistance - one_third_child_support_excluded)"
+
+computed:
+  ancsa_excluded_amount:
+    type: money
+    currency: USD
+    description: "ANCSA cash distributions excluded up to $2,000 per individual per calendar year."
+    source: "442-3 §A.8 — Alaska Native Claims Settlement Act payments"
+    tags: [expose]
+    expr: "min(Household.ancsa_cash_distributions_calendar_year, 2000)"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 3
+  ancsa_countable_income:
+    type: money
+    currency: USD
+    description: "Countable portion of ANCSA cash distributions — amounts exceeding the $2,000 cap, counted in month of receipt."
+    source: "442-3 §A.8 — Alaska Native Claims Settlement Act payments"
+    tags: [expose]
+    expr: "max(0, Household.ancsa_cash_distributions_calendar_year - 2000)"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 3
+  excluded_education_assistance:
+    type: money
+    currency: USD
+    description: "Amount of education assistance excluded — Title IV / BIA fully excluded; other education assistance is excluded up to the sum of tuition/fees/books/supplies/childcare/transportation per §442-3 A.7.c."
+    source: "442-3 §A.7 — Education Assistance"
+    tags: [expose]
+    expr: "min(Household.total_education_assistance, Household.tuition_and_fees + Household.books_and_supplies + Household.childcare_costs + Household.transportation_costs)"
+    review:
+      extraction_fidelity: 4
+      source_clarity: 4
+      logic_complexity: 2
+      policy_complexity: 4
+      notes: "Section A.7.a (Title IV/BIA — full exclusion) is not differentiated here; assumes caller distinguishes by setting tuition/etc. to total when fully excluded. Manual review recommended for Title IV cases."
+  countable_education_income:
+    type: money
+    currency: USD
+    description: "Remaining countable education-related unearned income after subtracting allowed educational expenses."
+    source: "442-3 §A.7.c — Budgeting Countable Education Income"
+    tags: [expose]
+    expr: "Household.total_education_assistance - Household.tuition_and_fees - Household.books_and_supplies - Household.childcare_costs - Household.transportation_costs"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 4
+  one_third_child_support_excluded:
+    type: money
+    currency: USD
+    description: "One-third of child support received by/on behalf of an SSI/APA-eligible child is excluded (only when recipient is an eligible child)."
+    source: "442-3 §I — Child Support Payments from an Absent Parent"
+    tags: [expose]
+    conditional:
+      if: "Household.is_ssi_apa_eligible_child"
+      then: "Household.child_support_received / 3"
+      else: "0"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 3
+      policy_complexity: 3
+  countable_child_support_to_child:
+    type: money
+    currency: USD
+    description: "Two-thirds of child support received counted as income to the child (only when child is SSI/APA-eligible)."
+    source: "442-3 §I — Child Support Payments from an Absent Parent"
+    tags: [expose]
+    conditional:
+      if: "Household.is_ssi_apa_eligible_child"
+      then: "Household.child_support_received * 2 / 3"
+      else: "Household.child_support_received"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 3
+      policy_complexity: 3
+
+rule_set:
+  name: "unearned_income_exclusions"
+  precedence: "deny_overrides_allow"
+  description: "Pure computation module — §442-3 unearned-income exclusions."
+
+rules: []

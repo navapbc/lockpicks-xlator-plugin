@@ -1,4 +1,12 @@
 #!/bin/bash
+# VENDORED WITH PATCHES. Two changes from upstream (search "xlator-ui patch"):
+#   1. Missing PROJECT_ROOT no longer hard-fails — when the UI invokes
+#      this shim from outside a project tree, env vars the caller already
+#      set cover for the absent .xlator.local.env.
+#   2. Sourcing .xlator.local.env is conditional — the UI writes this file
+#      per-domain ($DOMAINS_FULLPATH/<domain>/.xlator.local.env), not at
+#      PROJECT_ROOT, so an unconditional `source` would fail.
+# `scripts/sync-vendor.sh` re-applies these two patches after `--from` sync.
 set -e
 
 # Resolve SCRIPT_DIR to the directory containing this script, following symlinks.
@@ -22,13 +30,22 @@ if [ -f ".xlator.local.env" ]; then
 elif git rev-parse --show-toplevel >/dev/null 2>&1; then
     PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 else
-    echo "Error: Cannot find project root. Run ./xlator_setup.sh in the project root." >&2
-    exit 1
+    # xlator-ui patch: no PROJECT_ROOT, but env vars may already be set by
+    # the caller (the ruleset-builder UI exports DOMAINS_DIR / CLAUDE_PLUGIN_ROOT
+    # etc. directly in the subprocess env). Continue rather than hard-fail;
+    # missing vars will surface when the shim actually tries to use them.
+    PROJECT_ROOT=""
 fi
 
 # Load .xlator.local.env and auto-export all variables (including relative path DOMAINS_DIR and CLAUDE_PLUGIN_ROOT).
 set -o allexport
-source "$PROJECT_ROOT/.xlator.local.env"
+# xlator-ui patch: the UI writes `.xlator.local.env` per-domain
+# ($DOMAINS_FULLPATH/<domain>/.xlator.local.env), not at PROJECT_ROOT, so
+# sourcing unconditionally would fail when invoked from the UI repo root.
+# If the file is missing, trust env vars the caller already set.
+if [ -n "$PROJECT_ROOT" ] && [ -f "$PROJECT_ROOT/.xlator.local.env" ]; then
+    source "$PROJECT_ROOT/.xlator.local.env"
+fi
 
 # If no command is given, open an interactive shell with the Xlator environment.
 if [ $# -eq 0 ]; then

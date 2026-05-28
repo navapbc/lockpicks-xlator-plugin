@@ -10,9 +10,12 @@ Create or update the test suite for a CIVIL module based on its current specs.
 ## Input
 
 ```
-/create-tests [<domain>]                  # auto-detect program or prompt if ambiguous
-/create-tests [<domain> <program>]        # target a specific <program>.civil.yaml
+/create-tests [<domain>]                              # auto-detect program or prompt if ambiguous
+/create-tests [<domain> <program>]                    # target a specific <program>.civil.yaml
+/create-tests [<domain> <program> --no-extraction]    # skip Step 0 (policy-document extraction check)
 ```
+
+When `--no-extraction` is present, skip Step 0 (policy-document extraction check) entirely and proceed directly to Mode Detection.
 
 If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and emit a `:::user_input` fence block with `[a]`/`[b]`/... options. Do NOT use AskUserQuestion.
 
@@ -34,6 +37,8 @@ Read `../../core/output-fencing.md` now.
 3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
 
 ## Step 0: Extract Policy Examples
+
+**If `--no-extraction` was passed in the invocation, skip all of Step 0 and proceed directly to Mode Detection.**
 
 After pre-flight, before mode detection, check for input documents and `extracted-tests.yaml`.
 

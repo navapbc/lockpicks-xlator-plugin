@@ -1,0 +1,160 @@
+# === User-approved example rules (module: medicaid_income_exceptions) ===
+# va_payment_counted                       = max(0, va_payment - 200)
+# countable_ss_income_pickle               = current_year_ss_amount * pickle_reduction_factor
+# countable_earned_income_reasonable_compat = (gross_earned_income - 20 - 65) / 2
+# =========================================================
+module: "medicaid_income_exceptions"
+description: "Apply §523 Medicaid-specific income exceptions: VA $200 cap, Pickle reduction factor, SSA COLA disregard for grandfathered individuals, simplified earned-income computation for reasonable compatibility."
+version: "2026Q2"
+jurisdiction:
+  level: state
+  country: US
+  state: AK
+effective:
+  start: 2026-01-01
+
+inputs:
+  Household:
+    description: "Medicaid-specific exception inputs for the benefit unit."
+    fields:
+      va_payment:
+        type: money
+        currency: USD
+        description: "Monthly VA payment subject to §523 E institutional $200 exclusion."
+        source: "523 §E — Veterans Affairs Payments"
+        optional: true
+      current_year_ss_amount:
+        type: money
+        currency: USD
+        description: "Current-year monthly Social Security amount (input to Pickle reduction)."
+        source: "523 §A / Addendum 1 — Pickle Amendment Table"
+        optional: true
+      pickle_reduction_factor:
+        type: float
+        description: "Pickle Amendment reduction factor (looked up by SSI termination year in program_standards module)."
+        source: "Addendum 1 (ADLTC) — Pickle Amendment Table"
+        optional: true
+      is_grandfathered:
+        type: bool
+        description: "Grandfathered individual under §531/§540 (SSA retirement/survivors/disability increases and COLAs are disregarded)."
+        source: "523 §A — Social Security Benefits"
+        optional: true
+      ssa_cola_increase_amount:
+        type: money
+        currency: USD
+        description: "Portion of current-year SS benefits attributable to COLA increases (disregarded for grandfathered individuals)."
+        source: "523 §A — Social Security Benefits"
+        optional: true
+      is_section_1619_eligible:
+        type: bool
+        description: "Person eligible under SSA sections 1619(a) or (b) — SSI disregarded for first two months of institutionalization."
+        source: "523 §C — Post-Eligibility Determination"
+        optional: true
+      months_since_institutionalization:
+        type: int
+        description: "Months since entering the institution (≤ 2 triggers the §523 C SSI disregard)."
+        source: "523 §C — Post-Eligibility Determination"
+        optional: true
+      ssi_amount:
+        type: money
+        currency: USD
+        description: "Monthly SSI benefit amount."
+        source: "523 §C — Post-Eligibility Determination"
+        optional: true
+      is_special_ltc:
+        type: bool
+        description: "Recipient is in the Special Long Term Care eligibility category — the $20 general disregard and spouse/dependent deductions do not apply (§523 F)."
+        source: "523 §F — Income Disregards"
+        optional: true
+      gross_earned_income:
+        type: money
+        currency: USD
+        description: "Gross earned income to use in the reasonable-compatibility simplified computation (§523 B)."
+        source: "523 §B — Reasonable Compatibility"
+        optional: true
+
+outputs:
+  medicaid_adjusted_income:
+    type: money
+    currency: USD
+    description: "Module result — gross income further adjusted for Medicaid-specific exceptions (VA cap, Pickle, SSA COLA disregard, Section 1619)."
+    expr: "max(0, va_payment_counted + countable_ss_income_pickle - ssa_cola_disregarded - section_1619_ssi_disregarded)"
+
+computed:
+  va_payment_counted:
+    type: money
+    currency: USD
+    description: "VA payment after subtracting the $200/month institutional Medicaid exclusion (§523 E)."
+    source: "523 §E — Veterans Affairs Payments"
+    tags: [expose]
+    expr: "max(0, Household.va_payment - 200)"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 3
+  countable_ss_income_pickle:
+    type: money
+    currency: USD
+    description: "Countable Social Security income after applying the Pickle Amendment reduction factor."
+    source: "523 §A / Addendum 1 — Pickle Amendment Table"
+    tags: [expose]
+    expr: "Household.current_year_ss_amount * Household.pickle_reduction_factor"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 4
+      logic_complexity: 2
+      policy_complexity: 4
+      notes: "Pickle factor lookup table is keyed by SSI termination year in Addendum 1; reduction factor is multiplied against the current-year SS benefit amount."
+  ssa_cola_disregarded:
+    type: money
+    currency: USD
+    description: "Amount of SSA COLA increases disregarded for grandfathered individuals."
+    source: "523 §A — Social Security Benefits"
+    tags: [expose]
+    conditional:
+      if: "Household.is_grandfathered"
+      then: "Household.ssa_cola_increase_amount"
+      else: "0"
+    review:
+      extraction_fidelity: 4
+      source_clarity: 4
+      logic_complexity: 3
+      policy_complexity: 4
+      notes: "Specific identification of 'grandfathered' status references §531/§540 which are not in this corpus; flag is modeled as a precomputed boolean."
+  section_1619_ssi_disregarded:
+    type: money
+    currency: USD
+    description: "SSI benefits disregarded in post-eligibility determination for first two months of institutionalization (§523 C, sections 1619(a)/(b))."
+    source: "523 §C — Post-Eligibility Determination"
+    tags: [expose]
+    conditional:
+      if: "Household.is_section_1619_eligible"
+      then: "if Household.months_since_institutionalization <= 2 then Household.ssi_amount else $0"
+      else: "0"
+    review:
+      extraction_fidelity: 4
+      source_clarity: 4
+      logic_complexity: 4
+      policy_complexity: 5
+      notes: "Two-condition gate — 1619(a)/(b) eligibility AND first-two-month window. The policy also requires that the person was receiving SSI in the month before entering the institution; that condition is not modeled."
+  countable_earned_income_reasonable_compat:
+    type: money
+    currency: USD
+    description: "Simplified earned-income computation for reasonable-compatibility comparison — applies $20 general, $65 earned, and one-half disregards in one pass (§523 B)."
+    source: "523 §B — Reasonable Compatibility"
+    tags: [expose]
+    expr: "(Household.gross_earned_income - 20 - 65) / 2"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 4
+      notes: "This is the simplified form used only for reasonable-compatibility comparison; the full §442-4 ten-step sequence remains in earned_income_exclusions for primary eligibility."
+
+rule_set:
+  name: "medicaid_income_exceptions"
+  precedence: "deny_overrides_allow"
+  description: "Pure computation module — Medicaid-specific income exceptions (§523)."
+
+rules: []

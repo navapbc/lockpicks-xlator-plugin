@@ -1,0 +1,96 @@
+# === User-approved example rules (module: reasonable_compatibility_check) ===
+# dol_average_monthly                = dol_quarter_total / 3
+# tolerance_band_low                 = client_stated_income * 0.9
+# tolerance_band_high                = client_stated_income * 1.1
+# reasonable_compatibility_satisfied = between(dol_average_monthly, tolerance_band_low, tolerance_band_high)
+# =========================================================
+module: "reasonable_compatibility_check"
+description: "Apply the 10% tolerance comparison between client-stated and DOL-reported earnings to authorize Medicaid (§523 B)."
+version: "2026Q2"
+jurisdiction:
+  level: state
+  country: US
+  state: AK
+effective:
+  start: 2026-01-01
+
+inputs:
+  Household:
+    description: "Inputs for the reasonable-compatibility comparison."
+    fields:
+      client_stated_income:
+        type: money
+        currency: USD
+        description: "Client-stated monthly gross earned income (post §523 B simplified disregards)."
+        source: "523 §B — Reasonable Compatibility"
+        optional: true
+      dol_quarter_total:
+        type: money
+        currency: USD
+        description: "Most-recent quarter of DOL-reported earnings (gross)."
+        source: "523 §B — Reasonable Compatibility"
+        optional: true
+
+outputs:
+  is_reasonably_compatible:
+    type: bool
+    default: false
+    description: "Module result — DOL-reported earnings fall within the 10% tolerance band of client-stated income."
+    expr: "reasonable_compatibility_satisfied"
+
+computed:
+  dol_average_monthly:
+    type: money
+    currency: USD
+    description: "DOL quarterly reported earnings converted to an average monthly amount."
+    source: "523 §B — Reasonable Compatibility"
+    tags: [expose]
+    expr: "Household.dol_quarter_total / 3"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 2
+  tolerance_band_low:
+    type: money
+    currency: USD
+    description: "Lower bound of the 10% reasonable-compatibility tolerance band around the client-stated income."
+    source: "523 §B — Reasonable Compatibility"
+    tags: [expose]
+    expr: "Household.client_stated_income * 0.9"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 2
+  tolerance_band_high:
+    type: money
+    currency: USD
+    description: "Upper bound of the 10% reasonable-compatibility tolerance band around the client-stated income."
+    source: "523 §B — Reasonable Compatibility"
+    tags: [expose]
+    expr: "Household.client_stated_income * 1.1"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 2
+  reasonable_compatibility_satisfied:
+    type: bool
+    description: "DOL-reported earnings are within the 10% tolerance band of client-stated income."
+    source: "523 §B — Reasonable Compatibility"
+    tags: [expose]
+    expr: "between(dol_average_monthly, tolerance_band_low, tolerance_band_high)"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 4
+      notes: "Worked example in §523 B verifies the formula explicitly ($3,500 stated → $1,707.50 after disregards; $1,536.75–$1,878.25 band; DOL $1,824.17 falls within band → reasonably compatible)."
+
+rule_set:
+  name: "reasonable_compatibility_check"
+  precedence: "deny_overrides_allow"
+  description: "Pure computation module — §523 B reasonable-compatibility tolerance test."
+
+rules: []

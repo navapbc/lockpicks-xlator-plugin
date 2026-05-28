@@ -53,7 +53,7 @@ Run these checks before doing anything else:
 ## Mode Detection
 
 ```bash
-ls $DOMAINS_DIR/<domain>/specs/input-index.yaml 2>/dev/null
+ls "$DOMAINS_DIR/<domain>/specs/input-index.yaml" 2>/dev/null
 ```
 
 | Result | Mode |
@@ -82,8 +82,10 @@ Found <N> document(s). Indexing all...
 For each file, run:
 
 ```bash
-git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/<domain-relative-path>
+git -C "$DOMAINS_DIR/<domain>" log -1 --format="%H" -- <domain-relative-path>
 ```
+
+The `-C` flag sets the git working directory to the per-domain repo so the correct `.git` is used regardless of the subprocess's CWD. The path after `--` must be domain-relative (e.g. `input/policy_docs/foo.md`), not an absolute path.
 
 If the output is empty (file is untracked or staged but not committed), use `"untracked"`.
 
@@ -99,10 +101,10 @@ If any files have `"untracked"` SHA, prompt the user before proceeding:
 
 - **y** → Run:
   ```bash
-  git add $DOMAINS_DIR/<domain>/input/policy_docs/<file1>.md $DOMAINS_DIR/<domain>/input/policy_docs/<file2>.md
-  git commit -m "chore(<domain>): add input policy docs"
+  git -C "$DOMAINS_DIR/<domain>" add input/policy_docs/<file1>.md input/policy_docs/<file2>.md
+  git -C "$DOMAINS_DIR/<domain>" commit -m "chore(<domain>): add input policy docs"
   ```
-  Then re-fetch the SHA for each committed file (`git log -1 --format="%H" -- ...`) and use the real SHA in the index.
+  Then re-fetch the SHA for each committed file (`git -C "$DOMAINS_DIR/<domain>" log -1 --format="%H" -- <domain-relative-path>`) and use the real SHA in the index.
 - **n** → Continue. These files get `"untracked"` SHA and will be re-indexed on every future UPDATE run.
 
 After obtaining each file's SHA, score it:
@@ -283,7 +285,7 @@ Glob all `.md` files recursively under `$DOMAINS_DIR/<domain>/input/policy_docs/
 For each current file, run:
 
 ```bash
-git log -1 --format="%H" -- $DOMAINS_DIR/<domain>/<domain-relative-path>
+git -C "$DOMAINS_DIR/<domain>" log -1 --format="%H" -- <domain-relative-path>
 ```
 
 Empty output → `"untracked"`.
@@ -324,7 +326,12 @@ If any current files have `"untracked"` SHA, prompt the user:
   Commit these files now? [y/n]
 :::
 
-- **y** → Commit them (same as CREATE mode Step 2 commit flow), then re-fetch real SHAs before proceeding.
+- **y** → Run:
+  ```bash
+  git -C "$DOMAINS_DIR/<domain>" add input/policy_docs/<file1>.md input/policy_docs/<file2>.md
+  git -C "$DOMAINS_DIR/<domain>" commit -m "chore(<domain>): add input policy docs"
+  ```
+  Then re-fetch real SHAs (`git -C "$DOMAINS_DIR/<domain>" log -1 --format="%H" -- <domain-relative-path>`) before proceeding.
 - **n** → Continue with `"untracked"` SHA.
 
 ### Step 5: Begin rebuilding `input-sections.yaml`

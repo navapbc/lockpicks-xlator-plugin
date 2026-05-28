@@ -1,0 +1,540 @@
+# === User-approved example rules ===
+# These anchor rules were confirmed by the user in guidance.yaml. Use them as references for CIVIL
+# structure, citation format, and naming style throughout this main-module draft.
+#
+# deny_excess_resources       (when total_client_resources > ltc_resource_limit)
+# deny_excess_income_qmb      (when category=='QMB' && adjusted_gross_income > fpg_threshold_qmb)
+# approve_reasonable_compat   (when reasonable_compatibility_satisfied)
+# =========================================================
+module: "medicaid_eligibility"
+description: "Alaska Aged/Disabled/Long-Term-Care Medicaid eligibility determination — composes income calculation, classification, exclusions, Medicaid exceptions, resources, program standards, reasonable compatibility, and final eligibility gates."
+version: "2026Q2"
+jurisdiction:
+  level: state
+  country: US
+  state: AK
+effective:
+  start: 2026-01-01
+
+inputs:
+  ClientData:
+    description: "Client-reported applicant data — household composition, income, resources, categorical attributes."
+    fields:
+      # ---- Income (440-4 / 441-1 / 441-2) ----
+      payments:                                { type: list,   description: "Recent payments for averaging.",                          source: "440-4 §1",        optional: true }
+      payment_count:                           { type: int,    description: "Count of payments.",                                       source: "440-4 §1",        optional: true }
+      hours_per_week:                          { type: float,  description: "Hours worked per week.",                                   source: "440-4 §1",        optional: true }
+      hourly_rate:                             { type: money,  description: "Hourly wage rate.",        currency: USD,                  source: "440-4 §1",        optional: true }
+      weekly_payment:                          { type: money,  description: "Weekly payment amount.",   currency: USD,                  source: "440-4 §2",        optional: true }
+      biweekly_payment:                        { type: money,  description: "Bi-weekly payment amount.",currency: USD,                  source: "440-4 §2",        optional: true }
+      semimonthly_payment:                     { type: money,  description: "Semi-monthly payment amount.", currency: USD,              source: "440-4 §2",        optional: true }
+      received_payments:                       { type: list,   description: "Partial-period received payments.",                       source: "440-4 §3",        optional: true }
+      anticipated_payments:                    { type: list,   description: "Partial-period anticipated payments.",                    source: "440-4 §3",        optional: true }
+      observed_payments:                       { type: list,   description: "Irregular-income observed payments.",                     source: "440-4 §4",        optional: true }
+      months_observed:                         { type: int,    description: "Months of irregular-income observation.",                 source: "440-4 §4",        optional: true }
+      # ---- Self-employment (441-1 E) ----
+      annual_gross_self_employment_income:     { type: money,  currency: USD, description: "Annual gross self-employment income.",     source: "441-1 §E",         optional: true }
+      annual_allowable_deductions:             { type: money,  currency: USD, description: "Allowable self-employment deductions.",    source: "441-1 §E",         optional: true }
+      monthly_other_earned_income:             { type: money,  currency: USD, description: "Other monthly earned income.",             source: "441-1 §E",         optional: true }
+      monthly_self_employment_net_loss:        { type: money,  currency: USD, description: "Monthly self-employment net loss.",        source: "441-1 §E",         optional: true }
+      # ---- Earned income (441-1) ----
+      wages:                                   { type: money,  currency: USD, description: "Wages (gross).",                            source: "441-1 §A",         optional: true }
+      sick_leave_payments:                     { type: money,  currency: USD, description: "Sick-leave payments (within 6 mo).",       source: "441-1 §C",         optional: true }
+      sheltered_workshop_payments:             { type: money,  currency: USD, description: "Sheltered-workshop payments.",             source: "441-1 §F",         optional: true }
+      employer_flex_health_total:              { type: money,  currency: USD, description: "Flex-health total.",                       source: "441-1 §B",         optional: true }
+      mandatory_health_contribution:           { type: money,  currency: USD, description: "Mandatory health contribution.",           source: "441-1 §B",         optional: true }
+      # ---- Unearned income (441-2) ----
+      net_rsdi_payment:                        { type: money,  currency: USD, description: "Net RSDI payment.",                        source: "441-2 §A",         optional: true }
+      smi_premium_deducted:                    { type: money,  currency: USD, description: "SMI premium deducted from RSDI.",          source: "441-2 §A",         optional: true }
+      pension_payments:                        { type: money,  currency: USD, description: "Pension payments.",                        source: "441-2 §B",         optional: true }
+      annuity_payments:                        { type: money,  currency: USD, description: "Annuity payments.",                        source: "441-2 §B",         optional: true }
+      va_payment:                              { type: money,  currency: USD, description: "VA compensation/pension payment.",         source: "441-2 §C / 523 §E", optional: true }
+      gross_workers_compensation:              { type: money,  currency: USD, description: "Gross workers' compensation.",             source: "441-2 §E",         optional: true }
+      designated_expense_portion:              { type: money,  currency: USD, description: "Workers' comp designated expense portion.",source: "441-2 §E",         optional: true }
+      unemployment_insurance:                  { type: money,  currency: USD, description: "Unemployment insurance benefit.",          source: "441-2 §F",         optional: true }
+      total_death_benefits:                    { type: money,  currency: USD, description: "Total death benefits received.",           source: "441-2 §G",         optional: true }
+      total_burial_and_illness_expenses:       { type: money,  currency: USD, description: "Verified burial/illness expenses.",        source: "441-2 §G",         optional: true }
+      gross_award:                             { type: money,  currency: USD, description: "Gross award (court/settlement).",          source: "441-2 §H",         optional: true }
+      reimbursable_expenses:                   { type: money,  currency: USD, description: "Reimbursable expenses for award.",         source: "441-2 §H",         optional: true }
+      cash_gifts:                              { type: money,  currency: USD, description: "Cash gifts.",                              source: "441-2 §I",         optional: true }
+      cash_prizes:                              { type: money,  currency: USD, description: "Cash prizes.",                             source: "441-2 §J",         optional: true }
+      cash_inheritance:                        { type: money,  currency: USD, description: "Cash inheritance.",                        source: "441-2 §K",         optional: true }
+      support_alimony_received:                { type: money,  currency: USD, description: "Support/alimony for own needs.",           source: "441-2 §L",         optional: true }
+      gross_rent:                              { type: money,  currency: USD, description: "Gross rental income.",                     source: "441-2 §M",         optional: true }
+      ordinary_and_necessary_expenses:         { type: money,  currency: USD, description: "Ordinary and necessary rental expenses.",  source: "441-2 §M",         optional: true }
+      rental_income:                           { type: money,  currency: USD, description: "Room rental income.",                      source: "441-2 §N",         optional: true }
+      total_household_expenses:                { type: money,  currency: USD, description: "Household expenses (room-rental).",        source: "441-2 §N",         optional: true }
+      rented_rooms:                            { type: int,    description: "Number of rooms rented.",                                 source: "441-2 §N",         optional: true }
+      total_rooms:                             { type: int,    description: "Total rooms in home.",                                    source: "441-2 §N",         optional: true }
+      royalties:                               { type: money,  currency: USD, description: "Royalty payments.",                        source: "441-2 §O",         optional: true }
+      total_interest_earnings:                 { type: money,  currency: USD, description: "Joint-account interest earnings.",         source: "441-2 §P",         optional: true }
+      recipient_resource_share_ratio:          { type: float,  description: "Recipient's share of joint-account funds.",              source: "441-2 §P",         optional: true }
+      retroactive_payments:                    { type: money,  currency: USD, description: "Retroactive benefit payments.",            source: "441-2 §Q",         optional: true }
+      # ---- Exclusions (442 / 523 / Addendum 1) ----
+      eitc_payments:                           { type: money,  currency: USD, description: "EITC/CTC payments.",                       source: "442-2 §B",         optional: true }
+      quarterly_irregular_earned:              { type: money,  currency: USD, description: "Quarter's infrequent/irregular earned.",   source: "442-1 §A",         optional: true }
+      quarterly_irregular_unearned:            { type: money,  currency: USD, description: "Quarter's infrequent/irregular unearned.", source: "442-1 §A",         optional: true }
+      is_blind_or_disabled_student:            { type: bool,   description: "Student under 22, blind/disabled.",                       source: "442-2 §D",         optional: true }
+      is_disabled:                             { type: bool,   description: "Disabled (for IRWE).",                                    source: "442-2 §G",         optional: true }
+      irwe_expenses:                           { type: money,  currency: USD, description: "Verified IRWE expenses.",                  source: "442-2 §G",         optional: true }
+      is_blind:                                { type: bool,   description: "Blind (for BWE).",                                        source: "442-2 §I",         optional: true }
+      blind_work_expenses:                     { type: money,  currency: USD, description: "Verified blind work expenses.",            source: "442-2 §I",         optional: true }
+      pass_excluded_amount:                    { type: money,  currency: USD, description: "PASS exclusion amount.",                   source: "442-1 §C / 442-2 §J", optional: true }
+      federal_law_excluded_amount:             { type: money,  currency: USD, description: "Federal-law earned exclusions total.",     source: "442-2 §A / 442-3 §A", optional: true }
+      federal_law_unearned_excluded_amount:    { type: money,  currency: USD, description: "Federal-law unearned exclusions total.",   source: "442-3 §A",         optional: true }
+      ancsa_cash_distributions_calendar_year:  { type: money,  currency: USD, description: "Cumulative ANCSA cash this year.",         source: "442-3 §A.8 / 523 §I", optional: true }
+      total_education_assistance:              { type: money,  currency: USD, description: "Total education assistance.",              source: "442-3 §A.7",       optional: true }
+      tuition_and_fees:                        { type: money,  currency: USD, description: "Tuition and fees.",                        source: "442-3 §A.7",       optional: true }
+      books_and_supplies:                      { type: money,  currency: USD, description: "Books and supplies.",                      source: "442-3 §A.7",       optional: true }
+      childcare_costs:                         { type: money,  currency: USD, description: "Childcare costs.",                         source: "442-3 §A.7",       optional: true }
+      transportation_costs:                    { type: money,  currency: USD, description: "Transportation costs.",                    source: "442-3 §A.7",       optional: true }
+      child_support_received:                  { type: money,  currency: USD, description: "Child support received.",                  source: "442-3 §I",         optional: true }
+      is_ssi_apa_eligible_child:               { type: bool,   description: "Child eligible for SSI/APA.",                             source: "442-3 §I",         optional: true }
+      # ---- Medicaid exceptions (523) ----
+      is_grandfathered:                        { type: bool,   description: "Grandfathered under §531/§540.",                          source: "523 §A",           optional: true }
+      ssa_cola_increase_amount:                { type: money,  currency: USD, description: "Amount of SSA COLA disregarded.",          source: "523 §A",           optional: true }
+      current_year_ss_amount:                  { type: money,  currency: USD, description: "Present-year SS amount.",                  source: "523 §A / Addendum 1", optional: true }
+      ssi_termination_year:                    { type: int,    description: "Year SSI terminated (Pickle table key).",                 source: "Addendum 1 — Pickle Table", optional: true }
+      is_section_1619_eligible:                { type: bool,   description: "Eligible under SSA §1619(a)/(b).",                        source: "523 §C",           optional: true }
+      months_since_institutionalization:       { type: int,    description: "Months since entering institution.",                     source: "523 §C",           optional: true }
+      ssi_amount:                              { type: money,  currency: USD, description: "Monthly SSI benefit.",                     source: "523 §C",           optional: true }
+      is_special_ltc:                          { type: bool,   description: "Special LTC eligibility category.",                       source: "523 §F",           optional: true }
+      is_institutional:                        { type: bool,   description: "Institutional/HCB-waiver applicant.",                     source: "523 §E / 524 §G", optional: true }
+      # ---- Resources (524) ----
+      client_stated_resources:                 { type: list,   description: "Client-stated countable resources (list).",               source: "524 §A",           optional: true }
+      iim_account_balance:                     { type: money,  currency: USD, description: "IIM account balance (excluded).",          source: "524 §K",           optional: true }
+      alaska_native_real_property_value:       { type: money,  currency: USD, description: "Alaska Native real property (excluded).",   source: "524 §L",           optional: true }
+      dingell_act_land_value:                  { type: money,  currency: USD, description: "Dingell Act land (excluded).",             source: "524 §M",           optional: true }
+      home_equity:                             { type: money,  currency: USD, description: "Home equity (excess-home-equity test).",   source: "524 §G",           optional: true }
+      # ---- Categorical attributes ----
+      household_size:                          { type: int,    description: "Household size for FPG lookup.",                          source: "Addendum 1" }
+      resource_household_type:                 { type: string, values: [individual, couple], description: "Household composition for resource-limit lookup.", source: "Addendum 1", optional: true }
+      benefit_year:                            { type: int,    description: "Benefit year.",                                            source: "Addendum 1",        optional: true }
+      medicaid_category_requested:             { type: string, values: [QMB, SLMB, SLMB_BASE, SLMB_PLUS, QDWI, LIS, SPECIAL_LTC, ADLTC, NONE], description: "Requested Medicaid category.", source: "523 §G", optional: true }
+      is_citizen:                              { type: bool,   description: "US citizen.",                                              source: "Categorical eligibility" }
+      is_alaska_resident:                      { type: bool,   description: "Alaska resident.",                                         source: "Categorical eligibility" }
+      is_disqualified:                         { type: bool,   description: "Disqualified for any reason.",                            source: "Categorical eligibility", optional: true }
+      client_stated_income:                    { type: money,  currency: USD, description: "Client-stated monthly gross earned income.", source: "523 §B",           optional: true }
+
+  DOLRecord:
+    description: "Department of Labor electronic wage record."
+    fields:
+      dol_quarter_total:                       { type: money,  currency: USD, description: "Most-recent DOL quarterly total earnings.", source: "523 §B",           optional: true }
+
+  AVSData:
+    description: "Asset Verification System electronic resource record."
+    fields:
+      avs_matched_amounts:                     { type: list,   description: "AVS amounts for accounts matching client-stated.",        source: "524 §A",           optional: true }
+      client_matched_amounts:                  { type: list,   description: "Client amounts paired with avs_matched_amounts.",         source: "524 §A",           optional: true }
+      new_avs_accounts:                        { type: list,   description: "Undisclosed AVS account amounts.",                       source: "524 §A",           optional: true }
+
+outputs:
+  is_medicaid_eligible:
+    type: bool
+    default: false
+    description: "Primary Medicaid eligibility determination."
+    expr: "count(reasons) == 0"
+  medicaid_category:
+    type: string
+    values: [QMB, SLMB, SLMB_BASE, SLMB_PLUS, QDWI, LIS, SPECIAL_LTC, ADLTC, NONE]
+    default: "NONE"
+    description: "Eligibility sub-category awarded — currently echoes the requested category when eligible, NONE otherwise."
+    conditional:
+      if: "count(reasons) == 0"
+      then: "ClientData.medicaid_category_requested"
+      else: "\"NONE\""
+  manual_review_required:
+    type: bool
+    default: false
+    description: "Manual review flag — true when categorical attributes are unset or reasonable-compatibility could not be tested."
+    expr: "(!ClientData.is_citizen && !ClientData.is_alaska_resident) || ClientData.is_disqualified"
+  reasons:
+    type: list
+    item: Reason
+    default: []
+    description: "Reasons for denial (or empty when eligible)."
+
+computed:
+  # ---------- Sub-module invocations ----------
+  client_income_estimate:
+    type: object
+    module: monthly_income_estimation
+    description: "Estimated monthly income from client-reported payments."
+    invoke:
+      bind:
+        Household: ClientData
+  dol_income_estimate:
+    type: object
+    module: monthly_income_estimation
+    description: "Estimated monthly income from DOL records."
+    invoke:
+      bind:
+        Household: DOLRecord
+  self_emp_result:
+    type: object
+    module: self_employment_income
+    description: "Self-employment income calculation."
+    invoke:
+      bind:
+        Household: ClientData
+  earned_class_result:
+    type: object
+    module: earned_income_classification
+    description: "Earned-income aggregation."
+    invoke:
+      bind:
+        Household: ClientData
+  unearned_class_result:
+    type: object
+    module: unearned_income_classification
+    description: "Unearned-income aggregation."
+    invoke:
+      bind:
+        Household: ClientData
+  general_exclusions_result:
+    type: object
+    module: general_income_exclusions
+    description: "General income exclusions (§442-1)."
+    invoke:
+      bind:
+        Household: ClientData
+  earned_exclusions_result:
+    type: object
+    module: earned_income_exclusions
+    description: "Earned-income exclusion sequence (§442-4)."
+    invoke:
+      bind:
+        Household: ClientData
+      field_bind:
+        Household:
+          gross_earned_income: "earned_class_result.gross_earned_income"
+  unearned_exclusions_result:
+    type: object
+    module: unearned_income_exclusions
+    description: "Unearned-income exclusions (§442-3)."
+    invoke:
+      bind:
+        Household: ClientData
+      field_bind:
+        Household:
+          gross_unearned_income: "unearned_class_result.gross_unearned_income"
+  medicaid_exceptions_result:
+    type: object
+    module: medicaid_income_exceptions
+    description: "Medicaid-specific income exceptions (§523)."
+    invoke:
+      bind:
+        Household: ClientData
+      field_bind:
+        Household:
+          gross_earned_income: "earned_class_result.gross_earned_income"
+  client_resources_result:
+    type: object
+    module: medicaid_resources
+    description: "Resource computation against client-stated resources."
+    invoke:
+      bind:
+        Household: ClientData
+  avs_resources_result:
+    type: object
+    module: medicaid_resources
+    description: "Resource computation against AVS data."
+    invoke:
+      bind:
+        Household: AVSData
+  program_standards_result:
+    type: object
+    module: program_standards
+    description: "Addendum 1 program-standards lookup."
+    invoke:
+      bind:
+        Household: ClientData
+  reasonable_compat_result:
+    type: object
+    module: reasonable_compatibility_check
+    description: "Reasonable-compatibility check between client-stated and DOL."
+    invoke:
+      bind:
+        Household: ClientData
+      field_bind:
+        Household:
+          dol_quarter_total: "DOLRecord.dol_quarter_total"
+  # ---------- Aggregate computed fields used by rules ----------
+  countable_earned_income:
+    type: money
+    currency: USD
+    description: "Final countable earned income (from earned_exclusions_result)."
+    tags: [expose]
+    expr: "earned_exclusions_result.countable_earned_income"
+  countable_unearned_income:
+    type: money
+    currency: USD
+    description: "Final countable unearned income (from unearned_exclusions_result)."
+    tags: [expose]
+    expr: "unearned_exclusions_result.countable_unearned_income"
+  adjusted_gross_income:
+    type: money
+    currency: USD
+    description: "Total countable monthly income — sum of countable earned and countable unearned (after all §442 exclusions, §523 adjustments)."
+    tags: [expose]
+    expr: "countable_earned_income + countable_unearned_income"
+  total_client_resources:
+    type: money
+    currency: USD
+    description: "Total client-stated countable resources."
+    tags: [expose]
+    expr: "client_resources_result.total_client_resources"
+  total_countable_resources:
+    type: money
+    currency: USD
+    description: "Total countable resources — higher of client-stated or AVS-combined."
+    tags: [expose]
+    expr: "client_resources_result.countable_resources"
+  fpg_threshold_qmb:
+    type: money
+    currency: USD
+    description: "100% Alaska FPG (QMB) for the household size."
+    tags: [expose]
+    expr: "program_standards_result.fpg_threshold_qmb"
+  ltc_resource_limit:
+    type: money
+    currency: USD
+    description: "Resource limit for household type."
+    tags: [expose]
+    expr: "program_standards_result.ltc_resource_limit"
+  reasonable_compatibility_satisfied:
+    type: bool
+    description: "Reasonable-compatibility check result."
+    tags: [expose]
+    expr: "reasonable_compat_result.reasonable_compatibility_satisfied"
+
+rule_set:
+  name: "medicaid_eligibility"
+  precedence: "deny_overrides_allow"
+  description: "Final Medicaid eligibility decision combining income, resource, categorical, and reasonable-compatibility tests."
+  ruleset_groups:
+    - name: income_calculation
+      description: "Convert raw payments to monthly income amounts (§440-4 B)."
+    - name: income_classification
+      description: "Classify income sources as earned or unearned (§441)."
+    - name: income_exclusions
+      description: "Apply income exclusions in §442-4 prescribed order, with Medicaid exceptions (§442, §523)."
+    - name: resource_determination
+      description: "Identify and count resources/assets with Medicaid-specific exclusions (§524)."
+    - name: program_standards_lookup
+      description: "Resolve FPG, PNA, resource limits, Pickle factors, and other annual program standards (Addendum 1)."
+    - name: eligibility_determination
+      description: "Compare countable income/resources to category-specific thresholds and produce category + pass/fail decision (§523 G, Addendum 1)."
+    - name: post_eligibility_determination
+      description: "Apply cost-of-care, PNA, and spousal allotment rules after eligibility is established (§523 C/D/E, §524 B/F)."
+
+rules:
+  - id: "AK-MEDICAID-DENY-001"
+    kind: deny
+    priority: 1
+    group: eligibility_determination
+    description: "Deny when total countable resources exceed the QMB/SLMB/SLMB+ resource limit."
+    source: "524 §A / Addendum 1 — Resource Limits"
+    when: "total_countable_resources > ltc_resource_limit"
+    then:
+      - add_reason:
+          code: EXCESS_RESOURCES
+          message: "Countable resources exceed the Medicaid resource limit for this household."
+          citations:
+            - label: "524 §A"
+            - label: "Addendum 1 — QMB, SLMB, & SLMB+ Resource Limits"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 3
+  - id: "AK-MEDICAID-DENY-002"
+    kind: deny
+    priority: 2
+    group: eligibility_determination
+    mutex_group: category_income_test
+    description: "Deny QMB when countable income exceeds 100% Alaska FPG."
+    source: "523 §G — Federal Poverty Guidelines for Alaska"
+    when: "ClientData.medicaid_category_requested == \"QMB\" && adjusted_gross_income > fpg_threshold_qmb"
+    then:
+      - add_reason:
+          code: EXCESS_INCOME_QMB
+          message: "Countable income exceeds 100% of the Alaska FPG for QMB eligibility."
+          citations:
+            - label: "523 §G"
+            - label: "Addendum 1 — FPG for Alaska"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 3
+  - id: "AK-MEDICAID-DENY-003"
+    kind: deny
+    priority: 3
+    group: eligibility_determination
+    mutex_group: category_income_test
+    description: "Deny SLMB when countable income exceeds 120% Alaska FPG."
+    source: "523 §G — Federal Poverty Guidelines for Alaska"
+    when: "ClientData.medicaid_category_requested == \"SLMB\" && adjusted_gross_income > program_standards_result.fpg_threshold_slmb"
+    then:
+      - add_reason:
+          code: EXCESS_INCOME_SLMB
+          message: "Countable income exceeds 120% of the Alaska FPG for SLMB eligibility."
+          citations:
+            - label: "523 §G"
+            - label: "Addendum 1 — FPG for Alaska"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 3
+  - id: "AK-MEDICAID-DENY-004"
+    kind: deny
+    priority: 4
+    group: eligibility_determination
+    mutex_group: category_income_test
+    description: "Deny SLMB Plus when countable income exceeds 200% Alaska FPG."
+    source: "523 §G — Federal Poverty Guidelines for Alaska"
+    when: "ClientData.medicaid_category_requested == \"SLMB_PLUS\" && adjusted_gross_income > program_standards_result.fpg_threshold_slmb_plus"
+    then:
+      - add_reason:
+          code: EXCESS_INCOME_SLMB_PLUS
+          message: "Countable income exceeds 200% of the Alaska FPG for SLMB Plus eligibility."
+          citations:
+            - label: "523 §G"
+            - label: "Addendum 1 — FPG for Alaska"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 3
+  - id: "AK-MEDICAID-DENY-005"
+    kind: deny
+    priority: 5
+    group: eligibility_determination
+    mutex_group: category_income_test
+    description: "Deny QDWI when countable income exceeds 250% Alaska FPG."
+    source: "523 §G — Federal Poverty Guidelines for Alaska"
+    when: "ClientData.medicaid_category_requested == \"QDWI\" && adjusted_gross_income > program_standards_result.fpg_threshold_qdwi"
+    then:
+      - add_reason:
+          code: EXCESS_INCOME_QDWI
+          message: "Countable income exceeds 250% of the Alaska FPG for QDWI eligibility."
+          citations:
+            - label: "523 §G"
+            - label: "Addendum 1 — FPG for Alaska"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 3
+  - id: "AK-MEDICAID-DENY-006"
+    kind: deny
+    priority: 6
+    group: eligibility_determination
+    description: "Deny Special LTC when countable income exceeds the LTC income standard."
+    source: "Addendum 1 (ADLTC) — Special LTC Income Standard"
+    when: "ClientData.medicaid_category_requested == \"SPECIAL_LTC\" && adjusted_gross_income > program_standards_result.ltc_income_standard"
+    then:
+      - add_reason:
+          code: EXCESS_INCOME_SPECIAL_LTC
+          message: "Countable income exceeds the Special LTC income standard."
+          citations:
+            - label: "Addendum 1 — Program Standards"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 2
+      policy_complexity: 3
+  - id: "AK-MEDICAID-DENY-010"
+    kind: deny
+    priority: 10
+    group: eligibility_determination
+    description: "Deny when applicant is not a US citizen."
+    source: "Categorical eligibility"
+    when: "!ClientData.is_citizen"
+    then:
+      - add_reason:
+          code: NOT_CITIZEN
+          message: "Applicant is not a US citizen — Medicaid categorical eligibility not met."
+          citations:
+            - label: "Categorical eligibility"
+    review:
+      extraction_fidelity: 3
+      source_clarity: 2
+      logic_complexity: 1
+      policy_complexity: 3
+      notes: "Citizenship rule is universal categorical eligibility — not stated verbatim in the corpus."
+  - id: "AK-MEDICAID-DENY-011"
+    kind: deny
+    priority: 11
+    group: eligibility_determination
+    description: "Deny when applicant is not an Alaska resident."
+    source: "Categorical eligibility"
+    when: "!ClientData.is_alaska_resident"
+    then:
+      - add_reason:
+          code: NOT_ALASKA_RESIDENT
+          message: "Applicant is not an Alaska resident."
+          citations:
+            - label: "Categorical eligibility"
+    review:
+      extraction_fidelity: 3
+      source_clarity: 2
+      logic_complexity: 1
+      policy_complexity: 3
+      notes: "State residency requirement is universal categorical eligibility."
+  - id: "AK-MEDICAID-DENY-012"
+    kind: deny
+    priority: 12
+    group: eligibility_determination
+    description: "Deny when applicant is disqualified (e.g., prior fraud)."
+    source: "Categorical eligibility"
+    when: "ClientData.is_disqualified"
+    then:
+      - add_reason:
+          code: DISQUALIFIED
+          message: "Applicant is disqualified for Medicaid."
+          citations:
+            - label: "Categorical eligibility"
+    review:
+      extraction_fidelity: 3
+      source_clarity: 2
+      logic_complexity: 1
+      policy_complexity: 3
+  - id: "AK-MEDICAID-ALLOW-100"
+    kind: allow
+    priority: 100
+    group: eligibility_determination
+    description: "Default-allow: when no deny rule fires, the applicant is eligible."
+    source: "Default eligibility (composite of §523 / §524 / Addendum 1 tests)"
+    when: "true"
+    then:
+      - add_reason:
+          code: ELIGIBLE
+          message: "All income, resource, and categorical tests passed."
+          citations:
+            - label: "523 / 524 / Addendum 1"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 1
+  - id: "AK-MEDICAID-ALLOW-200"
+    kind: allow
+    priority: 200
+    group: eligibility_determination
+    description: "Reasonable-compatibility allow: authorize Medicaid when DOL-reported earnings fall within the 10% tolerance band of client-stated income (§523 B)."
+    source: "523 §B — Reasonable Compatibility"
+    when: "reasonable_compatibility_satisfied"
+    then:
+      - add_reason:
+          code: REASONABLE_COMPAT_ALLOW
+          message: "Client-stated earned income is reasonably compatible with DOL-reported earnings (within 10%)."
+          citations:
+            - label: "523 §B — Reasonable Compatibility"
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 4

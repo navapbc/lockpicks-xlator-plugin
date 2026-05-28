@@ -254,7 +254,7 @@ class TableDef(BaseModel):
 
 
 class InvokeField(BaseModel):
-    """Input binding for an invoke: computed field (CIVIL v4).
+    """Input binding for an invoke: computed field (CIVIL v4+).
 
     Maps sub-module entity names to parent entity names.
     Key = sub-module entity name; value = parent entity name.
@@ -266,6 +266,16 @@ class InvokeField(BaseModel):
             "Entity binding: sub-module entity name → parent entity name. "
             "E.g., {Household: ClientData} routes the parent's ClientData entity "
             "to the sub-module's Household input. At least one entry required."
+        ),
+    )
+    field_bind: dict[str, dict[str, str]] | None = Field(
+        default=None,
+        description=(
+            "Per-field overrides for inputs that entity-bind cannot reach (CIVIL v10). "
+            "Outer key = sub-module entity name; inner key = sub-module field name; "
+            "value = CIVIL expression evaluated in the parent scope. "
+            "Additive with bind: — fields listed here are excluded from entity-bind "
+            "coverage checks."
         ),
     )
 

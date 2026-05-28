@@ -652,9 +652,22 @@ examples:
         ("new-domain", "Scaffold standard domain directory structure"),
         ("manifest-update", "Refresh git SHAs in extraction-manifest.yaml"),
         ("detect-changes", "Exit 0 if no source doc changes; exit 1 if changes detected"),
+        ("check-binds", "Verify each parent CIVIL declares all fields its bound sub-modules read"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+
+    # repair-binds: domain + optional --dry-run
+    p_rb = sub.add_parser(
+        "repair-binds",
+        help="Append fields to parent CIVIL so each bound sub-module's reads are satisfied",
+    )
+    p_rb.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_rb.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Compute and print the diff without writing any files",
+    )
 
     # convert-doc: convert .docx / .pdf -> .md and archive the original
     p_cd = sub.add_parser(
@@ -790,6 +803,12 @@ examples:
             cmd_manifest_update(args.domain)
         case "detect-changes":
             cmd_detect_changes(args.domain)
+        case "check-binds":
+            from check_binds import main_check_binds
+            sys.exit(main_check_binds(args.domain))
+        case "repair-binds":
+            from check_binds import main_repair_binds
+            sys.exit(main_repair_binds(args.domain, dry_run=args.dry_run))
         case "convert-doc":
             extra: list[str] = []
             if args.force_cleanup:

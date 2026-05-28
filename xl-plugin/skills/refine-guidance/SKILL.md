@@ -12,8 +12,13 @@ The **guidance template** (in `../../core/guidance-templates/` and `$DOMAINS_DIR
 ## Input
 
 ```
-/refine-guidance <domain>
+/refine-guidance <domain> [<template-path>]
 ```
+
+`<template-path>` — Optional. Absolute path to a guidance template YAML file.
+When provided, Step 1 [CREATE] uses this file directly and skips the
+template-selection prompt. The path may be enclosed in double quotes if it
+contains spaces — strip the surrounding quotes before using it.
 
 Read `../../core/output-fencing.md` now.
 
@@ -67,7 +72,12 @@ Steps in this command:
 
 ### Step 1 [CREATE]: Bootstrap guidance.yaml
 
-Two paths are available. Present as options:
+**Check for pre-selected template:** If a `<template-path>` argument was provided,
+skip the a/b menu below and proceed directly as if the user chose path **a**,
+using `<template-path>` as the selected file. Validate that the file exists; if
+not, print an `:::error` and stop.
+
+If no `<template-path>` argument was provided, present the two paths below:
 
 **a. Template selection** — Choose a guidance template:
 

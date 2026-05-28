@@ -33,7 +33,7 @@ import argparse
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from transpile_to_catala import build_cross_module_enums  # noqa: E402
+from transpile_to_catala import build_cross_module_enums, _to_catala_constructor  # noqa: E402
 
 
 # =============================================================================
@@ -147,10 +147,11 @@ def build_field_type_map(civil_doc: dict, sub_module_docs: dict = None) -> dict:
             types[field_name] = civil_type
             optional_flags[field_name] = is_optional
             if civil_type == "enum" and "values" in field_def:
-                enum_variants[field_name] = {str(v): str(v) for v in field_def["values"]}
+                enum_variants[field_name] = {str(v): _to_catala_constructor(str(v)) for v in field_def["values"]}
             elif civil_type == "string":
                 # Collect enum variants from table key columns for string fields.
-                # Table-derived: emit raw (matches `-- VAL` declaration in emit_declarations).
+                # Table-derived: emit as Catala constructor (uppercase-initial; matches
+                # the `-- _to_catala_constructor(v)` declaration in emit_declarations).
                 table_variants: list = []
                 for table_def in tables.values():
                     if field_name in table_def.get("key", []):
@@ -159,19 +160,20 @@ def build_field_type_map(civil_doc: dict, sub_module_docs: dict = None) -> dict:
                             if val is not None and isinstance(val, str) and val not in table_variants:
                                 table_variants.append(val)
                 if table_variants:
-                    enum_variants[field_name] = {v: v for v in table_variants}
+                    enum_variants[field_name] = {v: _to_catala_constructor(v) for v in table_variants}
                 elif "values" in field_def:
                     # Declared values: PascalCase emit form to match the enum declaration.
                     enum_variants[field_name] = {
-                        str(v): snake_to_pascal(str(v)) for v in field_def.get("values", [])
+                        str(v): _to_catala_constructor(str(v)) for v in field_def.get("values", [])
                     }
                 elif field_name in cross_module_enums:
                     # Enum declared in a sub-module via a table key column.
                     # Catala resolves enum constructors by name alone (no module prefix needed
                     # in struct literals), so emit bare variant names (e.g. A1E, not
-                    # Program_standards_lookup.A1E).
+                    # Program_standards_lookup.A1E). Apply _to_catala_constructor so
+                    # lowercase sub-module values are PascalCased consistently.
                     _, variants = cross_module_enums[field_name]
-                    enum_variants[field_name] = {v: v for v in variants}
+                    enum_variants[field_name] = {v: _to_catala_constructor(v) for v in variants}
             fields.append((field_name, civil_type, is_optional))
         entity_fields[entity_name] = fields
     # Output decision fields: string-with-values: declarations also map to Catala
@@ -179,7 +181,7 @@ def build_field_type_map(civil_doc: dict, sub_module_docs: dict = None) -> dict:
     for field_name, field_def in civil_doc.get("outputs", {}).items():
         if field_def.get("type") == "string" and field_def.get("values"):
             enum_variants[field_name] = {
-                str(v): snake_to_pascal(str(v)) for v in field_def["values"]
+                str(v): _to_catala_constructor(str(v)) for v in field_def["values"]
             }
     # Only include computed fields tagged [expose] — these become scope outputs.
     # Internal computed fields are inaccessible outside the scope and cannot be asserted.
@@ -189,26 +191,51 @@ def build_field_type_map(civil_doc: dict, sub_module_docs: dict = None) -> dict:
         if isinstance(fdef, dict) and "type" in fdef
         and "expose" in (fdef.get("tags") or [])
     }
-    # Collect first-row value for every table key column (any type).
-    # Provides a default for optional/missing fields that matches at least one rule.
-    # Also scan sub-module tables — fields forwarded via bind may only have matching
-    # rows in a sub-module's tables (e.g. effective_date in eligibility forwarded to
-    # program_standards_lookup.expanded_refused_cash_income_limits).
-    table_key_defaults = {}
+    # Pick a default for every table key column that satisfies every table sharing
+    # that key. Picking the first-seen first-row value can produce a default that
+    # is absent from another table's coverage, making outputs derived from that
+    # other table unsatisfiable in every test scope.
     all_tables_to_scan = list(tables.values()) + [
         sub_table
         for sub_doc in sub_module_docs.values()
         for sub_table in sub_doc.get("tables", {}).values()
     ]
+    per_key_value_sets: dict = {}
     for table_def in all_tables_to_scan:
         table_rows = table_def.get("rows", [])
         if not table_rows:
             continue
-        first_row = table_rows[0]
         for key_col in table_def.get("key", []):
-            if key_col not in table_key_defaults and key_col in first_row:
-                table_key_defaults[key_col] = first_row[key_col]
+            values = {row[key_col] for row in table_rows if key_col in row}
+            if values:
+                per_key_value_sets.setdefault(key_col, []).append(values)
+    table_key_defaults = {}
+    for key_col, value_sets in per_key_value_sets.items():
+        common = set.intersection(*value_sets) if value_sets else set()
+        if common:
+            table_key_defaults[key_col] = pick_representative(common)
+        else:
+            table_key_defaults[key_col] = pick_representative(max(value_sets, key=len))
+            print(
+                f"  WARN  key '{key_col}' has no value common to all tables that use it; "
+                f"tests that exercise multiple of those tables may fail.",
+                file=sys.stderr,
+            )
     return types, optional_flags, enum_variants, entity_fields, computed_field_types, table_key_defaults
+
+
+def pick_representative(values: set):
+    """Pick a deterministic representative element from a set of table-key values.
+
+    Numeric (int/float) sets return the maximum — for year keys this picks the
+    most-recent year, which is the value test authors typically intend when an
+    optional field is omitted. Other sets fall back to lexicographic minimum.
+    """
+    if not values:
+        raise ValueError("pick_representative requires a non-empty set")
+    if all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
+        return max(values)
+    return min(values, key=str)
 
 
 def default_value_for_type(civil_type: str) -> str:
@@ -416,6 +443,19 @@ def emit_test_scope(
     test_scope = case_id_to_scope_name(case_id)
     inputs = case.get("inputs", {})
     expected = case.get("expected", {})
+
+    known_input_names = {field_name for field_name, _, _ in all_fields}
+    for entity_name, fields in (entity_fields or {}).items():
+        for field_name, _, _ in fields:
+            known_input_names.add(field_name)
+            known_input_names.add(f"{entity_name}.{field_name}")
+    for input_key in inputs:
+        if input_key not in known_input_names:
+            print(
+                f"  WARN  case '{case_id}': input field '{input_key}' is not declared "
+                f"in CIVIL inputs — value will be ignored. Known inputs: {sorted(known_input_names)}",
+                file=sys.stderr,
+            )
 
     lines = []
 

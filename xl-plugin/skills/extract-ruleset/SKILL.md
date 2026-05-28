@@ -442,6 +442,35 @@ Do not proceed to the next file after a validation failure.
 
 **Single-file:** Run **SP-Validate** as today (single call).
 
+### Step 6b: Auto-repair bind forwarding
+
+**Multi-file only.** When a main module binds an entity to a sub-module via `computed.<name>.invoke.bind`, the main module's entity declaration must include every field the sub-module reads on that entity — otherwise the Catala transpiler will reject the bind. Running auto-repair here closes that gap before the Catala build is ever attempted.
+
+Run:
+
+```
+xlator repair-binds <domain>
+```
+
+Surface the tool's output verbatim inside a `:::detail` block so the user can see which fields were auto-added and from which sub-module. Each added field is annotated in the parent CIVIL with `# auto-imported from <sub_module>` and marked `optional: true`. The tool also carries over `currency:` and `values:` from the sub-module's declaration so enum-constrained and currency-tagged fields are preserved.
+
+**Re-validate the main module after repair.** Repair edits the main module's CIVIL in place; if any auto-imported field is malformed (e.g., from a sub-module with an unusual spec), validation will catch it now rather than at Catala-transpile time. For the **main-module** entry in the multi-file work-list only, re-run **SP-Validate** after `xlator repair-binds` returns. On 3-retry failure, surface the diff produced by repair so the user can see what was auto-added, then stop.
+
+**On non-zero exit from `repair-binds`** (type/currency/values conflict between sub-modules — same field declared with disagreeing wire-shape attributes): stop and print:
+
+:::error
+Bind repair failed for: $DOMAINS_DIR/<domain>/specs/
+
+Two or more sub-modules disagree on the type, currency, or enum values of a
+shared field. See the conflict list above and reconcile by hand — either change
+one sub-module's declaration or remove the entity-to-entity bind and forward
+fields individually.
+:::
+
+Do not proceed to Step 7 after a repair failure.
+
+**Single-file:** Skip — no sub-modules to repair against.
+
 ### Step 7: Write Naming Manifest
 
 Now that the CIVIL file is validated, write `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` using every entry from the approved Name Inventory table (Step 3b). Field names were approved in Step 3b; validation confirms the YAML is structurally correct. Populate the `inputs:` section with entity-grouped field entries (entity names as CamelCase keys). Populate the `outputs:` section with one entry per `outputs:` field, deriving `policy_phrase:`, `source_doc:`, and `section:` from the Name Inventory or policy text provenance for that field.
@@ -497,7 +526,7 @@ Files created or modified by this command:
 | File | Action |
 |------|--------|
 | `$DOMAINS_DIR/<domain>/specs/<sub_module>.civil.yaml` | Created (for each generated sub-module, if ruleset_modules: non-empty) |
-| `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created |
+| `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` | Created; modified by Step 6b auto-repair when sub-modules need additional parent fields |
 | `$DOMAINS_DIR/<domain>/specs/extraction-manifest.yaml` | Created (multi-file format if ruleset_modules: non-empty) |
 | `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` | Created (Step 7, after validation) |
 | `$DOMAINS_DIR/<domain>/specs/input-sections.yaml` | Read-only (if present) |

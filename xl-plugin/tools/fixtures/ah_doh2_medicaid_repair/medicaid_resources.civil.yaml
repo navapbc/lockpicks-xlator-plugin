@@ -1,0 +1,142 @@
+# === User-approved example rules (module: medicaid_resources) ===
+# total_client_resources       = sum(ClientData.client_stated_resources)
+# total_avs_combined_resources = sum(max(AVSData.avs_amount, ClientData.client_amount) per matched account)
+#                                + sum(AVSData.new_avs_accounts)
+# =========================================================
+module: "medicaid_resources"
+description: "Compute countable resources with Medicaid-specific exclusions (IIM accounts, Alaska Native real property, Dingell Act lands) and reasonable-compatibility test against AVS data (§524)."
+version: "2026Q2"
+jurisdiction:
+  level: state
+  country: US
+  state: AK
+effective:
+  start: 2026-01-01
+
+inputs:
+  Household:
+    description: "Resource inventory — countable resources reported by the client and from AVS electronic verification."
+    fields:
+      client_stated_resources:
+        type: list
+        description: "Recipient's stated countable resource amounts (one per account/asset)."
+        source: "524 §A — Reasonable Compatibility"
+        optional: true
+      avs_matched_amounts:
+        type: list
+        description: "AVS-returned amounts for accounts that match a client-stated account."
+        source: "524 §A — Reasonable Compatibility"
+        optional: true
+      client_matched_amounts:
+        type: list
+        description: "Client-stated amounts paired index-wise with avs_matched_amounts (same ordering)."
+        source: "524 §A — Reasonable Compatibility"
+        optional: true
+      new_avs_accounts:
+        type: list
+        description: "Undisclosed account amounts returned by AVS (not matched to any client-stated account)."
+        source: "524 §A — Reasonable Compatibility"
+        optional: true
+      iim_account_balance:
+        type: money
+        currency: USD
+        description: "Funds held in an Individual Indian Money (IIM) account — excluded from countable resources while in the account (§524 K)."
+        source: "524 §K — Individual Indian Money Accounts"
+        optional: true
+      alaska_native_real_property_value:
+        type: money
+        currency: USD
+        description: "Value of Alaska Native / American Indian real property in Alaska (§524 L) — excluded from countable resources."
+        source: "524 §L — Alaska Native and American Indian Real Property Resource Excluded"
+        optional: true
+      dingell_act_land_value:
+        type: money
+        currency: USD
+        description: "Value of Dingell Act lands — exempt resource (§524 M)."
+        source: "524 §M — Dingell Act Lands"
+        optional: true
+      home_equity:
+        type: money
+        currency: USD
+        description: "Home equity for institutionalized individual (§524 G) — substantial home equity is non-exempt above threshold."
+        source: "524 §G — Substantial Home Equity"
+        optional: true
+      is_institutional:
+        type: bool
+        description: "Institutional or waiver applicant — §524 G applies to home equity."
+        source: "524 §G — Substantial Home Equity"
+        optional: true
+      excess_home_equity_threshold:
+        type: money
+        currency: USD
+        description: "Annual threshold above which home equity counts as a resource (Addendum 1)."
+        source: "Addendum 1 — Excess Home Equity"
+        optional: true
+
+outputs:
+  countable_resources:
+    type: money
+    currency: USD
+    description: "Module result — total countable resources after Medicaid-specific exclusions."
+    expr: "max(total_client_resources, total_avs_combined_resources) + countable_home_equity"
+
+computed:
+  total_client_resources:
+    type: money
+    currency: USD
+    description: "Sum of all client-stated countable resources."
+    source: "524 §A — Reasonable Compatibility"
+    tags: [expose]
+    expr: "sum(Household.client_stated_resources)"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 5
+      source_clarity: 5
+      logic_complexity: 1
+      policy_complexity: 2
+  total_matched_resources:
+    type: money
+    currency: USD
+    description: "For matched accounts, take the higher of the AVS-returned amount or the client-stated amount — sum across all matched accounts."
+    source: "524 §A — Reasonable Compatibility (Example 2)"
+    tags: [expose]
+    expr: "sum(Household.avs_matched_amounts) + sum(Household.client_matched_amounts) - min(sum(Household.avs_matched_amounts), sum(Household.client_matched_amounts))"
+    review:
+      extraction_fidelity: 3
+      source_clarity: 3
+      logic_complexity: 4
+      policy_complexity: 5
+      notes: "Policy says 'pick higher of matched account amounts' per matched-pair. CIVIL expression language does not support per-element max over paired lists; the closed-form above approximates the higher-of by aggregate (sum(a)+sum(b)-min(sum(a),sum(b)) = max(sum(a),sum(b))). Manual verification recommended in mixed cases."
+  total_avs_combined_resources:
+    type: money
+    currency: USD
+    description: "Total AVS-combined countable resources — higher of matched account amounts plus all new AVS accounts."
+    source: "524 §A — Reasonable Compatibility"
+    tags: [expose]
+    expr: "total_matched_resources + sum(Household.new_avs_accounts)"  # expr confirmed in /refine-guidance
+    review:
+      extraction_fidelity: 4
+      source_clarity: 4
+      logic_complexity: 3
+      policy_complexity: 4
+  countable_home_equity:
+    type: money
+    currency: USD
+    description: "Home equity counted as a resource — only when institutionalized AND value exceeds the §524 G threshold."
+    source: "524 §G — Substantial Home Equity; Addendum 1 — Excess Home Equity"
+    tags: [expose]
+    conditional:
+      if: "Household.is_institutional"
+      then: "max(0, Household.home_equity - Household.excess_home_equity_threshold)"
+      else: "0"
+    review:
+      extraction_fidelity: 4
+      source_clarity: 4
+      logic_complexity: 3
+      policy_complexity: 4
+
+rule_set:
+  name: "medicaid_resources"
+  precedence: "deny_overrides_allow"
+  description: "Pure computation module — countable resources with §524 Medicaid-specific exclusions."
+
+rules: []
