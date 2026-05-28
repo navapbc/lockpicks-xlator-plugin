@@ -16,3 +16,7 @@ domains
 
 # Local files for compound-engineering plugin that shouldn't be committed.
 compound-engineering.local.md
+
+# Catala/clerk build artifacts (created by clerk start, clerk build, clerk typecheck)
+_build/
+_targets/

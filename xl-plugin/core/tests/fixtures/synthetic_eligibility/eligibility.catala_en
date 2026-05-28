@@ -1,0 +1,79 @@
+> Module Eligibility
+
+# Synthetic Eligibility Program
+
+## Declarations
+
+```catala-metadata
+declaration structure Household:
+  data monthly_gross_income content money
+  data size content integer
+  data has_elderly_member content boolean
+  data countable_resources content money
+
+declaration scope Eligibility:
+  input household content Household
+  internal federal_poverty_line content money
+  internal income_test_passes condition
+  internal elderly_test_passes condition
+  internal resource_disqualification condition
+  output is_eligible condition
+```
+
+## Federal poverty line by household size
+
+*Source: policy.md — Section 1. Definitions*
+
+```catala
+scope Eligibility:
+  definition federal_poverty_line equals
+    if household.size = 1 then $1,255
+    else if household.size = 2 then $1,704
+    else $1,704 + (decimal of (household.size - 2)) * $448
+```
+
+## Income eligibility threshold
+
+*Source: policy.md — Section 2. Income eligibility threshold*
+
+```catala
+scope Eligibility:
+  rule income_test_passes
+    under condition household.monthly_gross_income < federal_poverty_line * 200%
+    consequence fulfilled
+```
+
+## Categorical eligibility for elderly households
+
+*Source: policy.md — Section 3. Categorical eligibility for elderly households*
+
+```catala
+scope Eligibility:
+  rule elderly_test_passes
+    under condition household.has_elderly_member
+    consequence fulfilled
+```
+
+## Resource disqualification
+
+*Source: policy.md — Section 4. Disqualification — assets exceeding limit*
+
+```catala
+scope Eligibility:
+  rule resource_disqualification
+    under condition household.countable_resources > $5,000
+    consequence fulfilled
+```
+
+## Final eligibility decision
+
+*Source: policy.md — Section 5. Final eligibility decision*
+
+```catala
+scope Eligibility:
+  rule is_eligible
+    under condition
+      (income_test_passes or elderly_test_passes)
+      and not resource_disqualification
+    consequence fulfilled
+```
