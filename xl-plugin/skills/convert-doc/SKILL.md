@@ -13,7 +13,7 @@ Take a `.docx` or `.pdf` source file, parse it to markdown, optionally clean it 
 /convert-doc <domain> <source-file> [--force-cleanup] [--no-cleanup]
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories as a numbered menu, prompt the user to choose, await their response, and use it as `<domain>` before continuing. If `<source-file>` is not provided, prompt: "Path to the .docx or .pdf source file?"
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/input/policy_docs/` directories as a numbered menu and emit a `:::user_input` fence block. If `<source-file>` is not provided, emit a `:::user_input` fence asking for the path. Do NOT use AskUserQuestion.
 
 Read `../../core/output-fencing.md` now.
 
@@ -32,7 +32,7 @@ Run these checks before doing anything else:
      Await the user's response. Then continue.
 
 2. **Source file provided and readable?**
-   - Missing → prompt for the path.
+   - Missing → emit a `:::user_input` fence: `Path to the .docx or .pdf source file?`
    - Not a file → :::error
      Source file not found: <source-file>
      :::

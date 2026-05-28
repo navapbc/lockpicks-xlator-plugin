@@ -561,11 +561,13 @@ examples:
     p_cd.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_cd.add_argument("source", help="Path to .docx or .pdf source file")
     p_cd.add_argument(
-        "--force-cleanup", action="store_true",
+        "--force-cleanup",
+        action="store_true",
         help="Run cleanup even when the doc exceeds auto-cleanup thresholds.",
     )
     p_cd.add_argument(
-        "--no-cleanup", action="store_true",
+        "--no-cleanup",
+        action="store_true",
         help="Skip cleanup entirely (used by hermetic tests).",
     )
 
@@ -657,11 +659,17 @@ examples:
                 extra.append("--no-cleanup")
             # Delegate to convert_doc.py via uv run so its inline script
             # dependencies (mammoth, pymupdf, anthropic) are auto-installed.
-            run([
-                "uv", "run", "--script",
-                str(SCRIPT_DIR_TOOLS / "convert_doc.py"),
-                args.domain, args.source, *extra,
-            ])
+            run(
+                [
+                    "uv",
+                    "run",
+                    "--script",
+                    str(SCRIPT_DIR_TOOLS / "convert_doc.py"),
+                    args.domain,
+                    args.source,
+                    *extra,
+                ]
+            )
         case "export-test-template":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
