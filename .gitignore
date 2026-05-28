@@ -8,6 +8,7 @@ dist/
 .venv/
 
 .claude/settings.local.json
+.claude/worktrees/
 
 # Save docs to the private repo.
 # docs and domains are symlinks to the private repo's docs directory
