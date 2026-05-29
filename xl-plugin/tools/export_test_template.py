@@ -4,10 +4,13 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
-CIVIL Spec → CSV Test Template Generator
+Naming Manifest → CSV Test Template Generator (U7, manifest-driven)
 
 Generates a CSV template for policy analysts to author test cases without
-needing to understand the CIVIL YAML structure.
+needing to understand the Catala source structure.
+
+Post-U7: CSV columns derive from `specs/naming-manifest.yaml` (the
+type-extended manifest per R3 extended) instead of the CIVIL spec.
 
 Output: <module>_test_template.csv
   Row 1: header (case_id, description, fact fields, expected_* decisions, tags, notes)
@@ -34,7 +37,11 @@ from pathlib import Path
 # Allow running directly or as a module
 sys.path.insert(0, str(Path(__file__).parent))
 
-from civil_helpers import build_csv_field_specs, field_description_hint, load_civil_yaml
+from manifest_helpers import (
+    build_csv_field_specs,
+    field_description_hint,
+    load_naming_manifest,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -107,25 +114,29 @@ def _placeholder_deny(spec, index: int) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate a CSV test template from a CIVIL spec."
+        description="Generate a CSV test template from a naming-manifest."
     )
-    parser.add_argument("civil_yaml", help="Path to the CIVIL spec YAML file")
+    parser.add_argument("naming_manifest", help="Path to specs/naming-manifest.yaml")
+    parser.add_argument(
+        "--module", required=True, dest="module_name",
+        help="Module name (used to name the output file, e.g. 'eligibility')"
+    )
     parser.add_argument(
         "--output-dir", default=None,
-        help="Output directory (default: same directory as civil_yaml)"
+        help="Output directory (default: same directory as naming-manifest)"
     )
     args = parser.parse_args()
 
-    civil_path = Path(args.civil_yaml)
-    civil_doc = load_civil_yaml(civil_path)
+    manifest_path = Path(args.naming_manifest)
+    manifest_doc = load_naming_manifest(manifest_path)
 
-    module_name: str = civil_doc.get("module", civil_path.stem)
+    module_name: str = args.module_name
 
     # Determine output directory
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = civil_path.parent
+        output_dir = manifest_path.parent
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +145,7 @@ def main() -> None:
     if output_file.exists():
         print(f"WARN: overwriting {output_file}", file=sys.stderr)
 
-    specs = build_csv_field_specs(civil_doc)
+    specs = build_csv_field_specs(manifest_doc)
 
     # Build column headers
     header = ["case_id", "description"] + [s.column_name for s in specs] + ["tags", "notes"]

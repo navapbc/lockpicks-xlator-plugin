@@ -262,12 +262,22 @@ def cmd_clerk_loop(domain, module, max_iterations, no_reset_log):
 
 
 def cmd_catala_test_transpile(domain, module):
-    paths = resolve_paths(domain, module)
-    require_file(paths["civil"], "CIVIL spec")
-    from transpile_to_catala import derive_scope_name, load_civil
-    doc = load_civil(str(paths["civil"]))
-    scope_name = derive_scope_name(doc.get("module", module))
+    """U7-retargeted: read type info from `specs/naming-manifest.yaml`
+    instead of the CIVIL spec. The scope name is derived mechanically from
+    the module name (PascalCase + 'Decision' suffix matches the pre-pivot
+    convention emitted by `transpile_to_catala`'s `derive_scope_name`).
+    The CamelCase module name is the module string with first-letter
+    upper, mirroring the Catala module-directive convention.
+    """
     domain_base = DOMAINS_FULLPATH / domain
+    manifest_path = domain_base / "specs" / "naming-manifest.yaml"
+    require_file(manifest_path, "naming-manifest.yaml")
+
+    # Scope name: PascalCase(module) + 'Decision' (matches pre-pivot derivation).
+    pascal_module = "".join(w.capitalize() for w in module.split("_") if w)
+    scope_name = pascal_module + "Decision"
+    catala_module_name = module[0].upper() + module[1:] if module else module
+
     tests_dir = domain_base / "specs" / "tests"
     out_dir = domain_base / "output" / "tests"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -285,7 +295,8 @@ def cmd_catala_test_transpile(domain, module):
             str(Path(tests_yaml).resolve().relative_to(CWD.resolve())),
             str(out_catala.resolve().relative_to(CWD.resolve())),
             "--scope", scope_name,
-            "--civil-spec", str(paths["civil"].resolve().relative_to(CWD.resolve())),
+            "--naming-manifest", str(manifest_path.resolve().relative_to(CWD.resolve())),
+            "--module-name", catala_module_name,
         ], cwd=str(CWD))
 
 
@@ -664,14 +675,17 @@ examples:
             )
         case "export-test-template":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
+            manifest_path = DOMAINS_FULLPATH / args.domain / "specs" / "naming-manifest.yaml"
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_template.py"),
-                 str(resolve_paths(args.domain, args.module)["civil"]),
+                 str(manifest_path),
+                 "--module", args.module,
                  "--output-dir", out])
         case "export-test-cases":
             out = args.output_dir or str(DOMAINS_FULLPATH / args.domain / "specs" / "tests")
             tf = args.test_file or str(resolve_paths(args.domain, args.module)["tests"])
+            manifest_path = DOMAINS_FULLPATH / args.domain / "specs" / "naming-manifest.yaml"
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "export_test_cases.py"),
-                 str(resolve_paths(args.domain, args.module)["civil"]), tf,
+                 str(manifest_path), tf,
                  "--output-dir", out])
         case "import-tests":
             if args.test_file:
@@ -690,8 +704,10 @@ examples:
                 extra += ["--format", args.format]
             if args.output_format != "text":
                 extra += ["--output-format", args.output_format]
+            manifest_path = DOMAINS_FULLPATH / args.domain / "specs" / "naming-manifest.yaml"
             run([sys.executable, str(SCRIPT_DIR_TOOLS / "import_tests.py"),
-                 str(resolve_paths(args.domain, args.module)["civil"]),
+                 str(manifest_path),
+                 "--module", args.module,
                  args.input, tf, *extra])
 
 

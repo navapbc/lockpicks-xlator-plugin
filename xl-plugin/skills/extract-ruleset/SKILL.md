@@ -427,8 +427,10 @@ Build the analyst-approved Name Inventory from Step 3b as an inventory JSON file
   "section_text": "<§ citation> — <heading>" | null,
   "prior_name": "<previous specs key>" | null,
   "description": "<analyst- or AI-supplied>" | null,
-  "type": "<money|bool|int|float|string|enum|list|set|date|object>" | null,
+  "type": "<integer|decimal|money|boolean|date|duration|string|enum|list|set|object>" | null,
+  "optional": true | false | null,
   "values": ["<a>", "<b>"] | null,
+  "enum_variants": ["<Variant1>", "<Variant2>"] | null,
   "observed_synonyms": [
     {"name": "<alt-name>",
      "source_doc": "input/policy_docs/<rel>.md",
@@ -444,8 +446,21 @@ Rules for building each entry:
 - **`source_doc`**: `input/policy_docs/<rel>.md` for the file the policy_phrase was observed in. `null` when policy_phrase is null.
 - **`section_text`**: `"<§ citation> — <heading>"` from the section the policy_phrase was observed in. `null` when policy_phrase is null.
 - **`prior_name`**: the prior specs key when the analyst renamed an entry in Step 3b (Source = `confirmed` with edited Field Name). `null` for non-renames and for new entries.
-- **`description`, `type`, `values`**: optional analyst- or AI-supplied values. AI-infer `type:` from currency markers / yes-no phrasing / enumerated lists when the source carries an unambiguous signal. AI-infer `description:` from definitional sentences. Set to `null` to defer to whatever the existing entry has (preserve-non-null).
+- **`description`, `type`, `optional`, `values`, `enum_variants`**: optional analyst- or AI-supplied values. AI-infer them from policy-doc context plus the inferred Catala scope-declaration shape:
+  - `type:` — Catala primitive (`integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`) from currency markers ("$", "dollars" → `money`), yes/no phrasing → `boolean`, enumerated lists → enum-flavored leaf type, calendar dates → `date`, and so on. Legacy CIVIL type names (`int`, `float`, `bool`, `enum`, `list`, `set`, `object`) remain valid for backwards compatibility but new entries should prefer Catala-native names.
+  - `optional:` (U7, post-pivot) — `true` when the field is `Optional<T>` in the Catala emission (the policy text treats the field as optional, or the AI declared the scope variable as `Optional`). `false` for required fields. `null` to defer to the existing entry.
+  - `values:` — CIVIL-era allowed-values list (preserved for backwards compatibility).
+  - `enum_variants:` (U7, post-pivot) — list of Catala enum constructor names (PascalCase, e.g. `["Eligible", "Denied", "ManualVerification"]`) when the field is an enum type. Distinct from `values:`; analysts/AIs supply this field for any enum-typed entry in the post-pivot manifest.
+  - `description:` — short prose definition from the source policy text.
+  - Set any field to `null` to defer to whatever the existing entry has (preserve-non-null).
 - **`observed_synonyms`**: optional. For curated alternative phrasings observed in policy text. Each entry has `name` (required), `source_doc` and `section` (recommended for traceability). Omit or set `null` when there are no curated synonyms this round.
+
+**Type-metadata confirmation (U7).** Before constructing the inventory, the analyst confirms not only field names but also each field's Catala type, optionality, and enum variants (when applicable). The Name Inventory table from Step 3b is augmented with three additional columns — **Type**, **Optional**, **Variants** — populated as follows:
+
+- **`seeded` / `confirmed`** rows: pre-populate from the existing manifest entry's `type:` / `optional:` / `enum_variants:`. Display `<unset>` for any field absent on the manifest entry.
+- **`extracted` / `algorithm-derived`** rows: AI-infer from policy-doc context. Show inferred values; mark uncertain inferences with a `?` suffix so the analyst can flag them.
+
+Re-display the augmented table in a second `:::user_input` fence and ask "Do the inferred types, optionality, and enum variants match your intent?" — loop until approval. The approved Type / Optional / Variants values flow into the inventory JSON's `type:` / `optional:` / `enum_variants:` fields. Any field the analyst marks as "leave unset" maps to `null` so the merge tool's preserve-non-null rule applies.
 
 Write the inventory list to a tempfile (e.g., `tempfile.NamedTemporaryFile(suffix='.json', mode='w')`), then close before passing the path.
 

@@ -4,10 +4,13 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
-Existing Test Cases → CSV Exporter
+Existing Test Cases → CSV Exporter (U7, manifest-driven)
 
 Serializes an existing *_tests.yaml file to CSV using the same column layout
 as the test template. Analysts can review, edit, and reimport via import_tests.py.
+
+Post-U7: CSV columns derive from `specs/naming-manifest.yaml` (the
+type-extended manifest per R3 extended) instead of the CIVIL spec.
 
 Output: <tests_yaml_basename>.csv
   Row 1: header
@@ -33,11 +36,11 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from civil_helpers import (
+from manifest_helpers import (
     FieldSpec,
     build_csv_field_specs,
     field_description_hint,
-    load_civil_yaml,
+    load_naming_manifest,
 )
 
 
@@ -109,7 +112,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Export existing YAML test cases to CSV."
     )
-    parser.add_argument("civil_yaml", help="Path to the CIVIL spec YAML file")
+    parser.add_argument("naming_manifest", help="Path to specs/naming-manifest.yaml")
     parser.add_argument("tests_yaml", help="Path to the *_tests.yaml file")
     parser.add_argument(
         "--output-dir", default=None,
@@ -117,10 +120,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    civil_path = Path(args.civil_yaml)
+    manifest_path = Path(args.naming_manifest)
     tests_path = Path(args.tests_yaml)
 
-    civil_doc = load_civil_yaml(civil_path)
+    manifest_doc = load_naming_manifest(manifest_path)
 
     if not tests_path.exists():
         print(f"ERROR: tests file not found: {tests_path}", file=sys.stderr)
@@ -145,7 +148,7 @@ def main() -> None:
     if output_file.exists():
         print(f"WARN: overwriting {output_file}", file=sys.stderr)
 
-    specs = build_csv_field_specs(civil_doc)
+    specs = build_csv_field_specs(manifest_doc)
     fact_specs = [s for s in specs if not s.is_decision]
     decision_specs = [s for s in specs if s.is_decision]
 

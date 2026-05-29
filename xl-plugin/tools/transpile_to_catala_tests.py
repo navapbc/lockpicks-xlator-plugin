@@ -4,15 +4,27 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
-CIVIL YAML Tests → Catala Test File Transpiler
+YAML Tests → Catala Test File Transpiler (post-pivot, U7)
 
 Converts a YAML test file (<domain>/specs/tests/<module>_*_tests.yaml)
 to a Catala test file (<domain>/output/tests/<module>_*_tests.catala_en)
 using the Catala #[test] assertion pattern.
 
 Each YAML test case becomes a #[test] scope that calls the main scope via
-  output of <Scope> with { -- field: value ... }
+  result scope <Module.Scope>
 and asserts on the output fields.
+
+Type metadata source (post-pivot):
+    Type info is read from `<domain>/specs/naming-manifest.yaml` per R3
+    extended in U7. The pre-pivot `--civil-spec` arg path is gone.
+
+Six type-shaped lookups, all manifest-driven after U7:
+    1. Field types (per scope input)         — manifest entry's `type:`
+    2. Optionality (per scope input)         — manifest entry's `optional:` (default false)
+    3. Enum variants (per enum-typed field)  — manifest entry's `enum_variants:` (with `values:` legacy fallback)
+    4. Entity grouping (multi-entity mode)   — manifest's `inputs.<Entity>` structure
+    5. Computed-field types (for assertions) — manifest's `computed:` block
+    6. Output-type filtering (decisions)     — manifest's `outputs:` block, partitioned by `type:`
 
 Usage (via xlator CLI):
     xlator catala-test-transpile <domain> <module>
@@ -33,7 +45,7 @@ import yaml
 
 
 # =============================================================================
-# UTILITIES (copied from transpile_to_catala.py)
+# UTILITIES
 # =============================================================================
 
 def fail(msg):
@@ -97,89 +109,242 @@ def money_literal(value) -> str:
 
 
 # =============================================================================
-# FIELD TYPE HELPERS
+# TYPE NORMALIZATION
 # =============================================================================
 
-def build_field_type_map(civil_doc: dict) -> dict:
-    """Build field type/optional/enum maps and an ordered entity→fields map.
+# Map Catala primitive type names to the canonical internal name used by the
+# rest of this module. Legacy CIVIL type names map to the same internal name
+# so callers can transparently consume pre-U7 manifests.
+#
+# Internal canonical names (preserved from pre-U7 for downstream code paths):
+#   money | bool | int | float | string | enum | list | date
+#
+# `set` and `object` are not test-emittable leaf types — callers fall back
+# to `string` for them and warn.
+_TYPE_ALIASES = {
+    # Catala-native (post-pivot)
+    "integer": "int",
+    "decimal": "float",
+    "boolean": "bool",
+    "duration": "string",   # treated opaquely in tests for now
+    # CIVIL legacy (pre-pivot; map to themselves)
+    "money": "money",
+    "bool": "bool",
+    "int": "int",
+    "float": "float",
+    "string": "string",
+    "enum": "enum",
+    "list": "list",
+    "date": "date",
+    "set": "string",
+    "object": "string",
+}
+
+# Default leaf type used when a manifest entry lacks `type:`. The transpiler
+# also emits a stderr WARN identifying the field so the gap is visible per
+# the U7 "needs type" warning policy in ruleset-shared.md.
+_DEFAULT_LEAF_TYPE = "string"
+
+
+def _normalize_type(raw_type) -> str:
+    """Normalize a manifest `type:` value to the internal leaf-type name.
+
+    Unknown type strings (likely struct/enum type references like `Household`)
+    fall back to `string` so emission proceeds; the entry's `enum_variants:`
+    field, if present, switches the field into enum-handling mode separately.
+    """
+    if raw_type is None:
+        return _DEFAULT_LEAF_TYPE
+    s = str(raw_type)
+    return _TYPE_ALIASES.get(s, _DEFAULT_LEAF_TYPE)
+
+
+# =============================================================================
+# MANIFEST-DRIVEN TYPE MAP
+# =============================================================================
+
+def build_field_type_map_from_manifest(manifest_doc: dict, scope_name: str) -> tuple:
+    """Build field type/optional/enum maps and an ordered entity→fields map
+    from `naming-manifest.yaml`.
+
+    Replaces the pre-pivot `build_field_type_map(civil_doc)` function. Six
+    type-shaped lookups are all manifest-resolved:
+
+      1. types[field]            → leaf type (normalized to int/money/bool/...)
+      2. optional_flags[field]   → bool
+      3. enum_variants[field]    → {raw → emit_form} dict
+      4. entity_fields[Entity]   → [(field, type, optional)] in manifest order
+      5. computed_field_types    → only `output`/`expose` analogue
+                                    (all computed entries are surfaced for
+                                    assertion purposes; the manifest carries
+                                    no `[expose]` tag — instead, the skill
+                                    sets `output` vs `internal` in the Catala
+                                    source. We assert any expected: key whose
+                                    name appears in computed:.)
+      6. output-type partitioning happens at the caller (per output type).
 
     Returns:
-        types: {field_name: civil_type}
-        optional_flags: {field_name: bool}
-        enum_variants: {field_name: {raw_value: emit_form}} — raw_value is the
-            value as-it-appears in CIVIL inputs; emit_form is the Catala enum
-            variant identifier to emit. Table-derived variants emit raw;
-            values:-declared variants are PascalCased to match the enum
-            declaration emitted by transpile_to_catala.emit_declarations.
-        entity_fields: {entity_name: [(field_name, civil_type, is_optional)]}
-        computed_field_types: {field_name: civil_type} for computed: fields
+        (types, optional_flags, enum_variants, entity_fields, computed_field_types)
     """
-    types = {}
-    optional_flags = {}
-    enum_variants = {}
-    entity_fields = {}
-    tables = civil_doc.get("tables", {})
-    for entity_name, entity_def in civil_doc.get("inputs", {}).items():
-        fields = []
-        for field_name, field_def in entity_def.get("fields", {}).items():
-            civil_type = field_def.get("type", "int")
-            is_optional = bool(field_def.get("optional", False))
-            types[field_name] = civil_type
-            optional_flags[field_name] = is_optional
-            if civil_type == "enum" and "values" in field_def:
-                enum_variants[field_name] = {str(v): str(v) for v in field_def["values"]}
-            elif civil_type == "string":
-                # Collect enum variants from table key columns for string fields.
-                # Table-derived: emit raw (matches `-- VAL` declaration in emit_declarations).
-                table_variants: list = []
-                for table_def in tables.values():
-                    if field_name in table_def.get("key", []):
-                        for row in table_def.get("rows", []):
-                            val = row.get(field_name)
-                            if val is not None and isinstance(val, str) and val not in table_variants:
-                                table_variants.append(val)
-                if table_variants:
-                    enum_variants[field_name] = {v: v for v in table_variants}
-                elif "values" in field_def:
-                    # Declared values: PascalCase emit form to match the enum declaration.
-                    enum_variants[field_name] = {
-                        str(v): snake_to_pascal(str(v)) for v in field_def.get("values", [])
-                    }
-            fields.append((field_name, civil_type, is_optional))
-        entity_fields[entity_name] = fields
-    # Output decision fields: string-with-values: declarations also map to Catala
-    # enums; their {raw → emit} mapping is needed when emitting test assertions.
-    for field_name, field_def in civil_doc.get("outputs", {}).items():
-        if field_def.get("type") == "string" and field_def.get("values"):
-            enum_variants[field_name] = {
-                str(v): snake_to_pascal(str(v)) for v in field_def["values"]
-            }
-    # Only include computed fields tagged [expose] — these become scope outputs.
-    # Internal computed fields are inaccessible outside the scope and cannot be asserted.
-    computed_field_types = {
-        fname: fdef.get("type")
-        for fname, fdef in civil_doc.get("computed", {}).items()
-        if isinstance(fdef, dict) and "type" in fdef
-        and "expose" in (fdef.get("tags") or [])
-    }
+    if not isinstance(manifest_doc, dict):
+        manifest_doc = {}
+
+    types: dict = {}
+    optional_flags: dict = {}
+    enum_variants: dict = {}
+    entity_fields: dict = {}
+
+    # Inputs are 3-level: inputs.<Entity>.<field>
+    inputs_block = manifest_doc.get("inputs") or {}
+    if isinstance(inputs_block, dict):
+        for entity_name, fields_map in inputs_block.items():
+            if not isinstance(fields_map, dict):
+                continue
+            fields_ordered: list = []
+            for field_name, entry in fields_map.items():
+                entry = entry if isinstance(entry, dict) else {}
+                leaf_type = _normalize_type(entry.get("type"))
+                is_optional = bool(entry.get("optional", False))
+                # Warn on missing type — the U7 gap signal.
+                if entry.get("type") is None:
+                    print(
+                        f"  WARN  field '{entity_name}.{field_name}' has no `type:` "
+                        f"in naming-manifest.yaml; defaulting to {_DEFAULT_LEAF_TYPE}",
+                        file=sys.stderr,
+                    )
+                types[field_name] = leaf_type
+                optional_flags[field_name] = is_optional
+
+                variants = _collect_enum_variants(entry)
+                if variants is not None:
+                    enum_variants[field_name] = variants
+                    # When a field has declared enum constructors (either
+                    # `enum_variants:` post-pivot or legacy `values:`),
+                    # treat the field as enum so the literal lookup picks
+                    # up the constructor map at emission time. The leaf
+                    # type recorded in `types[]` switches to `enum` so
+                    # downstream `value_to_catala` calls take the enum
+                    # branch.
+                    types[field_name] = "enum"
+
+                fields_ordered.append(
+                    (field_name, types[field_name], is_optional)
+                )
+            entity_fields[entity_name] = fields_ordered
+
+    # Computed entries — all surfaced for assertion; the AI decides
+    # `output` vs `internal` in the Catala source. We assert any expected:
+    # key whose name appears in computed:.
+    computed_block = manifest_doc.get("computed") or {}
+    computed_field_types: dict = {}
+    if isinstance(computed_block, dict):
+        for name, entry in computed_block.items():
+            entry = entry if isinstance(entry, dict) else {}
+            leaf = _normalize_type(entry.get("type"))
+            computed_field_types[name] = leaf
+            variants = _collect_enum_variants(entry)
+            if variants is not None:
+                enum_variants[name] = variants
+
+    # Outputs — collect enum variant info so assertion emission can
+    # render PascalCase constructors for string-with-values decisions.
+    outputs_block = manifest_doc.get("outputs") or {}
+    if isinstance(outputs_block, dict):
+        for name, entry in outputs_block.items():
+            entry = entry if isinstance(entry, dict) else {}
+            variants = _collect_enum_variants(entry)
+            if variants is not None:
+                enum_variants[name] = variants
+
     return types, optional_flags, enum_variants, entity_fields, computed_field_types
 
 
-def default_value_for_type(civil_type: str) -> str:
+def _collect_enum_variants(entry: dict):
+    """Return the {raw → emit_form} dict for an entry, or None when the
+    entry is not enum-shaped.
+
+    Priority (post-pivot):
+      1. `enum_variants:` — Catala-native list of constructor names.
+         Each variant is mapped to itself (analyst-authored constructor
+         names are already in the emit form).
+      2. `values:` (legacy CIVIL) — string values; PascalCase to form
+         emit constructors (matches `transpile_to_catala`'s legacy
+         declaration emission).
+
+    Returns None when neither field is supplied — the field is not an
+    enum.
+    """
+    if not isinstance(entry, dict):
+        return None
+    ev = entry.get("enum_variants")
+    if isinstance(ev, list) and ev:
+        return {str(v): str(v) for v in ev}
+    values = entry.get("values")
+    if isinstance(values, list) and values:
+        # Legacy fallback: PascalCase the value strings.
+        return {str(v): snake_to_pascal(str(v)) for v in values}
+    return None
+
+
+def partition_outputs_by_type(manifest_doc: dict) -> tuple:
+    """Partition `outputs:` entries by type for decision-field emission.
+
+    Returns (bool_decision_fields, string_decision_fields,
+             numeric_decision_fields, denial_field).
+
+    - bool_decision_fields: names with normalized leaf type `bool`.
+    - string_decision_fields: names with leaf type `string` AND an
+      enum-variant set (declared via `enum_variants:` or legacy `values:`).
+      These render as PascalCase constructors in assertions.
+    - numeric_decision_fields: list of (name, leaf_type) for
+      money/int/float decisions.
+    - denial_field: name of the first `list`-typed output, or 'reasons'
+      as default.
+    """
+    bool_fields: list = []
+    string_fields: list = []
+    numeric_fields: list = []
+    denial_field = "reasons"
+
+    outputs = manifest_doc.get("outputs") or {}
+    if not isinstance(outputs, dict):
+        return bool_fields, string_fields, numeric_fields, denial_field
+
+    seen_list_field = False
+    for name, entry in outputs.items():
+        entry = entry if isinstance(entry, dict) else {}
+        raw_type = entry.get("type")
+        leaf = _normalize_type(raw_type)
+        if leaf == "bool":
+            bool_fields.append(name)
+        elif leaf in ("money", "int", "float"):
+            numeric_fields.append((name, leaf))
+        elif leaf == "string":
+            # String with declared variants → enum-style decision.
+            if _collect_enum_variants(entry) is not None:
+                string_fields.append(name)
+        elif leaf == "list":
+            if not seen_list_field:
+                denial_field = name
+                seen_list_field = True
+    return bool_fields, string_fields, numeric_fields, denial_field
+
+
+def default_value_for_type(leaf_type: str) -> str:
     """Return the Catala zero/default literal for an optional field not in test inputs."""
-    if civil_type == "money":
+    if leaf_type == "money":
         return "$0"
-    elif civil_type == "bool":
+    elif leaf_type == "bool":
         return "false"
-    elif civil_type == "int":
+    elif leaf_type == "int":
         return "0"
-    elif civil_type == "float":
+    elif leaf_type == "float":
         return "0.0"
     else:
         return "0"
 
 
-def value_to_catala(value, civil_type: str, valid_enum_variants=None):
+def value_to_catala(value, leaf_type: str, valid_enum_variants=None):
     """Convert a YAML test input value to a Catala literal.
 
     valid_enum_variants is a {raw_value: emit_form} dict (or None). When
@@ -189,22 +354,22 @@ def value_to_catala(value, civil_type: str, valid_enum_variants=None):
     Returns None if the value cannot be represented (e.g. non-numeric money,
     non-numeric int, or unrecognised enum variant).
     """
-    if civil_type == "money":
+    if leaf_type == "money":
         return money_literal(value)  # may return None for non-numeric values
-    elif civil_type == "bool":
+    elif leaf_type == "bool":
         return "true" if value else "false"
-    elif civil_type == "enum":
+    elif leaf_type == "enum":
         str_val = str(value)
         if valid_enum_variants is not None and str_val not in valid_enum_variants:
             return None  # invalid variant — caller will default and warn
         return valid_enum_variants[str_val] if valid_enum_variants else str_val
-    elif civil_type in ("int", "float"):
+    elif leaf_type in ("int", "float"):
         try:
-            int(value) if civil_type == "int" else float(value)
+            int(value) if leaf_type == "int" else float(value)
             return str(value)
         except (TypeError, ValueError):
             return None  # non-numeric string — caller will default and warn
-    elif civil_type == "string" and valid_enum_variants:
+    elif leaf_type == "string" and valid_enum_variants:
         # String field with declared/derived enum variants — must map to a
         # Catala enum constructor, never a free-form identifier.
         str_val = str(value)
@@ -231,7 +396,7 @@ def case_id_to_scope_name(case_id: str) -> str:
 def emit_field_value(
     case_id: str,
     field_name: str,
-    civil_type: str,
+    leaf_type: str,
     is_optional: bool,
     input_val,
     enum_variants: dict,
@@ -242,13 +407,13 @@ def emit_field_value(
     Returns (catala_val: str, note: str | None).
     note is non-None when the value was defaulted or has a representability issue.
     """
-    # string fields that map to Catala enums (table-derived) need variant lookup too
-    valid_variants = enum_variants.get(field_name) if civil_type in ("enum", "string") else None
+    # string fields that map to Catala enums (declared variants) need variant lookup too
+    valid_variants = enum_variants.get(field_name) if leaf_type in ("enum", "string") else None
 
     if input_val is not None:
-        catala_val = value_to_catala(input_val, civil_type, valid_variants)
+        catala_val = value_to_catala(input_val, leaf_type, valid_variants)
         if catala_val is None:
-            default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(civil_type)
+            default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(leaf_type)
             print(
                 f"  WARN  case '{case_id}': field '{note_prefix}{field_name}' has non-representable "
                 f"value '{input_val}'; defaulting to {default}",
@@ -257,10 +422,10 @@ def emit_field_value(
             return default, "non-representable input value; defaulted"
         return catala_val, None
     elif is_optional:
-        default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(civil_type)
+        default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(leaf_type)
         return default, None
     else:
-        default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(civil_type)
+        default = next(iter(valid_variants.values())) if valid_variants else default_value_for_type(leaf_type)
         print(
             f"  WARN  case '{case_id}': required field '{note_prefix}{field_name}' not in inputs; "
             f"defaulting to {default}",
@@ -286,15 +451,15 @@ def emit_test_scope(
 ) -> list:
     """Emit Catala lines for one #[test] scope.
 
-    all_fields: ordered list of (field_name, civil_type, is_optional) for scope inputs.
+    all_fields: ordered list of (field_name, leaf_type, is_optional) for scope inputs.
       Used only in single-entity mode (one input facts entity).
-    entity_fields: {entity_name: [(field_name, civil_type, is_optional)]}.
+    entity_fields: {entity_name: [(field_name, leaf_type, is_optional)]}.
       When more than one entity is present, struct-literal input emission is used instead
       of flat field assignment (multi-entity mode).
     bool_decision_fields: list of decision field names with type 'bool' to assert.
-    string_decision_fields: list of decision field names with type 'string' + values: to assert.
-    numeric_decision_fields: list of (field_name, civil_type) for money/int/float decisions.
-    computed_field_types: {field_name: civil_type} for computed: fields — used to assert any
+    string_decision_fields: list of decision field names with type 'string' + variants to assert.
+    numeric_decision_fields: list of (field_name, leaf_type) for money/int/float decisions.
+    computed_field_types: {field_name: leaf_type} for computed: fields — used to assert any
       remaining expected: keys not covered by decisions.
     catala_module_name: e.g. 'Eligibility' — used to qualify struct type names in
       multi-entity mode (e.g. Eligibility.ClientIncome).
@@ -312,9 +477,6 @@ def emit_test_scope(
 
     # --- Declaration ---
     # Use sub-scope syntax: `result scope Module.ScopeName`
-    # NOT `output result content Module.ScopeName` — scopes are not types in Catala 1.1.0,
-    # and the `output of Module.Scope with { ... }` call form fails cross-module at runtime
-    # (it cannot resolve the compiled .cmxs export).  Sub-scope input assignment works correctly.
     lines.append("#[test]")
     lines.append(f"declaration scope {test_scope}:")
     lines.append(f"  result scope {scope_name}")
@@ -327,16 +489,12 @@ def emit_test_scope(
 
     if multi_entity:
         # Multi-entity mode: inputs are keyed as 'EntityName.field_name' in the YAML.
-        # Emit one struct literal per entity:
-        #   definition result.var_name equals Module.EntityName { -- field: value ... }
         for entity_name, fields in entity_fields.items():
             var_name = entity_to_var_name(entity_name)
             type_ref = f"{catala_module_name}.{entity_name}" if catala_module_name else entity_name
             struct_lines = []
-            for field_name, civil_type, is_optional in fields:
+            for field_name, leaf_type, is_optional in fields:
                 prefixed_key = f"{entity_name}.{field_name}"
-                # Prefer entity-qualified key; fall back to bare field name for tests
-                # that use flat (non-prefixed) input keys.
                 if prefixed_key in inputs:
                     input_val = inputs[prefixed_key]
                 elif field_name in inputs:
@@ -344,7 +502,7 @@ def emit_test_scope(
                 else:
                     input_val = None
                 catala_val, note = emit_field_value(
-                    case_id, field_name, civil_type, is_optional,
+                    case_id, field_name, leaf_type, is_optional,
                     input_val, enum_variants, note_prefix=f"{entity_name}.",
                 )
                 suffix = f"  # NOTE: {note}" if note else ""
@@ -354,11 +512,11 @@ def emit_test_scope(
             lines.append("  }")
     else:
         # Single-entity mode: inputs are keyed by bare field_name. Emit flat assignments.
-        for field_name, civil_type, is_optional in all_fields:
+        for field_name, leaf_type, is_optional in all_fields:
             raw_val = inputs.get(field_name)
             input_val = raw_val if field_name in inputs else None
             catala_val, note = emit_field_value(
-                case_id, field_name, civil_type, is_optional,
+                case_id, field_name, leaf_type, is_optional,
                 input_val, enum_variants,
             )
             suffix = f"  # NOTE: {note}" if note else ""
@@ -382,7 +540,7 @@ def emit_test_scope(
         if valid_variants is not None and str_val not in valid_variants:
             print(
                 f"  WARN  case '{case_id}': expected.{field} value '{str_val}' is not in "
-                f"declared values {list(valid_variants)} — skipping assertion",
+                f"declared variants {list(valid_variants)} — skipping assertion",
                 file=sys.stderr,
             )
             continue
@@ -402,10 +560,10 @@ def emit_test_scope(
             lines.append(f"  assertion (result.{denial_field} = {list_str})")
 
     # Numeric decisions (money, int, float)
-    for field, civil_type in (numeric_decision_fields or []):
+    for field, leaf_type in (numeric_decision_fields or []):
         val = expected.get(field)
         if val is not None:
-            catala_val = value_to_catala(val, civil_type)
+            catala_val = value_to_catala(val, leaf_type)
             if catala_val is not None:
                 lines.append(f"  assertion (result.{field} = {catala_val})")
 
@@ -419,15 +577,15 @@ def emit_test_scope(
     for field, val in expected.items():
         if field in handled or val is None:
             continue
-        civil_type = (computed_field_types or {}).get(field)
-        if civil_type is None:
+        leaf_type = (computed_field_types or {}).get(field)
+        if leaf_type is None:
             print(
                 f"  WARN  case '{case_id}': expected: field '{field}' not found in "
                 f"decisions or computed; skipping",
                 file=sys.stderr,
             )
             continue
-        catala_val = value_to_catala(val, civil_type)
+        catala_val = value_to_catala(val, leaf_type)
         if catala_val is not None:
             lines.append(f"  assertion (result.{field} = {catala_val})")
 
@@ -443,58 +601,59 @@ def catala_block(lines: list) -> list:
 # MAIN TRANSPILATION
 # =============================================================================
 
-def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_path: str):
+def transpile(
+    tests_path: str,
+    output_path: str,
+    scope_name: str,
+    manifest_path: str,
+    catala_module_name: str | None = None,
+):
+    """Transpile a YAML test suite to a Catala test file using `manifest_path`
+    as the source of type metadata.
+
+    `catala_module_name` is the CamelCase Catala module name to qualify
+    sub-scope calls (e.g. `Eligibility`). When None, it's derived from the
+    tests file's stem (matching pre-pivot behavior).
+    """
     tests_doc = load_yaml_file(tests_path)
-    civil_doc = load_yaml_file(civil_spec_path)
+    manifest_doc = load_yaml_file(manifest_path) or {}
 
-    field_types, optional_flags, enum_variants, entity_fields, computed_field_types = build_field_type_map(civil_doc)
+    field_types, optional_flags, enum_variants, entity_fields, computed_field_types = (
+        build_field_type_map_from_manifest(manifest_doc, scope_name)
+    )
 
-    # Ordered list of (field_name, civil_type, is_optional) for the scope call (single-entity mode)
+    # Ordered list of (field_name, leaf_type, is_optional) for the scope call (single-entity mode)
     all_fields = [
         (fname, ftype, optional_flags.get(fname, False))
         for fname, ftype in field_types.items()
     ]
 
-    # All bool decision fields (e.g. manual_verification_required) — asserted in order
-    bool_decision_fields = [
-        fname for fname, fdef in civil_doc.get("outputs", {}).items()
-        if fdef.get("type") == "bool"
-    ]
+    # Partition outputs by type — manifest-driven.
+    bool_decision_fields, string_decision_fields, numeric_decision_fields, denial_field = (
+        partition_outputs_by_type(manifest_doc)
+    )
 
-    # String-enum decision fields (e.g. eligible with values: [approve, deny, ...]) — asserted in order
-    string_decision_fields = [
-        fname for fname, fdef in civil_doc.get("outputs", {}).items()
-        if fdef.get("type") == "string" and fdef.get("values")
-    ]
-
-    # Numeric decision fields (money, int, float) — asserted in order
-    numeric_decision_fields = [
-        (fname, fdef.get("type"))
-        for fname, fdef in civil_doc.get("outputs", {}).items()
-        if fdef.get("type") in ("money", "int", "float")
-    ]
-
-    # Denial reasons field
-    denial_field = "reasons"
-    for fname, fdef in civil_doc.get("outputs", {}).items():
-        if fdef.get("type") == "list":
-            denial_field = fname
-            break
-
-    tests = tests_doc.get("tests", [])
+    tests = tests_doc.get("tests", []) if isinstance(tests_doc, dict) else []
     if not tests:
-        # Intentionally-empty test files (e.g. auto-generated derived suites where
-        # no derivable scenarios remain after deduplication) are valid — emit a
-        # placeholder Catala file with no scopes and skip transpilation so the
-        # pipeline can proceed to other test files.
+        # Intentionally-empty test files are valid — emit a placeholder.
         print(f"WARN  No tests in {tests_path}; emitting empty placeholder.", file=sys.stderr)
         out_dir = os.path.dirname(os.path.abspath(output_path))
         os.makedirs(out_dir, exist_ok=True)
-        civil_basename_skip = os.path.basename(civil_spec_path)
-        module_name_skip = civil_basename_skip.replace(".civil.yaml", "")
-        catala_module_name_skip = module_name_skip[0].upper() + module_name_skip[1:]
+        # Derive module name from the test file when the caller didn't supply one
+        if catala_module_name:
+            module_name_for_emit = catala_module_name
+        else:
+            tests_basename = os.path.basename(tests_path)
+            stem = tests_basename
+            for suffix in ("_tests.yaml", ".yaml"):
+                if stem.endswith(suffix):
+                    stem = stem[: -len(suffix)]
+                    break
+            # Best-effort: strip trailing _*_tests
+            stem = re.sub(r"_(boundary|null_input|edge_case|derived_from_extracted)?$", "", stem)
+            module_name_for_emit = stem[0].upper() + stem[1:] if stem else "Module"
         with open(output_path, "w") as f:
-            f.write(f"> Using {catala_module_name_skip}\n\n# Tests: (empty)\n")
+            f.write(f"> Using {module_name_for_emit}\n\n# Tests: (empty)\n")
         print(f"OK  Wrote 0 test scope(s) → {output_path}")
         return
 
@@ -510,9 +669,21 @@ def transpile(tests_path: str, output_path: str, scope_name: str, civil_spec_pat
             )
         seen[sname] = cid
 
-    civil_basename = os.path.basename(civil_spec_path)  # e.g. eligibility.civil.yaml
-    module_name = civil_basename.replace(".civil.yaml", "")
-    catala_module_name = module_name[0].upper() + module_name[1:]  # e.g. Eligibility, Earned_income
+    if catala_module_name is None:
+        # Fall back: derive from the test file stem (e.g. `eligibility_tests.yaml`).
+        tests_basename = os.path.basename(tests_path)
+        stem = tests_basename
+        for suffix in ("_tests.yaml", ".yaml"):
+            if stem.endswith(suffix):
+                stem = stem[: -len(suffix)]
+                break
+        # Take the module-prefix portion (before the first _*_tests suffix).
+        # Common test-file shapes:
+        #   eligibility_tests.yaml → eligibility
+        #   eligibility_boundary_expanded_tests.yaml → eligibility
+        module_name = stem.split("_")[0] if "_" in stem else stem
+        catala_module_name = module_name[0].upper() + module_name[1:]
+
     qualified_scope_name = f"{catala_module_name}.{scope_name}"
 
     test_suite = tests_doc.get("test_suite", {})
@@ -573,10 +744,25 @@ example:
         help="Catala scope name to test (e.g. EligibilityDecision)",
     )
     parser.add_argument(
-        "--civil-spec",
+        "--naming-manifest",
         required=True,
-        dest="civil_spec",
-        help="CIVIL YAML path — used to read input field types and decision field name",
+        dest="naming_manifest",
+        help=(
+            "Path to specs/naming-manifest.yaml — the U7 type-extended "
+            "manifest. Drives field types, optionality, enum variants, "
+            "entity grouping, computed-field types, and output-type "
+            "partitioning. Replaces the pre-pivot --civil-spec arg."
+        ),
+    )
+    parser.add_argument(
+        "--module-name",
+        default=None,
+        dest="module_name",
+        help=(
+            "CamelCase Catala module name used to qualify sub-scope "
+            "calls (e.g. 'Eligibility'). When omitted, derived from the "
+            "tests file's stem."
+        ),
     )
 
     args = parser.parse_args()
@@ -586,7 +772,13 @@ example:
         print(f"SKIP  {args.tests_yaml} — null-input tests cannot be encoded in Catala; skipping.")
         sys.exit(0)
 
-    transpile(args.tests_yaml, args.output_catala, args.scope, args.civil_spec)
+    transpile(
+        args.tests_yaml,
+        args.output_catala,
+        args.scope,
+        args.naming_manifest,
+        catala_module_name=args.module_name,
+    )
 
 
 if __name__ == "__main__":

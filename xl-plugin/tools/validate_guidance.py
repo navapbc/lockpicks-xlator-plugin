@@ -153,10 +153,25 @@ def _check_field_agreement(
     file_rel: str,
     mismatches: list[dict],
 ) -> None:
-    """Compare `type:` and `values:` on a guidance entry against the manifest
-    entry. A mismatch is recorded only when both sides supply the field and
-    the values differ. Absent on either side is not a mismatch."""
-    for field in ("type", "values"):
+    """Compare `type:`, `values:`, `optional:`, and `enum_variants:` on a
+    guidance entry against the manifest entry. A mismatch is recorded only
+    when both sides supply the field and the values differ. Absent on either
+    side is not a mismatch.
+
+    `optional:` and `enum_variants:` were added in U7 alongside the
+    Catala-native type metadata extension to `naming-manifest.yaml`.
+    Validation is conservative — the leaf-type names (e.g. CIVIL `int` vs
+    Catala `integer`) are NOT cross-mapped; if a guidance file still
+    declares CIVIL type names and the manifest carries Catala names (or
+    vice versa), the comparison will surface a mismatch as expected. A
+    type-name normalization layer is a deliberate follow-up (TODO).
+
+    TODO(U7 follow-up): if the manifest's `type:` is a struct / enum
+    type-reference name (e.g. `Household`), the guidance side cannot
+    meaningfully cross-check; the current logic compares raw strings,
+    which is correct but coarse. Full structural type validation
+    (recursive struct/enum reasoning) is out of scope for this unit."""
+    for field in ("type", "values", "optional", "enum_variants"):
         g_val = guidance_entry.get(field)
         m_val = manifest_entry.get(field)
         if g_val is None or m_val is None:
