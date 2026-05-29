@@ -118,8 +118,8 @@ def test_confirmed_exprs_skips_non_dict_exprs():
 def test_example_rules_passthrough():
     doc = {
         "sample_rules": [
-            {"id": "r1", "rule_type": "computed", "source": "...", "civil": "yaml"},
-            {"id": "r2", "rule_type": "table-lookup", "source": "...", "civil": "yaml"},
+            {"id": "r1", "rule_type": "computed", "source": "...", "catala": "yaml"},
+            {"id": "r2", "rule_type": "table-lookup", "source": "...", "catala": "yaml"},
         ],
         "missing_info": ["x"],  # not consumed
     }
@@ -307,13 +307,14 @@ def test_work_list_no_ruleset_modules_with_program(tmp_path: Path):
         "name": "prog",
         "role": "main",
         "action": "generate",
-        "civil_file": "specs/prog.civil.yaml",
+        "catala_file": "specs/prog.catala_en",
     }]
 
 
-def test_work_list_civil_exists_marks_reference(tmp_path: Path):
+def test_work_list_catala_exists_marks_reference(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "prog.civil.yaml", {"name": "prog"})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "prog.catala_en").write_text("> Module Prog\n")
     wl = lec._build_work_list(domain, "prog", None)
     assert wl[0]["action"] == "reference"
 
@@ -343,7 +344,8 @@ def test_work_list_sub_modules_before_main(tmp_path: Path):
 
 def test_work_list_existing_sub_module_marks_reference(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "sub_a.civil.yaml", {"name": "sub_a"})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "sub_a.catala_en").write_text("> Module Sub_a\n")
     doc = {
         "ruleset_modules": [
             {"name": "sub_a"},
@@ -378,9 +380,10 @@ def test_program_resolves_to_arg_when_no_role_main(tmp_path: Path):
     assert prog == "from_arg"
 
 
-def test_program_auto_detect_single_civil(tmp_path: Path):
+def test_program_auto_detect_single_catala(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "only_one.civil.yaml", {})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "only_one.catala_en").write_text("> Module Only_one\n")
     prog, candidates = lec._resolve_program(domain, None, None)
     assert prog == "only_one"
     assert candidates == []
@@ -396,8 +399,9 @@ def test_program_auto_detect_none(tmp_path: Path):
 
 def test_program_auto_detect_ambiguous(tmp_path: Path):
     domain = tmp_path / "dom"
-    _write_yaml(domain / "specs" / "a.civil.yaml", {})
-    _write_yaml(domain / "specs" / "b.civil.yaml", {})
+    (domain / "specs").mkdir(parents=True)
+    (domain / "specs" / "a.catala_en").write_text("> Module A\n")
+    (domain / "specs" / "b.catala_en").write_text("> Module B\n")
     prog, candidates = lec._resolve_program(domain, None, None)
     assert prog is None
     assert candidates == ["a", "b"]
@@ -431,7 +435,7 @@ def test_run_happy_path_emits_json(tmp_path: Path, capsys):
         "name": "prog",
         "role": "main",
         "action": "generate",
-        "civil_file": "specs/prog.civil.yaml",
+        "catala_file": "specs/prog.catala_en",
     }]
 
 
@@ -530,7 +534,7 @@ def test_run_payload_pulls_full_guidance_docs(tmp_path: Path, capsys):
     _write_yaml(
         domain / "specs" / "guidance" / "sample-artifacts.yaml",
         {"sample_rules": [{"id": "r1", "rule_type": "computed",
-                            "source": "...", "civil": "yaml"}]},
+                            "source": "...", "catala": "yaml"}]},
     )
     (domain / "specs" / "guidance" / "include-with-output.yaml").write_text(
         yaml.safe_dump(["x", "y"], default_flow_style=False), encoding="utf-8"
@@ -576,13 +580,13 @@ def test_run_existing_extraction_manifest_included(tmp_path: Path, capsys):
     _minimal_domain(domain)
     _write_yaml(
         domain / "specs" / "extraction-manifest.yaml",
-        {"programs": {"prog": {"civil_file": "x"}}},
+        {"programs": {"prog": {"catala_file": "x"}}},
     )
     rc = lec.run(domain, "prog", "extract")
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["existing_extraction_manifest"] == {
-        "programs": {"prog": {"civil_file": "x"}}
+        "programs": {"prog": {"catala_file": "x"}}
     }
 
 

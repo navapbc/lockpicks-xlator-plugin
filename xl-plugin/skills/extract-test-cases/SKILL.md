@@ -11,10 +11,10 @@ Scan policy input documents for concrete numerical examples and write them to `e
 
 ```
 /extract-test-cases [<domain>]                  # auto-detect program or prompt if ambiguous
-/extract-test-cases [<domain> <program>]        # target a specific <program>.civil.yaml
+/extract-test-cases [<domain> <program>]        # target a specific <program>.catala_en
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.catala_en` files and prompt the user to choose.
 
 Read `../../core/output-fencing.md` now.
 
@@ -25,13 +25,19 @@ Read `../../core/output-fencing.md` now.
    Domain `<domain>` not found. Run `/extract-ruleset <domain>` first.
    :::
    Stop.
-2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print:
+2. **Catala source exists?**
+   - `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` missing → Print:
      :::error
-     No CIVIL file found. Run `/extract-ruleset <domain>` first.
+     No Catala source found. Run `/extract-ruleset <domain>` first.
      :::
      Stop.
-3. **`input/` has documents?** — If `$DOMAINS_DIR/<domain>/input/` is empty or absent → Print:
+3. **Naming manifest exists?**
+   - `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` missing → Print:
+     :::error
+     specs/naming-manifest.yaml not found. Run `/extract-ruleset <domain>` first.
+     :::
+     Stop.
+4. **`input/` has documents?** — If `$DOMAINS_DIR/<domain>/input/` is empty or absent → Print:
    :::error
    No input documents found in `$DOMAINS_DIR/<domain>/input/`. Add policy documents and re-run.
    :::
@@ -55,10 +61,10 @@ If `[keep]`, stop.
 
 ### Step 1: Build the source map
 
-Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` and collect:
+Read `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` and `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` and collect:
 
-- **Program vocabulary** — all field names from `inputs:`, `computed:`, and `outputs:`
-- **Source citations** — every `source:` object present on any `FactField`, `ComputedField`, `TableDef`, or `Rule`. Each is a `{file:, section:}` object (e.g., `{file: "input/policy_docs/snap_eligibility.md", section: "7 CFR § 273.9(a)(1) — Gross Income Test"}`). Collect the `section:` strings (citation + heading) into a **source citation list** for the matching steps below.
+- **Program vocabulary** — all field names from the manifest's `inputs.<Entity>.<field>`, `computed.<name>`, and `outputs.<name>` blocks. For type-shaping decisions during value mapping (e.g., should a `2100` be emitted as `2100`, `$2,100`, or an enum constructor?), consult each entry's `type:` and `enum_variants:` fields per the U7 type extension.
+- **Source citations** — Catala captures source-doc provenance as literate-Markdown section structure: `## <Heading>` lines paired with `*Source: input/policy_docs/<rel>.md — <citation>*` italic-prose lines bracket each fenced rule block. Walk the Catala source and collect every `*Source: <file> — <citation>*` line plus the immediately-preceding `## <Heading>`. Build a **source citation list** of `<citation> — <heading>` strings (and the corresponding `<rel>.md` paths) for the matching steps below.
 
 ### Step 2: Identify relevant files
 
@@ -79,7 +85,7 @@ Within each relevant file:
 1. Focus on sections whose headings or content match a source citation from the source citation list — these are the highest-priority areas for examples.
 2. Look for: numbered examples ("Example 1:", "Ex. 1"), "Illustration:", tables with named rows, paragraphs that give a specific scenario with concrete input values and walk through a calculation step-by-step.
 3. For each found example, confirm it exercises the `<program>` ruleset (i.e., its inputs or conclusions reference the program vocabulary or a cited section). Discard examples that belong to a different program or benefit type.
-4. Map the stated values to CIVIL input fact field names using the program vocabulary as a dictionary. If a needed value is missing or unclear in the compressed mirror, re-read the same section from the source doc per the fallback rule above before giving up on the example.
+4. Map the stated values to input fact field names using the program vocabulary as a dictionary. Use each manifest entry's `type:` and `enum_variants:` to shape values correctly (e.g., a `boolean` field accepts `true`/`false`; an enum field's value must be one of the declared variant names). If a needed value is missing or unclear in the compressed mirror, re-read the same section from the source doc per the fallback rule above before giving up on the example.
 5. If a value cannot be mapped to a known input fact field (e.g., an intermediate value like "20% of gross earnings" that is a `computed:` field, not a fact input), record it in the `notes:` YAML key and omit from `inputs` — do not guess or coerce.
 6. Infer all `expected.*` output decision fields (e.g., `expected.eligible`, `expected.reasons`, `expected.adjusted_income`) from the document's stated conclusion, **not** from running the rules.
 7. Tag as `["extracted"]` plus any applicable rule tags (e.g., `"allow"`, `"deny"`, `"earned_income"`).
@@ -95,7 +101,7 @@ Write to `$DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml` (create the 
 Created $DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml
 :::
 
-Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and the freshly-written `extracted-tests.yaml`:
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the freshly-written `extracted-tests.yaml`:
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -103,7 +109,7 @@ xlator record-tier-manifest <domain> --tier tests
 
 If the command exits non-zero, emit `:::error` with the captured stderr and stop.
 
-**Note on the `[keep]` path:** when the analyst chose `[keep]` at the pre-flight prompt (line 52 above) the skill exits before reaching this output step, and the manifest is **not** rewritten. This is intentional: the prior manifest reflects the civil SHA at the time `extracted-tests.yaml` was actually written. If civil has since changed, the subsequent `/check-freshness` run will correctly report `tests tests_stale` against that recorded SHA, which is the desired drift signal.
+**Note on the `[keep]` path:** when the analyst chose `[keep]` at the pre-flight prompt (line 52 above) the skill exits before reaching this output step, and the manifest is **not** rewritten. This is intentional: the prior manifest reflects the Catala-source SHA at the time `extracted-tests.yaml` was actually written. If the source has since changed, the subsequent `/check-freshness` run will correctly report `tests tests_stale` against that recorded SHA, which is the desired drift signal.
 
 :::detail
 # Auto-generated by /extract-test-cases. Do not edit directly —
@@ -117,7 +123,9 @@ extracted_tests:
     inputs:
       household_size: 3
       gross_earned_income: 2100
-      # flat key-value only — same rules as <program>_tests.yaml
+      # flat key-value only — same rules as <program>_tests.yaml.
+      # Field names + types come from naming-manifest.yaml; consult each
+      # entry's type: and enum_variants: when shaping values.
     expected:
       eligible: true
       reasons: []

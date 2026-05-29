@@ -5,16 +5,16 @@ description: Draft or Update Test Cases
 
 # Draft or Update Test Cases
 
-Create or update the test suite for a CIVIL module based on its current specs.
+Create or update the test suite for a Catala module based on its current specs and the type-extended naming manifest.
 
 ## Input
 
 ```
 /create-tests [<domain>]                  # auto-detect program or prompt if ambiguous
-/create-tests [<domain> <program>]        # target a specific <program>.civil.yaml
+/create-tests [<domain> <program>]        # target a specific <program>.catala_en
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.catala_en` files and prompt the user to choose.
 
 Read `../../core/output-fencing.md` now.
 
@@ -25,13 +25,19 @@ Read `../../core/output-fencing.md` now.
    Domain `<domain>` not found. Run `/extract-ruleset <domain>` first.
    :::
    Stop.
-2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing → Print:
+2. **Catala source exists?**
+   - `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` missing → Print:
      :::error
-     No CIVIL file found. Run `/extract-ruleset <domain>` first.
+     No Catala source found. Run `/extract-ruleset <domain>` first.
      :::
      Stop.
-3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
+3. **Naming manifest exists?**
+   - `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` missing → Print:
+     :::error
+     specs/naming-manifest.yaml not found. Run `/extract-ruleset <domain>` first.
+     :::
+     Stop.
+4. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
 
 ## Step 0: Extract Policy Examples
 
@@ -71,26 +77,28 @@ ls $DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml 2>/dev/null
 
 | Result | Mode |
 |--------|------|
-| File absent | **CREATE mode** — write new test suite from CIVIL file |
+| File absent | **CREATE mode** — write new test suite from Catala source + naming manifest |
 | File present | **UPDATE mode** — update stale test cases |
 
 ---
 
 ## Process — CREATE Mode
 
-Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` to understand:
-- All input fields (types, optionality)
-- All decisions (e.g., `eligible`, `reasons`, or any `expr:`-driven money/int/string decision fields)
-- All deny rules and their conditions
-- All computed fields involved in eligibility thresholds
-- All tables and constants referenced in rules
+Read `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` AND `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` to understand:
+- All input fields — names come from the manifest's `inputs.<Entity>.<field>` entries; per-field type / optionality / enum variants come from each entry's `type:`, `optional:`, and `enum_variants:` fields (U7 type extension). The Catala source provides the scope-declaration structure and entity grouping.
+- All decisions — `outputs:` entries in the manifest (e.g., `eligible`, `reasons`, money/int/string decision fields) with their `type:` and `enum_variants:` driving expected-value shapes.
+- All deny rules and their conditions — found in the Catala source.
+- All computed fields involved in eligibility thresholds — `computed:` entries in the manifest provide names and types; the Catala source provides definitions.
+- All tables and constants referenced in rules — read from the Catala source.
 
-**If extracted tests are available** (from Step 0), copy all of them into the test suite — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Rename variables to match those in the CIVIL file. Note which of the 6 coverage tags they already satisfy.
+**Naming manifest is the authority for types.** When you need to know whether a field is `money`, `boolean`, an `Optional<T>`, or an enum (with what variants), consult `naming-manifest.yaml` — not the Catala source. Manifest entries without `type:` default to `string` and surface a `WARN` from downstream tools; flag any missing types in your summary.
+
+**If extracted tests are available** (from Step 0), copy all of them into the test suite — preserve their `ext_*` `case_id`s and `source:` fields so provenance is visible in the main test file. Rename variables to match those in the manifest. Note which of the 6 coverage tags they already satisfy.
 
 **If `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
 
-1. For each entry in `sample_tests:`, validate every key in `inputs` against the input fields declared in the CIVIL file. Collect unrecognised keys.
-2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against CIVIL field names"`. All other fields (`case_id`, `description`, `tags`) are preserved.
+1. For each entry in `sample_tests:`, validate every key in `inputs` against the input fields declared in the naming manifest. Collect unrecognised keys.
+2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against naming-manifest input field names"`. All other fields (`case_id`, `description`, `tags`) are preserved.
 3. Accumulate the `tags` from all sample test entries and include them in the 6-tag coverage tally.
 
 :::important
@@ -98,7 +106,7 @@ Seeded N sample test(s) from guidance/sample-tests.yaml (M field name warning(s)
 :::
 — or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tests` is empty/missing.
 
-Draft additional synthetic cases from CIVIL reasoning to reach the 6-tag coverage minimum for any tags **not** already covered by extracted cases or sample tests:
+Draft additional synthetic cases from Catala-source reasoning (rules + denial conditions + threshold values) to reach the 6-tag coverage minimum for any tags **not** already covered by extracted cases or sample tests:
 
 | Tag | What to cover |
 |-----|---------------|
@@ -113,7 +121,7 @@ Draft additional synthetic cases from CIVIL reasoning to reach the 6-tag coverag
 
 ```yaml
 test_suite:
-  spec: "<program>.civil.yaml"
+  spec: "<program>.catala_en"
   description: "..."
   version: "1.0"
 
@@ -168,7 +176,7 @@ tests:
 
 Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 
-Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and this skill's outputs:
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and this skill's outputs:
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -185,14 +193,14 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 
 - **If present** (written by `/extract-ruleset` in this session): load the stale case list from it. These are cases whose `inputs` contain values that matched old table boundaries or constants now changed.
-- **If absent** (standalone run after a manual CIVIL edit): run `xlator detect-stale-cases <domain> <program>` and parse the JSON header (everything before the `--- DETECT-STALE-CASES-HEADER-END ---` sentinel). Treat each entry in `stale_cases:` as a stale case; the `diff:` field names the divergent outputs. The evaluator catches value-boundary changes AND logic-only changes (operator shifts, new `when:` clauses, restructured precedence) — no manual review caveat needed.
+- **If absent** (standalone run after a manual Catala edit): run `xlator detect-stale-cases <domain> <program>` and parse the JSON header (everything before the `--- DETECT-STALE-CASES-HEADER-END ---` sentinel). Treat each entry in `stale_cases:` as a stale case; the `diff:` field names the divergent outputs. The Catala evaluator (U3) catches value-boundary changes AND logic-only changes (operator shifts, new exception clauses, restructured precedence) — no manual review caveat needed.
 
   If the tool exits non-zero, surface the stderr in a `:::error` block and stop.
 
 ### Step 2: Update Stale Cases
 
 For each stale case:
-- Update threshold values in `inputs` and `expected` to match the current CIVIL tables and constants
+- Update threshold values in `inputs` and `expected` to match the current Catala source's tables and constants
 - Preserve all other fields unchanged (`case_id`, `description`, `tags`)
 
 If no stale cases were identified:
@@ -203,7 +211,7 @@ Proceed to Step 3.
 
 ### Step 3: Add New Coverage
 
-Read the current CIVIL file. For any deny rules, computed fields, or exemption paths not covered by an existing test case, add new cases to fill coverage gaps. Aim to maintain the 6-tag coverage from CREATE mode.
+Read the current Catala source. For any deny rules, computed fields, or exemption paths not covered by an existing test case, add new cases to fill coverage gaps. Aim to maintain the 6-tag coverage from CREATE mode.
 
 ### Step 4: Reconcile Extracted Tests
 
@@ -228,7 +236,7 @@ Skip this step silently if no extracted tests are available.
 Load `sample_tests` from `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` (same existence check as CREATE mode). For each entry, compare by `case_id` against the current test suite:
 
 - If the `case_id` is already present: skip (do not overwrite).
-- If the `case_id` is absent: validate input fields against the CIVIL file and append the entry, adding a `notes:` field if unrecognised input keys are found.
+- If the `case_id` is absent: validate input fields against the naming manifest and append the entry, adding a `notes:` field if unrecognised input keys are found.
 
 Print (or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tests` is empty/missing):
 - If N > 0:
@@ -250,7 +258,7 @@ Delete `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` if it exists (prevents st
 
 ### Step 7: Record Tests-Tier Manifest
 
-Record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and the updated test suite:
+Record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the updated test suite:
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests

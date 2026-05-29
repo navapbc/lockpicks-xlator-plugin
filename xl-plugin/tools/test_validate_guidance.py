@@ -265,6 +265,65 @@ def test_values_mismatch_caught():
         assert any(m["field"] == "values" for m in summary["mismatches"])
 
 
+def test_u7_optional_field_mismatch_caught():
+    """Guidance entry's `optional:` flag disagrees with manifest → FAIL.
+
+    U7 added `optional:` to the cross-checked field set."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "inputs": {
+                "Household": {
+                    "is_veteran": {
+                        "policy_phrase": "veteran flag",
+                        "type": "boolean",
+                        "optional": True,
+                    },
+                }
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "input-variables.yaml", {
+            "categories": [
+                {
+                    "name": "demographics",
+                    "fields": [
+                        {"name_ref": "is_veteran", "type": "boolean", "optional": False},
+                    ],
+                }
+            ]
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert any(m["field"] == "optional" for m in summary["mismatches"])
+
+
+def test_u7_enum_variants_mismatch_caught():
+    """Guidance entry's `enum_variants:` disagrees with manifest → FAIL."""
+    with tempfile.TemporaryDirectory() as tmp:
+        domain = _make_domain(Path(tmp))
+        _write_yaml(domain / "specs" / "naming-manifest.yaml", {
+            "version": "1.0",
+            "outputs": {
+                "status": {
+                    "policy_phrase": "status",
+                    "type": "string",
+                    "enum_variants": ["Eligible", "Denied"],
+                },
+            },
+        })
+        _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
+            "status": {
+                "type": "string",
+                "enum_variants": ["Eligible", "Denied", "ManualReview"],
+                "primary": True,
+            },
+        })
+        summary = validate_guidance.cmd_validate(domain)
+        assert summary["ok"] is False
+        assert any(m["field"] == "enum_variants" for m in summary["mismatches"])
+
+
 def test_constants_and_tables_ok_when_provenance_present():
     """Every entry has source_file and source_section → OK."""
     with tempfile.TemporaryDirectory() as tmp:

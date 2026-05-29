@@ -1,0 +1,8 @@
+[project]
+target_dir = "_targets"
+include_dirs = ["."]
+
+[[target]]
+name = "eligibility"
+modules = ["Earnings", "Eligibility"]
+backends = ["python"]

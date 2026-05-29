@@ -77,15 +77,6 @@ scope TestAllow001:
   definition result.household_type equals A1E       # enum: bare variant name (no quotes)
 ```
 
-Type summary:
-
-| CIVIL type | `definition result.<field> equals` literal |
-|---|---|
-| `int` | `3` |
-| `bool` | `true` / `false` |
-| `money` | `$1,800` |
-| `enum` | `VariantName` (PascalCase or as declared) |
-
 ---
 
 ## Module Declarations: `catala-metadata` vs `catala`
@@ -105,8 +96,7 @@ implementation details.
 all declarations), but `catala interpret` raises "Could not resolve reference to Module.ScopeName"
 (uses the compiled `.cmxs`, which only contains public exports).
 
-The transpiler (`tools/transpile_to_catala.py`) generates `catala-metadata` for declarations
-automatically. If regenerating manually, ensure the `## Declarations` fence is `catala-metadata`.
+**When authoring the Catala source:** the `## Declarations` section fence must be `catala-metadata` for every scope/struct/enum declaration the rest of the module (and any importing module) needs to see at runtime. Implementation-detail definitions use the plain `catala` fence.
 
 ---
 

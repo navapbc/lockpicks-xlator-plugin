@@ -84,7 +84,7 @@ else
 fi
 
 # Copy <module>_meta.py sidecar unconditionally — runs even when Eligibility.py already
-# exists so the demo copy stays in sync whenever CIVIL changes and the pipeline reruns.
+# exists so the demo copy stays in sync whenever the source changes and the pipeline reruns.
 META_PY="${OUTPUT_DIR}/${MODULE}_meta.py"
 if [[ -f "$META_PY" ]]; then
   mkdir -p "$PYTHON_DIR"

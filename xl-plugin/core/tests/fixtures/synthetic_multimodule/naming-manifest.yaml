@@ -1,0 +1,22 @@
+# Synthetic two-module naming manifest (U9 Step 1.5 fixture).
+# Carries the type-extended schema per U7 so transpile_to_catala_tests.py
+# can derive scope-input types without re-parsing the Catala source.
+- name: gross_earned_income
+  type: money
+- name: household_size
+  type: integer
+- name: excluded_amount
+  type: money
+- name: remaining_earned_income
+  type: money
+- name: income_limit
+  type: money
+  computed: true
+- name: income_eligible
+  type: boolean
+  computed: true
+- name: is_eligible
+  type: boolean
+  computed: true
+  outputs:
+    section: decision

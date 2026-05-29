@@ -18,13 +18,14 @@ this tool.
 Detection passes:
   Pass 1   skeleton.yaml `computations[*].exprs` dot-notation base names
            → reason "invoke-derived: skeleton computations"
-  Pass 2a  ruleset-modules.yaml + sample-artifacts.yaml `sample_rules[*].civil`
-           literal blocks, dot-notation base names
-           → reason "invoke-derived: sample rule CIVIL snippet"
-  Pass 2b  same civil blocks, parsed as YAML, snake_case identifiers in
-           any `when:` clause (excluding dot-notation LHS, keywords,
-           and string literals)
-           → reason "decision condition: when: clause in categorical rule"
+  Pass 2a  ruleset-modules.yaml + sample-artifacts.yaml `sample_rules[*].catala`
+           literal blocks, dot-notation base names (Catala scope-call output
+           field access: `<subvar>.<field>`)
+           → reason "scope-call derived: sample rule Catala snippet"
+  Pass 2b  same Catala snippets, snake_case identifiers appearing in
+           `under condition <expr>` clauses (excluding dot-notation LHS,
+           Catala keywords, and string literals)
+           → reason "decision condition: under-condition clause in scope rule"
   Pass 3   naming-manifest.yaml `outputs:` keys
            → reason "output variable: naming-manifest.yaml outputs"
   Existing entries from include-with-output.yaml are appended last with
@@ -64,32 +65,64 @@ _SAMPLE_ARTIFACTS = "specs/guidance/sample-artifacts.yaml"
 _INCLUDE_WITH_OUTPUT = "specs/guidance/include-with-output.yaml"
 
 _REASON_SKELETON = "invoke-derived: skeleton computations"
-_REASON_CIVIL_SNIPPET = "invoke-derived: sample rule CIVIL snippet"
-_REASON_WHEN_CLAUSE = "decision condition: when: clause in categorical rule"
+_REASON_CATALA_SNIPPET = "scope-call derived: sample rule Catala snippet"
+_REASON_UNDER_CONDITION = "decision condition: under-condition clause in scope rule"
 _REASON_OUTPUT = "output variable: naming-manifest.yaml outputs"
 _REASON_EXISTING = "existing"
 
 # Dot-notation: capture the base identifier on the LHS of `<base>.<member>`.
-# Whitespace around the dot is tolerated (CIVIL formatting tolerance).
+# Whitespace around the dot is tolerated. In Catala, this captures the
+# sub-scope binding variable in `<subvar>.<output_field>` access.
 _DOT_RE = re.compile(r"\b([a-z_][a-z0-9_]*)\s*\.\s*[a-z_]")
 
 # Bare snake_case identifier: not preceded by an alnum/underscore/dot,
 # not followed by a dot (dot-notation LHS belongs to Pass 2a).
 _IDENT_RE = re.compile(r"(?<![a-zA-Z0-9_.])([a-z_][a-z0-9_]*)(?!\.)")
 
-# Mirrors the tokenizer keyword filter described in /extract-sample-rules
-# Step 2 and /create-ruleset-modules Step 1. Kept in sync there in prose
-# until a second scripted consumer materializes (see plan: deferred work).
+# Catala keywords filtered out of bare-identifier tokenization. Covers the
+# keyword surface that appears in `under condition` bodies (boolean ops,
+# comparisons, literal forms, comprehensions, conditionals, modules).
+# Capital-letter idents (type/scope/enum names) are excluded by the snake
+# case regex itself.
 _KEYWORDS = frozenset({
-    "if", "else", "and", "or", "not",
-    "min", "max", "sum", "count",
-    "true", "false", "null",
+    # boolean / control
+    "if", "then", "else", "and", "or", "not", "xor",
+    # aggregates / comprehensions
+    "min", "max", "sum", "count", "of", "among", "in", "to",
+    "map", "each", "list", "such", "that", "for", "all", "we", "have",
+    "exists", "contains", "combine", "initially", "with", "number",
+    "maximum", "minimum", "content", "is",
+    # rules / conditions
+    "under", "condition", "consequence", "fulfilled", "equals",
+    "definition", "rule", "scope", "exception",
+    "the", "this", "true", "false",
+    # type literals / constructors
+    "money", "decimal", "integer", "boolean", "date", "duration",
+    # misc
+    "as", "any", "anything", "match", "pattern", "matches",
 })
 
-# Strip single- and double-quoted string literals from a `when:` value
-# before identifier tokenization so quoted enum tags don't surface as
-# variable names.
+# Strip single- and double-quoted string literals from a snippet before
+# identifier tokenization so quoted enum tags don't surface as variable
+# names.
 _STRING_LITERAL_RE = re.compile(r"'[^']*'|\"[^\"]*\"")
+
+# Catala money literals look like `$1,255` or `$1,704.50`. Strip them
+# before identifier tokenization so commas/digits don't confuse the
+# downstream scanner.
+_MONEY_LITERAL_RE = re.compile(r"\$[0-9][0-9,]*(?:\.[0-9]+)?")
+
+# Catala percent literals: `200%`, `12.5%`.
+_PERCENT_LITERAL_RE = re.compile(r"\b[0-9]+(?:\.[0-9]+)?%")
+
+# `under condition <expr> consequence` — capture the expression between
+# the `under condition` lead-in and the next `consequence`/`equals`
+# terminator (or end of fenced block). Multi-line via DOTALL; non-greedy
+# so multiple rules in one snippet don't merge.
+_UNDER_CONDITION_RE = re.compile(
+    r"under\s+condition\s+(.*?)(?=\s+consequence\b|\s+equals\b|\Z)",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 def _load_yaml(path: Path) -> Any:
@@ -112,43 +145,28 @@ def _scan_dot_notation(text: str) -> list[str]:
     return _DOT_RE.findall(text)
 
 
-def _tokenize_when_value(value: Any) -> list[str]:
-    """Return snake_case identifiers from a `when:` value.
+def _tokenize_condition_expr(expr: str) -> list[str]:
+    """Return snake_case identifiers from a Catala condition expression.
 
-    Accepts a single string or a list of strings (CIVIL emits both forms —
-    a single condition or a list of conjunctive conditions). String literals
-    are stripped first; keywords and dot-notation LHS are filtered out by
-    the regex itself.
+    String literals, money literals, and percent literals are stripped first;
+    keywords and dot-notation LHS are filtered out by the regex itself.
     """
-    if isinstance(value, list):
-        return [
-            ident
-            for item in value
-            for ident in _tokenize_when_value(item)
-        ]
-    if not isinstance(value, str) or not value:
+    if not isinstance(expr, str) or not expr:
         return []
-    stripped = _STRING_LITERAL_RE.sub("", value)
+    stripped = _STRING_LITERAL_RE.sub("", expr)
+    stripped = _MONEY_LITERAL_RE.sub("", stripped)
+    stripped = _PERCENT_LITERAL_RE.sub("", stripped)
     return [m for m in _IDENT_RE.findall(stripped) if m not in _KEYWORDS]
 
 
-def _walk_when_clauses(node: Any) -> list[Any]:
-    """Collect every value of a `when:` key at any depth in `node`."""
-    found: list[Any] = []
-
-    def _walk(n: Any) -> None:
-        if isinstance(n, dict):
-            for k, v in n.items():
-                if k == "when":
-                    found.append(v)
-                else:
-                    _walk(v)
-        elif isinstance(n, list):
-            for item in n:
-                _walk(item)
-
-    _walk(node)
-    return found
+def _extract_under_condition_exprs(catala_text: str) -> list[str]:
+    """Return the body of every `under condition <expr> consequence` clause
+    in a Catala snippet. Multiple rules in one snippet yield multiple
+    entries. Returns `[]` for non-Catala text (no matches).
+    """
+    if not isinstance(catala_text, str) or not catala_text:
+        return []
+    return [m.strip() for m in _UNDER_CONDITION_RE.findall(catala_text) if m.strip()]
 
 
 def _collect_pass1(domain_dir: Path) -> list[str]:
@@ -174,9 +192,9 @@ def _collect_pass1(domain_dir: Path) -> list[str]:
     return names
 
 
-def _iter_civil_snippets(domain_dir: Path) -> list[tuple[str, str, str]]:
-    """Yield (source_file_rel, rule_path, civil_text) for every
-    `sample_rules[*].civil` literal block in ruleset-modules.yaml and
+def _iter_catala_snippets(domain_dir: Path) -> list[tuple[str, str, str]]:
+    """Yield (source_file_rel, rule_path, catala_text) for every
+    `sample_rules[*].catala` literal block in ruleset-modules.yaml and
     sample-artifacts.yaml. `rule_path` describes the YAML location for
     stderr WARN diagnostics on parse failure.
     """
@@ -196,14 +214,14 @@ def _iter_civil_snippets(domain_dir: Path) -> list[tuple[str, str, str]]:
                 for r_idx, rule in enumerate(sample_rules):
                     if not isinstance(rule, dict):
                         continue
-                    civil = rule.get("civil")
-                    if not isinstance(civil, str) or not civil:
+                    catala = rule.get("catala")
+                    if not isinstance(catala, str) or not catala:
                         continue
                     rule_id = rule.get("id", f"<index {r_idx}>")
                     snippets.append((
                         _RULESET_MODULES,
                         f"ruleset_modules[{module_name}].sample_rules[{rule_id}]",
-                        civil,
+                        catala,
                     ))
 
     sa_data = _load_yaml(domain_dir / _SAMPLE_ARTIFACTS)
@@ -213,14 +231,14 @@ def _iter_civil_snippets(domain_dir: Path) -> list[tuple[str, str, str]]:
             for r_idx, rule in enumerate(sample_rules):
                 if not isinstance(rule, dict):
                     continue
-                civil = rule.get("civil")
-                if not isinstance(civil, str) or not civil:
+                catala = rule.get("catala")
+                if not isinstance(catala, str) or not catala:
                     continue
                 rule_id = rule.get("id", f"<index {r_idx}>")
                 snippets.append((
                     _SAMPLE_ARTIFACTS,
                     f"sample_rules[{rule_id}]",
-                    civil,
+                    catala,
                 ))
 
     return snippets
@@ -231,25 +249,17 @@ def _collect_pass2(
 ) -> tuple[list[str], list[str]]:
     """Pass 2a + 2b over a pre-collected snippet list.
 
-    Pass 2a runs on the raw civil string (dot-notation regex). Pass 2b
-    requires the snippet to parse as YAML; parse failures log a WARN to
-    stderr and skip 2b for that snippet only.
+    Pass 2a runs on the raw Catala string (dot-notation regex captures
+    sub-scope binding bases from `<subvar>.<output_field>`). Pass 2b
+    scans the same text for `under condition <expr> consequence` clauses
+    and tokenizes bare identifiers in each condition body.
     """
     pass2a: list[str] = []
     pass2b: list[str] = []
-    for source_file, rule_path, civil in snippets:
-        pass2a.extend(_scan_dot_notation(civil))
-        try:
-            parsed = yaml.safe_load(civil)
-        except yaml.YAMLError as exc:
-            print(
-                f"WARN: civil snippet in {source_file} at {rule_path} "
-                f"failed to parse: {exc}",
-                file=sys.stderr,
-            )
-            continue
-        for when_value in _walk_when_clauses(parsed):
-            pass2b.extend(_tokenize_when_value(when_value))
+    for _source_file, _rule_path, catala in snippets:
+        pass2a.extend(_scan_dot_notation(catala))
+        for cond_expr in _extract_under_condition_exprs(catala):
+            pass2b.extend(_tokenize_condition_expr(cond_expr))
     return pass2a, pass2b
 
 
@@ -287,8 +297,8 @@ def _merge(
     merged: OrderedDict[str, str] = OrderedDict()
     for names, reason in (
         (pass1, _REASON_SKELETON),
-        (pass2a, _REASON_CIVIL_SNIPPET),
-        (pass2b, _REASON_WHEN_CLAUSE),
+        (pass2a, _REASON_CATALA_SNIPPET),
+        (pass2b, _REASON_UNDER_CONDITION),
         (pass3, _REASON_OUTPUT),
     ):
         for name in names:
@@ -335,7 +345,7 @@ def _atomic_write(dest: Path, content: str) -> None:
 def run(domain_dir: Path) -> int:
     """Execute detection passes, merge, and write. Returns process exit code."""
     pass1 = _collect_pass1(domain_dir)
-    snippets = _iter_civil_snippets(domain_dir)
+    snippets = _iter_catala_snippets(domain_dir)
     pass2a, pass2b = _collect_pass2(snippets)
     pass3 = _collect_pass3(domain_dir)
     existing = _collect_existing(domain_dir)

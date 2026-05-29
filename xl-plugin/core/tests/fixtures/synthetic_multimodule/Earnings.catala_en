@@ -1,0 +1,32 @@
+> Module Earnings
+
+# Earnings exclusions (sub-module)
+
+## Declarations
+
+```catala-metadata
+declaration structure EarningsResult:
+  data excluded_amount content money
+  data remaining_earned_income content money
+
+declaration scope ApplyExclusions:
+  input gross_earned_income content money
+  output result content EarningsResult
+```
+
+## Earned-income exclusion
+
+*Source: policy.md — Section 1. Earnings exclusions*
+
+```catala
+scope ApplyExclusions:
+  definition result equals
+    let excluded equals
+      if gross_earned_income <= $65 then gross_earned_income
+      else $65 + (gross_earned_income - $65) * 50%
+    in
+    EarningsResult {
+      -- excluded_amount: excluded
+      -- remaining_earned_income: gross_earned_income - excluded
+    }
+```

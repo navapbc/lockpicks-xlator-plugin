@@ -66,9 +66,6 @@ activate_opam
 
 case "$1" in
     # Intended for internal use by Xlator developers or Claude hooks; not commands for user's direct use
-    generate-schema)
-        exec uv run "$TOOLS_DIR/civil_schema.py"
-        ;;
     observe_hook)
         event_type="$2"
         case "${OBSERVE_HOOK_DISABLED:-}" in
@@ -137,8 +134,8 @@ case "$1" in
     review-buckets)
         exec uv run "$TOOLS_DIR/review_buckets.py" "${@:2}"
         ;;
-    evaluate-civil)
-        exec uv run "$TOOLS_DIR/evaluate_civil.py" "${@:2}"
+    evaluate-catala)
+        exec uv run "$TOOLS_DIR/catala_eval.py" "${@:2}"
         ;;
     detect-stale-cases)
         exec uv run "$TOOLS_DIR/detect_stale_cases.py" "${@:2}"

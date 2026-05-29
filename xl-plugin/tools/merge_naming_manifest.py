@@ -7,7 +7,19 @@
 xlator merge-naming-manifest: deterministic writer for specs/naming-manifest.yaml.
 
 Consumes an analyst-approved Name Inventory JSON (R10 shape) and applies the
-six load-bearing merge rules of /extract-ruleset Step 7:
+six load-bearing merge rules of /extract-ruleset Step 7.
+
+U7 extended the inventory + manifest schema with Catala-native type metadata:
+  * `type` accepts Catala primitives (`integer`, `decimal`, `money`,
+    `boolean`, `date`, `duration`, `string`) alongside legacy short
+    type names (preserved for older manifests).
+  * `optional: bool` flags `Optional<T>` wrapping in the Catala emission.
+  * `enum_variants: [str]` carries the list of constructor names for enum
+    types (`["Eligible", "Denied"]`). Distinct from `values:`, the older
+    string-values list; `enum_variants:` carries the Catala-side names.
+
+The new fields follow the same `preserve-non-null + analyst-authoritative`
+semantics as `policy_phrase`/`source_doc`/`section`.
 
   * preserve-non-null:        every analyst-supplied non-null field on the
                               existing entry wins; inventory fills nulls.
@@ -69,8 +81,13 @@ _HEADER_SENTINEL = "--- MERGE-NAMING-MANIFEST-HEADER-END ---"
 _MANIFEST_VERSION = "1.0"
 
 _VALID_TYPES = {
+    # Legacy short leaf types (preserved for older manifests).
     "money", "bool", "int", "float", "string", "enum", "list",
     "date", "set", "object",
+    # Catala primitive type names. U7 extended the manifest to carry
+    # Catala-native type metadata so `transpile_to_catala_tests.py` can
+    # emit correct test literals.
+    "integer", "decimal", "boolean", "duration",
 }
 
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
@@ -79,10 +96,18 @@ _INPUTS_SECTION_RE = re.compile(r"^inputs\.([A-Z][A-Za-z0-9]*)$")
 
 # Optional fields on a manifest entry, in canonical write order (after the
 # four core provenance fields). preserve-non-null applies to each.
+#
+# `type`, `optional`, and `enum_variants` carry Catala-native type metadata
+# added in U7. They are additive — pre-U7 manifests omit them and continue
+# to work; consumers (`transpile_to_catala_tests.py`, the test-creation
+# skills) fall back to `string` and surface a clear "needs type" warning
+# when a field declared in a Catala source has no `type:` in the manifest.
 _OPTIONAL_FIELDS = (
     "description",
     "type",
+    "optional",
     "values",
+    "enum_variants",
     "policy_phrase",
     "source_doc",
     "section",
@@ -199,6 +224,25 @@ def _validate_entry(i: int, entry: Any) -> None:
         for j, val in enumerate(values):
             if not _is_non_empty_str(val):
                 raise _err(i, f"values[{j}]", "must be non-empty string")
+
+    # optional (U7, post-pivot). Boolean flag indicating the field is
+    # `Optional<T>` in the Catala emission. Nullable; absent → treated as
+    # `false` by consumers but the absence is preserved (preserve-non-null).
+    if "optional" in entry and entry["optional"] is not None:
+        if not isinstance(entry["optional"], bool):
+            raise _err(i, "optional", "must be a boolean or null")
+
+    # enum_variants (U7, post-pivot). List of variant names, one per
+    # constructor on an enum type. Nullable; supplied only for enum-typed
+    # fields. Each variant name must be a non-empty string (PascalCase by
+    # Catala convention but the merge tool does not enforce casing).
+    enum_variants = entry.get("enum_variants")
+    if enum_variants is not None:
+        if not isinstance(enum_variants, list):
+            raise _err(i, "enum_variants", "must be a list or null")
+        for j, val in enumerate(enum_variants):
+            if not _is_non_empty_str(val):
+                raise _err(i, f"enum_variants[{j}]", "must be non-empty string")
 
     # observed_synonyms (optional, nullable)
     obs = entry.get("observed_synonyms")
@@ -408,8 +452,14 @@ def _build_entry(
     type_ = _preserve_non_null(
         existing.get("type"), inventory_entry.get("type")
     )
+    optional_ = _preserve_non_null(
+        existing.get("optional"), inventory_entry.get("optional")
+    )
     values = _preserve_non_null(
         existing.get("values"), inventory_entry.get("values")
+    )
+    enum_variants = _preserve_non_null(
+        existing.get("enum_variants"), inventory_entry.get("enum_variants")
     )
 
     existing_synonyms = existing.get("synonyms")
@@ -436,8 +486,12 @@ def _build_entry(
         entry["description"] = description
     if type_ is not None:
         entry["type"] = type_
+    if optional_ is not None:
+        entry["optional"] = optional_
     if values is not None:
         entry["values"] = values
+    if enum_variants is not None:
+        entry["enum_variants"] = enum_variants
     if synonyms_list:
         entry["synonyms"] = synonyms_list
 

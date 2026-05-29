@@ -23,7 +23,7 @@ If `$DOMAINS_DIR` is unknown, read it from `.xlator.local.env` in the project ro
 
 Full conventions live in [core/policy_facets_claude.md](core/policy_facets_claude.md). Shared procedures (`SP-LoadInputIndex`, `SP-LoadGuidanceShas`, etc.) live in [core/ruleset-shared.md](core/ruleset-shared.md).
 
-Manifests for per-tier drift detection (`specs/guidance/.facets-manifest.yaml`, `specs/extraction-manifest.yaml`, `specs/tests/.civil-manifest.yaml`) are written by their owning skills and audited by `/check-freshness` — see [skills/check-freshness/SKILL.md](skills/check-freshness/SKILL.md).
+Manifests for per-tier drift detection (`specs/guidance/.facets-manifest.yaml`, `specs/extraction-manifest.yaml`, `specs/tests/.catala-manifest.yaml`) are written by their owning skills and audited by `/check-freshness` — see [skills/check-freshness/SKILL.md](skills/check-freshness/SKILL.md).
 
 ## Output Fencing
 
@@ -60,10 +60,10 @@ After completion of an `xl` skill, suggest possible next steps based on these wo
     - `/create-skeleton <domain>` — extract doc signals from the policies and build the computation skeleton
     - `/create-ruleset-groups <domain>` — propose ruleset groups that group related computations in the skeleton; these groups will help with ruleset visualizations
     - `/create-ruleset-modules <domain>` — apply heuristics to detect ruleset modules to further consolidate computations within groups; these modules will become reusable ruleset modules in the target ruleset language
-    - `/extract-sample-rules <domain>` — generate sample CIVIL rules from the index (best after create-ruleset-modules) for the user to become familiar, revise, and gain confidence in the anticipated results
+    - `/extract-sample-rules <domain>` — generate sample Catala rules from the index (best after create-ruleset-modules) for the user to become familiar, revise, and gain confidence in the anticipated results
     - `/tag-vars-to-include-with-output <domain>` — auto-detect intermediate computed variables to be exposed along with the final output (best after extract-sample-rules); the selected variables are intended to be useful for explaining the computations used to derive the final output
     - `/create-sample-tests <domain>` — generate sample test cases to measure the accuracy of the generated ruleset; this gives the AI a metric to assess and correct the generated ruleset
-5. `/extract-ruleset <domain>` — extract the CIVIL ruleset
+5. `/extract-ruleset <domain>` — emit the Catala source (`specs/<module>.catala_en`) via the clerk-loop
 6. `/review-ruleset <domain>` — review, finalize graph artifacts, capture guidance learnings
 
 **Notes on ordering:**
@@ -73,12 +73,11 @@ After completion of an `xl` skill, suggest possible next steps based on these wo
 **After ruleset exists:**
 - `/create-demo <domain>` — generate a web-based ruleset demo
 - `/create-tests <domain>` — initial test cases
-- `/transpile-and-test <domain>` — transpile to Catala and run tests
 - `/expand-tests <domain>` — increase coverage
 
 **After policy docs change:**
 1. `/index-inputs <domain>` to refresh the index
-2. `/update-ruleset <domain>` to update the CIVIL ruleset
+2. `/update-ruleset <domain>` to update the Catala source
 
 ## Multi-step Skills
 

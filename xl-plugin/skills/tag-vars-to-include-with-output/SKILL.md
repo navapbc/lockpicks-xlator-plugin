@@ -12,13 +12,13 @@ Identify which intermediate computed variables should be exposed in the API's `C
 `include_with_output` variables appear alongside the final decision in the API response. Their purpose is **explainability**: they surface the key intermediate values that led to the output so that callers can understand *why* the ruleset reached its conclusion — not just *what* it decided.
 
 Good candidates are variables that a person would need to see to understand the decision:
-- Sub-ruleset result objects (e.g., `client_result`, `dol_result`) — the intermediate module outputs feeding into the final decision
-- Pivotal computed values referenced in decision conditions (e.g., `is_compatible`, `income_limit`, `after_half`) — the thresholds and comparisons the ruleset used to decide
+- Sub-scope result bindings (e.g., `client_result`, `dol_result`) — the sub-scope outputs that the parent scope reads via `<subvar>.<output_field>` access
+- Pivotal computed values referenced in `under condition` clauses (e.g., `is_compatible`, `income_limit`, `after_half`) — the thresholds and comparisons the ruleset used to decide
 - Variables named in denial or adjustment reasons — the quantities that triggered a specific outcome
 
 Poor candidates are purely internal chain steps with no standalone interpretive value (e.g., `after_eitc` as an intermediate step toward `adjusted_earned_income` when `adjusted_earned_income` itself is the meaningful quantity). When in doubt, favor inclusion — callers can filter, but cannot see what is not exposed.
 
-Best run **after `/extract-sample-rules`** — that command may generate CIVIL snippets with `invoke:`-produced dot-access expressions and decision-condition variables not yet visible in the skeleton's `computations:` list. Because all writes are merge-safe, it is also safe to run earlier and re-run after.
+Best run **after `/extract-sample-rules`** — that command may generate Catala snippets containing scope-call dot-access expressions (`<subvar>.<output_field>`) and `under condition` decision predicates not yet visible in the skeleton's `computations:` list. Because all writes are merge-safe, it is also safe to run earlier and re-run after.
 
 Read `../../core/output-fencing.md` now.
 

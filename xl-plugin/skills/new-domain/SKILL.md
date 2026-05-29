@@ -44,7 +44,7 @@ Next steps:
   1. Add .md policy documents to `$DOMAINS_DIR/<domain>/input/policy_docs/`
   2. Run `/index-inputs <domain>` to build a document index
   3. Run `/refine-guidance <domain>` to set extraction goals and ruleset guidance
-  4. Run `/extract-ruleset <domain>` to extract the CIVIL ruleset
+  4. Run `/extract-ruleset <domain>` to emit the Catala source
 :::
 
 ## Common Mistakes to Avoid

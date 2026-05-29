@@ -235,6 +235,58 @@ def test_field_with_neither_type_nor_description():
         assert manifest["inputs"]["E"]["f"] == {}
 
 
+def test_u7_optional_and_enum_variants_seeded_when_suggested():
+    """U7: when a suggestion entry carries `optional:` and/or
+    `enum_variants:`, declare-target-ruleset seeds them into the manifest
+    (nullable initial values — analyst confirms in /extract-ruleset Step 7).
+    """
+    payload = {
+        "display_name": "x", "description": "x", "role": "x", "scope": "x",
+        "inputs": {
+            "Applicant": {
+                "veteran_flag": {
+                    "type": "boolean",
+                    "optional": True,
+                },
+            },
+        },
+        "outputs": {
+            "status": {
+                "type": "string",
+                "enum_variants": ["Eligible", "Denied"],
+            },
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        domain_dir = _build_suggestion(Path(tmp), "d", "r", payload)
+        dtr.run(domain_dir, "r")
+        manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
+        veteran = manifest["inputs"]["Applicant"]["veteran_flag"]
+        assert veteran["type"] == "boolean"
+        assert veteran["optional"] is True
+        status = manifest["outputs"]["status"]
+        assert status["type"] == "string"
+        assert status["enum_variants"] == ["Eligible", "Denied"]
+
+
+def test_u7_seed_entries_omit_provenance_unchanged():
+    """U7 type-metadata fields don't change the seed-time provenance rule:
+    `policy_phrase`, `source_doc`, `section` remain absent on seeded entries
+    regardless of whether type fields are present."""
+    payload = {
+        "display_name": "x", "description": "x", "role": "x", "scope": "x",
+        "inputs": {"E": {"f": {"type": "money", "optional": False}}},
+        "outputs": {"o": {"type": "boolean"}},
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        domain_dir = _build_suggestion(Path(tmp), "d", "r", payload)
+        dtr.run(domain_dir, "r")
+        manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
+        for entry in (manifest["inputs"]["E"]["f"], manifest["outputs"]["o"]):
+            for prov_field in ("policy_phrase", "source_doc", "section"):
+                assert prov_field not in entry
+
+
 # ---------------------------------------------------------------------------
 # computed: block omission
 # ---------------------------------------------------------------------------

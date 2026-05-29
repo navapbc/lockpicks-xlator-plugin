@@ -1,10 +1,11 @@
-# Catala 1.1.0 — Transpiler Output Quick Reference
+# Catala 1.1.0 — Feature Quick Reference
 
 <!-- Verified against: https://github.com/CatalaLang/catala/blob/master/doc/syntax/syntax_en.catala_en -->
 <!-- Catala 1.1.0 "bac d'Eloka" (released 2026-01-29) -->
 
-Reference for reading and generating `.catala_en` files from `tools/transpile_to_catala.py`.
-For CIVIL YAML authoring see [civil-quickref.md](civil-quickref.md).
+General Catala-feature reference for reading and writing `.catala_en` files.
+For AI-authoring guidance (failure modes, project idioms, citation form), see
+[catala-authoring-quickref.md](catala-authoring-quickref.md).
 
 To verify Catala file: `clerk typecheck <catala_file>`
 To run file: `clerk run <catala_file> --scope=<scope>`
@@ -21,7 +22,7 @@ Catala files are **literate programs** — Markdown with fenced `catala` code bl
 > Module Earned_income
 ```
 
-Module name rules: last segment of the dotted CIVIL `module` field, first letter uppercased. Example: `earned_income` → `Earned_income`. This must match the `modules` entry in `clerk.toml`.
+Module name rules: derive from the filename — first letter uppercased, underscores preserved. Example: `earned_income.catala_en` → `Earned_income`. This must match the `modules` entry in `clerk.toml`.
 
 Full file structure:
 
@@ -74,7 +75,7 @@ Type conversions: `decimal of 44`, `money of 23.15`, `round of $9.99`
 
 ## Top-Level Declarations
 
-### Structure (maps to CIVIL `inputs:` entity)
+### Structure
 
 ```catala
 declaration structure Household:
@@ -85,7 +86,7 @@ declaration structure Household:
 
 - Structure names: **PascalCase**; field names: **snake_case**
 
-### Enumeration (maps to CIVIL `string` fields and `reasons` codes)
+### Enumeration
 
 ```catala
 declaration enumeration ReasonCode:
@@ -97,7 +98,7 @@ declaration enumeration StatusType:
   -- Inactive content integer   # variant with payload
 ```
 
-### Constant (maps to CIVIL `constants:`)
+### Constant
 
 ```catala
 declaration EARNED_INCOME_DEDUCTION_RATE content decimal equals 20%
@@ -119,7 +120,7 @@ Call with: `f of $44.50, 1/3`
 
 ---
 
-## Scope Declaration (maps to CIVIL module)
+## Scope Declaration
 
 ```catala
 declaration scope EligibilityDecision:
@@ -177,7 +178,7 @@ scope EligibilityDecision:
 
 > ⚠️ Multiple definitions for the same variable need exhaustive guards or a base case.
 
-### Conditional definition (if/then/else — maps to CIVIL `conditional:`)
+### Conditional definition (if/then/else)
 
 ```catala
 scope EligibilityDecision:
@@ -204,7 +205,7 @@ scope EligibilityDecision:
 
 Use `rule`/`fulfilled`/`not fulfilled` for `condition`-typed variables (not `definition`/`equals`).
 
-### Labeled definition + exception (maps to CIVIL deny rules on `eligible`)
+### Labeled definition + exception (deny-rule pattern on `eligible`)
 
 ```catala
 scope EligibilityDecision:
@@ -385,7 +386,7 @@ lst1 ++ lst2
 combine all x among lst in acc initially 0 with acc + x
 ```
 
-### reasons pattern (CIVIL deny rules → list of codes)
+### reasons pattern (deny rules → list of codes)
 
 ```catala
 declaration structure ReasonEntry:
@@ -407,38 +408,13 @@ scope EligibilityDecision:
 
 ---
 
-## CIVIL → Catala Type Mapping
+## Typed Arithmetic
 
-| CIVIL type | Catala type | Notes |
-|---|---|---|
-| `int` | `integer` | |
-| `float` | `decimal` | |
-| `bool` | `boolean` | Use `condition` variable kind for rule flags |
-| `money` | `money` | |
-| `date` | `date` | |
-| `string` | `enumeration` | Emit enum with variants from known string values |
-| `list` | `list of <type>` | |
+When mixed-precision operands need explicit handling, Catala provides type-suffixed operators:
 
----
-
-## CIVIL → Catala Operator Mapping
-
-| CIVIL expr | Catala expr | Notes |
-|---|---|---|
-| `a && b` | `a and b` | Stays in one expression (no splitting unlike Rego) |
-| `a \|\| b` | `a or b` | Stays inline (no OR-splitting needed) |
-| `!a` | `not a` | |
-| `a == b` | `a = b` | Single `=` for equality — `==` is a syntax error |
-| `a != b` | `a != b` | |
-| `Entity.field` | `Entity.field` | Same dot notation |
-| `max(a, b)` | `if a >= b then a else b` | No built-in max; use conditional |
-| `min(a, b)` | `if a <= b then a else b` | No built-in min; use conditional |
-| `in(x, [a, b, c])` | `[a; b; c] contains x` | Catala has no `in(...)` builtin; rewrite to list-`contains` form. Note `;` list separators, not `,` |
-| `CONSTANT` | Inlined literal | Constants substituted at transpile time |
-| `table('name', key).col` | Stacked `under condition` definitions (default) or single `if/else if/else` chain (`--table-style else-if`) | One block per row, or one chained definition |
-
-Typed arithmetic (when mixed types need explicit precision):
 - `+!` integer, `+.` decimal, `+$` money, `+^` duration
+
+`money * decimal` is allowed; `money * integer` is a type error — cast with `decimal of integer`.
 
 ---
 

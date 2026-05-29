@@ -4,10 +4,13 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
-CSV / YAML → *_tests.yaml Importer
+CSV / YAML → *_tests.yaml Importer (U7, manifest-driven)
 
 Validates and upserts test cases from a CSV (or native YAML) file into the
 target *_tests.yaml file. All validation errors are collected before any write.
+
+Post-U7: type coercion derives from `specs/naming-manifest.yaml` (the
+type-extended manifest per R3 extended).
 
 Usage (via xlator CLI):
     xlator import-tests <domain> <module> <csv_or_yaml_file>
@@ -43,10 +46,10 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from civil_helpers import (
+from manifest_helpers import (
     FieldSpec,
     build_csv_field_specs,
-    load_civil_yaml,
+    load_naming_manifest,
 )
 
 
@@ -71,7 +74,7 @@ def parse_money(raw: str) -> int | float:
 
 
 # ---------------------------------------------------------------------------
-# Type coercion (CIVIL-spec-driven)
+# Type coercion (manifest-driven)
 # ---------------------------------------------------------------------------
 
 BOOL_TRUE = {"true", "True", "TRUE", "1"}
@@ -80,14 +83,14 @@ BOOL_FALSE = {"false", "False", "FALSE", "0"}
 
 def coerce_value(raw: str, spec: FieldSpec, row_num: int, case_id: str,
                  errors: list[dict]) -> Any:
-    """Convert raw CSV string to Python value per CIVIL type.
+    """Convert raw CSV string to Python value per leaf type.
 
     Appends to errors on failure. Returns None on error (caller skips the field).
     Returns the sentinel _OMIT if the field should be omitted from YAML.
     """
     stripped = raw.strip()
 
-    ct = spec.civil_type
+    ct = spec.leaf_type
     col = spec.column_name
 
     # Empty cell handling
@@ -304,7 +307,7 @@ def _parse_csv_rows(csv_content: str, specs: list[FieldSpec], errors: list[dict]
             raw_val = (raw_row.get(col_name) or "").strip()
             dec_name = spec.decision_name
 
-            if spec.civil_type in ("list", "set"):
+            if spec.leaf_type in ("list", "set"):
                 if not raw_val:
                     parsed_row["expected"][dec_name] = []
                 else:
@@ -428,13 +431,17 @@ def _build_test_case(parsed: dict[str, Any], existing_expected: dict,
     return tc
 
 
-def _load_or_init_yaml(tests_path: Path, civil_doc: dict) -> tuple[dict, list]:
-    """Load existing tests YAML or initialise a fresh one."""
+def _load_or_init_yaml(tests_path: Path, module_name: str) -> tuple[dict, list]:
+    """Load existing tests YAML or initialise a fresh one.
+
+    `module_name` (e.g. 'eligibility') is used to construct the `spec:`
+    pointer when initializing a fresh tests file. Post-pivot the pointer
+    references the Catala source.
+    """
     if not tests_path.exists():
-        module_name = civil_doc.get("module", tests_path.stem.replace("_tests", ""))
         doc = {
             "test_suite": {
-                "spec": f"{module_name}.civil.yaml",
+                "spec": f"{module_name}.catala_en",
                 "description": f"Test cases for {module_name}",
                 "version": "1.0",
             },
@@ -556,7 +563,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Import test cases from CSV or YAML into *_tests.yaml."
     )
-    parser.add_argument("civil_yaml", help="Path to the CIVIL spec YAML file")
+    parser.add_argument("naming_manifest", help="Path to specs/naming-manifest.yaml")
+    parser.add_argument(
+        "--module", required=True, dest="module_name",
+        help="Module name (e.g. 'eligibility') for fresh-file initialization",
+    )
     parser.add_argument("input", help="Path to CSV or YAML file, or '-' for stdin")
     parser.add_argument("tests_yaml", help="Path to target *_tests.yaml file")
     parser.add_argument("--dry-run", action="store_true",
@@ -569,11 +580,11 @@ def main() -> None:
                         help="Error/result output format (default: text)")
     args = parser.parse_args()
 
-    civil_path = Path(args.civil_yaml)
+    manifest_path = Path(args.naming_manifest)
     tests_path = Path(args.tests_yaml)
 
-    civil_doc = load_civil_yaml(civil_path)
-    specs = build_csv_field_specs(civil_doc)
+    manifest_doc = load_naming_manifest(manifest_path)
+    specs = build_csv_field_specs(manifest_doc)
 
     # Read input
     if args.input == "-":
@@ -610,7 +621,7 @@ def main() -> None:
         return
 
     # Load existing YAML
-    doc, existing_tests = _load_or_init_yaml(tests_path, civil_doc)
+    doc, existing_tests = _load_or_init_yaml(tests_path, args.module_name)
 
     # Comment-loss warning
     if not args.dry_run and not args.no_comment_check:

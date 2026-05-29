@@ -84,10 +84,25 @@ def _load_yaml(path: Path) -> Any:
 
 
 def _entry_subset(entry: Any) -> dict[str, Any]:
-    """Return a new dict containing only `type:` and `description:` from
-    `entry` — and only when those keys are present. Every other key on the
-    suggestion entry (e.g. `policy_phrase:`, `source_doc:`, `section:`,
-    `synonyms:`) is dropped. Returns `{}` when `entry` is not a dict."""
+    """Return a new dict containing the seed-time subset of fields from
+    `entry` — and only when those keys are present.
+
+    Seedable fields (kept):
+      - `type`: Catala primitive (`integer`, `decimal`, `money`, `boolean`,
+        `date`, `duration`, `string`) or a legacy short type name. Nullable —
+        analysts may declare a field's intended type when known and leave
+        it absent (or write `null`) when uncertain.
+      - `description`: short prose description of the field.
+      - `optional` (U7): boolean flag — `Optional<T>` wrapping in the Catala
+        emission. Nullable initial value; analysts confirm in /extract-ruleset
+        Step 7.
+      - `enum_variants` (U7): list of constructor names for enum types.
+        Nullable initial value; analysts confirm in /extract-ruleset Step 7.
+
+    Every other key on the suggestion entry (e.g. `policy_phrase:`,
+    `source_doc:`, `section:`, `synonyms:`) is dropped — those are filled in
+    by /extract-ruleset Step 7 once the analyst confirms a seeded name
+    against an observed phrase. Returns `{}` when `entry` is not a dict."""
     if not isinstance(entry, dict):
         return {}
     out: dict[str, Any] = {}
@@ -95,6 +110,10 @@ def _entry_subset(entry: Any) -> dict[str, Any]:
         out["type"] = entry["type"]
     if "description" in entry:
         out["description"] = entry["description"]
+    if "optional" in entry:
+        out["optional"] = entry["optional"]
+    if "enum_variants" in entry:
+        out["enum_variants"] = entry["enum_variants"]
     return out
 
 

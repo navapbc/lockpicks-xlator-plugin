@@ -1,0 +1,42 @@
+inputs:
+  Household:
+    monthly_gross_income:
+      policy_phrase: "household monthly gross income"
+      source_doc: "policy.md"
+      section: "Section 1. Definitions"
+    size:
+      policy_phrase: "household size"
+      source_doc: "policy.md"
+      section: "Section 1. Definitions"
+    has_elderly_member:
+      policy_phrase: "contains at least one member who is age 65 or older"
+      source_doc: "policy.md"
+      section: "Section 3. Categorical eligibility for elderly households"
+    countable_resources:
+      policy_phrase: "total countable resources"
+      source_doc: "policy.md"
+      section: "Section 4. Disqualification — assets exceeding limit"
+
+computed:
+  federal_poverty_line:
+    policy_phrase: "federal poverty line for the household size"
+    source_doc: "policy.md"
+    section: "Section 1. Definitions"
+  income_test_passes:
+    policy_phrase: "income-eligible"
+    source_doc: "policy.md"
+    section: "Section 2. Income eligibility threshold"
+  elderly_test_passes:
+    policy_phrase: "also eligible if it contains at least one member who is age 65 or older"
+    source_doc: "policy.md"
+    section: "Section 3. Categorical eligibility for elderly households"
+  resource_disqualification:
+    policy_phrase: "disqualified ... if its total countable resources exceed"
+    source_doc: "policy.md"
+    section: "Section 4. Disqualification — assets exceeding limit"
+
+outputs:
+  is_eligible:
+    policy_phrase: "eligible for this program"
+    source_doc: "policy.md"
+    section: "Section 5. Final eligibility decision"

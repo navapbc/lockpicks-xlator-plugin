@@ -2,7 +2,7 @@
 # requires-python = ">=3.14"
 # dependencies = ["pyyaml>=6.0"]
 # ///
-"""Tests for check_freshness.py — covers facets/guidance/civil/tests detection and edge cases.
+"""Tests for check_freshness.py — covers facets/guidance/catala/tests detection and edge cases.
 
 Run: uv run xl-plugin/tools/test_check_freshness.py
 """
@@ -82,7 +82,7 @@ def _populate_full_chain(domain: Path, *, with_manifests: bool = True) -> dict[s
     _write(domain, "specs/guidance/skeleton.yaml", "computations: []\n")
     _write(domain, "specs/guidance/ruleset-modules.yaml", "ruleset_modules: []\n")
     _write(domain, "specs/naming-manifest.yaml", "entries: {}\n")
-    _write(domain, "specs/eligibility.civil.yaml", "name: eligibility\n")
+    _write(domain, "specs/eligibility.catala_en", "> Module Eligibility\n")
     _write(domain, "specs/tests/eligibility_tests.yaml", "tests: []\n")
     _git_init_and_commit(domain)
 
@@ -96,14 +96,14 @@ def _populate_full_chain(domain: Path, *, with_manifests: bool = True) -> dict[s
 
     if with_manifests:
         record_tier_manifest.cmd_record(domain, "guidance")
-        # civil tier: hand-author extraction-manifest with consumed_guidance[]
+        # catala tier: hand-author extraction-manifest with consumed_guidance[]
         sk_sha = _git_sha_of(domain, "specs/guidance/skeleton.yaml")
         rm_sha = _git_sha_of(domain, "specs/guidance/ruleset-modules.yaml")
         nm_sha = _git_sha_of(domain, "specs/naming-manifest.yaml")
         _write(domain, "specs/extraction-manifest.yaml", yaml.safe_dump({
             "programs": {
                 "eligibility": {
-                    "civil_file": "specs/eligibility.civil.yaml",
+                    "catala_file": "specs/eligibility.catala_en",
                     "source_docs": [
                         {"path": "input/policy_docs/foo.md", "git_sha": foo_sha},
                     ],
@@ -316,33 +316,33 @@ def test_guidance_no_guidance_no_manifest_no_drift():
 
 
 # ---------------------------------------------------------------------------
-# civil tier
+# catala tier
 # ---------------------------------------------------------------------------
 
-def test_civil_civil_stale_when_guidance_changes():
-    """AE5: edit specs/guidance/skeleton.yaml after extraction -> civil civil_stale."""
+def test_catala_catala_stale_when_guidance_changes():
+    """AE5: edit specs/guidance/skeleton.yaml after extraction -> catala catala_stale."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _write(domain, "specs/guidance/skeleton.yaml", "computations: [edited]\n")
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "civil")
-        assert ("civil", "civil_stale", "specs/guidance/skeleton.yaml") in cats
+        cats = _categories(records, "catala")
+        assert ("catala", "catala_stale", "specs/guidance/skeleton.yaml") in cats
 
 
-def test_civil_manifest_missing_when_civil_present():
-    """AE15: civil files exist, no consumed_guidance[] -> civil_manifest_missing."""
+def test_catala_manifest_missing_when_catala_present():
+    """AE15: catala files exist, no consumed_guidance[] -> catala_manifest_missing."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain, with_manifests=False)
-        # Civil exists (populated by _populate_full_chain), but no extraction-manifest.
+        # Catala source exists (populated by _populate_full_chain), but no extraction-manifest.
         records, _ = check_freshness.cmd_check(domain)
-        cats = _categories(records, "civil")
-        assert any(c == "civil_manifest_missing" for _, c, _ in cats)
+        cats = _categories(records, "catala")
+        assert any(c == "catala_manifest_missing" for _, c, _ in cats)
 
 
-def test_civil_dedup_across_sub_modules():
-    """Same guidance file in program + sub-module -> single civil_stale record."""
+def test_catala_dedup_across_sub_modules():
+    """Same guidance file in program + sub-module -> single catala_stale record."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
@@ -351,7 +351,7 @@ def test_civil_dedup_across_sub_modules():
         _write(domain, "specs/extraction-manifest.yaml", yaml.safe_dump({
             "programs": {
                 "eligibility": {
-                    "civil_file": "specs/eligibility.civil.yaml",
+                    "catala_file": "specs/eligibility.catala_en",
                     "consumed_guidance": [
                         {"path": "specs/guidance/skeleton.yaml", "sha": sk_sha},
                     ],
@@ -369,9 +369,9 @@ def test_civil_dedup_across_sub_modules():
         # Force drift on the shared path.
         _write(domain, "specs/guidance/skeleton.yaml", "EDITED")
         records, counts = check_freshness.cmd_check(domain)
-        cats = _categories(records, "civil")
-        # Expect exactly one civil_stale for skeleton.yaml, not two.
-        stale_entries = [c for c in cats if c[1] == "civil_stale"]
+        cats = _categories(records, "catala")
+        # Expect exactly one catala_stale for skeleton.yaml, not two.
+        stale_entries = [c for c in cats if c[1] == "catala_stale"]
         assert len(stale_entries) == 1, stale_entries
 
 
@@ -379,19 +379,19 @@ def test_civil_dedup_across_sub_modules():
 # tests tier
 # ---------------------------------------------------------------------------
 
-def test_tests_tests_stale_when_civil_changes():
-    """AE6: regenerate civil after tests -> tests tests_stale."""
+def test_tests_tests_stale_when_catala_changes():
+    """AE6: regenerate catala source after tests -> tests tests_stale."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
-        _write(domain, "specs/eligibility.civil.yaml", "name: eligibility\nedited: true\n")
+        _write(domain, "specs/eligibility.catala_en", "> Module Eligibility\n# edited\n")
         records, _ = check_freshness.cmd_check(domain)
         cats = _categories(records, "tests")
-        assert ("tests", "tests_stale", "specs/eligibility.civil.yaml") in cats
+        assert ("tests", "tests_stale", "specs/eligibility.catala_en") in cats
 
 
 def test_tests_manifest_missing_when_tests_present():
-    """AE16: tests dir non-empty, no .civil-manifest.yaml -> tests_manifest_missing."""
+    """AE16: tests dir non-empty, no .catala-manifest.yaml -> tests_manifest_missing."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain, with_manifests=False)
@@ -401,7 +401,7 @@ def test_tests_manifest_missing_when_tests_present():
 
 
 def test_tests_not_applicable_for_empty_tests_dir():
-    """AE7: civil exists, empty specs/tests/ -> not_applicable."""
+    """AE7: catala source exists, empty specs/tests/ -> not_applicable."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain, with_manifests=False)
@@ -438,7 +438,7 @@ def test_full_chain_happy_path_exits_zero(monkeypatch_env=None):
         domain = _make_domain(Path(tmp))
         _populate_full_chain(domain)
         _, counts = check_freshness.cmd_check(domain)
-        assert counts == {"facets": 0, "guidance": 0, "civil": 0, "tests": 0}
+        assert counts == {"facets": 0, "guidance": 0, "catala": 0, "tests": 0}
 
 
 def test_multi_tier_drift_composition():
@@ -498,7 +498,7 @@ def test_main_happy_path_exits_0_with_summary():
             ["test_dom"], env={"DOMAINS_FULLPATH": tmp},
         )
         assert code == 0, stdout
-        assert "summary facets=0 guidance=0 civil=0 tests=0" in stdout
+        assert "summary facets=0 guidance=0 catala=0 tests=0" in stdout
 
 
 def test_main_drift_exits_1():

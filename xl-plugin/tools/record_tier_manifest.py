@@ -15,10 +15,10 @@ This tool covers two tiers:
 - `--tier guidance` writes specs/guidance/.facets-manifest.yaml, recording
   SHAs of every policy_facets/ file (input-index.yaml, compressed/**/*.md,
   computations/**/*.md.yaml).
-- `--tier tests` writes specs/tests/.civil-manifest.yaml, recording SHAs of
-  every specs/*.civil.yaml file.
+- `--tier tests` writes specs/tests/.catala-manifest.yaml, recording SHAs of
+  every specs/*.catala_en file.
 
-The civil tier is intentionally not exposed here: /extract-ruleset Step 5
+The catala tier is intentionally not exposed here: /extract-ruleset Step 5
 and /update-ruleset Step 7 author the consumed_guidance[] block inline in
 specs/extraction-manifest.yaml directly, sourcing SHAs from the new shared
 procedure SP-LoadGuidanceShas in xl-plugin/core/ruleset-shared.md.
@@ -57,7 +57,7 @@ _GUIDANCE = "specs/guidance"
 _TESTS = "specs/tests"
 
 _GUIDANCE_MANIFEST = "specs/guidance/.facets-manifest.yaml"
-_TESTS_MANIFEST = "specs/tests/.civil-manifest.yaml"
+_TESTS_MANIFEST = "specs/tests/.catala-manifest.yaml"
 
 
 def _git_sha(domain_dir: Path, abs_path: Path) -> str:
@@ -104,14 +104,14 @@ def _enumerate_guidance_upstream(domain_dir: Path) -> list[Path]:
 
 
 def _enumerate_tests_upstream(domain_dir: Path) -> list[Path]:
-    """Return all specs/*.civil.yaml files that downstream tests derive from.
+    """Return all specs/*.catala_en files that downstream tests derive from.
 
     Returns paths in sorted (deterministic) order.
     """
     specs = domain_dir / _SPECS
     if not specs.is_dir():
         return []
-    return sorted(specs.glob("*.civil.yaml"))
+    return sorted(specs.glob("*.catala_en"))
 
 
 def _record_manifest(
@@ -175,7 +175,7 @@ def main() -> None:
             "depend on, so xlator check-freshness can later detect drift."
         ),
         epilog=(
-            "The civil tier is intentionally not supported here. The civil "
+            "The catala tier is intentionally not supported here. The catala "
             "manifest (consumed_guidance[] block in specs/extraction-manifest.yaml) "
             "is authored by /extract-ruleset Step 5 and refreshed by "
             "/update-ruleset Step 7 inline, sourcing SHAs from the shared "

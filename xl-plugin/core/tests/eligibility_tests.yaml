@@ -1,5 +1,5 @@
 test_suite:
-  spec: "eligibility.civil.yaml"
+  spec: "eligibility.catala_en"
   description: "Alaska Medicaid income eligibility — covers all five 523B action paths plus IRWE and couple-type cases (benefit year 2026 unless noted). Entity prefixes: ClientData.* for client-stated inputs, DOLRecord.* for DOL-verified inputs."
   version: "1.0"
 

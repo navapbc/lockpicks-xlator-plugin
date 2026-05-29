@@ -191,6 +191,129 @@ def test_validate_observed_synonyms_each_needs_name():
 
 
 # ---------------------------------------------------------------------------
+# U7: Catala-native type metadata schema extension
+# ---------------------------------------------------------------------------
+
+def test_validate_catala_native_types_accepted():
+    """U7 added integer/decimal/boolean/duration to the valid type set."""
+    for t in ("integer", "decimal", "boolean", "duration"):
+        inv = [_entry("x", "computed", type=t)]
+        mnm.validate_inventory(inv)  # no raise
+
+
+def test_validate_optional_must_be_bool():
+    inv = [_entry("x", "computed", optional="yes")]
+    with pytest.raises(mnm.InventoryError, match="optional"):
+        mnm.validate_inventory(inv)
+
+
+def test_validate_optional_bool_ok():
+    for v in (True, False, None):
+        inv = [_entry("x", "computed", optional=v)]
+        mnm.validate_inventory(inv)  # no raise
+
+
+def test_validate_enum_variants_must_be_list():
+    inv = [_entry("x", "computed", enum_variants="Eligible")]
+    with pytest.raises(mnm.InventoryError, match="enum_variants"):
+        mnm.validate_inventory(inv)
+
+
+def test_validate_enum_variants_each_must_be_non_empty_str():
+    inv = [_entry("x", "computed", enum_variants=["Eligible", ""])]
+    with pytest.raises(mnm.InventoryError, match="enum_variants\\[1\\]"):
+        mnm.validate_inventory(inv)
+
+
+def test_validate_enum_variants_valid_list_ok():
+    inv = [_entry("x", "computed", enum_variants=["Eligible", "Denied"])]
+    mnm.validate_inventory(inv)  # no raise
+
+
+def test_merge_writes_optional_and_enum_variants(tmp_path: Path):
+    """Verify the new U7 fields round-trip through the merge tool."""
+    domain = tmp_path / "dom"
+    _write_yaml(
+        domain / "specs" / "naming-manifest.yaml",
+        {"version": "1.0", "inputs": {}, "computed": {}, "outputs": {}},
+    )
+    rc, header = _run(domain, [
+        _entry("status", "outputs",
+                type="string",
+                optional=False,
+                enum_variants=["Eligible", "Denied", "ManualVerification"]),
+    ])
+    assert rc == 0
+    assert header["entries_added"] == 1
+    m = _read_manifest(domain)
+    e = m["outputs"]["status"]
+    assert e["type"] == "string"
+    assert e["optional"] is False
+    assert e["enum_variants"] == ["Eligible", "Denied", "ManualVerification"]
+
+
+def test_merge_preserves_non_null_for_optional_and_enum_variants(tmp_path: Path):
+    """U7 fields follow the same preserve-non-null rule as policy_phrase / source_doc / section."""
+    domain = tmp_path / "dom"
+    _write_yaml(
+        domain / "specs" / "naming-manifest.yaml",
+        {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {
+                "status": {
+                    "type": "string",
+                    "optional": True,
+                    "enum_variants": ["Eligible", "Denied"],
+                    "policy_phrase": "eligibility status",
+                    "source_doc": "foo.md",
+                    "section": "§1",
+                },
+            },
+        },
+    )
+    # Inventory leaves the U7 fields null → existing wins.
+    rc, header = _run(domain, [
+        _entry("status", "outputs"),
+    ])
+    assert rc == 0
+    assert header["entries_preserved"] == 1
+    m = _read_manifest(domain)
+    e = m["outputs"]["status"]
+    assert e["optional"] is True
+    assert e["enum_variants"] == ["Eligible", "Denied"]
+
+
+def test_merge_seeded_entry_gap_fill_for_u7_fields(tmp_path: Path):
+    """Seeded entry with no type metadata picks up types when inventory provides them."""
+    domain = tmp_path / "dom"
+    _write_yaml(
+        domain / "specs" / "naming-manifest.yaml",
+        {
+            "version": "1.0",
+            "inputs": {},
+            "computed": {},
+            "outputs": {"status": {}},  # seeded with no metadata
+        },
+    )
+    rc, header = _run(domain, [
+        _entry("status", "outputs",
+                type="boolean",
+                optional=False,
+                enum_variants=None),  # not an enum
+    ])
+    assert rc == 0
+    assert header["entries_preserved"] == 1
+    m = _read_manifest(domain)
+    e = m["outputs"]["status"]
+    assert e["type"] == "boolean"
+    assert e["optional"] is False
+    # enum_variants stays absent
+    assert "enum_variants" not in e
+
+
+# ---------------------------------------------------------------------------
 # Section helpers
 # ---------------------------------------------------------------------------
 

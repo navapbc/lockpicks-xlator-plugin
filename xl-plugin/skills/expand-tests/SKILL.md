@@ -5,16 +5,16 @@ description: Expand Test Coverage
 
 # Expand Test Coverage
 
-Generate additional test cases for an existing CIVIL module test suite without duplicating existing cases.
+Generate additional test cases for an existing Catala module test suite without duplicating existing cases.
 
 ## Input
 
 ```
 /expand-tests [<domain>]                  # auto-detect program or prompt if ambiguous
-/expand-tests [<domain> <program>]        # target a specific <program>.civil.yaml
+/expand-tests [<domain> <program>]        # target a specific <program>.catala_en
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.catala_en` files and prompt the user to choose.
 
 Read `../../core/output-fencing.md` now.
 
@@ -25,15 +25,21 @@ Read `../../core/output-fencing.md` now.
    Domain `<domain>` not found. Run `/extract-ruleset <domain>` first.
    :::
    Stop.
-2. **CIVIL file exists?**
-   - `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` missing →
+2. **Catala source exists?**
+   - `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` missing →
      :::error
-     No CIVIL file found. Run `/extract-ruleset <domain>` first.
+     No Catala source found. Run `/extract-ruleset <domain>` first.
      :::
      Stop.
-3. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
-4. **Baseline tests exist?** — `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` missing → Print: "⚠️ No baseline test file found. Expanded tests will still be generated, but consider running `/create-tests <domain>` first to establish a baseline." Continue.
-5. **Existing expanded files?** — If any of the four output files already exist → Prompt:
+3. **Naming manifest exists?**
+   - `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` missing →
+     :::error
+     specs/naming-manifest.yaml not found. Run `/extract-ruleset <domain>` first.
+     :::
+     Stop.
+4. **`specs/tests/` directory exists?** — NO → create `$DOMAINS_DIR/<domain>/specs/tests/` silently.
+5. **Baseline tests exist?** — `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` missing → Print: "⚠️ No baseline test file found. Expanded tests will still be generated, but consider running `/create-tests <domain>` first to establish a baseline." Continue.
+6. **Existing expanded files?** — If any of the four output files already exist → Prompt:
    :::user_input
    Expanded test files already exist in `$DOMAINS_DIR/<domain>/specs/tests/`. Overwrite and regenerate? [y/n]
    :::
@@ -41,17 +47,17 @@ Read `../../core/output-fencing.md` now.
 
 ## Phase 1: Build Coverage Map
 
-Read `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` and build a map of all testable thresholds and boundaries. Do not generate any tests yet.
+Read `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` (and any `> Using <SubModule>` imports it pulls in) and `$DOMAINS_DIR/<domain>/specs/naming-manifest.yaml` and build a map of all testable thresholds and boundaries. Do not generate any tests yet.
 
 ### 1a. Extract Thresholds
 
-Collect all numeric boundary points from the CIVIL spec:
+Collect all numeric boundary points from the Catala source:
 
-1. **`tables:` section** — For each table, iterate all `rows:`. Extract every numeric value field (e.g., income limits per household size). For tables keyed by household size, note the last explicit row; check `computed:` fields or inline comments for the formula handling sizes beyond the last row (e.g., "Size 9+: add $X per additional person above Y").
+1. **Table-like list-of-record constants** — Catala expresses lookup tables as `definition <table_name> equals [ <row>; <row>; ... ]` over a record type. For each such definition, iterate the rows and extract every numeric field value (e.g., income limits per household size). Note the last explicit row; check for a separate computed scope variable (or comment) that extends the formula past the last row (e.g., "Size 9+: add $X per additional person above Y").
 
-2. **`constants:` section** — Collect all constant values. Each constant is a candidate boundary point.
+2. **Named constants** — `definition <NAME> equals <literal>` at scope level. Each constant is a candidate boundary point.
 
-3. **`when:` conditions** — Parse each `when:` string expression for comparison operators (`>`, `<`, `>=`, `<=`). Extract the right-hand side value (raw literal or constant reference). Resolve constant references to their numeric values.
+3. **Exception conditions** — Parse `under condition <expr>` clauses on rules and `definition ... under condition ...` for comparison operators (`>`, `<`, `>=`, `<=`). Extract the right-hand side value (literal or referenced constant). Resolve constant references to their numeric values.
 
 ### 1b. Cross-Reference Existing Tests
 
@@ -76,20 +82,20 @@ Coverage map for <program>:
 
 For each category below, emit only cases not already covered by any existing test. Before adding any case, verify no existing test file has an identical `inputs:` map (compare the full input map as written — a case that omits optional fields is distinct from one that includes them).
 
-All tests are **blackbox only**: `inputs:` uses only declared `inputs:` fields; `expected:` contains only the domain's declared `outputs:` fields. No `computed:` field assertions.
+All tests are **blackbox only**: `inputs:` uses only declared input fields (from the manifest's `inputs.<Entity>.<field>` block); `expected:` contains only the domain's declared `outputs:` fields. No `computed:` field assertions.
 
-### Computing `expected:` via the CIVIL evaluator
+### Computing `expected:` via the Catala evaluator (U3)
 
-For every generated test case (drv_*, bnd_*, edg_*), compute the `expected:` block by running the CIVIL evaluator on the synthesized `inputs:`. Do not derive expected outcomes by mentally tracing rule logic.
+For every generated test case (drv_*, bnd_*, edg_*), compute the `expected:` block by running the Catala evaluator (U3's `catala_eval` wrapper) on the synthesized `inputs:`. Do not derive expected outcomes by mentally tracing rule logic.
 
 1. Write the case's `inputs:` map to a temporary JSON file.
-2. Run `xlator evaluate-civil <domain> <program> --inputs <tmpfile>`.
-3. Parse stdout as JSON. Use `result.outputs` for the `expected:` block, filtered to the declared `outputs:` fields.
+2. Run `xlator evaluate-catala <domain> <program> --inputs <tmpfile>`.
+3. Parse stdout as JSON. The contract is `{outputs, computed, reasons, debug}`. Use `result.outputs` for the `expected:` block, filtered to the declared `outputs:` fields.
 
 If the evaluator exits non-zero, surface the stderr in a `:::error` block and skip the case. Two non-fatal cases worth handling explicitly:
 
-- **Missing required input** (Phase 2c null-input scenarios deliberately do this) — the evaluator exits 1. For null/malformed cases, set `expected:` to the fully-denied state (e.g., the `default:` of each declared output, plus an empty `reasons: []` when present); the transpiler's `default <rule> := false` emission produces this OPA-side too, so the assertion still holds.
-- **`invoke:` unsupported** (multi-file CIVIL modules) — the evaluator raises this in v1; fall back to manual derivation for those programs and note it in the file header.
+- **Missing required input** (Phase 2c null-input scenarios deliberately do this) — the evaluator exits 1. For null/malformed cases, set `expected:` to the fully-denied state (e.g., default of each declared output, plus an empty `reasons: []` when present).
+- **Multi-module scope-call resolution failure** — surface the stderr; the `Using` declaration may need re-checking against the manifest. Fall back to manual derivation for that case and note it in the file header.
 
 ### Output file format
 
@@ -99,7 +105,7 @@ Each output file follows the same structure as `<program>_tests.yaml`:
 # Auto-generated by /expand-tests. Do not edit directly.
 # Re-run /expand-tests to regenerate.
 test_suite:
-  spec: "<program>.civil.yaml"
+  spec: "<program>.catala_en"
   description: "<category> expanded tests — generated <YYYY-MM-DD>"
   version: "1.0"
 
@@ -122,8 +128,8 @@ tests:
 Read `$DOMAINS_DIR/<domain>/policy_facets/extracted-tests.yaml`. Mine it for test scenarios even when `extracted_tests: []`:
 
 - **From list entries with `notes:`** — Unmappable values in `notes:` often describe computed results (e.g., "net income after deductions = $320"). Use them to infer plausible boundary inputs to test.
-- **From `extracted_tests:` entries (non-empty list)** — Each entry is a concrete policy example. If it is not already in `<program>_tests.yaml` (match by `case_id` OR by identical `inputs:` map), include it here as a `drv_*` case. Preserve any explicit `expected:` values from the source narrative; when the narrative is silent on a field, fill it via the CIVIL evaluator (see "Computing `expected:`" above).
-- **From header comments** — Comments above `extracted_tests:` document partial examples and unmappable fields. Use this narrative to construct test inputs; derive `expected:` via the CIVIL evaluator.
+- **From `extracted_tests:` entries (non-empty list)** — Each entry is a concrete policy example. If it is not already in `<program>_tests.yaml` (match by `case_id` OR by identical `inputs:` map), include it here as a `drv_*` case. Preserve any explicit `expected:` values from the source narrative; when the narrative is silent on a field, fill it via the Catala evaluator (see "Computing `expected:`" above).
+- **From header comments** — Comments above `extracted_tests:` document partial examples and unmappable fields. Use this narrative to construct test inputs; derive `expected:` via the Catala evaluator.
 
 **This is best-effort derivation, not exhaustive coverage.** State this clearly in the file header:
 
@@ -156,9 +162,9 @@ For each gap identified in the coverage map, generate three cases per threshold 
 
 **For table-keyed thresholds** (e.g., threshold value varies by categorical key): generate one N-1/N/N+1 set **per table row**, not one set across all keys.
 
-**For extended table rows** (formula rows in `computed:`): calculate the actual limit for at least one key beyond the last table row (e.g., count = last row + 1) and generate boundary cases for that value.
+**For extended table rows** (formula rows in `computed:` scope variables in the Catala source): calculate the actual limit for at least one key beyond the last table row (e.g., count = last row + 1) and generate boundary cases for that value.
 
-Derive `expected:` via the CIVIL evaluator (see "Computing `expected:`" above).
+Derive `expected:` via the Catala evaluator (see "Computing `expected:`" above).
 
 ---
 
@@ -166,7 +172,7 @@ Derive `expected:` via the CIVIL evaluator (see "Computing `expected:`" above).
 
 **Case ID prefix:** `nil_NNN`
 
-Generate one test per scenario below for each **required** input fact field in the CIVIL spec. Required fields are those without `required: false` in the `inputs:` section; do not generate null tests for optional fields.
+Generate one test per scenario below for each **required** input fact field declared in the naming manifest. Required fields are those without `optional: true` on their manifest entry; do not generate null tests for optional fields.
 
 | Scenario | What to set | Tags |
 |----------|-------------|------|
@@ -175,7 +181,7 @@ Generate one test per scenario below for each **required** input fact field in t
 | Wrong type (number field given string) | `field: "not-a-number"` | `["malformed", "deny"]` |
 | Negative value on a non-negative field | `field: -1` | `["malformed", "deny"]` |
 
-All null/malformed tests assert denial. The CIVIL evaluator will exit 1 with `missing required input` for omitted-field cases; treat that as confirmation and set `expected:` to the fully-denied state (per "Computing `expected:`" above). For typed-wrong / negative-value cases that the evaluator can execute, use its output.
+All null/malformed tests assert denial. The Catala evaluator will exit 1 with a missing-required-input error for omitted-field cases; treat that as confirmation and set `expected:` to the fully-denied state (per "Computing `expected:`" above). For typed-wrong / negative-value cases that the evaluator can execute, use its output.
 
 ---
 
@@ -183,19 +189,19 @@ All null/malformed tests assert denial. The CIVIL evaluator will exit 1 with `mi
 
 **Case ID prefix:** `edg_NNN`
 
-Generate tests for extreme values and unusual combinations not already covered by boundary tests. Adapt to the fields declared in the CIVIL `inputs:` section — skip any scenario that references a field not present.
+Generate tests for extreme values and unusual combinations not already covered by boundary tests. Adapt to the fields declared in the manifest's `inputs.<Entity>.<field>` blocks — skip any scenario that references a field not present.
 
 | Scenario | Description |
 |----------|-------------|
 | All-zero numeric inputs | All numeric fields set to 0; minimum entity count (1) |
-| Maximum count value | Largest categorical key in `tables:` + 2 (to exercise the formula extension) |
+| Maximum count value | Largest categorical key in the Catala source's lookup tables + 2 (to exercise the formula extension) |
 | All numeric inputs combined | All numeric fact fields set to non-zero values simultaneously |
 | All adjustments combined | All adjustment-related fact fields set to their maximum values simultaneously |
 | All exemptions active | All exemption-related boolean fields set to true, if such fields exist |
 | Minimum entity count | Smallest possible count with a key value exactly at the applicable limit |
 | Extreme numeric value | Primary numeric field set to 10× the highest table limit |
 
-For each edge case, derive `expected:` via the CIVIL evaluator (see "Computing `expected:`" above).
+For each edge case, derive `expected:` via the Catala evaluator (see "Computing `expected:`" above).
 
 ---
 
@@ -215,7 +221,7 @@ After generating all four files, print a summary:
   Skipped (duplicates): N
 :::
 
-Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.civil.yaml` and the expanded test files:
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the expanded test files:
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -223,10 +229,10 @@ xlator record-tier-manifest <domain> --tier tests
 
 If the command exits non-zero, emit `:::error` with the captured stderr and stop — do not proceed to `:::next_step`.
 
-Note: the manifest records the current `specs/*.civil.yaml` SHA at this run's write time. The baseline `<program>_tests.yaml` (read by Phase 1 but not rewritten by this skill) may have been generated against a different civil SHA. If you need full tests-tier consistency, run `/create-tests <domain>` to refresh the baseline first.
+Note: the manifest records the current `specs/*.catala_en` SHA at this run's write time. The baseline `<program>_tests.yaml` (read by Phase 1 but not rewritten by this skill) may have been generated against a different Catala-source SHA. If you need full tests-tier consistency, run `/create-tests <domain>` to refresh the baseline first.
 
 :::next_step
-Run /transpile-and-test <domain> to validate these tests against the rules.
+Run /catala-pipeline <domain> <program> to transpile these tests to Catala #[test] scopes and run them via clerk test.
 :::
 
 | File | Action |
@@ -243,5 +249,5 @@ Run /transpile-and-test <domain> to validate these tests against the rules.
 - **Don't generate one bnd_* case per threshold** — for table-keyed limits (e.g., limit varies by household size), generate N-1/N/N+1 sets for **each table row**, not just one set overall
 - **Don't duplicate existing tests** — always cross-check the full `inputs:` map against all files in `specs/tests/` before emitting a case
 - **Don't treat derived tests as exhaustive** — the `drv_*` file is best-effort; include the caveat comment in the file header
-- **Don't generate null tests for optional fields** — only required `inputs:` fields (those without `required: false`) get null/missing-input tests
-- **Don't hard-code domain-specific field names** — read `inputs:` and `outputs:` from the CIVIL spec; do not assume fields like `eligible` or `reasons` exist in every domain
+- **Don't generate null tests for optional fields** — only required input fields (those without `optional: true` in the naming manifest) get null/missing-input tests
+- **Don't hard-code domain-specific field names** — read `inputs:` and `outputs:` from the naming manifest; do not assume fields like `eligible` or `reasons` exist in every domain

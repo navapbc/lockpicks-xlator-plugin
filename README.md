@@ -70,11 +70,10 @@ This rules extractor initiative:
   - Yes, we are explicitly testing the hypothesis that *incrementally* building a ruleset results in a more accurate and verifiable outcome than generating a full ruleset and refining it afterward.
 - Are we trying to demonstrate our approach for a potential / current client?
   - Yes, the prototype aims to demonstrate that an AI-assisted workflow can produce rulesets that are accurate, verifiable, and maintainable.
-- Why a custom DSL?
-  - Easier to customize for our evolving purposes
-  - Understand the degress of expressiveness needed for ruleset generation, which will help decide on a rules engine
-  - Versatile output: can be converted/transpiled to different output languages like Catala, OPA's Rego, OpenFisca, and natural language for humans
-  - Easier to adapt for input to other tools (e.g., ruleset comparison against ruleset-from-code, subset-of-rules extraction for a subtopic)
+- Why Catala as the source spec format?
+  - Catala is a domain-specific language designed for legal-policy specification, with exceptions, prioritized defaults, and module composition as first-class constructs. The AI authors `.catala_en` directly; SMEs read the Catala source alongside its literate-Markdown structure (`## Heading` sections mirror `policy_facets/computations/<rel>.md.yaml`, with inline `*Source: ...*` italic-prose citations).
+  - Multi-target output is preserved structurally: Catala compiles to C, Java, OCaml, Python, JS (via OCaml→JS), and DOCX explanations via `catala-explain`. Building specific backends is out of scope for this project; the option remains for downstream consumers.
+  - Eliminates the multi-surface tax of a custom DSL: schema, validator, transpiler, evaluator, expression engine, and tests no longer need to track every new policy idiom in lockstep — `clerk typecheck` and `clerk test` against the Catala source are authoritative.
 
 
 ## Step-by-Step Process
@@ -98,12 +97,13 @@ domains/
   ak_doh/                            ← example: Alaska DOH income eligibility
     input/policy_docs/               ← source policy documents (Markdown, PDF, etc.)
     specs/
-      eligibility.civil.yaml         ← CIVIL DSL ruleset (human + AI authored)
+      eligibility.catala_en          ← Catala source (human + AI authored)
+      naming-manifest.yaml           ← canonical identifier names + per-field types
       tests/eligibility_tests.yaml   ← YAML test cases
     output/
-      eligibility.catala_en          ← generated Catala (do not edit manually)
+      eligibility.catala_en          ← copy of source (for consumer build artifacts)
       eligibility_meta.py            ← field-category metadata sidecar
-      tests/eligibility_tests.catala_en  ← generated Catala test file
+      tests/eligibility_tests.catala_en  ← Catala test file from YAML tests
       demo-catala-eligibility/
         main.py                      ← FastAPI backend
         static/index.html            ← browser form UI
@@ -112,9 +112,13 @@ domains/
     input/ specs/ output/
 
 core/
-  ruleset_schema.yaml                ← shared CIVIL DSL schema reference
+  catala-authoring-quickref.md       ← AI-targeted Catala authoring reference
+  catala-quickref.md                 ← general Catala-feature reference
 tools/
-  validate_civil.py                  ← CIVIL validator
+  clerk_loop.py                      ← runs `clerk typecheck` + `clerk test`, parses diagnostics
+  transpile_to_catala_tests.py       ← YAML tests → Catala #[test] scopes
+  catala_eval.py                     ← thin `catala interpret --output-format=json` wrapper
+  catala_depgraph.py                 ← computation-graph generator (Catala-native)
   catala_to_python.sh                ← Catala → Python transpiler (via clerk)
 xlator.py                            ← CLI entry point (all pipeline actions)
 xlator                               ← shell shim: exec uv run xlator.py "$@"
@@ -136,23 +140,19 @@ If the arguments are not provided, the template will be downloaded and left in a
 
 ### 1. Input Collection
 - Add policy documents to `domains/<name>/input/policy_docs/`
-- Use AI to extract CIVIL specs with AI assistance
+- Use AI (`/index-inputs`, `/refine-guidance`) to build the input index and guidance files
 
 ### 2. Spec Creation (AI-Assisted)
-- Work with AI to create a CIVIL ruleset `domains/<name>/specs/<module>.civil.yaml`
-- Follow the CIVIL DSL schema at `core/ruleset_schema.yaml`
+- `/extract-ruleset <domain>` — AI emits `domains/<name>/specs/<module>.catala_en` directly
+- The skill drives `clerk typecheck` + `clerk test` after each emission and self-repairs before SME handoff (`xl-plugin/tools/clerk_loop.py`)
 - Commit completed specs to version control
 
 ### 3. Test Definition (AI-Assisted)
-- AI generates `domains/<name>/specs/tests/<module>_tests.yaml`
+- `/create-tests`, `/expand-tests` generate `domains/<name>/specs/tests/<module>_tests.yaml`
 - Review and verify test scenarios; add edge cases and boundary conditions
 
-### 4. Output Generation
-- `xlator catala-transpile <domain> <module>` generates `domains/<name>/output/<module>.catala_en`
-- `xlator catala-test-transpile <domain> <module>` generates Catala test file from YAML tests
-
-### 5. Validation & Iteration
-- `xlator catala-test <domain> <module>` runs Catala tests via clerk
+### 4. Validation & Iteration
+- `xlator catala-pipeline <domain> <module>` runs `clerk typecheck` + YAML→Catala test transpile + `clerk test`
 - `xlator catala-demo <domain> <module>` starts the Catala-Python demo
 - Iterate on specs as needed
 
@@ -160,7 +160,7 @@ If the arguments are not provided, the template will be downloaded and left in a
 
 ```bash
 xlator list                                  # show all available domain/module pairs
-xlator catala-pipeline ak_doh eligibility    # validate + transpile + test
+xlator catala-pipeline ak_doh eligibility    # typecheck + test
 xlator catala-demo ak_doh eligibility        # start Catala-Python demo at http://localhost:8000
 ```
 
@@ -211,9 +211,7 @@ Not yet in the diagram:
 
 ### Xlator implementation diagram
 
-The following illustrates how Xlator currently implements the vision above for policy documents.
-
-Note the `/transpile-and-test` block does not require AI -- it exists to have a consistent interface with the user (i.e., using AI skills). It checks for pre-requisites and runs scripts. With that said, an advantage to having the AI run it is when transpilation or test errors occur, the AI automatically tries to resolve them.
+The following illustrates how Xlator currently implements the vision above for policy documents. The AI authors Catala source directly under `specs/`; the U2 clerk-loop runs `clerk typecheck` + `clerk test` after each AI emission and self-repairs before SME handoff.
 
 See [README-dev.md](README-dev.md) for more detail.
 
@@ -236,12 +234,12 @@ subgraph Extractor
     ai_guidance --> claude_extract
 end
 
-claude_extract --> specs
+claude_extract --clerk_loop.py--> specs
 
 subgraph specs
-    civil_ruleset["CIVIL ruleset\n(.civil.yaml)"]
-    naming_manifest
-    computation_graph["computation graph\n(.graph.yaml, .mmd)"]
+    catala_source["Catala source\n(.catala_en)"]
+    naming_manifest["naming-manifest.yaml\n(identifiers + types)"]
+    computation_graph["computation graph\n(.graph.yaml, .mmd)\n(via catala_depgraph.py)"]
 end
 specs <--correct?--> sme_verify[/SME verify/]:::smeShape
 
@@ -252,21 +250,21 @@ subgraph specs_tests
 end
 test_cases <--correct?--> sme_review[/SME review/]:::smeShape
 
-civil_ruleset ---> claude_transpile_and_test
+catala_source ---> catala_pipeline
 
 subgraph output["output"]
-    catala_ruleset["Catala ruleset\n(and *_meta.py)"]
-    claude_transpile_and_test(["/transpile-and-test"]):::claudeShape
-    claude_transpile_and_test --transpile_to_catala.py--> catala_ruleset
-    catala_ruleset --> clerk_test
+    catala_copy["Catala source copy\n(and *_meta.py)"]
+    catala_pipeline(["xlator catala-pipeline"]):::toolShape
+    catala_source --copy--> catala_copy
+    catala_copy --> clerk_test
 
     subgraph catala_testing["output/tests"]
-        test_cases --> claude_transpile_and_test --transpile_to_catala_tests.py--> catala_tests
+        test_cases --transpile_to_catala_tests.py--> catala_tests
         catala_tests --> clerk_test[["Catala: clerk test"]]:::toolShape
     end
 
-    catala_ruleset --> catala_engine[["Catala Rule Engine"]]:::toolShape
-    catala_ruleset --> claude_create_demo
+    catala_copy --> catala_engine[["Catala Rule Engine"]]:::toolShape
+    catala_copy --> claude_create_demo
 
     subgraph demo["output/demo-catala"]
         claude_create_demo(["Claude\n/create-demo"]):::claudeShape
