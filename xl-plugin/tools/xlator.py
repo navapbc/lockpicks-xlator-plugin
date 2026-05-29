@@ -14,11 +14,10 @@ Typical user actions (no domain/module):
   new-domain      <domain>             Scaffold standard domain directory structure
   ensure-guidance <domain>             Create specs/guidance/ and seed CLAUDE.md (idempotent)
 
-  catala-transpile      <domain> <module>   Generate Catala from CIVIL
   catala-test-transpile <domain> <module>   Generate Catala test file from YAML tests
   catala-test           <domain> <module>   Run Catala tests via Catala's clerk CLI
         Clerk runs the transpiled tests under output/tests/.
-  catala-pipeline       <domain> <module>   validate -> catala-transpile -> catala-test-transpile -> catala-test
+  catala-pipeline       <domain> <module>   clerk typecheck -> catala-test-transpile -> catala-test
   catala-demo           <domain> <module>   Start Catala-Python demo (foreground)
 
 Slash command support actions:
@@ -27,15 +26,14 @@ Slash command support actions:
   convert-doc     <domain> <source-file> [--force-cleanup] [--no-cleanup]
         Convert a .docx or .pdf into a clean .md under input/policy_docs/ and
         archive the original under input/_originals/ with a diagnostics JSON.
-  validate        <domain> <module>    Validate CIVIL YAML
   graph           <domain> <module>    Generate computation graph (via catala_depgraph.py)
   clerk-loop      <domain> <module>    Drive clerk typecheck + clerk test, parse diagnostics
   evaluate-catala <domain> <module> --inputs <path> [--scope <scope>]
         Evaluate a Catala scope against an inputs JSON file (preserves the JSON contract).
-  preflight       <domain> <module> [--backend catala]   Validate CIVIL file exists and tool is in PATH
+  preflight       <domain> <module> [--backend catala]   Validate Catala source exists and tool is in PATH
 
 CSV test-case authoring:
-  export-test-template  <domain> <module>   Generate CSV template from CIVIL spec
+  export-test-template  <domain> <module>   Generate CSV template from naming-manifest
   export-test-cases     <domain> <module>   Export existing _tests.yaml to CSV
   import-tests          <domain> <module> <file>  Import CSV/YAML test cases into _tests.yaml
 
@@ -83,10 +81,10 @@ def _print_info(msg):
 def resolve_paths(domain, module):
     base = DOMAINS_FULLPATH / domain
     return {
-        "civil":    base / "specs" / f"{module}.civil.yaml",
-        "catala":   base / "output" / f"{module}.catala_en",
-        "tests":    base / "specs" / "tests" / f"{module}_tests.yaml",
-        "package":  f"{domain}.{module}",
+        "catala_source": base / "specs" / f"{module}.catala_en",
+        "catala_output": base / "output" / f"{module}.catala_en",
+        "tests":         base / "specs" / "tests" / f"{module}_tests.yaml",
+        "package":       f"{domain}.{module}",
         "demo_catala_sh": base / "output" / f"demo-catala-{module}" / "start.sh",
     }
 
@@ -148,48 +146,41 @@ def run(cmd, **kwargs):
 # Actions
 # ---------------------------------------------------------------------------
 
-def cmd_validate(domain, module):
+def cmd_copy_source_to_output(domain, module):
+    """Mirror specs/<module>.catala_en into output/<module>.catala_en.
+
+    v13.0.0 (CIVIL→Catala pivot): the AI-authored source lives under
+    specs/; output/<module>.catala_en is a copy maintained by the build
+    step so downstream consumers (catala_depgraph.py, FastAPI demo, clerk
+    test runner) continue to read from output/ without learning the new
+    source location.
+
+    Any *.catala_en files under specs/ are mirrored (sibling sub-modules
+    are copied alongside the requested module) so cross-module `> Using`
+    directives resolve at clerk-test time.
+    """
     paths = resolve_paths(domain, module)
-    require_file(paths["civil"], "CIVIL spec")
-    run([sys.executable, str(SCRIPT_DIR_TOOLS / "validate_civil.py"), str(paths["civil"])])
+    require_file(paths["catala_source"], "Catala source")
+    out_dir = paths["catala_output"].parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    specs_dir = paths["catala_source"].parent
+    for src in specs_dir.glob("*.catala_en"):
+        dst = out_dir / src.name
+        shutil.copy2(src, dst)
 
 
-def _get_invoke_modules(civil_path: Path) -> list[str]:
-    """Return list of sub-module names referenced by invoke: fields in a CIVIL file."""
-    import yaml as _yaml
-    try:
-        with open(civil_path) as f:
-            doc = _yaml.safe_load(f)
-    except Exception:
-        return []
-    result = []
-    for field_def in (doc.get("computed") or {}).values():
-        if isinstance(field_def, dict) and field_def.get("module") and field_def.get("invoke"):
-            name = field_def["module"]
-            if name not in result:
-                result.append(name)
-    return result
+def cmd_catala_typecheck(domain, module):
+    """Run `clerk typecheck` on the copied Catala source under output/.
 
-
-def cmd_catala_transpile(domain, module):
+    The pre-step (cmd_copy_source_to_output) has placed the source plus
+    any sibling sub-modules in output/, so the importer can resolve
+    `> Using <Sub>` against output/<Sub>.catala_en.
+    """
     paths = resolve_paths(domain, module)
-    require_file(paths["civil"], "CIVIL spec")
-
-    # Transpile sub-module dependencies first (dependency order)
-    for sub_module in _get_invoke_modules(paths["civil"]):
-        _print_info(f"  → Transpiling dependency: {domain}/{sub_module}")
-        cmd_catala_transpile(domain, sub_module)
-
-    paths["catala"].parent.mkdir(parents=True, exist_ok=True)
-    from transpile_to_catala import derive_scope_name, load_civil
-    doc = load_civil(str(paths["civil"]))
-    scope_name = derive_scope_name(doc.get("module", module))
-    run([
-        sys.executable, str(SCRIPT_DIR_TOOLS / "transpile_to_catala.py"),
-        str(paths["civil"].resolve().relative_to(CWD.resolve())),
-        str(paths["catala"].resolve().relative_to(CWD.resolve())),
-        "--scope", scope_name,
-    ], cwd=str(CWD))
+    if not paths["catala_output"].exists():
+        cmd_copy_source_to_output(domain, module)
+    out_dir = paths["catala_output"].parent
+    run(["clerk", "typecheck", paths["catala_output"].name], cwd=str(out_dir))
 
 
 def cmd_demo(domain, module, backend):
@@ -208,26 +199,19 @@ def cmd_demo(domain, module, backend):
 def cmd_graph(domain, module):
     """Generate the computation-graph artifacts from the Catala source.
 
-    U3: retargets `xlator graph` to invoke `catala_depgraph.py` against
-    the Catala source instead of `computation_graph.py` against the
-    CIVIL YAML. Preferred path is `output/<module>.catala_en` (post-U9
-    that's where the build step deposits the generated source); falls
-    back to `specs/<module>.catala_en` when domain regeneration hasn't
-    happened yet.
+    Reads the authored source at `specs/<module>.catala_en`. Falls back
+    to the build copy at `output/<module>.catala_en` if the source isn't
+    present (e.g. a consumer working from build artifacts only).
     """
     paths = resolve_paths(domain, module)
-    catala_source = paths["catala"]
+    catala_source = paths["catala_source"]
     if not catala_source.exists():
-        # Pre-U9 fallback: hand-authored source under specs/
-        specs_source = DOMAINS_FULLPATH / domain / "specs" / f"{module}.catala_en"
-        if specs_source.exists():
-            catala_source = specs_source
-        else:
+        catala_source = paths["catala_output"]
+        if not catala_source.exists():
             _print_err(
                 f"Catala source not found for {domain}/{module}. "
-                f"Looked at: {paths['catala']} and {specs_source}. "
-                f"Run `xlator catala-pipeline {domain} {module}` first, or wait "
-                f"for U9 domain regeneration to produce the Catala source."
+                f"Looked at: {paths['catala_source']} and {paths['catala_output']}. "
+                f"Run `xlator catala-pipeline {domain} {module}` first."
             )
             sys.exit(1)
     run([sys.executable, str(SCRIPT_DIR_TOOLS / "catala_depgraph.py"), str(catala_source)])
@@ -311,10 +295,17 @@ def cmd_catala_test(domain, module):
 
 
 def cmd_catala_pipeline(domain, module):
-    """validate → catala-transpile → catala-test-transpile → catala-test."""
+    """copy-source-to-output → clerk typecheck → catala-test-transpile → clerk test.
+
+    v13.0.0 rewires this pipeline. The CIVIL validate + CIVIL→Catala
+    transpile steps are gone; the Catala source under `specs/` is the
+    authored truth. The copy-to-output step maintains the build-artifact
+    consumer contract (catala_depgraph, demos) without forcing consumers
+    to learn the new source location.
+    """
     _print_info(f"Catala pipeline: {domain}/{module}")
-    cmd_validate(domain, module)
-    cmd_catala_transpile(domain, module)
+    cmd_copy_source_to_output(domain, module)
+    cmd_catala_typecheck(domain, module)
     cmd_catala_test_transpile(domain, module)
     cmd_catala_test(domain, module)
 
@@ -368,7 +359,7 @@ def cmd_preflight(domain, module, backend):
         _print_err(f"Domain not found: {domain_dir}/")
         sys.exit(1)
     paths = resolve_paths(domain, module)
-    require_file(paths["civil"], "CIVIL spec")
+    require_file(paths["catala_source"], "Catala source")
     if backend == "catala" and shutil.which("clerk") is None:
         _print_err("clerk not found in PATH. Install the Catala toolchain to run tests.")
         sys.exit(1)
@@ -490,7 +481,6 @@ def main():
         epilog="""
 examples:
   xlator list
-  xlator validate snap eligibility
   xlator catala-test snap eligibility
   xlator catala-pipeline snap eligibility
         """,
@@ -498,13 +488,11 @@ examples:
     sub = parser.add_subparsers(dest="action", required=True, metavar="action")
 
     for action, help_text in [
-        ("validate",              "Validate CIVIL YAML"),
-        ("catala-transpile",      "Generate Catala from CIVIL"),
         ("catala-test-transpile", "Generate Catala test file from YAML tests"),
         ("catala-test",           "Run Catala tests via clerk test"),
         ("catala-demo",           "Start Catala-Python demo (foreground)"),
         ("graph",                 "Generate computation graph"),
-        ("catala-pipeline",       "validate -> catala-transpile -> catala-test-transpile -> catala-test"),
+        ("catala-pipeline",       "clerk typecheck -> catala-test-transpile -> clerk test"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
@@ -622,10 +610,6 @@ examples:
     args = parser.parse_args()
 
     match args.action:
-        case "validate":
-            cmd_validate(args.domain, args.module)
-        case "catala-transpile":
-            cmd_catala_transpile(args.domain, args.module)
         case "catala-test-transpile":
             cmd_catala_test_transpile(args.domain, args.module)
         case "catala-test":

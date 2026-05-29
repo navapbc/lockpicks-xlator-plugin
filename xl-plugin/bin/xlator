@@ -137,9 +137,6 @@ case "$1" in
     review-buckets)
         exec uv run "$TOOLS_DIR/review_buckets.py" "${@:2}"
         ;;
-    evaluate-civil)
-        exec uv run "$TOOLS_DIR/evaluate_civil.py" "${@:2}"
-        ;;
     evaluate-catala)
         exec uv run "$TOOLS_DIR/catala_eval.py" "${@:2}"
         ;;
