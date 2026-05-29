@@ -90,7 +90,7 @@ For every generated test case (drv_*, bnd_*, edg_*), compute the `expected:` blo
 
 1. Write the case's `inputs:` map to a temporary JSON file.
 2. Run `xlator evaluate-catala <domain> <program> --inputs <tmpfile>`.
-3. Parse stdout as JSON (the JSON contract `{outputs, computed, reasons, debug}` is preserved from the pre-pivot `civil_eval`). Use `result.outputs` for the `expected:` block, filtered to the declared `outputs:` fields.
+3. Parse stdout as JSON. The contract is `{outputs, computed, reasons, debug}`. Use `result.outputs` for the `expected:` block, filtered to the declared `outputs:` fields.
 
 If the evaluator exits non-zero, surface the stderr in a `:::error` block and skip the case. Two non-fatal cases worth handling explicitly:
 

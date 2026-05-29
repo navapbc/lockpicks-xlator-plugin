@@ -154,11 +154,10 @@ class TestParseScopeResult:
 
 
 class TestEvaluationResultContract:
-    """The {outputs, computed, reasons, debug} keys must match
-    civil_eval.EvaluationResult.as_dict() so consumer skills don't see a
-    shape change."""
+    """The `as_dict()` output must always carry exactly the four keys
+    `{outputs, computed, reasons, debug}` — consumer skills depend on it."""
 
-    def test_as_dict_keys_match_civil_eval_contract(self):
+    def test_as_dict_keys_match_contract(self):
         r = EvaluationResult(
             outputs={"x": 1}, computed={"y": 2}, reasons=[], debug={"z": 3}
         )

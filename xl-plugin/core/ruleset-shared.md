@@ -76,13 +76,12 @@ When writing `review:` blocks, score each rule and computed field on four dimens
 
 ## CIVIL Reference
 
-> **Do NOT read `tools/civil_schema.py`, `tools/transpile_to_rego.py`, or any other file in `tools/`
-> before authoring any CIVIL YAML.** All syntax needed for authoring is here.
+> **Do NOT read files under `tools/` before authoring Catala source.** All syntax needed for authoring is in [`core/catala-authoring-quickref.md`](catala-authoring-quickref.md).
 
 <!-- Last verified: 2026-03-04 -->
 
 Quick reference for expression syntax and field-traceability conventions.
-For full schema attribute tables, see [`core/civil-quickref.md`](civil-quickref.md).
+For full Catala syntax, see [`core/catala-authoring-quickref.md`](catala-authoring-quickref.md) and [`core/catala-quickref.md`](catala-quickref.md).
 
 ---
 
@@ -132,7 +131,7 @@ xlator validate <domain> <module>
 **On failure — retry loop (max 3 attempts):**
 - Read the specific error message
 - Identify the offending CIVIL section
-- For more schema details, see [`core/civil-quickref.md`](civil-quickref.md)
+- For more Catala syntax details, see [`core/catala-authoring-quickref.md`](catala-authoring-quickref.md)
 - Re-extract or fix that section
 - Re-validate
 

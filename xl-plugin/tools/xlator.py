@@ -441,13 +441,13 @@ def cmd_detect_changes(domain):
 
 
 def cmd_list():
-    pattern = str(DOMAINS_FULLPATH / "*" / "specs" / "*.civil.yaml")
+    pattern = str(DOMAINS_FULLPATH / "*" / "specs" / "*.catala_en")
     module_rows = []
     domains_with_modules = set()
     for path in sorted(glob.glob(pattern)):
         parts = Path(path).parts
         domain = parts[-3]
-        module = parts[-1].removesuffix(".civil.yaml")
+        module = parts[-1].removesuffix(".catala_en")
         module_rows.append((domain, module))
         domains_with_modules.add(domain)
 

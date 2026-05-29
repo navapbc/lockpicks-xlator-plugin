@@ -62,10 +62,8 @@ _STAGE_STRIP_SUFFIXES = ("_test", "_check", "_evaluation")
 
 
 # ---------------------------------------------------------------------------
-# policy_facets/computations/ helpers (inlined from civil_helpers.py;
-# these helpers operate on the input-pipeline tier — unchanged by the
-# CIVIL→Catala pivot — so the dependency on civil_helpers is dropped
-# rather than carried forward into the deletion in U8).
+# policy_facets/computations/ helpers — operate on the input-pipeline tier
+# (which is independent of the source-spec language).
 # ---------------------------------------------------------------------------
 
 def normalize_stage(stage: Any) -> Optional[str]:

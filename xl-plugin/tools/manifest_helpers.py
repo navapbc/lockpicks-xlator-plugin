@@ -3,28 +3,27 @@
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
-Manifest-driven test-CSV column helpers (U7, post-pivot).
+Manifest-driven test-CSV column helpers.
 
-After the CIVIL→Catala pivot, the type-extended `naming-manifest.yaml`
-(per R3 extended in U7) is the authority for per-field Catala primitive
-type, optionality, and enum-variant metadata. This module provides the
-post-pivot equivalents of `civil_helpers.build_csv_field_specs()` /
-`load_civil_yaml()` consumed by:
+The type-extended `naming-manifest.yaml` is the authority for per-field
+Catala primitive type, optionality, and enum-variant metadata. This module
+provides the CSV-column derivation helpers consumed by:
 
   * export_test_template.py — CSV column derivation
   * export_test_cases.py    — CSV column derivation
   * import_tests.py         — CSV column derivation + type coercion
 
-The `FieldSpec` shape is shared with `civil_helpers.FieldSpec` so callers
-can transition without API churn: `column_name`, `civil_type` (now reads
-as "leaf type" — internally normalized to the same vocabulary as before),
-`optional`, `enum_values`, `item_type`, `description`, `is_decision`,
-`decision_name`.
+`FieldSpec` exposes: `column_name`, `civil_type` (the internal leaf-type
+vocabulary — `money|bool|int|float|string|enum|list|date`), `optional`,
+`enum_values`, `item_type`, `description`, `is_decision`, `decision_name`.
 
 Type-name normalization mirrors `transpile_to_catala_tests.py`:
-  Catala-native names      → legacy CIVIL names (internal canonical)
-  integer / decimal /        int / float / bool / string ...
-  boolean / duration / ...
+  Catala name    → internal leaf type
+  integer        → int
+  decimal        → float
+  boolean        → bool
+  duration       → string
+  ...
 """
 
 from __future__ import annotations
@@ -40,8 +39,6 @@ import yaml
 RESERVED_COLUMNS = frozenset({"case_id", "description", "tags", "notes"})
 
 
-# Same dataclass shape as civil_helpers.FieldSpec — keeps consumer call sites
-# (export/import tools) identical.
 @dataclass
 class FieldSpec:
     """Describes one CSV column derived from a manifest entry."""
@@ -108,8 +105,7 @@ def _collect_enum_values(entry: dict) -> Optional[list[str]]:
 
 
 def load_naming_manifest(path: Path) -> dict:
-    """Load `specs/naming-manifest.yaml`; exit 1 with a clear error on
-    failure. Mirrors `civil_helpers.load_civil_yaml()` API shape."""
+    """Load `specs/naming-manifest.yaml`; exit 1 with a clear error on failure."""
     if not path.exists():
         print(f"ERROR: naming-manifest.yaml not found: {path}", file=sys.stderr)
         sys.exit(1)
@@ -231,8 +227,7 @@ def build_csv_field_specs(manifest_doc: dict) -> list[FieldSpec]:
 def field_description_hint(spec: FieldSpec) -> str:
     """Return a human-readable hint string for the CSV descriptions row.
 
-    Same prose shapes as `civil_helpers.field_description_hint()`. Catala
-    type names render with their canonical leaf name.
+    Catala type names render with their canonical leaf name.
     """
     parts: list[str] = []
     if spec.civil_type == "money":

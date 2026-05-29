@@ -118,7 +118,7 @@ Special populations, exceptional conditions, or policy interactions that overrid
 Analyst-curated descriptions, examples (sample values), and primary/secondary distinction for outputs. Mirrors `specs/naming-manifest.yaml`'s `outputs:` block — the map key IS the manifest reference; structural fields (`type`, `values`) live in the manifest, not here.
 
 **Written by:** `/create-skeleton`
-**Read by:** `/extract-ruleset` (Step 1 context, primary identification), `/extract-sample-rules`, `/create-sample-tests`, `/create-ruleset-modules`, `validate_civil.py` (primary identification)
+**Read by:** `/extract-ruleset` (Step 1 context, primary identification), `/extract-sample-rules`, `/create-sample-tests`, `/create-ruleset-modules`
 
 ```yaml
 eligible:

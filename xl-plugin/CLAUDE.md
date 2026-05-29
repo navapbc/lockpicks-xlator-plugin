@@ -73,7 +73,6 @@ After completion of an `xl` skill, suggest possible next steps based on these wo
 **After ruleset exists:**
 - `/create-demo <domain>` — generate a web-based ruleset demo
 - `/create-tests <domain>` — initial test cases
-- `/transpile-and-test <domain>` — transpile to Catala and run tests
 - `/expand-tests <domain>` — increase coverage
 
 **After policy docs change:**

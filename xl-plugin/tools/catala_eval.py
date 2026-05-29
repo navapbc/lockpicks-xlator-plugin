@@ -4,11 +4,10 @@
 # dependencies = []
 # ///
 """
-Catala-backed evaluator — U3 of docs/plans/2026-05-28-001-refactor-replace-
-civil-with-catala-plan.md.
+Catala-backed evaluator.
 
 A thin wrapper around `catala interpret --output-format=json --input=<json>`
-that preserves the JSON contract historically served by `civil_eval.py`:
+exposing a JSON contract:
 
     {
       "outputs":  {...},
@@ -17,12 +16,8 @@ that preserves the JSON contract historically served by `civil_eval.py`:
       "debug":    {"rules_fired": [...], "command": [...], ...}
     }
 
-The contract shape is consumed by `/expand-tests` Phase 2b/2c/2d
-(SKILL.md:86 — `xlator evaluate-civil <domain> <program> --inputs <tmpfile>`
-followed by JSON parsing of `result.outputs`), `/create-tests` Step 1,
-and `/detect-stale-cases`. U3 wraps Catala while leaving CIVIL callers
-in place; the dispatch retarget to this wrapper happens in U10 (for
-`detect_stale_cases.py`) and after the cutover in U8.
+Consumed by `/expand-tests` Phase 2b/2c/2d, `/create-tests` Step 1, and
+`/detect-stale-cases` via `xlator evaluate-catala <domain> <program> --inputs <tmpfile>`.
 
 Library API
 -----------
@@ -36,39 +31,28 @@ Library API
     )
     # result.outputs   → {"is_eligible": True, ...}
     # result.computed  → {"Eligibility.federal_poverty_line": 1704.00, ...}
-    # result.reasons   → []  (v1 — see Deferred verifications below)
+    # result.reasons   → []
     # result.debug     → {"command": [...], "scope": "Eligibility", ...}
 
-Deferred verifications (settled in U9 once `snap` is regenerated)
------------------------------------------------------------------
+Granularity
+-----------
 
-U3 sub-deliverable A — *per-rule vs scope semantics verification*. The
-plan's verification — composing N per-rule `catala interpret` calls and
-comparing against one scope-level call — requires at least one
-nontrivial regenerated `snap` scope where exception priorities affect
-outcome ordering. No real regenerated `snap` exists yet, so v1 of this
-wrapper exposes **scope-level granularity** (one `catala interpret`
-invocation per `run()` call). Per-rule signals surface in
-`EvaluationResult.computed` from the trace. U9 confirms whether
-consumer skills (`/expand-tests` Phase 2b/c/d, `/create-tests` Step 1)
-accept scope-level granularity or require the more expensive
-per-rule composition.
+Scope-level: one `catala interpret` invocation per `run()` call. Per-rule
+signals surface through `EvaluationResult.computed` from the trace. If a
+consumer needs per-rule outcomes, compose multiple `run()` calls — see U9
+verification report for the empirical comparison plan.
 
-U3 sub-deliverable B — *per-invocation cost measurement*. p50/p95
-timings require a real test corpus; deferred to U9. v1 uses
-`subprocess.run(..., capture_output=True)` with no fancy timing
-instrumentation. `debug["wall_time_ms"]` records the per-call wall
-time so U9 can aggregate empirically.
+`debug["wall_time_ms"]` records per-call wall time for downstream timing
+aggregation.
 
 CLI surface
 -----------
 
     xlator evaluate-catala <domain> <module> --inputs <path> [--scope <scope>]
 
-JSON-only stdout (no header sentinel — this is library-style output for
+JSON-only stdout (no header sentinel — library-style output for
 downstream consumers, not a user-facing summary). Exit 0 on success, 1
-on evaluation error, 2 on pre-flight failure. Mirrors the shape of
-`evaluate_civil.py`.
+on evaluation error, 2 on pre-flight failure.
 """
 
 from __future__ import annotations
@@ -101,10 +85,7 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 class EvaluationError(Exception):
-    """Raised when Catala evaluation fails. Carries structured
-    `{context, message}` matching the existing `civil_eval.EvaluationError`
-    surface so callers can dispatch on the same exception type after the
-    U8 cutover."""
+    """Raised when Catala evaluation fails. Carries structured `{context, message}`."""
 
     def __init__(self, context: str, message: str):
         self.context = context
@@ -114,9 +95,7 @@ class EvaluationError(Exception):
 
 @dataclass
 class EvaluationResult:
-    """Preserves the existing `civil_eval.EvaluationResult` JSON contract
-    so downstream skill code can switch implementations without shape
-    changes."""
+    """Result of one `catala interpret` call, rendered as the JSON contract documented in the module docstring."""
 
     outputs: dict[str, Any] = field(default_factory=dict)
     computed: dict[str, Any] = field(default_factory=dict)
@@ -326,8 +305,7 @@ def run(
 
 def _derive_scope_from_module(module: str) -> str:
     """Convert module name (e.g. `eligibility`, `apa_adltc`) to CamelCase
-    scope name (`Eligibility`, `ApaAdltc`). Matches the convention used
-    by `xl-plugin/tools/transpile_to_catala.py:derive_scope_name`."""
+    scope name (`Eligibility`, `ApaAdltc`)."""
     parts = re.split(r"[_\-]+", module)
     return "".join(p.capitalize() for p in parts if p)
 
