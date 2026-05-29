@@ -22,7 +22,7 @@ Catala files are **literate programs** — Markdown with fenced `catala` code bl
 > Module Earned_income
 ```
 
-Module name rules: last segment of the dotted CIVIL `module` field, first letter uppercased. Example: `earned_income` → `Earned_income`. This must match the `modules` entry in `clerk.toml`.
+Module name rules: derive from the filename — first letter uppercased, underscores preserved. Example: `earned_income.catala_en` → `Earned_income`. This must match the `modules` entry in `clerk.toml`.
 
 Full file structure:
 
@@ -75,7 +75,7 @@ Type conversions: `decimal of 44`, `money of 23.15`, `round of $9.99`
 
 ## Top-Level Declarations
 
-### Structure (maps to CIVIL `inputs:` entity)
+### Structure
 
 ```catala
 declaration structure Household:
@@ -86,7 +86,7 @@ declaration structure Household:
 
 - Structure names: **PascalCase**; field names: **snake_case**
 
-### Enumeration (maps to CIVIL `string` fields and `reasons` codes)
+### Enumeration
 
 ```catala
 declaration enumeration ReasonCode:
@@ -98,7 +98,7 @@ declaration enumeration StatusType:
   -- Inactive content integer   # variant with payload
 ```
 
-### Constant (maps to CIVIL `constants:`)
+### Constant
 
 ```catala
 declaration EARNED_INCOME_DEDUCTION_RATE content decimal equals 20%
@@ -120,7 +120,7 @@ Call with: `f of $44.50, 1/3`
 
 ---
 
-## Scope Declaration (maps to CIVIL module)
+## Scope Declaration
 
 ```catala
 declaration scope EligibilityDecision:
@@ -178,7 +178,7 @@ scope EligibilityDecision:
 
 > ⚠️ Multiple definitions for the same variable need exhaustive guards or a base case.
 
-### Conditional definition (if/then/else — maps to CIVIL `conditional:`)
+### Conditional definition (if/then/else)
 
 ```catala
 scope EligibilityDecision:
@@ -205,7 +205,7 @@ scope EligibilityDecision:
 
 Use `rule`/`fulfilled`/`not fulfilled` for `condition`-typed variables (not `definition`/`equals`).
 
-### Labeled definition + exception (maps to CIVIL deny rules on `eligible`)
+### Labeled definition + exception (deny-rule pattern on `eligible`)
 
 ```catala
 scope EligibilityDecision:
@@ -386,7 +386,7 @@ lst1 ++ lst2
 combine all x among lst in acc initially 0 with acc + x
 ```
 
-### reasons pattern (CIVIL deny rules → list of codes)
+### reasons pattern (deny rules → list of codes)
 
 ```catala
 declaration structure ReasonEntry:
