@@ -5,8 +5,8 @@
 # ///
 """
 xlator detect-stale-cases: re-evaluate every test case under
-specs/tests/<program>*.yaml against the current CIVIL spec, and emit the
-list of cases whose `expected:` would now differ.
+specs/tests/<program>*.yaml against the current Catala source, and emit
+the list of cases whose `expected:` would now differ.
 
 Usage:
     xlator detect-stale-cases <domain> <program>
@@ -37,12 +37,13 @@ Output:
 
 Exit codes:
     0  always (stale cases are informational, not errors)
-    2  pre-flight failure (missing domain or CIVIL file)
+    2  pre-flight failure (missing domain or Catala source)
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import sys
@@ -53,18 +54,27 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import civil_eval  # noqa: E402
+import catala_eval  # noqa: E402
 
 
 HEADER_SENTINEL = "--- DETECT-STALE-CASES-HEADER-END ---"
 
+FLOAT_TOLERANCE = 1e-9
 
-def _preflight(domain_dir: Path, civil_path: Path) -> None:
+
+@dataclasses.dataclass
+class StaleCaseDiff:
+    current_expected: dict
+    recomputed_expected: dict
+    diff: dict
+
+
+def _preflight(domain_dir: Path, catala_path: Path) -> None:
     if not domain_dir.is_dir():
         print(f"Error: domain directory not found: {domain_dir}", file=sys.stderr)
         sys.exit(2)
-    if not civil_path.is_file():
-        print(f"Error: CIVIL file not found: {civil_path}", file=sys.stderr)
+    if not catala_path.is_file():
+        print(f"Error: Catala source not found: {catala_path}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -74,22 +84,90 @@ def _load_yaml(path: Path) -> Any:
 
 
 def _find_test_files(tests_dir: Path, program: str) -> list[Path]:
-    """Return every `<program>*.yaml` file under specs/tests/ (alphabetical)."""
     if not tests_dir.is_dir():
         return []
     return sorted(p for p in tests_dir.glob(f"{program}*.yaml") if p.is_file())
 
 
+def _derive_scope_name(program: str) -> str:
+    """PascalCase + 'Decision'; matches xlator.cmd_catala_test_transpile."""
+    pascal = "".join(w.capitalize() for w in program.split("_") if w)
+    return pascal + "Decision"
+
+
+def _detect_stale(catala_path: Path, scope: str, case: dict) -> StaleCaseDiff | None:
+    """Re-evaluate one test case against the Catala source. Returns None
+    when current expected: still matches; otherwise a StaleCaseDiff."""
+    inputs = case.get("inputs") or {}
+    current_expected = dict(case.get("expected") or {})
+    result = catala_eval.run(catala_path, scope, inputs)
+    recomputed = _build_recomputed_expected(current_expected, result)
+    diff = _diff_expected(current_expected, recomputed)
+    if not diff:
+        return None
+    return StaleCaseDiff(
+        current_expected=current_expected,
+        recomputed_expected=recomputed,
+        diff=diff,
+    )
+
+
+def _build_recomputed_expected(current: dict, result: catala_eval.EvaluationResult) -> dict:
+    recomputed: dict[str, Any] = {}
+    for key in current:
+        if key in result.outputs:
+            recomputed[key] = result.outputs[key]
+        elif key == "reasons":
+            recomputed[key] = [{"code": r.get("code")} for r in result.reasons]
+        else:
+            recomputed[key] = result.outputs.get(key)
+    for key, value in result.outputs.items():
+        if key not in recomputed:
+            recomputed[key] = value
+    return recomputed
+
+
+def _diff_expected(current: dict, recomputed: dict) -> dict[str, dict[str, Any]]:
+    diff: dict[str, dict[str, Any]] = {}
+    all_keys = set(current) | set(recomputed)
+    for key in all_keys:
+        c = current.get(key)
+        r = recomputed.get(key)
+        if _values_equal(c, r):
+            continue
+        diff[key] = {"current": c, "recomputed": r}
+    return diff
+
+
+def _values_equal(a: Any, b: Any) -> bool:
+    if a is None and b is None:
+        return True
+    if (
+        isinstance(a, (int, float)) and not isinstance(a, bool)
+        and isinstance(b, (int, float)) and not isinstance(b, bool)
+    ):
+        return abs(a - b) <= FLOAT_TOLERANCE
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return False
+        return all(_reason_equal(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+def _reason_equal(a: Any, b: Any) -> bool:
+    if isinstance(a, dict) and isinstance(b, dict):
+        for key, val in a.items():
+            if key not in b or b[key] != val:
+                return False
+        return True
+    return a == b
+
+
 def cmd_detect(domain_dir: Path, program: str) -> dict:
-    """Walk every test case for `program`; return summary dict with stale list."""
-    civil_path = domain_dir / "specs" / f"{program}.civil.yaml"
-    _preflight(domain_dir, civil_path)
+    catala_path = domain_dir / "specs" / f"{program}.catala_en"
+    _preflight(domain_dir, catala_path)
 
-    civil_doc = _load_yaml(civil_path)
-    if not isinstance(civil_doc, dict):
-        print(f"Error: CIVIL file is not a YAML mapping: {civil_path}", file=sys.stderr)
-        sys.exit(2)
-
+    scope = _derive_scope_name(program)
     tests_dir = domain_dir / "specs" / "tests"
     test_files = _find_test_files(tests_dir, program)
 
@@ -125,8 +203,8 @@ def cmd_detect(domain_dir: Path, program: str) -> dict:
             summary["scanned_count"] += 1
             case_id = case.get("case_id", "<unknown>")
             try:
-                diff = civil_eval.detect_stale(civil_doc, case)
-            except civil_eval.EvaluationError as exc:
+                diff = _detect_stale(catala_path, scope, case)
+            except catala_eval.EvaluationError as exc:
                 summary["errors"].append({
                     "case_id": case_id,
                     "file": rel,
@@ -149,7 +227,6 @@ def cmd_detect(domain_dir: Path, program: str) -> dict:
 
 
 def _print_body(summary: dict) -> None:
-    """Human-readable body printed after the sentinel."""
     print(
         f"Scanned {summary['scanned_count']} test case(s). "
         f"{summary['stale_count']} stale, {summary['error_count']} errored."
@@ -180,10 +257,10 @@ def _short(value: Any, max_len: int = 40) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Re-evaluate test cases against current CIVIL; flag stale ones.",
+        description="Re-evaluate test cases against current Catala source; flag stale ones.",
     )
     parser.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
-    parser.add_argument("program", help="Program name (matches specs/<program>.civil.yaml)")
+    parser.add_argument("program", help="Program name (matches specs/<program>.catala_en)")
     args = parser.parse_args()
 
     domains_root = os.environ.get("DOMAINS_FULLPATH")
