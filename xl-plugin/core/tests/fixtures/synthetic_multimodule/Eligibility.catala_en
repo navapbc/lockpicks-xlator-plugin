@@ -1,0 +1,53 @@
+> Module Eligibility
+
+> Using Earnings
+
+# Synthetic two-module eligibility
+
+## Declarations
+
+```catala-metadata
+declaration scope DetermineEligibility:
+  input gross_earned_income content money
+  input household_size content integer
+  internal earnings_result content Earnings.EarningsResult
+  internal income_limit content money
+  internal income_eligible condition
+  output is_eligible condition
+```
+
+## Sub-module call
+
+*Source: policy.md — Section 1. Earnings exclusions*
+
+```catala
+scope DetermineEligibility:
+  definition earnings_result equals
+    (output of Earnings.ApplyExclusions
+      with { -- gross_earned_income: gross_earned_income }).result
+```
+
+## Income threshold
+
+*Source: policy.md — Section 2. Income threshold*
+
+```catala
+scope DetermineEligibility:
+  definition income_limit equals
+    $943 + (decimal of (household_size - 1)) * $360
+
+  rule income_eligible
+    under condition earnings_result.remaining_earned_income < income_limit
+    consequence fulfilled
+```
+
+## Decision
+
+*Source: policy.md — Section 3. Decision*
+
+```catala
+scope DetermineEligibility:
+  rule is_eligible
+    under condition income_eligible
+    consequence fulfilled
+```
