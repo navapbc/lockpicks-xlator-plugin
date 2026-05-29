@@ -83,7 +83,6 @@ Pro-tip: To provide a coding assistant with sample data, create a symlink for th
 |--------|---------|-------------|
 | `snap` | `eligibility` | SNAP federal income eligibility (FY2026) |
 | `ak_doh` | `eligibility`, `exclusion_chain` | Alaska Department of Health programs (multi-module) |
-| `dl` | *(in extraction)* | Carved out from the CIVIL→Catala pivot; lives on the `yl/dl-domain` branch under CIVIL until independently re-extracted in Catala |
 
 ### Adding a domain
 
@@ -206,18 +205,6 @@ xlator catala-pipeline <domain> <module>
   - **`policy_facets/computations/`** — per-source-file YAML lists of `{heading, summary, tags, computations?}` section blocks. Catala authoring uses these section blocks to mirror Markdown `## Heading` structure inside the literate `.catala_en` source.
 
   `input-index.yaml` (files block: SHAs, md_quality scores) also lives in `policy_facets/`.
-
-- **Architecture Notes — version history**
-  - v3.0.0: per-file `policy_facets/computations/<rel>.md.yaml` artifacts replace the monolithic `policy_facets/input-sections.yaml`.
-  - v5.0.0: per-file `naming_manifest` blocks; three-tier authority chain (later flattened in v9/v10).
-  - v7.0.0: `specs/guidance/variables.yaml` removed; structural variable data consolidates into `naming-manifest.yaml`; `xlator validate-guidance` CLI added.
-  - v7.1.0: `/extract-ruleset` and `/update-ruleset` consume `policy_facets/input-index.yaml` for source SHAs via `SP-LoadInputIndex`.
-  - v8.0.0: `phase:`/`phase_source:` → `stage:`/`stage_source:` rename; skeleton `category:` → `stage:`.
-  - v9.0.0: cross-file naming-defaults cache removed; per-file `variables:` lists dropped; authority chain collapses to two tiers.
-  - v10.0.0: legacy/migration scaffolding deleted; flattened authority framing; `validate-guidance` extended for type/values agreement; `metadata.yaml` schema reduced to `{display_name, description}`; `constants-and-tables.yaml` requires per-entry `source_file:`+`source_section:`.
-  - v10.1.0: rename anchoring moves from `original_name:` to `synonyms:` (rename-anchor synonyms with no `source_doc:` / `section:`).
-  - v12.x: U12 retires the Rego output path independently of the main CIVIL→Catala pivot. U1–U7+U10+U11 retarget authoring/maintenance skills to emit and consume Catala.
-  - **v13.0.0 — replaced CIVIL DSL with Catala as the authored source format.** Retired: `civil_schema.py`, `validate_civil.py`, `civil_expr.py`, `civil_eval.py`, `civil_helpers.py`, `evaluate_civil.py`, `transpile_to_catala.py`, `computation_graph.py`, `xl-plugin/skills/transpile-and-test/`, `xl-plugin/skills/fix-transpiler/`, `core/CIVIL_DSL_spec.md`, `core/civil-quickref.md`, `core/civil-tests-quickref.md`, `core/ruleset.schema.json`, `core/tests/civil_v6_annotations_test.yaml`, and every `domains/<d>/specs/*.civil.yaml` + `.civil-manifest.yaml` file (except `dl`'s, which lives on `yl/dl-domain` until independently re-extracted). `xlator catala-pipeline` rewires to `clerk typecheck → catala-test-transpile → clerk test`. `naming-manifest.yaml` schema gains per-field `type:`/`optional:`/`enum_variants:` metadata. **Rollback recipe:** if a defect ships post-merge, `git revert <U8-squashed-commit-sha>` on a hotfix branch restores the CIVIL toolchain; re-publish the plugin at `v12.26.0` (PATCH bump over v12.25.x) and open a follow-up issue documenting the specific defect. The `pre-civil-retirement` git tag at the pre-U8 HEAD is the durable recovery anchor.
 
 ---
 

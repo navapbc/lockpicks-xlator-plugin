@@ -66,9 +66,6 @@ activate_opam
 
 case "$1" in
     # Intended for internal use by Xlator developers or Claude hooks; not commands for user's direct use
-    generate-schema)
-        exec uv run "$TOOLS_DIR/civil_schema.py"
-        ;;
     observe_hook)
         event_type="$2"
         case "${OBSERVE_HOOK_DISABLED:-}" in

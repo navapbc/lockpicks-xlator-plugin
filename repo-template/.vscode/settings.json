@@ -1,7 +1,4 @@
 {
-  "yaml.schemas": {
-    ".vscode/ruleset.schema.json": "**/*.civil.yaml"
-  },
   "chat.useClaudeHooks": true,
   "github.copilot.chat.claudeAgent.enabled": true,
   "python.terminal.activateEnvironment": true,

@@ -21,7 +21,7 @@ The `create_git_repo.sh` script performed the following to create this repo:
 1. Created `.xlator.conf` file in the specified `DOMAINS_DIR`
 2. Copied the following files from the plugin's `repo-template`:
     1. `.devcontainer/devcontainer.json` for running as a devcontainer in VS Code or on the web in GitHub Codespaces
-    2. `.vscode/settings.json` to configure CIVIL ruleset schema and enable auto-approve and `bypassPermissions` for Claude Code
+    2. `.vscode/settings.json` to enable auto-approve and `bypassPermissions` for Claude Code
     3. the root-level `CLAUDE.md` file to provide Xlator-specific instructions
 
 ## Open repo in an IDE to complete setup
