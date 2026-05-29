@@ -9,8 +9,8 @@ Use bash-specific built-in commands and features, rather than `sed`, `grep`, and
 
 ## Skill development
 
-Any signficant non-AI work (Bash, CLI commands, enumerate, copy, manifest, delete) should run as a shell or Python script for determinism and manual execution.
-Any AI work will be described in the `SKILL.md` file.
+Any skill steps that require multi-operation deterministic non-AI work (e.g., Bash, CLI commands, enumerate, copy, manifest, delete) should run as a shell or Python script for determinism and manual execution.
+Any skill steps that require AI should be described in the `SKILL.md` file.
 
 ## Naming
 
