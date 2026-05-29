@@ -43,13 +43,6 @@ from typing import Any, Optional
 
 import yaml
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from civil_helpers import (  # noqa: E402
-    load_per_file_computations,
-    normalize_stage,
-)
-
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -61,6 +54,66 @@ _RULESET_GROUPS_REL = "specs/guidance/ruleset-groups.yaml"
 _PER_FILE_REL = "policy_facets/computations"
 
 _HEADER_SENTINEL = "--- SCAN-RULESET-GROUPS-HEADER-END ---"
+
+# Trailing suffixes stripped from a `stage:` value before cross-file
+# comparison. Mirrors the suffix-stripping rule in `/create-ruleset-groups`
+# Step 1 so stage identifiers compare equal across writer skills.
+_STAGE_STRIP_SUFFIXES = ("_test", "_check", "_evaluation")
+
+
+# ---------------------------------------------------------------------------
+# policy_facets/computations/ helpers (inlined from civil_helpers.py;
+# these helpers operate on the input-pipeline tier — unchanged by the
+# CIVIL→Catala pivot — so the dependency on civil_helpers is dropped
+# rather than carried forward into the deletion in U8).
+# ---------------------------------------------------------------------------
+
+def normalize_stage(stage: Any) -> Optional[str]:
+    """Normalize a `stage:` value for cross-section comparison.
+
+    Strips a single trailing `_test` / `_check` / `_evaluation`
+    (case-insensitively) and lowercases the result. Returns `None` for
+    `None` / non-string / empty input.
+    """
+    if stage is None:
+        return None
+    if not isinstance(stage, str):
+        return None
+    s = stage.strip().lower()
+    if not s:
+        return None
+    for suffix in _STAGE_STRIP_SUFFIXES:
+        if s.endswith(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
+def load_per_file_computations(domain_dir: Path) -> dict[str, dict]:
+    """Glob every `policy_facets/computations/**/*.md.yaml` under
+    `domain_dir` and return a dict keyed by relative path string
+    (POSIX-style, relative to `policy_facets/computations/`) → parsed
+    YAML mapping.
+
+    Files that fail to parse as YAML or that don't parse to a mapping
+    are skipped silently. Returns `{}` when the directory is absent.
+    """
+    base = domain_dir / "policy_facets" / "computations"
+    if not base.is_dir():
+        return {}
+    out: dict[str, dict] = {}
+    for path in sorted(base.rglob("*.md.yaml")):
+        if not path.is_file():
+            continue
+        try:
+            with path.open(encoding="utf-8") as f:
+                doc = yaml.safe_load(f)
+        except yaml.YAMLError:
+            continue
+        if not isinstance(doc, dict):
+            continue
+        rel = path.relative_to(base).as_posix()
+        out[rel] = doc
+    return out
 
 # Leading display_name verbs stripped before snake_casing the catch-all
 # group name. The remainder of `display_name` becomes the group name; the

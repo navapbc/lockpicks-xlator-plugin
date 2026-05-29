@@ -24,7 +24,7 @@ import record_tier_manifest  # noqa: E402
 
 
 _GUIDANCE_MANIFEST = "specs/guidance/.facets-manifest.yaml"
-_TESTS_MANIFEST = "specs/tests/.civil-manifest.yaml"
+_TESTS_MANIFEST = "specs/tests/.catala-manifest.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -65,11 +65,11 @@ def _populate_policy_facets(domain: Path) -> None:
     (pf / "computations" / "sub" / "bar.md.yaml").write_text("sections: []\n")
 
 
-def _populate_civil(domain: Path, program: str = "eligibility") -> None:
-    """Drop a specs/<program>.civil.yaml file for tests-tier fixtures."""
+def _populate_catala(domain: Path, program: str = "eligibility") -> None:
+    """Drop a specs/<program>.catala_en file for tests-tier fixtures."""
     specs = domain / "specs"
     specs.mkdir(parents=True, exist_ok=True)
-    (specs / f"{program}.civil.yaml").write_text("name: eligibility\nrulesets: []\n")
+    (specs / f"{program}.catala_en").write_text(f"> Module {program.title()}\n")
 
 
 def _read_manifest(path: Path) -> dict:
@@ -105,20 +105,20 @@ def test_record_guidance_writes_manifest_for_all_facets_files():
             )
 
 
-def test_record_tests_writes_manifest_for_civil_files():
-    """Happy path: --tier tests records each specs/*.civil.yaml file."""
+def test_record_tests_writes_manifest_for_catala_files():
+    """Happy path: --tier tests records each specs/*.catala_en file."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
-        _populate_civil(domain, "eligibility")
-        _populate_civil(domain, "exclusion_chain")
+        _populate_catala(domain, "eligibility")
+        _populate_catala(domain, "exclusion_chain")
         _git_init_and_commit(domain)
 
         record_tier_manifest.cmd_record(domain, "tests")
 
         manifest = _read_manifest(domain / _TESTS_MANIFEST)
         files = manifest["files"]
-        assert "specs/eligibility.civil.yaml" in files
-        assert "specs/exclusion_chain.civil.yaml" in files
+        assert "specs/eligibility.catala_en" in files
+        assert "specs/exclusion_chain.catala_en" in files
         assert all(
             len(sha) == 40 and all(c in "0123456789abcdef" for c in sha)
             for sha in files.values()
@@ -140,8 +140,8 @@ def test_record_guidance_empty_policy_facets_writes_empty_files_map():
         assert manifest["files"] == {}
 
 
-def test_record_tests_no_civil_writes_empty_files_map():
-    """Edge case: --tier tests when no specs/*.civil.yaml writes empty map."""
+def test_record_tests_no_catala_writes_empty_files_map():
+    """Edge case: --tier tests when no specs/*.catala_en writes empty map."""
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         record_tier_manifest.cmd_record(domain, "tests")
@@ -188,11 +188,11 @@ def test_unsupported_tier_raises_in_library_path():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         try:
-            record_tier_manifest.cmd_record(domain, "civil")
+            record_tier_manifest.cmd_record(domain, "bogus")
         except ValueError as exc:
-            assert "civil" in str(exc)
+            assert "bogus" in str(exc)
         else:
-            raise AssertionError("expected ValueError for unsupported tier 'civil'")
+            raise AssertionError("expected ValueError for unsupported tier 'bogus'")
 
 
 def test_re_record_overwrites_atomically():
@@ -258,14 +258,14 @@ def test_main_missing_tier_flag_exits_2():
         assert "--tier" in stderr or "required" in stderr.lower()
 
 
-def test_main_invalid_tier_civil_exits_2():
-    """Error path: --tier civil rejected by argparse choices=, with helpful epilog."""
+def test_main_invalid_tier_catala_exits_2():
+    """Error path: --tier catala rejected by argparse choices=, with helpful epilog."""
     with tempfile.TemporaryDirectory() as tmp:
         code, _stdout, stderr = _run_main_with(
-            ["mydomain", "--tier", "civil"], env={"DOMAINS_FULLPATH": tmp}
+            ["mydomain", "--tier", "catala"], env={"DOMAINS_FULLPATH": tmp}
         )
         assert code == 2
-        assert "civil" in stderr.lower() or "choose from" in stderr.lower()
+        assert "catala" in stderr.lower() or "choose from" in stderr.lower()
 
 
 def test_main_domains_fullpath_unset_exits_2():

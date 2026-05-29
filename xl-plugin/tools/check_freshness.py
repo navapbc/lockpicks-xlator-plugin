@@ -16,10 +16,10 @@ Tier names match the downstream artifact each tier produces (mirroring the
 
 facets:   input/policy_docs/ vs policy_facets/input-index.yaml.files.<path>.sha
 guidance: policy_facets/* vs specs/guidance/.facets-manifest.yaml
-civil:    specs/guidance/* + specs/naming-manifest.yaml vs
+catala:   specs/guidance/* + specs/naming-manifest.yaml vs
           specs/extraction-manifest.yaml.programs.*.consumed_guidance[].sha
           (dedup'd across program + sub_modules)
-tests:    specs/*.civil.yaml vs specs/tests/.civil-manifest.yaml
+tests:    specs/*.catala_en vs specs/tests/.catala-manifest.yaml
 
 Usage:
     xlator check-freshness [<domain>]
@@ -31,9 +31,9 @@ Output (stdout, line-stable, machine-parseable):
     <tier>  <category>  <path>
     ...
 
-    summary facets=<n> guidance=<n> civil=<n> tests=<n>
+    summary facets=<n> guidance=<n> catala=<n> tests=<n>
 
-Records appear in fixed tier order (facets, guidance, civil, tests). Tier
+Records appear in fixed tier order (facets, guidance, catala, tests). Tier
 and category columns are space-padded to align; blank lines separate tier
 groups and precede the summary. `line.split()` still yields exactly
 [tier, category, path].
@@ -42,7 +42,7 @@ Categories emitted per tier:
     facets:   source_edited, source_added, source_removed, derived_missing,
               orphan_derived, index_missing, git_unavailable
     guidance: guidance_stale, guidance_manifest_missing, git_unavailable
-    civil:    civil_stale, civil_manifest_missing, git_unavailable
+    catala:   catala_stale, catala_manifest_missing, git_unavailable
     tests:    tests_stale, tests_manifest_missing, not_applicable, git_unavailable
 
 Exit codes:
@@ -77,7 +77,7 @@ _NAMING_MANIFEST = "specs/naming-manifest.yaml"
 _EXTRACTION_MANIFEST = "specs/extraction-manifest.yaml"
 _TESTS = "specs/tests"
 _GUIDANCE_MANIFEST = "specs/guidance/.facets-manifest.yaml"
-_CIVIL_MANIFEST = "specs/tests/.civil-manifest.yaml"
+_CATALA_MANIFEST = "specs/tests/.catala-manifest.yaml"
 
 _REJECTED_SCORE_THRESHOLD = 40
 
@@ -300,14 +300,14 @@ def _check_guidance(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
 
 
 # ---------------------------------------------------------------------------
-# civil tier: specs/guidance/* + naming-manifest vs extraction-manifest consumed_guidance[]
+# catala tier: specs/guidance/* + naming-manifest vs extraction-manifest consumed_guidance[]
 # ---------------------------------------------------------------------------
 
-def _civil_files_exist(domain_dir: Path) -> bool:
+def _catala_files_exist(domain_dir: Path) -> bool:
     specs = domain_dir / "specs"
     if not specs.is_dir():
         return False
-    return any(specs.glob("*.civil.yaml"))
+    return any(specs.glob("*.catala_en"))
 
 
 def _iter_consumed_guidance(manifest: dict) -> Iterable[dict]:
@@ -332,26 +332,26 @@ def _iter_consumed_guidance(manifest: dict) -> Iterable[dict]:
                     yield entry
 
 
-def _check_civil(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
+def _check_catala(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
     records: list[DriftRecord] = []
     git_unavailable = False
 
     manifest_path = domain_dir / _EXTRACTION_MANIFEST
-    civil_present = _civil_files_exist(domain_dir)
+    catala_present = _catala_files_exist(domain_dir)
 
     if not manifest_path.is_file():
-        if civil_present:
+        if catala_present:
             records.append(
-                DriftRecord("civil", "civil_manifest_missing", _EXTRACTION_MANIFEST)
+                DriftRecord("catala", "catala_manifest_missing", _EXTRACTION_MANIFEST)
             )
         return records, git_unavailable
 
     try:
         manifest = yaml.safe_load(manifest_path.read_text()) or {}
     except yaml.YAMLError:
-        if civil_present:
+        if catala_present:
             records.append(
-                DriftRecord("civil", "civil_manifest_missing", _EXTRACTION_MANIFEST)
+                DriftRecord("catala", "catala_manifest_missing", _EXTRACTION_MANIFEST)
             )
         return records, git_unavailable
 
@@ -367,16 +367,16 @@ def _check_civil(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         if isinstance(path, str) and isinstance(sha, str):
             consumed.setdefault(path, sha)
 
-    if civil_present and not consumed:
+    if catala_present and not consumed:
         records.append(
-            DriftRecord("civil", "civil_manifest_missing", _EXTRACTION_MANIFEST)
+            DriftRecord("catala", "catala_manifest_missing", _EXTRACTION_MANIFEST)
         )
         return records, git_unavailable
 
     for rel, recorded_sha in sorted(consumed.items()):
         path = domain_dir / rel
         if not path.is_file():
-            records.append(DriftRecord("civil", "civil_stale", rel))
+            records.append(DriftRecord("catala", "catala_stale", rel))
             continue
         if recorded_sha == "untracked":
             continue
@@ -384,16 +384,16 @@ def _check_civil(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         if current == "untracked":
             git_unavailable = True
         elif current != recorded_sha:
-            records.append(DriftRecord("civil", "civil_stale", rel))
+            records.append(DriftRecord("catala", "catala_stale", rel))
 
     if git_unavailable:
-        records.append(DriftRecord("civil", "git_unavailable", "git hash-object failed"))
+        records.append(DriftRecord("catala", "git_unavailable", "git hash-object failed"))
 
     return records, git_unavailable
 
 
 # ---------------------------------------------------------------------------
-# tests tier: specs/*.civil.yaml vs specs/tests/.civil-manifest.yaml
+# tests tier: specs/*.catala_en vs specs/tests/.catala-manifest.yaml
 # ---------------------------------------------------------------------------
 
 def _tests_tier_has_outputs(domain_dir: Path) -> bool:
@@ -411,15 +411,15 @@ def _check_tests(domain_dir: Path) -> tuple[list[DriftRecord], bool]:
         records.append(DriftRecord("tests", "not_applicable", _TESTS))
         return records, git_unavailable
 
-    manifest_path = domain_dir / _CIVIL_MANIFEST
+    manifest_path = domain_dir / _CATALA_MANIFEST
     if not manifest_path.is_file():
-        records.append(DriftRecord("tests", "tests_manifest_missing", _CIVIL_MANIFEST))
+        records.append(DriftRecord("tests", "tests_manifest_missing", _CATALA_MANIFEST))
         return records, git_unavailable
 
     try:
         manifest = yaml.safe_load(manifest_path.read_text()) or {}
     except yaml.YAMLError:
-        records.append(DriftRecord("tests", "tests_manifest_missing", _CIVIL_MANIFEST))
+        records.append(DriftRecord("tests", "tests_manifest_missing", _CATALA_MANIFEST))
         return records, git_unavailable
 
     files_map: dict[str, str] = manifest.get("files") or {}
@@ -454,11 +454,11 @@ def cmd_check(domain_dir: Path) -> tuple[list[DriftRecord], dict[str, int]]:
     NOT counted.
     """
     all_records: list[DriftRecord] = []
-    for checker in (_check_facets, _check_guidance, _check_civil, _check_tests):
+    for checker in (_check_facets, _check_guidance, _check_catala, _check_tests):
         records, _ = checker(domain_dir)
         all_records.extend(records)
 
-    counts = {"facets": 0, "guidance": 0, "civil": 0, "tests": 0}
+    counts = {"facets": 0, "guidance": 0, "catala": 0, "tests": 0}
     for rec in all_records:
         if rec.category == "not_applicable":
             continue
@@ -511,7 +511,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Check freshness across the full xlator derivation chain "
-            "(policy_facets -> guidance -> civil -> tests) and emit per-tier "
+            "(policy_facets -> guidance -> catala -> tests) and emit per-tier "
             "drift records. Exits 1 on any drift or degraded-environment "
             "signal; 0 only when every tier is fresh."
         )
@@ -546,7 +546,7 @@ def main() -> None:
         print()
     print(
         f"summary facets={counts['facets']} guidance={counts['guidance']} "
-        f"civil={counts['civil']} tests={counts['tests']}"
+        f"catala={counts['catala']} tests={counts['tests']}"
     )
 
     total_drift = sum(counts.values())

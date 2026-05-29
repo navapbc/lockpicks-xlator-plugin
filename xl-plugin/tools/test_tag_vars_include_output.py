@@ -154,14 +154,13 @@ def test_pass1_captures_multiple_bases_in_one_expression():
 
 
 # ---------------------------------------------------------------------------
-# Pass 2a — civil-snippet dot-notation
+# Pass 2a — Catala-snippet dot-notation (sub-scope output field access)
 # ---------------------------------------------------------------------------
 
 def test_pass2a_extracts_dot_notation_from_ruleset_modules():
-    civil = (
-        "computed:\n"
-        "  - name: x\n"
-        "    expr: dol_result.gross_earned\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  definition x equals dol_result.gross_earned\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
@@ -172,7 +171,7 @@ def test_pass2a_extracts_dot_notation_from_ruleset_modules():
                     {
                         "name": "m1",
                         "sample_rules": [
-                            {"id": "r1", "civil": civil},
+                            {"id": "r1", "catala": catala},
                         ],
                     },
                 ],
@@ -183,17 +182,16 @@ def test_pass2a_extracts_dot_notation_from_ruleset_modules():
 
 
 def test_pass2a_extracts_dot_notation_from_sample_artifacts():
-    civil = (
-        "computed:\n"
-        "  - name: x\n"
-        "    expr: client_result.adjusted\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  definition x equals client_result.adjusted\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -201,17 +199,16 @@ def test_pass2a_extracts_dot_notation_from_sample_artifacts():
 
 
 def test_pass2a_whitespace_around_dot_tolerated():
-    civil = (
-        "computed:\n"
-        "  - name: x\n"
-        "    expr: 'client_result . adjusted_earned'\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  definition x equals client_result . adjusted_earned\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -219,22 +216,22 @@ def test_pass2a_whitespace_around_dot_tolerated():
 
 
 # ---------------------------------------------------------------------------
-# Pass 2b — when-clause tokenization
+# Pass 2b — under-condition tokenization (Catala rule-condition surface)
 # ---------------------------------------------------------------------------
 
-def test_pass2b_tokenizes_when_clause():
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when: 'is_compatible and household_size > 0'\n"
-        "    then: {decision: approve}\n"
+def test_pass2b_tokenizes_under_condition():
+    catala = (
+        "scope Eligibility:\n"
+        "  rule is_eligible\n"
+        "    under condition is_compatible and household_size > 0\n"
+        "    consequence fulfilled\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -243,18 +240,19 @@ def test_pass2b_tokenizes_when_clause():
         assert "household_size" in out
 
 
-def test_pass2b_filters_keywords():
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when: 'if x and y or not z'\n"
+def test_pass2b_filters_catala_keywords():
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition if x and y or not z then true else false\n"
+        "    consequence fulfilled\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -262,7 +260,7 @@ def test_pass2b_filters_keywords():
         assert "x" in out
         assert "y" in out
         assert "z" in out
-        for kw in ("if", "and", "or", "not"):
+        for kw in ("if", "then", "else", "and", "or", "not", "true", "false"):
             assert kw not in out
 
 
@@ -270,17 +268,18 @@ def test_pass2b_dot_notation_rhs_not_surfaced_as_bare_ident():
     """`client_result.income > 100`: `client_result` is captured by Pass 2a
     via the dot-notation regex; `income` (the RHS member) is NOT a bare
     identifier and must not surface from Pass 2b."""
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when: 'client_result.income > 100'\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition client_result.income > 100\n"
+        "    consequence fulfilled\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -292,17 +291,18 @@ def test_pass2b_dot_notation_rhs_not_surfaced_as_bare_ident():
 def test_pass2b_string_literals_filtered():
     """Identifiers inside quoted strings must NOT surface; only the
     bare-identifier on the LHS of the comparison should."""
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when: 'code == \"DENY_INCOME\"'\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition code = \"DENY_INCOME\"\n"
+        "    consequence fulfilled\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -311,22 +311,24 @@ def test_pass2b_string_literals_filtered():
         assert "DENY_INCOME" not in out
 
 
-def test_pass2b_when_list_form_supported():
-    """CIVIL emits `when:` as a list of conjunctive conditions; each element
-    is a separate string to tokenize."""
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when:\n"
-        "      - a_flag == true\n"
-        "      - b_flag == false\n"
+def test_pass2b_multiple_rules_in_one_snippet():
+    """A Catala snippet with multiple `under condition` clauses yields
+    identifiers from each clause body independently."""
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition a_flag\n"
+        "    consequence fulfilled\n"
+        "  rule r2\n"
+        "    under condition b_flag\n"
+        "    consequence fulfilled\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         tvio.run(domain)
@@ -335,35 +337,26 @@ def test_pass2b_when_list_form_supported():
         assert "b_flag" in out
 
 
-def test_pass2b_yaml_parse_failure_warns_and_skips():
-    """A civil snippet that fails YAML parsing emits a WARN to stderr,
-    Pass 2a (raw-string regex) still runs, and Pass 2b is skipped for that
-    snippet only."""
-    bad_civil = "rules:\n  - id: r1\n    when: : : : not valid yaml :\n"
-    good_civil = "rules:\n  - id: r2\n    when: 'good_flag == true'\n"
+def test_pass2b_money_literals_filtered():
+    """Catala money literals (`$1,000`) must not surface as identifier tokens."""
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition gross_income < $1,255 and rate < 200%\n"
+        "    consequence fulfilled\n"
+    )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [
-                    {"id": "bad", "civil": bad_civil},
-                    {"id": "good", "civil": good_civil},
-                ],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
-        # Capture stderr from the in-process run.
-        import io
-        import contextlib
-        buf = io.StringIO()
-        with contextlib.redirect_stderr(buf):
-            tvio.run(domain)
-        err = buf.getvalue()
-        assert "WARN" in err
-        assert "bad" in err
+        tvio.run(domain)
         out = _read_output(domain)
-        # Good snippet's Pass 2b still ran.
-        assert "good_flag" in out
+        assert "gross_income" in out
+        assert "rate" in out
 
 
 # ---------------------------------------------------------------------------
@@ -423,20 +416,19 @@ def test_merge_pass1_wins_over_pass3():
 
 def test_merge_pass2a_wins_over_pass2b():
     """Same name from Pass 2a and Pass 2b: Pass 2a reason wins."""
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when: 'shared_var > 0'\n"
-        "computed:\n"
-        "  - name: x\n"
-        "    expr: shared_var.field\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition shared_var > 0\n"
+        "    consequence fulfilled\n"
+        "  definition x equals shared_var.field\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
             Path(tmp),
             manifest={"version": "1.0", "outputs": {}},
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
         )
         import io
@@ -446,7 +438,7 @@ def test_merge_pass2a_wins_over_pass2b():
             tvio.run(domain)
         lines = buf.getvalue().splitlines()
         line = next(l for l in lines if "shared_var" in l and l.startswith("  "))
-        assert tvio._REASON_CIVIL_SNIPPET in line
+        assert tvio._REASON_CATALA_SNIPPET in line
 
 
 # ---------------------------------------------------------------------------
@@ -495,13 +487,12 @@ def test_existing_entry_also_detected_gets_detection_reason():
 def test_output_order_pass1_then_pass3_then_existing():
     """Detected names appear in detection-pass order; existing-only names
     appended last in their prior file order."""
-    civil = (
-        "rules:\n"
-        "  - id: r1\n"
-        "    when: 'snippet_when > 0'\n"
-        "computed:\n"
-        "  - name: x\n"
-        "    expr: snippet_dot.member\n"
+    catala = (
+        "scope Eligibility:\n"
+        "  rule r1\n"
+        "    under condition snippet_under > 0\n"
+        "    consequence fulfilled\n"
+        "  definition x equals snippet_dot.member\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
         domain = _build_domain(
@@ -518,7 +509,7 @@ def test_output_order_pass1_then_pass3_then_existing():
                 },
             },
             sample_artifacts={
-                "sample_rules": [{"id": "r1", "civil": civil}],
+                "sample_rules": [{"id": "r1", "catala": catala}],
             },
             existing=["legacy_one", "legacy_two"],
         )
@@ -527,7 +518,7 @@ def test_output_order_pass1_then_pass3_then_existing():
         assert out == [
             "skeleton_base",
             "snippet_dot",
-            "snippet_when",
+            "snippet_under",
             "output_one",
             "output_two",
             "legacy_one",

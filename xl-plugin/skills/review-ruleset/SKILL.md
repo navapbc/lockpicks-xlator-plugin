@@ -5,16 +5,16 @@ description: Review Extracted Ruleset
 
 # Review Extracted Ruleset
 
-Present a computation graph preview and human review gate for an already-extracted CIVIL ruleset, then refresh graph artifacts and capture guidance learnings.
+Present a computation graph preview and human review gate for an already-extracted Catala ruleset, then refresh graph artifacts and capture guidance learnings.
 
 ## Input
 
 ```
 /review-ruleset <domain>                          # auto-detect program or prompt if ambiguous
-/review-ruleset <domain> <program>                # target a specific <program>.civil.yaml
+/review-ruleset <domain> <program>                # target a specific <program>.catala_en
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.civil.yaml` files and prompt the user to choose.
+If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.catala_en` files and prompt the user to choose.
 
 ---
 
@@ -35,22 +35,22 @@ Run these checks before doing anything else:
      :::
      Stop.
 
-2. **CIVIL file exists?**
-   - **If `<program>` was given:** check if `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml` exists. If not:
+2. **Catala source exists?**
+   - **If `<program>` was given:** check if `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` exists. If not:
      :::error
-     No CIVIL file found for <program>. Run /extract-ruleset <domain> <program> first.
+     No Catala source found for <program>. Run /extract-ruleset <domain> <program> first.
      :::
      Stop.
-   - **If `<program>` was not given:** check `$DOMAINS_DIR/<domain>/specs/*.civil.yaml`:
+   - **If `<program>` was not given:** check `$DOMAINS_DIR/<domain>/specs/*.catala_en`:
      - 0 files →
        :::error
-       No CIVIL file found for this domain. Run /extract-ruleset <domain> first.
+       No Catala source found for this domain. Run /extract-ruleset <domain> first.
        :::
        Stop.
      - 1 file → use it; set `<program>` to the filename stem.
      - 2+ files → list them and prompt:
        :::user_input
-       Multiple CIVIL files found:
+       Multiple Catala sources found:
          - <program1>
          - <program2>
          ...
@@ -74,8 +74,12 @@ Run these checks before doing anything else:
 **Multi-file:** Run for each `generate` entry in the work-list, in work-list order.
 
 ```bash
-uv run tools/computation_graph.py $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml
+xlator graph <domain> <program>
 ```
+
+`xlator graph` routes to the canonical Catala graph generator (`tools/catala_depgraph.py`),
+which reads `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` and writes
+`<program>.graph.yaml` and `<program>.mmd` next to the source.
 
 Always run unconditionally — regenerates even if graph files already exist from a prior run.
 Capture stdout. Do not echo verbatim.
@@ -98,7 +102,7 @@ Proceed to Step 2 without showing graph content.
 
 **Multi-file:** Run the review gate sequentially per file in work-list order. For each `generate` entry, present a full review gate (computation graph + review summary) with the header:
 ```
-Review Gate (File N of M): <module_name>  [$DOMAINS_DIR/<domain>/specs/<module_name>.civil.yaml]
+Review Gate (File N of M): <module_name>  [$DOMAINS_DIR/<domain>/specs/<module_name>.catala_en]
 ```
 On rejection within a file's gate: re-extract only that file (see **On rejection** below). Proceed to the next file only after the current file's gate passes. Skip `reference` entries (no review gate for files not regenerated).
 
@@ -163,7 +167,7 @@ Does this translation correctly capture the policy intent? Any rules missing or 
 
 **SP-TagOutputs (output tagging):** Run **SP-TagOutputs** once per `generate` entry in the work-list, in work-list order.
 
-**Multi-file SP-TagOutputs behavior:** For sub-module files, before displaying the ranked list, pre-select and lock any computed fields whose names appear in the main module's `invoke:` dot-access expressions (e.g., if the main module accesses `client_result.net_income`, then `net_income` in the sub-module's computed: section is locked as `[REQUIRED for parent invoke:]` and cannot be deselected). Display locked fields at the top of the ranked list marked `[REQUIRED]`. Fields in the guidance output set (`[GUIDANCE]`) follow, then remaining fields in standard SP-TagOutputs rank order. See SP-TagOutputs in `../../core/ruleset-shared.md` for the full tier logic.
+**Multi-file SP-TagOutputs behavior:** For sub-module files, before displaying the ranked list, pre-select and lock any output fields whose names appear in the main module's Catala scope-call dot-access expressions (e.g., if the main module accesses `client_result.net_income` from `client_result scope ClientResult.ClientResult`, then `net_income` in the sub-module's output set is locked as `[REQUIRED for parent scope-call]` and cannot be deselected). Display locked fields at the top of the ranked list marked `[REQUIRED]`. Fields in the guidance output set (`[GUIDANCE]`) follow, then remaining fields in standard SP-TagOutputs rank order. See SP-TagOutputs in `../../core/ruleset-shared.md` for the full tier logic.
 
 Run **SP-ComputeGraph** after all files in the work-list have been reviewed and approved. In multi-file context, run SP-ComputeGraph for each `generate` entry separately.
 
@@ -174,9 +178,9 @@ Run **SP-GuidanceCapture** once per per-file review gate that passed (after each
 **SP-CompleteExtraction (multi-file footer):** Run **SP-CompleteExtraction**. In multi-file context, prepend to the footer:
 :::important
 Files reviewed:
-  - $DOMAINS_DIR/<domain>/specs/<sub_module_name>.civil.yaml  [generated]
-  - $DOMAINS_DIR/<domain>/specs/<sub_module_name2>.civil.yaml  [referenced]
-  - $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml  [generated]
+  - $DOMAINS_DIR/<domain>/specs/<sub_module_name>.catala_en  [generated]
+  - $DOMAINS_DIR/<domain>/specs/<sub_module_name2>.catala_en  [referenced]
+  - $DOMAINS_DIR/<domain>/specs/<program>.catala_en  [generated]
 
 extraction-manifest.yaml now tracks N files.
 :::
