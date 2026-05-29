@@ -1,19 +1,43 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
-# dependencies = ["pyyaml>=6.0"]
+# dependencies = []
 # ///
 """
 xlator review-buckets: deterministic Step-2 bucket partitioning for
 `/review-ruleset`.
 
-Loads `specs/<program>.civil.yaml`, walks every `rules:` and `computed:`
-entry, partitions them by their `review:` scores, and emits a formatted
-analyst-facing review block plus a single-line JSON header the skill
-parses to populate its summary.
+Parses `specs/<program>.catala_en`, finds every `<!-- review: ... -->`
+HTML-comment block paired with the immediately-following ` ```catala `
+(or ` ```catala-metadata `) fenced block, and partitions the resulting
+items by their `review:` scores. Emits a single-line JSON header plus a
+formatted analyst-facing body.
+
+Why HTML-comment blocks? Catala has no native annotation field on a
+`rule`/`definition`. The AI-authoring convention (documented in
+`xl-plugin/skills/extract-ruleset/SKILL.md`) puts a `<!-- review: ... -->`
+block on the prose line immediately above each fenced block:
+
+    <!-- review:
+           extraction_fidelity: 5
+           source_clarity: 5
+           logic_complexity: 1
+           policy_complexity: 1
+           notes: "..."
+    -->
+
+    ```catala
+    scope EligibilityDecision:
+      rule rule_name
+        under condition X
+        consequence fulfilled
+    ```
+
+The Catala parser ignores HTML comments (they live outside fences) so
+they have no compile-time effect; markdown renderers also drop them.
 
 Partitioning (priorities applied top-down):
-  Unscored  — `review:` block absent.
+  Unscored  — `review:` block absent above the fence.
   Uncertain — `extraction_fidelity` <= 2 OR `source_clarity` <= 2.
   Complex   — (`logic_complexity` >= 4 OR `policy_complexity` >= 4)
               AND not already in Uncertain.
@@ -34,9 +58,9 @@ Usage:
 
 Exit codes:
     0 — success
-    2 — pre-flight failure (missing domain, missing CIVIL file,
+    2 — pre-flight failure (missing domain, missing Catala source,
         unset DOMAINS_FULLPATH)
-    1 — unexpected error (YAML parse failure, IO error)
+    1 — unexpected error (IO error, malformed review block)
 """
 
 from __future__ import annotations
@@ -44,17 +68,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
-from typing import Any
-
-import yaml
+from typing import Optional
 
 _HEADER_SENTINEL = "--- REVIEW-BUCKETS-HEADER-END ---"
-
-# 65-dash separator between per-item blocks. Matches the skill's prose.
 _ITEM_SEPARATOR = "─" * 65
-
 _ALL_VERIFIED_MESSAGE = "All items verified — no uncertain or complex items."
 
 # Score thresholds (locked at v1 — bumping requires a rubric decision).
@@ -70,6 +90,23 @@ _SCORE_FIELDS = (
     "policy_complexity",
 )
 
+# Markdown / Catala recognition patterns.
+_HEADING_RE = re.compile(r"^#+\s+(.*?)\s*$")
+_SOURCE_LINE_RE = re.compile(r"^\s*\*Source:\s*(.+?)\s*\*\s*$")
+_REVIEW_OPEN_RE = re.compile(r"^\s*<!--\s*review:\s*$")
+_REVIEW_CLOSE_RE = re.compile(r"^\s*-->\s*$")
+_FENCE_OPEN_RE = re.compile(r"^\s*```(catala(?:-metadata)?)\s*$")
+_FENCE_CLOSE_RE = re.compile(r"^\s*```\s*$")
+_SCORE_LINE_RE = re.compile(r"^\s*([a-z_]+)\s*:\s*(.+?)\s*$")
+
+# First-identifier patterns inside a fence body. The leading `scope <Name>:`
+# line is skipped; the next non-blank line that matches one of these
+# becomes the item identifier.
+_RULE_RE = re.compile(r"^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)")
+_DEFINITION_RE = re.compile(r"^\s*definition\s+([A-Za-z_][A-Za-z0-9_]*)")
+_LABEL_RE = re.compile(r"^\s*label\s+([A-Za-z_][A-Za-z0-9_]*)")
+_EXCEPTION_RE = re.compile(r"^\s*exception(?:\s+([A-Za-z_][A-Za-z0-9_]*))?")
+
 
 # ---------------------------------------------------------------------------
 # Item normalization
@@ -84,7 +121,7 @@ class Item:
         "description",
         "scores",
         "source_str",
-        "civil_str",
+        "catala_str",
         "notes",
     )
 
@@ -94,140 +131,167 @@ class Item:
         display_id: str,
         kind: str,
         description: str,
-        scores: dict[str, int] | None,
+        scores: Optional[dict[str, int]],
         source_str: str,
-        civil_str: str,
-        notes: str | None,
+        catala_str: str,
+        notes: Optional[str],
     ) -> None:
         self.raw_id = raw_id
         self.display_id = display_id
-        self.kind = kind  # "rule" | "computed"
+        self.kind = kind  # "rule" | "definition"
         self.description = description
         self.scores = scores
         self.source_str = source_str
-        self.civil_str = civil_str
+        self.catala_str = catala_str
         self.notes = notes
 
 
-def _render_source(source: Any) -> str:
-    """Format a `source:` field. Accepts string (pre-joined) or dict."""
-    if isinstance(source, str) and source:
-        return source
-    if isinstance(source, dict):
-        file_v = source.get("file")
-        section_v = source.get("section")
-        file_s = str(file_v) if isinstance(file_v, str) and file_v else None
-        section_s = str(section_v) if isinstance(section_v, str) and section_v else None
-        if file_s and section_s:
-            return f"{file_s} — {section_s}"
-        if section_s:
-            return section_s
-        if file_s:
-            return file_s
-    return "(no source)"
+def _parse_review_block(lines: list[str]) -> tuple[Optional[dict[str, int]], Optional[str]]:
+    """Parse the body of an HTML review comment into (scores, notes).
+
+    `lines` excludes the opening `<!-- review:` and the closing `-->`.
+    Each score line is `<key>: <int>`; notes is a quoted string. Missing
+    individual scores default to 3 (mid-range) to surface partially-scored
+    entries without forcing them into Unscored."""
+    scores: dict[str, int] = {f: 3 for f in _SCORE_FIELDS}
+    notes: Optional[str] = None
+    any_score = False
+    for ln in lines:
+        m = _SCORE_LINE_RE.match(ln)
+        if not m:
+            continue
+        key, value = m.group(1), m.group(2)
+        if key in _SCORE_FIELDS:
+            try:
+                scores[key] = int(value)
+                any_score = True
+            except ValueError:
+                continue
+        elif key == "notes":
+            v = value.strip()
+            if v.startswith('"') and v.endswith('"'):
+                v = v[1:-1]
+            if v:
+                notes = v
+    if not any_score and notes is None:
+        return None, None
+    return scores, notes
 
 
-def _render_conditional(node: dict[str, Any]) -> str:
-    """Render a `conditional:` block as `if <if> then <then> else <else>`."""
-    cond_if = node.get("if", "")
-    cond_then = node.get("then", "")
-    cond_else = node.get("else", "")
-    return f"if {cond_if} then {cond_then} else {cond_else}"
+def _classify_fence(fence_lines: list[str]) -> tuple[str, str, str]:
+    """Inspect a fence body and return (kind, identifier, catala_str).
+
+    - kind is "rule" or "definition" (Catala's `rule` vs `definition`).
+    - identifier is the first rule/definition name found.
+    - catala_str is the first non-trivial code line for display.
+
+    Labels and `exception <label>` annotations are skipped — the
+    identifier comes from the next `rule`/`definition` line.
+    """
+    kind = "definition"
+    identifier = ""
+    display_line = ""
+    for raw in fence_lines:
+        line = raw.rstrip("\n")
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("scope "):
+            continue
+        if _LABEL_RE.match(line) or _EXCEPTION_RE.match(line) and "definition" not in line and "rule" not in line:
+            continue
+        if not display_line:
+            display_line = stripped
+        m_rule = _RULE_RE.match(line)
+        if m_rule:
+            kind = "rule"
+            identifier = m_rule.group(1)
+            break
+        m_def = _DEFINITION_RE.match(line)
+        if m_def:
+            kind = "definition"
+            identifier = m_def.group(1)
+            break
+    return kind, identifier, display_line
 
 
-def _render_civil_for_rule(entry: dict[str, Any]) -> str:
-    when = entry.get("when")
-    if isinstance(when, list):
-        return " AND ".join(str(w) for w in when)
-    if isinstance(when, str):
-        return when
-    return ""
+def collect_items(source_text: str) -> list[Item]:
+    """Walk a `.catala_en` source and return one Item per fenced block.
 
-
-def _render_civil_for_computed(entry: dict[str, Any]) -> str:
-    expr = entry.get("expr")
-    if isinstance(expr, str) and expr:
-        return expr
-    conditional = entry.get("conditional")
-    if isinstance(conditional, dict):
-        return _render_conditional(conditional)
-    return ""
-
-
-def _coerce_scores(review_block: Any) -> dict[str, int] | None:
-    """Return a dict of the four score fields if a review block is present;
-    None if the review block is absent. Missing individual score fields
-    default to 3 (mid-range) — surfaces partially-scored entries without
-    forcing them into Unscored."""
-    if not isinstance(review_block, dict):
-        return None
-    scores: dict[str, int] = {}
-    for field in _SCORE_FIELDS:
-        v = review_block.get(field)
-        if isinstance(v, int):
-            scores[field] = v
-        else:
-            scores[field] = 3
-    return scores
-
-
-def _coerce_notes(review_block: Any) -> str | None:
-    if not isinstance(review_block, dict):
-        return None
-    notes = review_block.get("notes")
-    if isinstance(notes, str) and notes.strip():
-        return notes
-    return None
-
-
-def _normalize_rule(entry: dict[str, Any]) -> Item:
-    raw_id = str(entry.get("id", "<unidentified-rule>"))
-    description = str(entry.get("description", "") or "")
-    review_block = entry.get("review")
-    return Item(
-        raw_id=raw_id,
-        display_id=raw_id,
-        kind="rule",
-        description=description,
-        scores=_coerce_scores(review_block),
-        source_str=_render_source(entry.get("source")),
-        civil_str=_render_civil_for_rule(entry),
-        notes=_coerce_notes(review_block),
-    )
-
-
-def _normalize_computed(name: str, entry: dict[str, Any]) -> Item:
-    description = str(entry.get("description", "") or "")
-    review_block = entry.get("review")
-    return Item(
-        raw_id=name,
-        display_id=f"computed: {name}",
-        kind="computed",
-        description=description,
-        scores=_coerce_scores(review_block),
-        source_str=_render_source(entry.get("source")),
-        civil_str=_render_civil_for_computed(entry),
-        notes=_coerce_notes(review_block),
-    )
-
-
-def _collect_items(civil_data: dict[str, Any]) -> list[Item]:
-    """Walk `rules:` (source order) then `computed:` (alphabetical) and
-    return normalized Item records."""
+    State-machine pass: track the most recent `## Heading`, the most
+    recent `*Source: ...*` line, and any pending `<!-- review: -->`
+    block. When a fence opens, snapshot those into an Item; when the
+    fence closes, append the Item.
+    """
+    lines = source_text.splitlines()
     items: list[Item] = []
 
-    rules = civil_data.get("rules")
-    if isinstance(rules, list):
-        for entry in rules:
-            if isinstance(entry, dict):
-                items.append(_normalize_rule(entry))
+    last_heading = ""
+    last_source = ""
+    pending_scores: Optional[dict[str, int]] = None
+    pending_notes: Optional[str] = None
+    pending_has_review = False
 
-    computed = civil_data.get("computed")
-    if isinstance(computed, dict):
-        for name in sorted(computed.keys()):
-            entry = computed[name]
-            if isinstance(entry, dict):
-                items.append(_normalize_computed(str(name), entry))
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+
+        m_heading = _HEADING_RE.match(line)
+        if m_heading:
+            last_heading = m_heading.group(1).strip()
+            i += 1
+            continue
+
+        m_source = _SOURCE_LINE_RE.match(line)
+        if m_source:
+            last_source = m_source.group(1).strip()
+            i += 1
+            continue
+
+        if _REVIEW_OPEN_RE.match(line):
+            body: list[str] = []
+            i += 1
+            while i < n and not _REVIEW_CLOSE_RE.match(lines[i]):
+                body.append(lines[i])
+                i += 1
+            i += 1  # consume the closing -->
+            pending_scores, pending_notes = _parse_review_block(body)
+            pending_has_review = True
+            continue
+
+        if _FENCE_OPEN_RE.match(line):
+            fence_body: list[str] = []
+            i += 1
+            while i < n and not _FENCE_CLOSE_RE.match(lines[i]):
+                fence_body.append(lines[i])
+                i += 1
+            i += 1  # consume closing ```
+            kind, ident, catala_str = _classify_fence(fence_body)
+            if not ident:
+                # No rule/definition inside this fence — likely a pure
+                # declaration block (struct/enum/scope-declaration); skip.
+                pending_scores = None
+                pending_notes = None
+                pending_has_review = False
+                continue
+            display_id = ident if kind == "rule" else f"computed: {ident}"
+            items.append(Item(
+                raw_id=ident,
+                display_id=display_id,
+                kind=kind,
+                description=last_heading or "",
+                scores=pending_scores if pending_has_review else None,
+                source_str=last_source or "(no source)",
+                catala_str=catala_str,
+                notes=pending_notes,
+            ))
+            pending_scores = None
+            pending_notes = None
+            pending_has_review = False
+            continue
+
+        i += 1
 
     return items
 
@@ -251,7 +315,7 @@ def _is_complex(scores: dict[str, int]) -> bool:
     )
 
 
-def _partition(items: list[Item]) -> dict[str, list[Item]]:
+def partition(items: list[Item]) -> dict[str, list[Item]]:
     buckets: dict[str, list[Item]] = {
         "uncertain": [],
         "complex": [],
@@ -317,7 +381,7 @@ def _format_item_block(item: Item, emoji: str, label: str, flagged_for: str) -> 
             f"    Scores: {_format_scores_line(item.scores or {})}",
             f"    Flagged for: {flagged_for}",
             f'    Policy: "{item.source_str}"',
-            f"    CIVIL:  {item.civil_str}",
+            f"    Catala: {item.catala_str}",
             f"    Notes:  {notes}",
             _ITEM_SEPARATOR,
         ]
@@ -327,21 +391,14 @@ def _format_item_block(item: Item, emoji: str, label: str, flagged_for: str) -> 
 def _format_compact_list(items: list[Item], heading: str) -> str:
     lines = [heading]
     for item in items:
-        if item.kind == "rule":
-            if item.description:
-                lines.append(f"    • {item.display_id}: {item.description}")
-            else:
-                lines.append(f"    • {item.display_id}")
+        if item.description:
+            lines.append(f"    • {item.display_id} — {item.description}")
         else:
-            if item.description:
-                lines.append(f"    • {item.display_id} — {item.description}")
-            else:
-                lines.append(f"    • {item.display_id}")
+            lines.append(f"    • {item.display_id}")
     return "\n".join(lines)
 
 
 def _format_summary_header(buckets: dict[str, list[Item]], total: int) -> str:
-    # Preserve the two-space gap before the parenthetical — see R6.
     return (
         f"Review summary: {len(buckets['uncertain'])} uncertain, "
         f"{len(buckets['complex'])} complex, "
@@ -439,46 +496,34 @@ def _format_json_header(buckets: dict[str, list[Item]]) -> str:
 
 
 def run(domain_dir: Path, program: str) -> int:
-    civil_path = domain_dir / "specs" / f"{program}.civil.yaml"
-    if not civil_path.is_file():
-        print(f"CIVIL file not found: {civil_path}", file=sys.stderr)
+    catala_path = domain_dir / "specs" / f"{program}.catala_en"
+    if not catala_path.is_file():
+        print(f"Catala source not found: {catala_path}", file=sys.stderr)
         return 2
 
-    with civil_path.open(encoding="utf-8") as f:
-        civil_data = yaml.safe_load(f) or {}
+    source_text = catala_path.read_text(encoding="utf-8")
+    items = collect_items(source_text)
+    buckets = partition(items)
 
-    if not isinstance(civil_data, dict):
-        print(
-            f"Unexpected CIVIL file shape (expected top-level mapping): {civil_path}",
-            file=sys.stderr,
-        )
-        return 1
-
-    items = _collect_items(civil_data)
-    buckets = _partition(items)
-
-    header_json = _format_json_header(buckets)
-    body = _format_body(buckets)
-
-    print(header_json)
+    print(_format_json_header(buckets))
     print(_HEADER_SENTINEL)
-    print(body)
+    print(_format_body(buckets))
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Partition a CIVIL ruleset's rules/computed entries into "
+            "Partition a Catala ruleset's rules/definitions into "
             "Uncertain / Complex / Verified / Unscored buckets by their "
-            "review: scores; emit a JSON header plus a formatted body "
-            "for /review-ruleset Step 2."
+            "HTML-comment review: scores; emit a JSON header plus a "
+            "formatted body for /review-ruleset Step 2."
         )
     )
     parser.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     parser.add_argument(
         "program",
-        help="Program name — selects specs/<program>.civil.yaml",
+        help="Program name — selects specs/<program>.catala_en",
     )
     args = parser.parse_args()
 

@@ -320,7 +320,7 @@ def _build_work_list(
     """Resolve the multi-file work-list.
 
     No ruleset-modules entries → `[{name: <program>, role: main, action: <a>}]`
-    where action depends on whether `<program>.civil.yaml` exists.
+    where action depends on whether `<program>.catala_en` exists.
 
     With entries → sub-modules first (in declaration order), main module
     (the entry with `role: main`, if any) last. Each entry's action is
@@ -569,7 +569,7 @@ def main() -> int:
         default=None,
         help="Program name (optional). Auto-detected from "
         "ruleset-modules.yaml's role: main entry, or from a single "
-        "specs/*.civil.yaml file when unambiguous.",
+        "specs/*.catala_en file when unambiguous.",
     )
     parser.add_argument(
         "--mode",

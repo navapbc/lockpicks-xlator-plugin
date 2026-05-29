@@ -122,26 +122,6 @@ and not redundant. They serve different audiences.
 
 The following subroutines are referenced from the steps above. When a step says "Run **SP-Name**", find the matching section below and execute it.
 
-### SP-Validate
-
-```bash
-xlator validate <domain> <module>
-```
-
-**On failure — retry loop (max 3 attempts):**
-- Read the specific error message
-- Identify the offending CIVIL section
-- For more Catala syntax details, see [`core/catala-authoring-quickref.md`](catala-authoring-quickref.md)
-- Re-extract or fix that section
-- Re-validate
-
-After 3 failed attempts, stop and print:
-```
-Validation failed after 3 attempts. Errors:
-  <error list>
-Fix manually, then re-run: xlator validate <domain> <module>
-```
-
 ### SP-ComputeGraph
 
 ```bash
@@ -235,27 +215,28 @@ To extract from all files as a unified corpus, re-run and select all files at th
 
 **When to run:** At the end of the Human Review Gate, after the user has approved the translation. Run SP-TagOutputs before SP-GuidanceCapture.
 
-**Applies to Catala backends only.** Rego backends surface all computed fields automatically via `decision.computed` — SP-TagOutputs has no effect on Rego transpilation.
+**Mechanism:** Promote selected `internal` variables in the Catala scope declaration to `output`. Catala's scope variable kinds (`input`, `internal`, `output`, `context`) determine what is returned to callers; promoting `internal` → `output` exposes the value to the demo breakdown, downstream `> Using` consumers, and `catala_eval` JSON output.
 
 **Steps:**
 
-1. Read the `computed:` section of `$DOMAINS_DIR/<domain>/specs/<program>.civil.yaml`.
-2. If there are no `computed:` fields, print: "No computed fields found — skipping output selection." and stop.
-3. Identify fields **ineligible** for `output` tagging: `type: bool` fields that have `expr:` (Catala uses `condition` syntax for these, which cannot be declared `output`). Exclude them from the ranked list.
-4. Rank remaining eligible fields by explanatory importance:
-   - **Tier 1 (highest):** Fields that directly feed a deny rule condition
+1. Read `$DOMAINS_DIR/<domain>/specs/<program>.catala_en`. Parse the `declaration scope <ScopeName>:` block inside the `catala-metadata` fence under `## Declarations`.
+2. Collect every `internal <name> content <type>` declaration (these are the candidates for output promotion). If the scope declares no `internal` variables, print: "No internal variables found — skipping output selection." and stop.
+3. Identify variables **ineligible** for promotion: `internal <name> condition` declarations. Catala has no `output ... condition` form; condition variables are inherently internal. Exclude them from the ranked list.
+4. Rank remaining eligible variables by explanatory importance:
+   - **Tier 1 (highest):** Variables that directly feed a deny rule's `under condition` clause
    - **Tier 2:** Final pipeline output values (e.g., `countable_earned_income`, `income_limit`)
    - **Tier 3:** Major pipeline stage milestones (e.g., `after_federal_exclusions`, `after_student`)
    - **Tier 4:** Sub-steps within a single exclusion stage
 5. Display the ranked list with three pre-selection tiers:
-   - **`[REQUIRED]`** — fields whose names appear in the main module's `invoke:` dot-access expressions (sub-module files only); locked, cannot be deselected.
-   - **`[GUIDANCE]`** — fields whose names appear in the guidance output set (the flat list in `guidance/include-with-output.yaml`); pre-checked, user may uncheck.
-   - *(unlabeled)* — the top 5–8 remaining eligible fields by rank; pre-checked, user may uncheck.
-   - Fields already tagged `expose` in the CIVIL YAML are always pre-selected regardless of rank.
+   - **`[REQUIRED]`** — variable names that appear in the main module's scope-call dot-access expressions (sub-module files only — e.g., if the main module reads `client_result.net_income` from a sub-module call, then `net_income` is locked); cannot be deselected.
+   - **`[GUIDANCE]`** — variable names that appear in `guidance/include-with-output.yaml` (the flat list written earlier by `/tag-vars-to-include-with-output`); pre-checked, user may uncheck.
+   - *(unlabeled)* — the top 5–8 remaining eligible variables by rank; pre-checked, user may uncheck.
+   - Variables already declared `output` (e.g., from a prior SP-TagOutputs pass) are always pre-selected regardless of rank.
    - `[REQUIRED]` fields appear first, then `[GUIDANCE]` fields, then unlabeled fields in rank order.
 6. Ask: "These are the computed fields recommended to include to help explain the rule engine's output in the demo breakdown. Confirm, adjust, or add more?"
-7. For each confirmed field, use a targeted Edit tool call to insert `  tags: [expose]` immediately after the field's `  type:` line in the CIVIL YAML. Never remove or overwrite existing content.
-8. **This procedure is append-only.** Tags are added, never removed. To remove a tag, edit the CIVIL YAML directly.
+7. For each confirmed variable, use a targeted Edit tool call to change the keyword `internal` to `output` on that variable's declaration line inside the `catala-metadata` fence. Match the exact line shape `  internal <name> content <type>` to avoid editing other declarations.
+8. **This procedure is append-only.** Promotions are added (`internal` → `output`), never reverted. To revert, edit the `.catala_en` directly.
+9. After all promotions land, re-run the clerk-loop (`xlator clerk-loop <domain> <module>`) to confirm typecheck + tests still pass — promoting a variable affects cross-module exports.
 
 ---
 
@@ -275,7 +256,7 @@ To extract from all files as a unified corpus, re-run and select all files at th
 SP-ResolveRulesetModules
 
 1. If guidance/ruleset-modules.yaml is absent or ruleset_modules: is empty:
-   → Output: [{file: $DOMAINS_DIR/<domain>/specs/<program>.civil.yaml,
+   → Output: [{file: $DOMAINS_DIR/<domain>/specs/<program>.catala_en,
                name: <program>, action: generate, bind_map: {}, is_new: <bool>}]
    → Return immediately (single-file path; caller proceeds as today — no changes to existing behavior)
 
@@ -292,7 +273,7 @@ SP-ResolveRulesetModules
       (Derive Program Name) from policy text.
 
 2. For each entry in ruleset_modules:
-   a. Resolve expected civil_file path: $DOMAINS_DIR/<domain>/specs/<name>.civil.yaml
+   a. Resolve expected catala_file path: $DOMAINS_DIR/<domain>/specs/<name>.catala_en
    b. Check if file exists on disk
    c. Check if file is listed in extraction-manifest.yaml sub_modules: (sub-module entries only;
       the role: main entry is not expected in sub_modules: — skip this check for it)
@@ -327,7 +308,7 @@ SP-ResolveRulesetModules
 5. For each module in ruleset_modules: (including role: main) where file exists on disk:
    Show first 10 lines of existing file + "Last modified: <date>"
    Prompt:
-     File exists: $DOMAINS_DIR/<domain>/specs/<name>.civil.yaml
+     File exists: $DOMAINS_DIR/<domain>/specs/<name>.catala_en
      [r] Regenerate (overwrite)  [s] Skip — reference as-is
 
    If [s]: record action: reference for this entry; the file is not regenerated; manifest will record referenced: true.
@@ -351,13 +332,13 @@ SP-ResolveRulesetModules
    then the role: main entry last.
 
    For 'reference' entries: included in work-list with action: reference; caller skips generation and
-   SP-Validate for this entry; caller still writes manifest entry with referenced: true.
+   the post-emission clerk-loop for this entry; caller still writes manifest entry with referenced: true.
 ```
 
 **Work-list entry format:**
 ```
 {
-  file:      "$DOMAINS_DIR/<domain>/specs/<name>.civil.yaml",
+  file:      "$DOMAINS_DIR/<domain>/specs/<name>.catala_en",
   name:      "<name>",                   # module name (e.g., "earned_income")
   action:    "generate" | "reference",
   bind_map:  { "<SubEntity>": "<ParentEntity>", ... },   # empty {} for main module
@@ -512,7 +493,7 @@ Blocking check M5 failed. Please resolve priority conflicts before proceeding.
   mutex_group '<name>': rules <id1> and <id2> both have priority <N>.
   Assign unique priorities, then re-run SP-MaintainabilityReview.
 ```
-Do not advance to SP-Validate until M5 passes.
+Do not advance to the post-emission clerk-loop until M5 passes.
 
 ---
 

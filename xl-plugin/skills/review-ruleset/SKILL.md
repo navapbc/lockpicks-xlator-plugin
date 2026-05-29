@@ -18,7 +18,7 @@ If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.catala_en` files
 
 ---
 
-Read `../../core/ruleset-shared.md` now. It contains shared procedures (SP-Validate, SP-ComputeGraph, SP-TagOutputs, SP-GuidanceCapture, SP-CompleteExtraction, SP-ResolveRulesetModules) referenced in the steps below.
+Read `../../core/ruleset-shared.md` now. It contains shared procedures (SP-ComputeGraph, SP-TagOutputs, SP-GuidanceCapture, SP-CompleteExtraction, SP-ResolveRulesetModules) referenced in the steps below.
 
 ---
 
@@ -161,7 +161,7 @@ Ask:
 Does this translation correctly capture the policy intent? Any rules missing or incorrect?
 :::
 
-**On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Run **SP-Validate** (retry loop, max 3 attempts). Recompute the `review:` scores for the re-drafted item. Re-invoke `xlator review-buckets` and re-present the full review gate. Do not proceed until the user confirms.
+**On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Re-run the clerk-loop (`xlator clerk-loop <domain> <module>`) to verify the re-drafted item typechecks and tests pass. Recompute the `review:` scores for the re-drafted item. Re-invoke `xlator review-buckets` and re-present the full review gate. Do not proceed until the user confirms.
 
 ### Step 3: Finalize Outputs
 
