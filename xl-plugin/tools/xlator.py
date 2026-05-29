@@ -42,6 +42,7 @@ CSV test-case authoring:
 import argparse
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -157,7 +158,10 @@ def cmd_copy_source_to_output(domain, module):
 
     Any *.catala_en files under specs/ are mirrored (sibling sub-modules
     are copied alongside the requested module) so cross-module `> Using`
-    directives resolve at clerk-test time.
+    directives resolve at clerk-test time. `clerk.toml` is also mirrored
+    when present — clerk's ninja build reads it from CWD to resolve
+    module names; without it, `clerk test` errors with `ninja: error:
+    '<Module>@src' missing and no known rule to make it`.
     """
     paths = resolve_paths(domain, module)
     require_file(paths["catala_source"], "Catala source")
@@ -165,8 +169,10 @@ def cmd_copy_source_to_output(domain, module):
     out_dir.mkdir(parents=True, exist_ok=True)
     specs_dir = paths["catala_source"].parent
     for src in specs_dir.glob("*.catala_en"):
-        dst = out_dir / src.name
-        shutil.copy2(src, dst)
+        shutil.copy2(src, out_dir / src.name)
+    clerk_toml = specs_dir / "clerk.toml"
+    if clerk_toml.is_file():
+        shutil.copy2(clerk_toml, out_dir / "clerk.toml")
 
 
 def cmd_catala_typecheck(domain, module):
@@ -245,19 +251,40 @@ def cmd_clerk_loop(domain, module, max_iterations, no_reset_log):
     sys.exit(clerk_loop.main(argv))
 
 
+_SCOPE_DECL_RE = re.compile(r"^\s*declaration\s+scope\s+([A-Za-z_][A-Za-z0-9_]*)\s*:", re.MULTILINE)
+
+
+def _derive_scope_name(catala_source_path: Path) -> str:
+    """Return the name of the first `declaration scope <Name>:` in the
+    Catala source. Post-pivot the AI authors the scope name directly;
+    deriving `PascalCase(module) + 'Decision'` mechanically (the CIVIL-era
+    convention) breaks whenever the author picks anything else."""
+    text = catala_source_path.read_text(encoding="utf-8")
+    m = _SCOPE_DECL_RE.search(text)
+    if not m:
+        _print_err(
+            f"No `declaration scope <Name>:` found in {catala_source_path}. "
+            f"Add a scope declaration in the catala-metadata fence or pass "
+            f"--scope explicitly to transpile_to_catala_tests.py."
+        )
+        sys.exit(1)
+    return m.group(1)
+
+
 def cmd_catala_test_transpile(domain, module):
-    """Read type info from `specs/naming-manifest.yaml`. The scope name is
-    derived mechanically from the module name (PascalCase + 'Decision' suffix).
-    The CamelCase module name is the module string with first-letter upper,
-    mirroring the Catala module-directive convention.
+    """Read type info from `specs/naming-manifest.yaml` and the test
+    scope name from the first `declaration scope` in the Catala source.
+
+    The CamelCase module name mirrors the Catala module-directive
+    convention: first letter upper, underscores preserved.
     """
     domain_base = DOMAINS_FULLPATH / domain
     manifest_path = domain_base / "specs" / "naming-manifest.yaml"
     require_file(manifest_path, "naming-manifest.yaml")
 
-    # Scope name: PascalCase(module) + 'Decision' (matches pre-pivot derivation).
-    pascal_module = "".join(w.capitalize() for w in module.split("_") if w)
-    scope_name = pascal_module + "Decision"
+    catala_source = domain_base / "specs" / f"{module}.catala_en"
+    require_file(catala_source, "Catala source")
+    scope_name = _derive_scope_name(catala_source)
     catala_module_name = module[0].upper() + module[1:] if module else module
 
     tests_dir = domain_base / "specs" / "tests"

@@ -154,8 +154,27 @@ def test_money_literal_emission():
     assert tct.money_literal(-200) == "-$200"
 
 
+def test_money_literal_accepts_catala_native_string():
+    # Post-pivot test YAML authors money values as Catala-native string
+    # literals: `gross_monthly_income: "$1,800"`. The helper must accept
+    # those round-trip-style and not flag them as non-representable.
+    assert tct.money_literal("$1,800") == "$1,800"
+    assert tct.money_literal("$0") == "$0"
+    assert tct.money_literal("$1,800.50") == "$1,800.50"
+    assert tct.money_literal("-$500") == "-$500"
+    # Numeric forms still work.
+    assert tct.money_literal(1500) == "$1,500"
+
+
 def test_value_to_catala_money():
     assert tct.value_to_catala(1500, "money") == "$1,500"
+
+
+def test_value_to_catala_money_catala_native_string():
+    # Round-trip the Catala literal — caller emitted it from a prior YAML
+    # authoring round, and re-running the transpile must not silently
+    # zero the field.
+    assert tct.value_to_catala("$1,800", "money") == "$1,800"
 
 
 def test_value_to_catala_enum_uses_variant_map():

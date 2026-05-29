@@ -84,12 +84,22 @@ def reason_code_to_pascal(code: str) -> str:
     return "".join(word.capitalize() for word in code.split("_"))
 
 
+_CATALA_MONEY_RE = re.compile(r"^-?\$\d{1,3}(?:,\d{3})*(?:\.\d+)?$")
+
+
 def money_literal(value) -> str:
     """Format a number as a Catala money literal.
 
     1696 → '$1,696', 1707.50 → '$1,707.50', -500.25 → '-$500.25'
     Preserves cents when the fractional part is non-zero.
+
+    Round-trip: if `value` is already a Catala-native money string
+    (e.g. '$1,800', '-$500.25', '$0'), return it unchanged. Post-pivot
+    test YAML authors money values in Catala syntax; the helper must
+    not flag those as non-representable.
     """
+    if isinstance(value, str) and _CATALA_MONEY_RE.match(value):
+        return value
     try:
         float_val = float(value)
         frac = float_val % 1
