@@ -1,7 +1,7 @@
 # Synthetic Eligibility Program — Spike Policy
 
 This is a small synthetic policy document used to exercise the AI's ability to
-emit typechecking Catala directly (without going through CIVIL).
+emit typechecking Catala directly.
 
 ## Section 1. Definitions
 

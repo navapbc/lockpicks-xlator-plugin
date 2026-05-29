@@ -4,9 +4,8 @@
 # ///
 """Tests for detect_stale_cases.py.
 
-v13.0.0 rewrite: the production code now drives `catala_eval.run()` against
-a Catala source. Tests that previously synthesized CIVIL docs in tempdirs
-no longer apply; CIVIL is gone. The new tests split into two layers:
+The production code drives `catala_eval.run()` against a Catala source.
+The tests split into two layers:
 
 1. Pure-Python diff/iteration logic — tested with a monkeypatched
    `catala_eval.run` so a real `clerk`/`catala` toolchain is not required.

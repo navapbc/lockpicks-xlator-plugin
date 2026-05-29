@@ -10,7 +10,7 @@ Validates and upserts test cases from a CSV (or native YAML) file into the
 target *_tests.yaml file. All validation errors are collected before any write.
 
 Post-U7: type coercion derives from `specs/naming-manifest.yaml` (the
-type-extended manifest per R3 extended) instead of the CIVIL spec.
+type-extended manifest per R3 extended).
 
 Usage (via xlator CLI):
     xlator import-tests <domain> <module> <csv_or_yaml_file>
@@ -74,7 +74,7 @@ def parse_money(raw: str) -> int | float:
 
 
 # ---------------------------------------------------------------------------
-# Type coercion (CIVIL-spec-driven)
+# Type coercion (manifest-driven)
 # ---------------------------------------------------------------------------
 
 BOOL_TRUE = {"true", "True", "TRUE", "1"}
@@ -83,14 +83,14 @@ BOOL_FALSE = {"false", "False", "FALSE", "0"}
 
 def coerce_value(raw: str, spec: FieldSpec, row_num: int, case_id: str,
                  errors: list[dict]) -> Any:
-    """Convert raw CSV string to Python value per CIVIL type.
+    """Convert raw CSV string to Python value per leaf type.
 
     Appends to errors on failure. Returns None on error (caller skips the field).
     Returns the sentinel _OMIT if the field should be omitted from YAML.
     """
     stripped = raw.strip()
 
-    ct = spec.civil_type
+    ct = spec.leaf_type
     col = spec.column_name
 
     # Empty cell handling
@@ -307,7 +307,7 @@ def _parse_csv_rows(csv_content: str, specs: list[FieldSpec], errors: list[dict]
             raw_val = (raw_row.get(col_name) or "").strip()
             dec_name = spec.decision_name
 
-            if spec.civil_type in ("list", "set"):
+            if spec.leaf_type in ("list", "set"):
                 if not raw_val:
                     parsed_row["expected"][dec_name] = []
                 else:

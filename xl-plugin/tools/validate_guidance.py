@@ -160,9 +160,9 @@ def _check_field_agreement(
 
     `optional:` and `enum_variants:` were added in U7 alongside the
     Catala-native type metadata extension to `naming-manifest.yaml`.
-    Validation is conservative — the leaf-type names (e.g. CIVIL `int` vs
-    Catala `integer`) are NOT cross-mapped; if a guidance file still
-    declares CIVIL type names and the manifest carries Catala names (or
+    Validation is conservative — the leaf-type names (e.g. short `int`
+    vs Catala `integer`) are NOT cross-mapped; if a guidance file still
+    declares short type names and the manifest carries Catala names (or
     vice versa), the comparison will surface a mismatch as expected. A
     type-name normalization layer is a deliberate follow-up (TODO).
 

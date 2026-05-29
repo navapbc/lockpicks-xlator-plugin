@@ -89,7 +89,7 @@ def _entry_subset(entry: Any) -> dict[str, Any]:
 
     Seedable fields (kept):
       - `type`: Catala primitive (`integer`, `decimal`, `money`, `boolean`,
-        `date`, `duration`, `string`) or a legacy CIVIL type. Nullable —
+        `date`, `duration`, `string`) or a legacy short type name. Nullable —
         analysts may declare a field's intended type when known and leave
         it absent (or write `null`) when uncertain.
       - `description`: short prose description of the field.

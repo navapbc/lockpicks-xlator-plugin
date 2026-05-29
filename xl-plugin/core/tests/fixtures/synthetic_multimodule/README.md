@@ -1,6 +1,6 @@
 # Synthetic two-module fixture (U9 Step 1.5)
 
-A persistent two-module Catala fixture exercising `> Using Module`, sub-module exported types, and a deliberate cross-module contract scenario. Used by the CIVIL→Catala pivot's U9 verification gate ([2026-05-28-001-refactor-replace-civil-with-catala-plan.md](../../../../../docs/plans/2026-05-28-001-refactor-replace-civil-with-catala-plan.md), Step 1.5) as the pre-`ak_doh`-regeneration sanity check.
+A persistent two-module Catala fixture exercising `> Using Module`, sub-module exported types, and a deliberate cross-module contract scenario. Used by the U9 verification gate ([2026-05-28-001-refactor-replace-civil-with-catala-plan.md](../../../../../docs/plans/2026-05-28-001-refactor-replace-civil-with-catala-plan.md), Step 1.5) as the pre-`ak_doh`-regeneration sanity check.
 
 ## Files
 

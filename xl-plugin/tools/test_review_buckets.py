@@ -2,7 +2,7 @@
 # requires-python = ">=3.14"
 # dependencies = []
 # ///
-"""Tests for review_buckets.py (post-CIVIL→Catala pivot).
+"""Tests for review_buckets.py.
 
 Exercises:
 - HTML-comment review-block parsing on `.catala_en` source

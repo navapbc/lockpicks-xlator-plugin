@@ -118,8 +118,8 @@ def test_confirmed_exprs_skips_non_dict_exprs():
 def test_example_rules_passthrough():
     doc = {
         "sample_rules": [
-            {"id": "r1", "rule_type": "computed", "source": "...", "civil": "yaml"},
-            {"id": "r2", "rule_type": "table-lookup", "source": "...", "civil": "yaml"},
+            {"id": "r1", "rule_type": "computed", "source": "...", "catala": "yaml"},
+            {"id": "r2", "rule_type": "table-lookup", "source": "...", "catala": "yaml"},
         ],
         "missing_info": ["x"],  # not consumed
     }
@@ -534,7 +534,7 @@ def test_run_payload_pulls_full_guidance_docs(tmp_path: Path, capsys):
     _write_yaml(
         domain / "specs" / "guidance" / "sample-artifacts.yaml",
         {"sample_rules": [{"id": "r1", "rule_type": "computed",
-                            "source": "...", "civil": "yaml"}]},
+                            "source": "...", "catala": "yaml"}]},
     )
     (domain / "specs" / "guidance" / "include-with-output.yaml").write_text(
         yaml.safe_dump(["x", "y"], default_flow_style=False), encoding="utf-8"
@@ -580,13 +580,13 @@ def test_run_existing_extraction_manifest_included(tmp_path: Path, capsys):
     _minimal_domain(domain)
     _write_yaml(
         domain / "specs" / "extraction-manifest.yaml",
-        {"programs": {"prog": {"civil_file": "x"}}},
+        {"programs": {"prog": {"catala_file": "x"}}},
     )
     rc = lec.run(domain, "prog", "extract")
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["existing_extraction_manifest"] == {
-        "programs": {"prog": {"civil_file": "x"}}
+        "programs": {"prog": {"catala_file": "x"}}
     }
 
 

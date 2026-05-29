@@ -268,7 +268,7 @@ Refresh the `consumed_guidance[]` block for the program being updated, using `gu
 
 ### Step 9: (reserved)
 
-The CIVIL-era Step 8 invoked `SP-Validate` (`xlator validate`), which validated the CIVIL schema. After the Catala pivot, validation is handled inside Step 6's clerk loop (`clerk typecheck` + `clerk test` + naming-manifest divergence check). No separate validate step is needed; this number is reserved for parity with `/extract-ruleset`'s numbering.
+Validation is handled inside Step 6's clerk loop (`clerk typecheck` + `clerk test` + naming-manifest divergence check). No separate validate step is needed; this number is reserved for parity with `/extract-ruleset`'s numbering.
 
 ### Step 10: Update Naming Manifest
 

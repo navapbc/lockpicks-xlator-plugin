@@ -1,6 +1,6 @@
 # Synthetic two-module policy (U9 Step 1.5 fixture)
 
-A fake policy used by the CIVIL→Catala pivot's two-module gate (`docs/plans/2026-05-28-001-refactor-replace-civil-with-catala-plan.md`, U9 Step 1.5). The shape mirrors `ak_doh`'s two-module structure: an `Earnings` sub-module that exports a struct used by the parent `Eligibility` module via `> Using Earnings`.
+A fake policy used by the two-module gate (`docs/plans/2026-05-28-001-refactor-replace-civil-with-catala-plan.md`, U9 Step 1.5). The shape mirrors `ak_doh`'s two-module structure: an `Earnings` sub-module that exports a struct used by the parent `Eligibility` module via `> Using Earnings`.
 
 ## Section 1. Earnings exclusions
 

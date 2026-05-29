@@ -10,7 +10,7 @@ Generates a CSV template for policy analysts to author test cases without
 needing to understand the Catala source structure.
 
 Post-U7: CSV columns derive from `specs/naming-manifest.yaml` (the
-type-extended manifest per R3 extended) instead of the CIVIL spec.
+type-extended manifest per R3 extended).
 
 Output: <module>_test_template.csv
   Row 1: header (case_id, description, fact fields, expected_* decisions, tags, notes)
@@ -50,7 +50,7 @@ from manifest_helpers import (
 
 def _placeholder_allow(spec, index: int) -> str:
     """Return a placeholder allow/approve value for a field spec."""
-    ct = spec.civil_type
+    ct = spec.leaf_type
     if spec.is_decision:
         # decision columns
         if ct == "bool":
@@ -87,7 +87,7 @@ def _placeholder_allow(spec, index: int) -> str:
 
 def _placeholder_deny(spec, index: int) -> str:
     """Return a placeholder deny value for a field spec."""
-    ct = spec.civil_type
+    ct = spec.leaf_type
     if spec.is_decision:
         if ct == "bool":
             return "false"

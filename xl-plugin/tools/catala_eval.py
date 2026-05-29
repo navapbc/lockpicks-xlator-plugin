@@ -378,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "Evaluate a Catala scope against an inputs JSON file. "
             "Preserves the JSON contract historically served by "
-            "evaluate-civil so /expand-tests, /detect-stale-cases, and "
+            "the legacy `evaluate` command so /expand-tests, /detect-stale-cases, and "
             "/create-tests consume the same shape."
         ),
     )

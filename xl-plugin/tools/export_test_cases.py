@@ -10,7 +10,7 @@ Serializes an existing *_tests.yaml file to CSV using the same column layout
 as the test template. Analysts can review, edit, and reimport via import_tests.py.
 
 Post-U7: CSV columns derive from `specs/naming-manifest.yaml` (the
-type-extended manifest per R3 extended) instead of the CIVIL spec.
+type-extended manifest per R3 extended).
 
 Output: <tests_yaml_basename>.csv
   Row 1: header
@@ -53,7 +53,7 @@ def _serialize_value(value, spec: FieldSpec) -> str:
     if value is None:
         return ""
 
-    ct = spec.civil_type
+    ct = spec.leaf_type
 
     if ct in ("list", "set"):
         # Serialize list of dicts or list of strings

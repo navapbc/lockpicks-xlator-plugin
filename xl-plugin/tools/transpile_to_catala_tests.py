@@ -16,7 +16,7 @@ and asserts on the output fields.
 
 Type metadata source (post-pivot):
     Type info is read from `<domain>/specs/naming-manifest.yaml` per R3
-    extended in U7. The pre-pivot `--civil-spec` arg path is gone.
+    extended in U7.
 
 Six type-shaped lookups, all manifest-driven after U7:
     1. Field types (per scope input)         — manifest entry's `type:`
@@ -113,21 +113,21 @@ def money_literal(value) -> str:
 # =============================================================================
 
 # Map Catala primitive type names to the canonical internal name used by the
-# rest of this module. Legacy CIVIL type names map to the same internal name
-# so callers can transparently consume pre-U7 manifests.
+# rest of this module. Legacy short type names map to the same internal name
+# so callers can transparently consume older manifests.
 #
-# Internal canonical names (preserved from pre-U7 for downstream code paths):
+# Internal canonical names:
 #   money | bool | int | float | string | enum | list | date
 #
 # `set` and `object` are not test-emittable leaf types — callers fall back
 # to `string` for them and warn.
 _TYPE_ALIASES = {
-    # Catala-native (post-pivot)
+    # Catala-native
     "integer": "int",
     "decimal": "float",
     "boolean": "bool",
     "duration": "string",   # treated opaquely in tests for now
-    # CIVIL legacy (pre-pivot; map to themselves)
+    # Legacy short names (map to themselves)
     "money": "money",
     "bool": "bool",
     "int": "int",
@@ -167,8 +167,7 @@ def build_field_type_map_from_manifest(manifest_doc: dict, scope_name: str) -> t
     """Build field type/optional/enum maps and an ordered entity→fields map
     from `naming-manifest.yaml`.
 
-    Replaces the pre-pivot `build_field_type_map(civil_doc)` function. Six
-    type-shaped lookups are all manifest-resolved:
+    Six type-shaped lookups are all manifest-resolved:
 
       1. types[field]            → leaf type (normalized to int/money/bool/...)
       2. optional_flags[field]   → bool
@@ -267,7 +266,7 @@ def _collect_enum_variants(entry: dict):
       1. `enum_variants:` — Catala-native list of constructor names.
          Each variant is mapped to itself (analyst-authored constructor
          names are already in the emit form).
-      2. `values:` (legacy CIVIL) — string values; PascalCase to form
+      2. `values:` (legacy) — string values; PascalCase to form
          emit constructors (matches `transpile_to_catala`'s legacy
          declaration emission).
 
@@ -751,7 +750,7 @@ example:
             "Path to specs/naming-manifest.yaml — the U7 type-extended "
             "manifest. Drives field types, optionality, enum variants, "
             "entity grouping, computed-field types, and output-type "
-            "partitioning. Replaces the pre-pivot --civil-spec arg."
+            "partitioning."
         ),
     )
     parser.add_argument(

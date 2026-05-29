@@ -30,7 +30,7 @@ def test_normalize_catala_native_types():
     assert tct._normalize_type("money") == "money"
 
 
-def test_normalize_legacy_civil_types():
+def test_normalize_legacy_short_type_names():
     assert tct._normalize_type("int") == "int"
     assert tct._normalize_type("bool") == "bool"
     assert tct._normalize_type("enum") == "enum"
@@ -95,7 +95,7 @@ def test_build_field_type_map_u7_enum_variants():
 
 
 def test_build_field_type_map_legacy_values_fallback():
-    """Legacy CIVIL `values:` list is still honored (PascalCased)."""
+    """Legacy `values:` list is still honored (PascalCased)."""
     manifest = {
         "inputs": {
             "App": {

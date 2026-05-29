@@ -11,12 +11,12 @@ six load-bearing merge rules of /extract-ruleset Step 7.
 
 U7 extended the inventory + manifest schema with Catala-native type metadata:
   * `type` accepts Catala primitives (`integer`, `decimal`, `money`,
-    `boolean`, `date`, `duration`, `string`) alongside the legacy CIVIL
-    type names (preserved for backwards compatibility).
+    `boolean`, `date`, `duration`, `string`) alongside legacy short
+    type names (preserved for older manifests).
   * `optional: bool` flags `Optional<T>` wrapping in the Catala emission.
   * `enum_variants: [str]` carries the list of constructor names for enum
-    types (`["Eligible", "Denied"]`). Distinct from `values:`, which is the
-    CIVIL-era field; `enum_variants:` is the post-pivot Catala-native form.
+    types (`["Eligible", "Denied"]`). Distinct from `values:`, the older
+    string-values list; `enum_variants:` carries the Catala-side names.
 
 The new fields follow the same `preserve-non-null + analyst-authoritative`
 semantics as `policy_phrase`/`source_doc`/`section`.
@@ -81,14 +81,12 @@ _HEADER_SENTINEL = "--- MERGE-NAMING-MANIFEST-HEADER-END ---"
 _MANIFEST_VERSION = "1.0"
 
 _VALID_TYPES = {
-    # CIVIL-era leaf types (preserved for legacy entries and backwards
-    # compatibility).
+    # Legacy short leaf types (preserved for older manifests).
     "money", "bool", "int", "float", "string", "enum", "list",
     "date", "set", "object",
-    # Catala primitive type names (used after the CIVIL→Catala pivot).
-    # U7 extended the manifest to carry Catala-native type metadata so
-    # `transpile_to_catala_tests.py` can emit correct test literals once
-    # the CIVIL spec is gone.
+    # Catala primitive type names. U7 extended the manifest to carry
+    # Catala-native type metadata so `transpile_to_catala_tests.py` can
+    # emit correct test literals.
     "integer", "decimal", "boolean", "duration",
 }
 

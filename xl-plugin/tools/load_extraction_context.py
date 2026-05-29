@@ -145,7 +145,7 @@ def _build_confirmed_exprs(skeleton_doc: Any) -> dict[str, str]:
 
 def _build_example_rules(sample_artifacts_doc: Any) -> list[dict[str, Any]]:
     """Extract top-level `sample_rules:` list verbatim. Each entry is passed
-    through unchanged (the AI consumes id/rule_type/source/civil)."""
+    through unchanged (the AI consumes id/rule_type/source/catala)."""
     if not isinstance(sample_artifacts_doc, dict):
         return []
     rules = sample_artifacts_doc.get("sample_rules")

@@ -149,8 +149,8 @@ def run(cmd, **kwargs):
 def cmd_copy_source_to_output(domain, module):
     """Mirror specs/<module>.catala_en into output/<module>.catala_en.
 
-    v13.0.0 (CIVIL→Catala pivot): the AI-authored source lives under
-    specs/; output/<module>.catala_en is a copy maintained by the build
+    The AI-authored source lives under specs/;
+    output/<module>.catala_en is a copy maintained by the build
     step so downstream consumers (catala_depgraph.py, FastAPI demo, clerk
     test runner) continue to read from output/ without learning the new
     source location.
@@ -246,12 +246,10 @@ def cmd_clerk_loop(domain, module, max_iterations, no_reset_log):
 
 
 def cmd_catala_test_transpile(domain, module):
-    """U7-retargeted: read type info from `specs/naming-manifest.yaml`
-    instead of the CIVIL spec. The scope name is derived mechanically from
-    the module name (PascalCase + 'Decision' suffix matches the pre-pivot
-    convention emitted by `transpile_to_catala`'s `derive_scope_name`).
-    The CamelCase module name is the module string with first-letter
-    upper, mirroring the Catala module-directive convention.
+    """Read type info from `specs/naming-manifest.yaml`. The scope name is
+    derived mechanically from the module name (PascalCase + 'Decision' suffix).
+    The CamelCase module name is the module string with first-letter upper,
+    mirroring the Catala module-directive convention.
     """
     domain_base = DOMAINS_FULLPATH / domain
     manifest_path = domain_base / "specs" / "naming-manifest.yaml"
@@ -297,11 +295,10 @@ def cmd_catala_test(domain, module):
 def cmd_catala_pipeline(domain, module):
     """copy-source-to-output → clerk typecheck → catala-test-transpile → clerk test.
 
-    v13.0.0 rewires this pipeline. The CIVIL validate + CIVIL→Catala
-    transpile steps are gone; the Catala source under `specs/` is the
-    authored truth. The copy-to-output step maintains the build-artifact
-    consumer contract (catala_depgraph, demos) without forcing consumers
-    to learn the new source location.
+    The Catala source under `specs/` is the authored truth. The
+    copy-to-output step maintains the build-artifact consumer contract
+    (catala_depgraph, demos) without forcing consumers to learn the
+    source location.
     """
     _print_info(f"Catala pipeline: {domain}/{module}")
     cmd_copy_source_to_output(domain, module)
@@ -498,8 +495,7 @@ examples:
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
         p.add_argument("module", help="Module name (e.g. eligibility, apa_adltc)")
 
-    # evaluate-catala: U3 — Catala-backed evaluator wrapper preserving the
-    # JSON contract historically served by evaluate-civil. Thin shim over
+    # evaluate-catala: U3 — Catala-backed evaluator. Thin shim over
     # xl-plugin/tools/catala_eval.py.
     p_ec = sub.add_parser(
         "evaluate-catala",
@@ -576,7 +572,7 @@ examples:
 
     # CSV test case authoring
     p_ett = sub.add_parser("export-test-template",
-                           help="Generate CSV template from CIVIL spec")
+                           help="Generate CSV template from naming manifest")
     p_ett.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
     p_ett.add_argument("module", help="Module name (e.g. eligibility)")
     p_ett.add_argument("--output-dir", default=None,

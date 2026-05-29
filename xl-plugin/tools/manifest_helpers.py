@@ -13,7 +13,7 @@ provides the CSV-column derivation helpers consumed by:
   * export_test_cases.py    — CSV column derivation
   * import_tests.py         — CSV column derivation + type coercion
 
-`FieldSpec` exposes: `column_name`, `civil_type` (the internal leaf-type
+`FieldSpec` exposes: `column_name`, `leaf_type` (the internal leaf-type
 vocabulary — `money|bool|int|float|string|enum|list|date`), `optional`,
 `enum_values`, `item_type`, `description`, `is_decision`, `decision_name`.
 
@@ -44,7 +44,7 @@ class FieldSpec:
     """Describes one CSV column derived from a manifest entry."""
 
     column_name: str
-    civil_type: str       # internal leaf type: money|bool|int|float|string|enum|list|date
+    leaf_type: str        # internal leaf type: money|bool|int|float|string|enum|list|date
     optional: bool
     enum_values: Optional[list[str]]
     item_type: Optional[str]
@@ -62,7 +62,7 @@ _TYPE_ALIASES = {
     "decimal": "float",
     "boolean": "bool",
     "duration": "string",
-    # Legacy CIVIL
+    # Legacy short names
     "money": "money",
     "bool": "bool",
     "int": "int",
@@ -176,7 +176,7 @@ def build_csv_field_specs(manifest_doc: dict) -> list[FieldSpec]:
             enum_values = _collect_enum_values(entry)
             if enum_values:
                 # Field has enum variants — treat as enum even if the type:
-                # name was 'string' (legacy CIVIL) or absent.
+                # name was 'string' (legacy short name) or absent.
                 leaf = "enum"
             if raw_type is None:
                 print(
@@ -189,7 +189,7 @@ def build_csv_field_specs(manifest_doc: dict) -> list[FieldSpec]:
             col_name = _make_column_name(entity_name, field_name, multi_entity)
             specs.append(FieldSpec(
                 column_name=col_name,
-                civil_type=leaf,
+                leaf_type=leaf,
                 optional=optional,
                 enum_values=enum_values,
                 item_type=None,
@@ -212,7 +212,7 @@ def build_csv_field_specs(manifest_doc: dict) -> list[FieldSpec]:
         col_name = f"expected_{dec_name}"
         specs.append(FieldSpec(
             column_name=col_name,
-            civil_type=leaf,
+            leaf_type=leaf,
             optional=(leaf in ("list", "set")),
             enum_values=enum_values,
             item_type=item_type,
@@ -230,20 +230,20 @@ def field_description_hint(spec: FieldSpec) -> str:
     Catala type names render with their canonical leaf name.
     """
     parts: list[str] = []
-    if spec.civil_type == "money":
+    if spec.leaf_type == "money":
         parts.append("Money (e.g. $1,500 or 1500)")
-    elif spec.civil_type == "bool":
+    elif spec.leaf_type == "bool":
         parts.append("Boolean (true/false)")
-    elif spec.civil_type == "int":
+    elif spec.leaf_type == "int":
         parts.append("Integer")
-    elif spec.civil_type == "float":
+    elif spec.leaf_type == "float":
         parts.append("Decimal number")
-    elif spec.civil_type == "date":
+    elif spec.leaf_type == "date":
         parts.append("Date (YYYY-MM-DD)")
-    elif spec.civil_type == "enum" and spec.enum_values:
+    elif spec.leaf_type == "enum" and spec.enum_values:
         opts = ", ".join(spec.enum_values)
         parts.append(f"One of: {opts}")
-    elif spec.civil_type in ("list", "set"):
+    elif spec.leaf_type in ("list", "set"):
         parts.append("Semicolon-separated values (e.g. CODE_A;CODE_B) or empty for []")
     else:
         parts.append("Text")

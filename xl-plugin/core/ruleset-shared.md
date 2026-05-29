@@ -74,7 +74,7 @@ When writing `review:` blocks, score each rule and computed field on four dimens
 
 ---
 
-## CIVIL Reference
+## Expression Reference
 
 > **Do NOT read files under `tools/` before authoring Catala source.** All syntax needed for authoring is in [`core/catala-authoring-quickref.md`](catala-authoring-quickref.md).
 
@@ -98,7 +98,7 @@ For `when:` conditions and `computed:` expressions:
 - **Functions:** `exists(field)`, `is_null(field)`, `between(value, min, max)`, `in(value, [a, b, c])`
 - **`computed:` only:** `max(a, b)`, `min(a, b)` — computed field names as bare identifiers
 
-**Multi-step formulas (CIVIL v2):** Use a `computed:` section for chains where each step depends on
+**Multi-step formulas:** Use a `computed:` section for chains where each step depends on
 the prior (e.g., a deduction chain). The `when:` clause references the final computed field name directly.
 
 ---
@@ -132,13 +132,13 @@ On success the tool prints both output file paths. On failure, print:
 ```
 Warning: computation graph could not be refreshed. The draft graph at $DOMAINS_DIR/<domain>/specs/<program>.graph.md may reflect pre-approval state.
 ```
-Continue — the CIVIL file and manifests are already written. Do NOT stop the extraction.
+Continue — the Catala module file and manifests are already written. Do NOT stop the extraction.
 
 ### SP-GuidanceCapture
 
 After the Human Review Gate is approved, synthesize candidate guidance items from the review session to improve future extractions.
 
-**Multi-file context:** When called from a multi-file review gate (i.e., after reviewing a sub-module or main module in a multi-file extraction), each candidate guidance item must be prefixed with `[module: <name>]` where `<name>` is the name of the CIVIL module being reviewed at that gate (e.g., `[module: earned_income]`). This prefix appears in the candidate display and is preserved in the written `prompt-context.yaml` entry. When called from a single-file review gate, no prefix is added.
+**Multi-file context:** When called from a multi-file review gate (i.e., after reviewing a sub-module or main module in a multi-file extraction), each candidate guidance item must be prefixed with `[module: <name>]` where `<name>` is the name of the module being reviewed at that gate (e.g., `[module: earned_income]`). This prefix appears in the candidate display and is preserved in the written `prompt-context.yaml` entry. When called from a single-file review gate, no prefix is added.
 
 **Step 1 — Collect signals.**
 
@@ -146,7 +146,7 @@ Gather everything that occurred during the Human Review Gate:
 - Items that were rejected and re-extracted (original vs. accepted: what changed, and why?)
 - Items in the Uncertain bucket (fidelity ≤2 or source_clarity ≤2) — even if ultimately accepted
 - Items in the Complex bucket that had `notes:` fields
-- Any corrections the user provided to CIVIL expressions, values, or notes
+- Any corrections the user provided to expressions, values, or notes
 
 If none of these signals are present (all items verified, no corrections, no notes), proceed silently to SP-CompleteExtraction — no synthesis needed.
 
@@ -356,7 +356,7 @@ SP-ResolveRulesetModules
 ### SP-OrchestrationFilter
 
 **When to call:**
-- `/extract-ruleset`: after Step 2 (Identify CIVIL Components) has produced the candidate component map, before advancing to Step 3b (Name Inventory)
+- `/extract-ruleset`: after Step 2 (Identify Components) has produced the candidate component map, before advancing to Step 3b (Name Inventory)
 - `/update-ruleset`: after Step 5 (Re-extract Affected Sections) identifies new rule components, before Step 6 (Merge)
 
 **In multi-file extractions:** SP-OrchestrationFilter runs independently per `generate` entry in the work-list.
@@ -391,17 +391,17 @@ After processing all components:
     Continue silently to the next step.
 
   If flagged_components is non-empty:
-    Print: "Orchestration concerns flagged (excluded from CIVIL):"
+    Print: "Orchestration concerns flagged (excluded from ruleset):"
     | Component Name | Concern | Policy Source |
     | -------------- | ------- | ------------- |
     | <name>         | <O-code>: <reason> | <policy_source> |
     ...
-    Ask: "Do any of these belong in CIVIL after all? Enter names to re-include, or 'confirm' to confirm exclusions:"
+    Ask: "Do any of these belong in the ruleset after all? Enter names to re-include, or 'confirm' to confirm exclusions:"
 
     If user re-includes component C:
       → Add C back to the generate list
       → Mark C with re_include_note: "[O-code]: <reason>. Included by author decision."
-      → When C is emitted into the CIVIL file, prepend a YAML comment to the rule:
+      → When C is emitted into the Catala module file, prepend a YAML comment to the rule:
         # NOTE: Reviewed for orchestration leakage ([O-code]). Included by author decision.
         # Concern: <reason>. Ensure application code does not duplicate this logic.
 ```
@@ -412,7 +412,7 @@ After processing all components:
 - "If the income module returns an error, re-run with default values" → O2: retry logic
 - "Route to the AK income calculator for residents, or the federal calculator otherwise" → O3: call routing
 
-**Examples of valid CIVIL rules to keep:**
+**Examples of valid ruleset rules to keep:**
 - "Deny if gross income exceeds the gross limit for the household size" → pure policy decision
 - "Deny if the applicant is not a US resident" → pure eligibility condition
 - "Computed: adjusted income = gross income - standard deduction - earned income deduction" → pure calculation
@@ -422,19 +422,19 @@ After processing all components:
 ### SP-MaintainabilityReview
 
 **When to call:**
-- `/extract-ruleset`: new Step 4b — after Step 4 (Draft CIVIL Module), before Step 5 (Write Extraction Manifest) / Step 6 (Validate)
-- `/update-ruleset`: new Step 6b — after Step 6 (Merge into Existing CIVIL), before Step 7 (Update Manifest)
+- `/extract-ruleset`: new Step 4b — after Step 4 (Draft the Catala Module), before Step 5 (Write Extraction Manifest) / Step 6 (Validate)
+- `/update-ruleset`: new Step 6b — after Step 6 (Merge into Existing Catala Module), before Step 7 (Update Manifest)
 
 **In multi-file extractions:** SP-MaintainabilityReview runs independently per `generate` entry in the work-list, same as SP-TagOutputs and SP-GuidanceCapture.
 
-**In `/update-ruleset` context:** SP-MaintainabilityReview checks only rules and computed fields that were added or modified in the current update (identified in Step 4: Identify Affected CIVIL Sections). It does not re-check unchanged rules.
+**In `/update-ruleset` context:** SP-MaintainabilityReview checks only rules and computed fields that were added or modified in the current update (identified in Step 4: Identify Affected Sections). It does not re-check unchanged rules.
 
-**Input:** The drafted/merged CIVIL module file (path). Also available: the `ruleset_groups:` from `guidance/ruleset-groups.yaml` for the domain (for context on expected stage names).
+**Input:** The drafted/merged Catala module file (path). Also available: the `ruleset_groups:` from `guidance/ruleset-groups.yaml` for the domain (for context on expected stage names).
 
 **Procedure:**
 
 ```
-Run the following checklist against the CIVIL file:
+Run the following checklist against the Catala module file:
 
 CHECKLIST:
 
@@ -465,7 +465,7 @@ CHECKLIST:
 For each FAILING item:
   1. Describe the issue(s) found
   2. Show the corrected YAML snippet
-  3. Apply the fix directly to the CIVIL file (in-place edit without asking for confirmation)
+  3. Apply the fix directly to the Catala module file (in-place edit without asking for confirmation)
   4. Re-check the item
      — If re-check fails again: show the conflict and stop for manual resolution before continuing
 
@@ -519,11 +519,11 @@ Do not advance to the post-emission clerk-loop until M5 passes.
 
 **If the file exists:** Read it. Build a lookup map `{variable_name → manifest_entry}` collecting entries from `inputs.<EntityName>.<field>`, `computed.<field>`, and `outputs.<field>`. The `manifest_entry` carries `policy_phrase` (may be null/absent on seeded entries), `source_doc` (may be null/absent), `section` (may be null/absent), and (when present) `description`, `type`, `optional`, `values`, `enum_variants`, and `synonyms` (the row list `[{name, source_doc?, section?}, ...]` — where `source_doc:` and `section:` are present on observed-phrasing synonyms and absent on rename-anchor synonyms). **Provenance fields are nullable:** seeded entries written by `/declare-target-ruleset` start with all three provenance fields absent; `/extract-ruleset` Step 7 fills them in via the preserve-non-null rule once the analyst confirms a seeded name against an observed phrase. Optional fields (`description:`, `type:`, `optional:`, `values:`, `enum_variants:`, `synonyms:`) are analyst-supplied or AI-inferred from policy text per `/extract-ruleset` Step 7; older specs files lacking these keys are tolerated. For `inputs:` entries, the entity name is also recorded on the entry so callers that surface the table know which entity each field belongs to.
 
-**Type metadata (U7, post-pivot).** After the CIVIL→Catala pivot, the manifest is the authority for per-field Catala primitive type, optionality, and enum-variant metadata as well as identifier names. The extended schema adds three optional fields per entry:
+**Type metadata (U7, post-pivot).** The manifest is the authority for per-field Catala primitive type, optionality, and enum-variant metadata as well as identifier names. The extended schema adds three optional fields per entry:
 
-- `type:` — Catala primitive type name: `integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`. Struct/enum type references (e.g. `Household`, `EligibilityResult`) are also permitted; nested struct schemas are NOT recursively encoded — only the leaf type. Legacy CIVIL type names (`int`, `float`, `bool`, `enum`, `list`, `set`, `object`) remain valid for backwards compatibility but new entries should prefer Catala-native names.
+- `type:` — Catala primitive type name: `integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`. Struct/enum type references (e.g. `Household`, `EligibilityResult`) are also permitted; nested struct schemas are NOT recursively encoded — only the leaf type. Legacy short type names (`int`, `float`, `bool`, `enum`, `list`, `set`, `object`) still appear in older manifests and remain valid; new entries should prefer Catala-native names.
 - `optional:` — boolean. When `true`, the field is `Optional<T>` in the Catala emission. Default when absent: `false`.
-- `enum_variants:` — list of variant constructor names for enum-typed fields (e.g. `["Eligible", "Denied", "ManualVerification"]`). Distinct from `values:` (the CIVIL-era list of allowed string values); `enum_variants:` carries the Catala-side constructor names.
+- `enum_variants:` — list of variant constructor names for enum-typed fields (e.g. `["Eligible", "Denied", "ManualVerification"]`). Distinct from `values:` (the list of allowed string values); `enum_variants:` carries the Catala-side constructor names.
 
 Consumers that need type info (`transpile_to_catala_tests.py`, `/create-tests`, `/expand-tests`, `/create-sample-tests`, `/extract-test-cases`, the CSV import/export tools) read these fields from the manifest. **Default behavior when `type:` is absent on a referenced field:** consumers default to `string` and emit a `WARN` to stderr identifying the field — never abort. This keeps pre-U7 manifests usable while signaling the gap.
 
