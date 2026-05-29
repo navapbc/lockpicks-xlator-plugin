@@ -219,7 +219,7 @@ If the user changes any name, update the table and re-present. Loop until the us
 
 When a confirmed specs entry's Field Name is edited (rename), retain the prior specs key as the rename anchor for Step 7 (it is passed as `prior_name` in the inventory JSON). The per-file aggregation does not contribute to rename anchoring — anchors flow only through the existing specs entries themselves.
 
-**Source-doc citation form for Step 4:** Catala captures source-doc provenance through **literate Markdown structure** — `## <Heading>` lines bracket fenced Catala blocks, and `*Source: <citation>*` italic-prose lines provide per-rule citations. There is no analogue of CIVIL's `source:` mapping; provenance survives compilation as `SourcePosition.law_headings` runtime metadata. See `../../core/catala-authoring-quickref.md` Part 3 "Source-doc citation form" for the exact pattern.
+**Source-doc citation form for Step 4:** Catala captures source-doc provenance through **literate Markdown structure** — `## <Heading>` lines bracket fenced Catala blocks, and `*Source: <citation>*` italic-prose lines provide per-rule citations. Provenance survives compilation as `SourcePosition.law_headings` runtime metadata. See `../../core/catala-authoring-quickref.md` Part 3 "Source-doc citation form" for the exact pattern.
 
 - Use the per-file section's `heading:` value (or, when missing, the citation plus a brief title like `"7 CFR § 273.9(a) — Income and Deductions"`) as the `## <Heading>` text immediately above each fenced block.
 - Use an italic-prose `*Source: <file> — <citation>*` line between the heading and the fenced block. The `<file>` is the source-doc path relative to the domain root (always written as `input/policy_docs/<rel>.md`). The `<citation>` is the citation plus heading, e.g. `"7 CFR § 273.9(a) — Income and Deductions"`.
@@ -263,7 +263,7 @@ If a sub-module's per-module list is empty, skip the anchor block for that modul
 - If the variable name appears in the map, use its value (translating from the guidance expression form to Catala syntax) and add the Markdown comment `<!-- expr confirmed in /refine-guidance -->` immediately above the fenced block.
 - For variables not in the map, infer the expression from policy text as normal.
 
-Additionally, check `guidance_output_set` (from the JSON payload): if the variable name is in the set, declare it as `output <var>` (rather than `internal <var>`) in the scope-declaration block. This is the Catala analogue of CIVIL's `tags: [expose]` — `output` variables cross the scope boundary and are visible to callers and explanations.
+Additionally, check `guidance_output_set` (from the JSON payload): if the variable name is in the set, declare it as `output <var>` (rather than `internal <var>`) in the scope-declaration block. `output` variables cross the scope boundary and are visible to callers and explanations.
 
 **When emitting tables and constants**, if `constants_tables_seed` (from the JSON payload) is non-empty, begin with the seeded entries before drafting from policy text:
 - For each entry in the seed list, infer whether it is a table-lookup (multiple key→value rows) or a single named value from its `name:` and `description:` (keywords like "thresholds", "limits", "by household size", "lookup" → lookup pattern; "fixed", "rate", "percentage", "flat amount" → single value).
@@ -317,7 +317,7 @@ scope <ScopeName>:
 ```
 ````
 
-**Output-typing cases** (mirrors CIVIL output-typing cases):
+**Output-typing cases:**
 - **`bool` (default)** — declare `output <name> condition` and emit a rule `under condition count of reasons = 0 consequence fulfilled`. The denial-reasons accumulation idiom (see quickref Part 3) accumulates a list of `Reason` records via filter/map over each test's outcome.
 - **`enum`** — declare an enumeration in a `catala-metadata` fence, then `output <name> content <Enum>` with a `definition <name> equals ...` over the test outcomes. Mention each enum constructor with its full qualifier (`Enum.Constructor`) per quickref Part 2 "Enum qualification".
 - **money/int/float** — declare `output <name> content money` (or `integer`/`decimal`) and provide a `definition <name> equals <expression>`.
@@ -447,9 +447,9 @@ Rules for building each entry:
 - **`section_text`**: `"<§ citation> — <heading>"` from the section the policy_phrase was observed in. `null` when policy_phrase is null.
 - **`prior_name`**: the prior specs key when the analyst renamed an entry in Step 3b (Source = `confirmed` with edited Field Name). `null` for non-renames and for new entries.
 - **`description`, `type`, `optional`, `values`, `enum_variants`**: optional analyst- or AI-supplied values. AI-infer them from policy-doc context plus the inferred Catala scope-declaration shape:
-  - `type:` — Catala primitive (`integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`) from currency markers ("$", "dollars" → `money`), yes/no phrasing → `boolean`, enumerated lists → enum-flavored leaf type, calendar dates → `date`, and so on. Legacy CIVIL type names (`int`, `float`, `bool`, `enum`, `list`, `set`, `object`) remain valid for backwards compatibility but new entries should prefer Catala-native names.
+  - `type:` — Catala primitive (`integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`) from currency markers ("$", "dollars" → `money`), yes/no phrasing → `boolean`, enumerated lists → enum-flavored leaf type, calendar dates → `date`, and so on. Legacy short names (`int`, `float`, `bool`, `enum`, `list`, `set`, `object`) still appear in older manifests and remain valid; new entries should prefer Catala-native names.
   - `optional:` (U7, post-pivot) — `true` when the field is `Optional<T>` in the Catala emission (the policy text treats the field as optional, or the AI declared the scope variable as `Optional`). `false` for required fields. `null` to defer to the existing entry.
-  - `values:` — CIVIL-era allowed-values list (preserved for backwards compatibility).
+  - `values:` — allowed-values list for `enum`-typed entries (see `core/naming_guide.md`).
   - `enum_variants:` (U7, post-pivot) — list of Catala enum constructor names (PascalCase, e.g. `["Eligible", "Denied", "ManualVerification"]`) when the field is an enum type. Distinct from `values:`; analysts/AIs supply this field for any enum-typed entry in the post-pivot manifest.
   - `description:` — short prose definition from the source policy text.
   - Set any field to `null` to defer to whatever the existing entry has (preserve-non-null).
