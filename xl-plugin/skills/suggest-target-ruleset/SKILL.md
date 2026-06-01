@@ -104,7 +104,7 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 
 When the entity is unclear or ambiguous after applying the above signals, emit the field under the fallback entity `Case`. Do not invent a one-off entity per variable to avoid the fallback — `Case` exists exactly for variables that don't have a clear conceptual owner. Analysts can regroup entities during `/declare-target-ruleset` confirm.
 
-**Type inference.** For each variable, the AI may infer a type from policy doc context (e.g., "monthly amount" → `money`; a yes/no field → `bool`; "as of" date → `date`; a bulleted enumeration → `enum`). When inference fails, omit `type:` rather than guess — downstream consumers tolerate a missing type.
+**Type inference.** For each variable, the AI may infer a Catala-native type from policy doc context (e.g., "monthly amount" → `money`; a yes/no field → `boolean`; whole-number count → `integer`; ratio / percentage → `decimal`; "as of" date → `date`; a bulleted enumeration → `enum`; repeated values → `list`; compound record → `structure`). When inference fails, omit `type:` rather than guess — downstream consumers tolerate a missing type.
 
 **Description.** Optional per field. Emit when there is a clear signal in the source policy text (e.g., a definition or contextual phrase). Omit when no signal exists rather than fabricate.
 
@@ -151,7 +151,7 @@ scope: <string>
 inputs:
   <EntityName>:                 # CamelCase noun (Applicant, Household, Income, ...). Fallback: Case.
     <field_name>:               # snake_case variable name
-      type: bool | money | int | float | string | enum | list | date  # optional; omit when no signal
+      type: integer | decimal | money | boolean | date | duration | string | enum | list | structure  # optional; omit when no signal
       description: <string>     # optional
     # repeat for each field under this entity
   # repeat for each entity

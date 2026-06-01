@@ -79,20 +79,20 @@ def _full_payload() -> dict:
         "scope": "Convert test policy into test rules.",
         "inputs": {
             "Household": {
-                "size": {"type": "int", "description": "Household size."},
+                "size": {"type": "integer", "description": "Household size."},
                 "income": {"type": "money", "description": "Monthly income."},
             },
             "Applicant": {
-                "age": {"type": "int", "description": "Applicant age."},
-                "is_disabled": {"type": "bool", "description": "Disability."},
+                "age": {"type": "integer", "description": "Applicant age."},
+                "is_disabled": {"type": "boolean", "description": "Disability."},
             },
         },
         "computed": {
             "net_income": {"type": "money", "description": "Net income."},
-            "passes_gross_test": {"type": "bool", "description": "Gross test pass."},
+            "passes_gross_test": {"type": "boolean", "description": "Gross test pass."},
         },
         "outputs": {
-            "eligible": {"type": "bool", "description": "Final eligibility."},
+            "eligible": {"type": "boolean", "description": "Final eligibility."},
             "denial_reason": {"type": "string", "description": "Reason."},
             "warning": {"type": "string", "description": "Optional warning."},
         },
@@ -120,7 +120,7 @@ def test_happy_path_manifest_version():
         domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", _full_payload())
         dtr.run(domain_dir, "sample_ruleset")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert manifest["version"] == "1.0"
+        assert manifest["version"] == "2.0"
 
 
 def test_happy_path_inputs_round_trip():
@@ -129,11 +129,11 @@ def test_happy_path_inputs_round_trip():
         dtr.run(domain_dir, "sample_ruleset")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
         assert manifest["inputs"]["Household"]["size"] == {
-            "type": "int",
+            "type": "integer",
             "description": "Household size.",
         }
         assert manifest["inputs"]["Applicant"]["age"] == {
-            "type": "int",
+            "type": "integer",
             "description": "Applicant age.",
         }
 
@@ -148,7 +148,7 @@ def test_outputs_preserve_type_and_description():
         dtr.run(domain_dir, "sample_ruleset")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
         assert manifest["outputs"]["eligible"] == {
-            "type": "bool",
+            "type": "boolean",
             "description": "Final eligibility.",
         }
 
@@ -195,14 +195,14 @@ def test_no_provenance_on_seeded_entries():
 def test_field_with_only_type():
     payload = {
         "display_name": "x", "description": "x", "role": "x", "scope": "x",
-        "inputs": {"E": {"f": {"type": "int"}}},
-        "outputs": {"o": {"type": "bool"}},
+        "inputs": {"E": {"f": {"type": "integer"}}},
+        "outputs": {"o": {"type": "boolean"}},
     }
     with tempfile.TemporaryDirectory() as tmp:
         domain_dir = _build_suggestion(Path(tmp), "d", "r", payload)
         dtr.run(domain_dir, "r")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert manifest["inputs"]["E"]["f"] == {"type": "int"}
+        assert manifest["inputs"]["E"]["f"] == {"type": "integer"}
         assert "description" not in manifest["inputs"]["E"]["f"]
 
 
@@ -513,7 +513,7 @@ def test_overwrite_pre_existing_outputs():
         assert rc == 0
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
         # The new content is present; old content is replaced.
-        assert manifest["version"] == "1.0"
+        assert manifest["version"] == "2.0"
         assert "old" not in manifest
         md = _load_yaml(domain_dir / "specs" / "guidance" / "metadata.yaml")
         assert md["display_name"] == "Sample Ruleset"
@@ -546,7 +546,7 @@ def test_atomicity_partial_write_does_not_corrupt_prior_files():
         # First write (manifest) succeeded.
         assert (domain_dir / "specs" / "naming-manifest.yaml").exists()
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert manifest["version"] == "1.0"
+        assert manifest["version"] == "2.0"
         # Third write was never attempted — file should not exist.
         assert not (domain_dir / "specs" / "guidance" / "prompt-context.yaml").exists()
 
@@ -584,7 +584,7 @@ def test_stdout_summary_field_values():
         assert "Ruleset: Sample Ruleset" in stdout
         assert "Inputs: Household, Applicant" in stdout
         assert "Computed: net_income, passes_gross_test" in stdout
-        assert "Output: eligible (bool)" in stdout
+        assert "Output: eligible (boolean)" in stdout
         assert "Secondary outputs: denial_reason, warning" in stdout
 
 
@@ -601,7 +601,7 @@ def test_stdout_computed_none_when_absent():
 def test_stdout_secondary_outputs_none_when_only_one_output():
     payload = _full_payload()
     payload["outputs"] = {
-        "eligible": {"type": "bool", "description": "x"},
+        "eligible": {"type": "boolean", "description": "x"},
     }
     with tempfile.TemporaryDirectory() as tmp:
         domain_dir = _build_suggestion(Path(tmp), "d", "r", payload)

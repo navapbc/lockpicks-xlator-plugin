@@ -78,20 +78,26 @@ scanning.
 
 `type:` is **optional** on `specs/naming-manifest.yaml` entries and emitted
 only when the source body carries a clear signal. Absent is the safe default.
-The vocabulary is exactly:
+The Catala-native vocabulary is exactly:
 
-`money | bool | int | float | string | enum | list | date`
+`integer | decimal | money | boolean | date | duration | string | enum | list | structure`
 
-| Type     | Trigger phrases / patterns                                                          |
-|----------|--------------------------------------------------------------------------------------|
-| `money`  | currency markers (`$`, `USD`, "dollars"), "per month", "annual income", monetary thresholds |
-| `bool`   | "yes/no", "true/false", "is/is not eligible", binary flags                           |
-| `int`    | counts ("number of household members"), age in years, integer thresholds             |
-| `float`  | percentages (`20%`, `0.20`), ratios, multipliers                                     |
-| `string` | free-form identifier (case number, applicant name)                                   |
-| `enum`   | bulleted/comma-separated list of allowed outcomes ("approve, deny, manual review")   |
-| `list`   | "list of …", repeating-collection phrasing ("each member …")                         |
-| `date`   | dates, "as of", "effective date", calendar references                                |
+| Type        | Trigger phrases / patterns                                                          |
+|-------------|--------------------------------------------------------------------------------------|
+| `money`     | currency markers (`$`, `USD`, "dollars"), "per month", "annual income", monetary thresholds |
+| `boolean`   | "yes/no", "true/false", "is/is not eligible", binary flags                           |
+| `integer`   | counts ("number of household members"), age in years, whole-number thresholds        |
+| `decimal`   | percentages (`20%`, `0.20`), ratios, multipliers                                     |
+| `string`    | free-form identifier (case number, applicant name)                                   |
+| `enum`      | bulleted/comma-separated list of allowed outcomes ("approve, deny, manual review")   |
+| `list`      | "list of …", repeating-collection phrasing ("each member …")                         |
+| `date`      | dates, "as of", "effective date", calendar references                                |
+| `duration`  | day/month/year intervals, age windows expressed as duration                          |
+| `structure` | compound nominal record (a Catala `structure`) — typically a sub-record reference   |
+
+The merge tool rejects any other value at /extract-ruleset Step 7 — including
+legacy CIVIL short names (`bool`, `int`, `float`, `str`, `set`, `object`). Use
+the Catala-native names above exclusively.
 
 Never infer `type:` from the variable name alone — `gross_income` does not
 become `money` just because the name contains "income"; the source body must
@@ -128,7 +134,7 @@ outcomes ("approve, deny, manual review"). Each list element is a string.
 - **Don't use abbreviations the source doesn't.** If the source spells it
   out, the variable name spells it out too.
 - **Don't infer `type:` from variable-name shape.** `gross_income` does not
-  imply `money` and `is_eligible` does not imply `bool` from the name alone —
+  imply `money` and `is_eligible` does not imply `boolean` from the name alone —
   the source body must carry an explicit signal from the trigger table.
 - **Don't write `values:` without `type: enum`.** And don't write `type: enum`
   without `values:`. The two ship together.

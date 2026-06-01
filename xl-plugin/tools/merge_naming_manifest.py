@@ -9,10 +9,12 @@ xlator merge-naming-manifest: deterministic writer for specs/naming-manifest.yam
 Consumes an analyst-approved Name Inventory JSON (R10 shape) and applies the
 six load-bearing merge rules of /extract-ruleset Step 7.
 
-U7 extended the inventory + manifest schema with Catala-native type metadata:
-  * `type` accepts Catala primitives (`integer`, `decimal`, `money`,
-    `boolean`, `date`, `duration`, `string`) alongside legacy short
-    type names (preserved for older manifests).
+The inventory + manifest schema carries Catala-native type metadata:
+  * `type` accepts only Catala-native names: `integer`, `decimal`, `money`,
+    `boolean`, `date`, `duration`, `string`, `enum`, `list`, `structure`.
+    Legacy CIVIL short names (`bool`, `int`, `float`, `str`, `set`, `object`)
+    are rejected — they were migrated out via the one-shot
+    migrate-naming-manifest-types.py script (see plan 2026-06-01-002).
   * `optional: bool` flags `Optional<T>` wrapping in the Catala emission.
   * `enum_variants: [str]` carries the list of constructor names for enum
     types (`["Eligible", "Denied"]`). Distinct from `values:`, the older
@@ -78,16 +80,14 @@ import yaml
 _NAMING_MANIFEST_REL = "specs/naming-manifest.yaml"
 _HEADER_SENTINEL = "--- MERGE-NAMING-MANIFEST-HEADER-END ---"
 
-_MANIFEST_VERSION = "1.0"
+_MANIFEST_VERSION = "2.0"
 
+# Strict Catala-native vocabulary. Legacy CIVIL names (`bool`, `int`, `float`,
+# `str`, `set`, `object`) are rejected — they were migrated out via the one-
+# shot migrate-naming-manifest-types.py script (see plan 2026-06-01-002).
 _VALID_TYPES = {
-    # Legacy short leaf types (preserved for older manifests).
-    "money", "bool", "int", "float", "string", "enum", "list",
-    "date", "set", "object",
-    # Catala primitive type names. U7 extended the manifest to carry
-    # Catala-native type metadata so test-emission consumers can render
-    # correct literals from the manifest's `type:` field.
-    "integer", "decimal", "boolean", "duration",
+    "integer", "decimal", "money", "boolean", "date",
+    "duration", "string", "enum", "list", "structure",
 }
 
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
@@ -97,11 +97,10 @@ _INPUTS_SECTION_RE = re.compile(r"^inputs\.([A-Z][A-Za-z0-9]*)$")
 # Optional fields on a manifest entry, in canonical write order (after the
 # four core provenance fields). preserve-non-null applies to each.
 #
-# `type`, `optional`, and `enum_variants` carry Catala-native type metadata
-# added in U7. They are additive — pre-U7 manifests omit them and continue
-# to work; consumers (`/catala-emit-tests`, the test-creation skills)
-# fall back to `string` and surface a clear "needs type" warning when a
-# field declared in a Catala source has no `type:` in the manifest.
+# `type`, `optional`, and `enum_variants` carry Catala-native type metadata.
+# Consumers (`/catala-emit-tests`, the test-creation skills) fall back to
+# `string` and surface a clear "needs type" warning when a field declared
+# in a Catala source has no `type:` in the manifest.
 _OPTIONAL_FIELDS = (
     "description",
     "type",

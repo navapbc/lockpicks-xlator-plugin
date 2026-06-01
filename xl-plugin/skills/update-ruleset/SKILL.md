@@ -306,7 +306,7 @@ Inventory entry shape (same as `/extract-ruleset` Step 7):
   "section_text": "<§ citation> — <heading>" | null,
   "prior_name": "<previous specs key>" | null,
   "description": "<AI-inferred>" | null,
-  "type": "<money|bool|int|float|string|enum|list|set|date|object>" | null,
+  "type": "<integer|decimal|money|boolean|date|duration|string|enum|list|structure>" | null,
   "values": null,
   "observed_synonyms": null
 }

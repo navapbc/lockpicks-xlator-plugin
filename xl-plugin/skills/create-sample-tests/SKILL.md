@@ -109,9 +109,9 @@ Generate test cases targeting the 6-tag coverage minimum from `/create-tests`. F
 **`inputs:` are always flat key-value** — never nest by entity name. Use only the input field names derived in Step 1.
 
 **`expected:` values** are derived from `output_variables` declarations, with type info pulled from the naming manifest's `outputs.<name>` entries:
-- `boolean` (or legacy `bool`) → `true` / `false`
+- `boolean` → `true` / `false`
 - enum type (declared via `enum_variants:` on the manifest entry, or legacy `values:`) → use the variant names (e.g., `Approve`, `Deny`, `ManualVerification`)
-- `money` / `integer` / `decimal` / `string` (or legacy `int`/`float`/`str`) → use illustrative values consistent with the guidance; note them in `assumptions:` in `guidance/sample-artifacts.yaml` if no concrete value is available
+- `money` / `integer` / `decimal` / `string` → use illustrative values consistent with the guidance; note them in `assumptions:` in `guidance/sample-artifacts.yaml` if no concrete value is available
 
 Float tolerance ±0.005 applies automatically to numeric `expected` fields.
 

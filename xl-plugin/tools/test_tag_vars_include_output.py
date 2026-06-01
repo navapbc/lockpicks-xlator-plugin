@@ -370,7 +370,7 @@ def test_pass3_collects_naming_manifest_outputs():
             manifest={
                 "version": "1.0",
                 "outputs": {
-                    "eligible": {"type": "bool"},
+                    "eligible": {"type": "boolean"},
                     "denial_reason": {"type": "string"},
                 },
             },
@@ -392,7 +392,7 @@ def test_merge_pass1_wins_over_pass3():
             Path(tmp),
             manifest={
                 "version": "1.0",
-                "outputs": {"shared": {"type": "bool"}},
+                "outputs": {"shared": {"type": "boolean"}},
             },
             skeleton={
                 "skeleton": {
@@ -465,7 +465,7 @@ def test_existing_entry_also_detected_gets_detection_reason():
             Path(tmp),
             manifest={
                 "version": "1.0",
-                "outputs": {"eligible": {"type": "bool"}},
+                "outputs": {"eligible": {"type": "boolean"}},
             },
             existing=["eligible"],
         )

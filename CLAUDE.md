@@ -40,3 +40,13 @@ Increment the version number in `xl-plugin/.claude-plugin/plugin.json` when a gi
 * increment the MINOR version number for new features that do not break backwards compatibility
 * increment the PATCH version number for all other changes in behavior
 * Do not increment version numbers if documentation or file formatting is changed. CLAUDE.md is considered non-documentation code since it affects how the AI behaves.
+
+## Naming-manifest versioning
+
+Bump the `version:` field in every `domains/*/specs/naming-manifest.yaml` when the manifest schema changes. "Schema" here means: the set of values the validator (`xl-plugin/tools/merge_naming_manifest.py`) accepts for `type:`, the set of allowed top-level or per-entry keys, or the semantics of any existing field. Use Semantic Versioning guidelines:
+* increment the MAJOR version number when the change rejects manifests that the prior version accepted (e.g., removing a `type:` value, removing an allowed key, tightening a value constraint).
+* increment the MINOR version number when the change accepts manifests the prior version would have rejected but still accepts every prior manifest (e.g., adding a new `type:` value, adding a new optional key).
+* increment the PATCH version number for behavior changes that don't alter the accept/reject boundary (e.g., error-message wording, internal validator refactors that preserve identical behavior).
+* Do not bump `version:` for analyst content edits — `description:` prose, `synonyms:` entries, `policy_phrase:` updates, new field rows, renamed identifiers. Those are routine authoring, not schema changes.
+
+When you edit the schema, update three things together: the validator's accept set, the `version:` field on every in-tree manifest, and this section's MAJOR/MINOR/PATCH bullets if the rules for bumping themselves change.
