@@ -14,10 +14,9 @@ Typical user actions (no domain/module):
   new-domain      <domain>             Scaffold standard domain directory structure
   ensure-guidance <domain>             Create specs/guidance/ and seed CLAUDE.md (idempotent)
 
-  catala-test-transpile <domain> <module>   Generate Catala test file from YAML tests
   catala-test           <domain> <module>   Run Catala tests via Catala's clerk CLI
-        Clerk runs the transpiled tests under output/tests/.
-  catala-pipeline       <domain> <module>   clerk typecheck -> catala-test-transpile -> catala-test
+        Clerk runs the test fixtures under output/tests/ (mirrored from specs/tests/).
+  catala-pipeline       <domain> <module>   copy-source-to-output -> clerk typecheck -> clerk test
   catala-demo           <domain> <module>   Start Catala-Python demo (foreground)
 
 Slash command support actions:
@@ -275,49 +274,10 @@ def _derive_scope_name(catala_source_path: Path) -> str:
     if not m:
         _print_err(
             f"No `declaration scope <Name>:` found in {catala_source_path}. "
-            f"Add a scope declaration in the catala-metadata fence or pass "
-            f"--scope explicitly to transpile_to_catala_tests.py."
+            f"Add a scope declaration in the catala-metadata fence."
         )
         sys.exit(1)
     return m.group(1)
-
-
-def cmd_catala_test_transpile(domain, module):
-    """Read type info from `specs/naming-manifest.yaml` and the test
-    scope name from the first `declaration scope` in the Catala source.
-
-    The CamelCase module name mirrors the Catala module-directive
-    convention: first letter upper, underscores preserved.
-    """
-    domain_base = DOMAINS_FULLPATH / domain
-    manifest_path = domain_base / "specs" / "naming-manifest.yaml"
-    require_file(manifest_path, "naming-manifest.yaml")
-
-    catala_source = domain_base / "specs" / f"{module}.catala_en"
-    require_file(catala_source, "Catala source")
-    scope_name = _derive_scope_name(catala_source)
-    catala_module_name = module[0].upper() + module[1:] if module else module
-
-    tests_dir = domain_base / "specs" / "tests"
-    out_dir = domain_base / "output" / "tests"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    import glob as _glob
-    pattern = str(tests_dir / f"{module}*_tests.yaml")
-    test_files = sorted(_glob.glob(pattern))
-    if not test_files:
-        _print_err(f"No test files matching {pattern}")
-        sys.exit(1)
-    for tests_yaml in test_files:
-        stem = Path(tests_yaml).stem  # e.g. eligibility_tests
-        out_catala = out_dir / f"{stem}.catala_en"
-        run([
-            sys.executable, str(SCRIPT_DIR_TOOLS / "transpile_to_catala_tests.py"),
-            str(Path(tests_yaml).resolve().relative_to(CWD.resolve())),
-            str(out_catala.resolve().relative_to(CWD.resolve())),
-            "--scope", scope_name,
-            "--naming-manifest", str(manifest_path.resolve().relative_to(CWD.resolve())),
-            "--module-name", catala_module_name,
-        ], cwd=str(CWD))
 
 
 def cmd_catala_test(domain, module):
@@ -523,7 +483,6 @@ examples:
     sub = parser.add_subparsers(dest="action", required=True, metavar="action")
 
     for action, help_text in [
-        ("catala-test-transpile", "Generate Catala test file from YAML tests"),
         ("catala-test",           "Run Catala tests via clerk test"),
         ("catala-demo",           "Start Catala-Python demo (foreground)"),
         ("graph",                 "Generate computation graph"),
@@ -644,8 +603,6 @@ examples:
     args = parser.parse_args()
 
     match args.action:
-        case "catala-test-transpile":
-            cmd_catala_test_transpile(args.domain, args.module)
         case "catala-test":
             cmd_catala_test(args.domain, args.module)
         case "catala-demo":
