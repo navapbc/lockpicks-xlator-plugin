@@ -659,6 +659,141 @@ def naming_divergence_check(
     return diags
 
 
+def naming_divergence_check_aggregated(
+    manifest_path: Path,
+    module_paths: list[Path],
+    *,
+    warnings_out: Optional[list[str]] = None,
+) -> list[Diagnostic]:
+    """Aggregated set-diff: a manifest entry is satisfied when ANY module
+    in `module_paths` declares it; a source-side identifier is unmatched
+    only when no manifest entry covers it across the entire work-list.
+
+    Returns the same shape of Diagnostic list as `naming_divergence_check`
+    so consuming skills can render both single-module and aggregated
+    results uniformly.
+
+    Returns an empty list when the manifest path doesn't exist (silent —
+    same fallback as the single-module check). Missing module files are
+    skipped, with a warning emitted to stderr and (optionally) appended
+    to `warnings_out`; aggregation continues across the remaining
+    modules.
+
+    The source → manifest direction (R3) anchors each diagnostic to a
+    canonical declaring module (the sorted-first path that declared the
+    identifier) and names every declaring module in the message body so
+    the analyst can locate the offending identifier across the work-list.
+    """
+    if not manifest_path.is_file():
+        return []
+
+    try:
+        with manifest_path.open(encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    if not isinstance(raw, dict):
+        return []
+
+    input_fields, computed_outputs, entities = _collect_manifest_keys(raw)
+
+    aggregated_bare: set[str] = set()
+    aggregated_dotted_tails: set[str] = set()
+    aggregated_declared: set[str] = set()
+    # Map: bare identifier → set of declaring module paths (used for the
+    # source → manifest direction's `file=` anchor and message body).
+    bare_attribution: dict[str, set[Path]] = {}
+
+    for module_path in module_paths:
+        if not module_path.is_file():
+            warning = (
+                f"naming_divergence_check_aggregated: skipped missing "
+                f"module file {module_path}"
+            )
+            print(f"WARN: {warning}", file=sys.stderr)
+            if warnings_out is not None:
+                warnings_out.append(warning)
+            continue
+
+        graph = _catala_dependency_graph(module_path)
+        if graph is None:
+            bare_ids: set[str] = set()
+            dotted_tails: set[str] = set()
+        else:
+            bare_ids, dotted_tails = _collect_source_identifiers(graph)
+        declared_in_source = _collect_source_text_identifiers(module_path)
+
+        aggregated_bare |= bare_ids
+        aggregated_dotted_tails |= dotted_tails
+        aggregated_declared |= declared_in_source
+        for name in bare_ids:
+            bare_attribution.setdefault(name, set()).add(module_path)
+
+    all_source_ids = (
+        aggregated_bare | aggregated_dotted_tails | aggregated_declared
+    )
+    known_in_manifest = input_fields | computed_outputs | entities
+
+    diags: list[Diagnostic] = []
+    missing_in_source = sorted(
+        (input_fields | computed_outputs) - all_source_ids
+    )
+    missing_in_manifest = sorted(aggregated_bare - known_in_manifest)
+
+    for name in missing_in_source:
+        msg = (
+            f"identifier '{name}' is declared in naming-manifest.yaml but "
+            f"not present in the Catala source. Resolve by either: "
+            f"(a) adding the identifier to the Catala source (preferred when "
+            f"the rule is missing), or (b) removing the entry from the "
+            f"manifest (preferred when the identifier was intentionally "
+            f"dropped)."
+        )
+        diags.append(
+            Diagnostic(
+                file=str(manifest_path),
+                line=0,
+                col=0,
+                severity="error",
+                category="naming_divergence",
+                message=msg,
+                raw=msg,
+            )
+        )
+
+    for name in missing_in_manifest:
+        declarers = sorted(bare_attribution.get(name, set()))
+        canonical = str(declarers[0]) if declarers else ""
+        if len(declarers) > 1:
+            origin = (
+                f" Declared in: "
+                + ", ".join(str(p) for p in declarers)
+                + "."
+            )
+        else:
+            origin = ""
+        msg = (
+            f"identifier '{name}' appears in the Catala source but is not "
+            f"declared in naming-manifest.yaml. Resolve by either: "
+            f"(a) renaming the identifier in the Catala source to a "
+            f"manifest-declared name, or (b) adding the identifier to the "
+            f"manifest under its appropriate section."
+            + origin
+        )
+        diags.append(
+            Diagnostic(
+                file=canonical,
+                line=0,
+                col=0,
+                severity="error",
+                category="naming_divergence",
+                message=msg,
+                raw=msg,
+            )
+        )
+    return diags
+
+
 # ---------------------------------------------------------------------------
 # Operational hygiene
 # ---------------------------------------------------------------------------
@@ -707,6 +842,7 @@ def run(
     reset_log: bool = True,
     include_dirs: Optional[list[Path]] = None,
     manifest_path: Optional[Path] = None,
+    skip_naming_divergence_check: bool = False,
 ) -> LoopResult:
     """Drive the clerk-loop against `module_path`.
 
@@ -726,6 +862,12 @@ def run(
         parent directory.
     manifest_path : override `naming-manifest.yaml` discovery. When None,
         the canonical search order applies.
+    skip_naming_divergence_check : when True, bypass the per-iteration
+        in-loop naming-manifest divergence check. Intended for orchestrators
+        that perform an aggregated divergence check across multiple modules
+        as a post-pass (the per-file check is structurally unable to
+        converge against a shared manifest covering identifiers in sibling
+        modules). Default False preserves the single-module CLI contract.
     """
     module_path = Path(module_path)
     if not module_path.is_file():
@@ -770,8 +912,12 @@ def run(
         # "I don't know how to apply operator + on types ..." diagnostic.
         # The `cross_module_contract` category remains reserved.
 
-        # Step 4: shared naming-manifest divergence check
-        diagnostics.extend(naming_divergence_check(module_path, manifest_path))
+        # Step 4: shared naming-manifest divergence check (skipped when an
+        # orchestrator does an aggregated check across the work-list — the
+        # per-file check cannot converge against a manifest covering
+        # identifiers in sibling modules).
+        if not skip_naming_divergence_check:
+            diagnostics.extend(naming_divergence_check(module_path, manifest_path))
 
         combined_raw = "\n".join(raw_segments)
         last_raw = combined_raw
