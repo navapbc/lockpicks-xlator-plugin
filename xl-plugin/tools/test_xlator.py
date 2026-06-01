@@ -100,6 +100,67 @@ class TestCopySourceToOutput:
         with pytest.raises(SystemExit):
             xlator.cmd_copy_source_to_output("snap", "is_eligible")
 
+    def test_copies_tests_catala_en_into_output_tests(self, xlator_module):
+        # v14.0.0: .catala_en test fixtures live under specs/tests/
+        # (authored, checked into git) and must be mirrored to
+        # output/tests/ so `clerk test` finds them. Without this,
+        # the post-cutover catala-pipeline has no test fixtures to run.
+        xlator, domains_root = xlator_module
+        specs = domains_root / "snap" / "specs"
+        specs_tests = specs / "tests"
+        specs_tests.mkdir(parents=True)
+        (specs / "is_eligible.catala_en").write_text("> Module Is_eligible\n")
+        catala_test_body = textwrap.dedent("""\
+            > Using Is_eligible
+
+            #[test] declaration scope TestAllow001:
+              result scope Is_eligible.IsEligible
+            """)
+        (specs_tests / "is_eligible_tests.catala_en").write_text(catala_test_body)
+
+        xlator.cmd_copy_source_to_output("snap", "is_eligible")
+
+        out_test = (
+            domains_root / "snap" / "output" / "tests" / "is_eligible_tests.catala_en"
+        )
+        assert out_test.is_file()
+        assert out_test.read_text() == catala_test_body
+
+    def test_specs_tests_yaml_not_mirrored(self, xlator_module):
+        # YAML test files stay in specs/tests/ — they are the SME-facing
+        # source; only the AI-emitted .catala_en peers are mirrored to
+        # output/tests/ for clerk test consumption.
+        xlator, domains_root = xlator_module
+        specs = domains_root / "snap" / "specs"
+        specs_tests = specs / "tests"
+        specs_tests.mkdir(parents=True)
+        (specs / "is_eligible.catala_en").write_text("> Module Is_eligible\n")
+        (specs_tests / "is_eligible_tests.yaml").write_text("tests: []\n")
+
+        xlator.cmd_copy_source_to_output("snap", "is_eligible")
+
+        out_tests_dir = domains_root / "snap" / "output" / "tests"
+        # The output/tests/ directory may or may not be created depending on
+        # whether .catala_en peers exist; either is acceptable here. What
+        # must NOT exist is a YAML copy.
+        out_yaml = out_tests_dir / "is_eligible_tests.yaml"
+        assert not out_yaml.exists()
+
+    def test_missing_specs_tests_dir_is_not_an_error(self, xlator_module):
+        # Domains that haven't authored any test fixtures yet have no
+        # specs/tests/ directory. The copy step must not raise — matches
+        # the pre-existing tolerance for missing clerk.toml.
+        xlator, domains_root = xlator_module
+        specs = domains_root / "snap" / "specs"
+        specs.mkdir(parents=True)
+        (specs / "is_eligible.catala_en").write_text("> Module Is_eligible\n")
+
+        # No specs/tests/ directory created.
+        xlator.cmd_copy_source_to_output("snap", "is_eligible")
+
+        out = domains_root / "snap" / "output" / "is_eligible.catala_en"
+        assert out.is_file()
+
 
 class TestDeriveScopeName:
     def test_reads_first_declaration_scope(self, xlator_module, tmp_path):

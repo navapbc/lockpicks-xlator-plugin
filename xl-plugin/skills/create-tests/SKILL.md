@@ -176,7 +176,11 @@ tests:
 
 Write to `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml`.
 
-Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and this skill's outputs:
+Then emit the Catala test fixture peer for the YAML:
+
+> **Run `/catala-emit-tests <domain> <program>`.** Skip pre-flight — already verified above. The sub-skill reads the Catala source's scope-input declarations directly to infer the struct-literal shape, then emits `specs/tests/<program>_tests.catala_en` and self-checks via `clerk typecheck`. If the sub-skill returns `:::user_input` (unresolved clerk-loop), relay the user's response back to the sub-skill before continuing.
+
+After the sub-skill returns successfully, record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and this skill's outputs (the manifest now captures both the YAML and its `.catala_en` peer in a single write):
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -252,11 +256,15 @@ Print (or skip silently if `guidance/sample-tests.yaml` is absent or `sample_tes
 
 Overwrite `$DOMAINS_DIR/<domain>/specs/tests/<program>_tests.yaml` with the updated suite.
 
-### Step 6: Clean Up Sidecar
+### Step 6: Emit Catala Test Fixtures
+
+Run `/catala-emit-tests <domain> <program>`. Skip pre-flight — already verified above. The sub-skill refreshes `specs/tests/<program>_tests.catala_en` and any other expanded test peers from the updated YAML, and self-checks via `clerk typecheck`. If the sub-skill returns `:::user_input` (unresolved clerk-loop), relay the user's response back to the sub-skill before continuing.
+
+### Step 7: Clean Up Sidecar
 
 Delete `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` if it exists (prevents stale hints on the next standalone run).
 
-### Step 7: Record Tests-Tier Manifest
+### Step 8: Record Tests-Tier Manifest
 
 Record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the updated test suite:
 
@@ -274,3 +282,4 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 - **Don't change `case_id` values** when updating stale cases — preserve existing IDs
 - **Don't delete cases that aren't stale** — only update or add; removal is a human decision
 - **Omit optional input fields** that aren't relevant to a test case — only include inputs the test actually depends on
+- **Don't skip the `/catala-emit-tests` step** — the YAML and Catala companion must stay in sync, and the post-v14.0.0 pipeline expects the `.catala_en` peer to exist under `specs/tests/`

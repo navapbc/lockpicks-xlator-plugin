@@ -5,7 +5,7 @@
 
 Reference for authoring and generating Catala test files.
 For general Catala syntax see [catala-quickref.md](catala-quickref.md).
-For generating tests from YAML: `xlator catala-test-transpile <domain> <module>`
+For generating tests from YAML: run `/catala-emit-tests <domain> <module>` (AI sub-skill — reads the Catala source directly to infer scope-input shape).
 
 To run tests: `clerk test`
 

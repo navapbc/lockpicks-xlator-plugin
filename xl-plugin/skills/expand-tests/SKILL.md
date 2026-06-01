@@ -221,7 +221,11 @@ After generating all four files, print a summary:
   Skipped (duplicates): N
 :::
 
-Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the expanded test files:
+Then emit the Catala test fixture peers for each non-null-input YAML written above:
+
+> **Run `/catala-emit-tests <domain> <program>`.** Skip pre-flight — already verified above. The sub-skill enumerates every `<program>*_tests.yaml` under `specs/tests/`, emits a typechecking `.catala_en` peer for each non-null-input file, and self-checks via `clerk typecheck`. `*_null_input_expanded_tests.yaml` is skipped (null inputs aren't Catala-encodable). If the sub-skill returns `:::user_input` (unresolved clerk-loop), relay the user's response back to the sub-skill before continuing.
+
+After the sub-skill returns successfully, record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the expanded test files (the manifest captures both YAML and `.catala_en` peers in a single write):
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -232,7 +236,7 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 Note: the manifest records the current `specs/*.catala_en` SHA at this run's write time. The baseline `<program>_tests.yaml` (read by Phase 1 but not rewritten by this skill) may have been generated against a different Catala-source SHA. If you need full tests-tier consistency, run `/create-tests <domain>` to refresh the baseline first.
 
 :::next_step
-Run /catala-pipeline <domain> <program> to transpile these tests to Catala #[test] scopes and run them via clerk test.
+Run `xlator catala-pipeline <domain> <program>` to verify the emitted Catala tests via `clerk test`.
 :::
 
 | File | Action |

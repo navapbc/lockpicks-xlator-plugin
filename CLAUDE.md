@@ -23,7 +23,7 @@ Do not assume code is needed to migrate or handle old files. Ask the user if the
 
 ## Testing
 
-When fixing AI-emitted Catala bugs (typecheck failures, clerk-loop divergences, transpile_to_catala_tests issues), always run the full test suite (all domains/programs) after each fix — not just the specific failing test. Changes to shared tooling frequently cause regressions in other modules.
+When fixing AI-emitted Catala bugs (typecheck failures, clerk-loop divergences, `/catala-emit-tests` test-fixture issues), always run the full test suite (all domains/programs) after each fix — not just the specific failing test. Changes to shared tooling frequently cause regressions in other modules.
 
 ## Project Terminology
 
