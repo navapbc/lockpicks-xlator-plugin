@@ -218,7 +218,6 @@ ensure_xlator_symlink() {
 setup_misc() {
     echo "😊 4. Wrapping up: VS Code settings, put xlator in PATH, symlinks"
     mkdir -p "$PROJECT_ROOT/.vscode"
-    copy_if_diff "$CLAUDE_PLUGIN_ROOT/core/ruleset.schema.json" "$PROJECT_ROOT/.vscode/ruleset.schema.json" || true
 
     # Claude's PATH should have $CLAUDE_PLUGIN_ROOT/bin included, so xlator should be available for Claude.
     # For other contexts (VS Code terminal, user shell), create a symlink to the xlator script in a folder that's on the PATH.

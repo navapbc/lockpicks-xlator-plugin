@@ -1,6 +1,6 @@
 # Legacy Lockpicks: Xlator (Translator) project
 
-Goal: Represent and translate the given input (federal, state, and local government policy documents and code from legacy systems) into specs (intermediate representations of rulesets), following a Rules-as-Code (RaC) approach. To create the output, the specs are used to build the modernized system, quickly building much of the UI workflows to gather the input needed to run the ruleset.
+Goal: Represent and translate the given input (federal, state, and local government policy documents) into specs (intermediate representations of rulesets), following a Rules-as-Code (RaC) approach. To create the output, the specs are used to build the modernized system, quickly building much of the UI workflows to gather the input needed to run the ruleset.
 
 ## Key Principles
 
