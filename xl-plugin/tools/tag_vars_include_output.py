@@ -31,6 +31,15 @@ Detection passes:
   Existing entries from include-with-output.yaml are appended last with
            reason "existing".
 
+Comprehension / quantifier loop-variable filter:
+  Passes 1, 2a, and 2b strip ephemeral loop bindings before emitting names.
+  Catala forms: `exists <v> among ...`, `for all <v> among ...`,
+  `list of <v> among ...`, `map each <v> among ...`,
+  `combine all <v> among ...`, `content of <v> among ...`. Pseudo-Python
+  sketch form (skeleton expressions): `for <v> in <list>`. A loop variable
+  is local to the iteration expression and is never a real computed
+  variable or sub-scope binding.
+
 When a name surfaces from multiple passes, the first reason wins
 (Pass 1 → 2a → 2b → 3 → existing). Output order is deterministic and
 stable across re-runs.
@@ -124,6 +133,27 @@ _UNDER_CONDITION_RE = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
+# Comprehension / quantifier loop-variable binders. Catala forms all use
+# `<keyword> <var> among <expr>`: `exists`, `for all`, `list of`,
+# `map each`, `combine all`, `content of`. The pseudo-Python sketch form
+# `for <var> in <list>` also appears in skeleton expressions. The loop
+# variable name is ephemeral (scope-local iteration binding) and must NOT
+# be surfaced as an include-with-output entry — it is not a real
+# computed variable or sub-scope binding.
+_LOOP_VAR_RE = re.compile(
+    r"(?:exists|for\s+all|list\s+of|map\s+each|combine\s+all|content\s+of)"
+    r"\s+([a-z_][a-z0-9_]*)\s+among\b"
+    r"|\bfor\s+([a-z_][a-z0-9_]*)\s+in\b",
+    re.IGNORECASE,
+)
+
+# Catala 1.1.0 `#[<key> = <value>]` attribute annotations. The key form
+# `error.message`, `test.expected`, etc., is dot-notated but is a
+# compiler-directed annotation — not a scope-call binding. Strip these
+# blocks before dot-notation tokenization so the attribute namespace
+# (e.g., `error`, `test`) doesn't surface as a sub-scope binding name.
+_CATALA_ATTRIBUTE_RE = re.compile(r"#\[[^\]]*\]")
+
 
 def _load_yaml(path: Path) -> Any:
     """Return parsed YAML, or None when the file is missing.
@@ -169,6 +199,22 @@ def _extract_under_condition_exprs(catala_text: str) -> list[str]:
     return [m.strip() for m in _UNDER_CONDITION_RE.findall(catala_text) if m.strip()]
 
 
+def _extract_loop_vars(text: str) -> set[str]:
+    """Return the set of comprehension / quantifier loop-variable names
+    bound in `text`. These are ephemeral iteration bindings and must be
+    excluded from include-with-output detection — they are not computed
+    variables or sub-scope bindings.
+    """
+    if not isinstance(text, str) or not text:
+        return set()
+    loop_vars: set[str] = set()
+    for m in _LOOP_VAR_RE.finditer(text):
+        for group in m.groups():
+            if group:
+                loop_vars.add(group)
+    return loop_vars
+
+
 def _collect_pass1(domain_dir: Path) -> list[str]:
     """Pass 1: skeleton.yaml `computations[*].exprs` value dot-notation."""
     data = _load_yaml(domain_dir / _SKELETON)
@@ -188,7 +234,12 @@ def _collect_pass1(domain_dir: Path) -> list[str]:
         if not isinstance(exprs, dict):
             continue
         for expr_value in exprs.values():
-            names.extend(_scan_dot_notation(expr_value))
+            if not isinstance(expr_value, str):
+                continue
+            loop_vars = _extract_loop_vars(expr_value)
+            names.extend(
+                n for n in _scan_dot_notation(expr_value) if n not in loop_vars
+            )
     return names
 
 
@@ -257,9 +308,19 @@ def _collect_pass2(
     pass2a: list[str] = []
     pass2b: list[str] = []
     for _source_file, _rule_path, catala in snippets:
-        pass2a.extend(_scan_dot_notation(catala))
-        for cond_expr in _extract_under_condition_exprs(catala):
-            pass2b.extend(_tokenize_condition_expr(cond_expr))
+        # Strip `#[...]` attribute annotations first so attribute keys like
+        # `error.message` don't surface as sub-scope binding base names.
+        scrubbed = _CATALA_ATTRIBUTE_RE.sub("", catala)
+        loop_vars = _extract_loop_vars(scrubbed)
+        pass2a.extend(
+            n for n in _scan_dot_notation(scrubbed) if n not in loop_vars
+        )
+        for cond_expr in _extract_under_condition_exprs(scrubbed):
+            pass2b.extend(
+                n
+                for n in _tokenize_condition_expr(cond_expr)
+                if n not in loop_vars
+            )
     return pass2a, pass2b
 
 
