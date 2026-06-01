@@ -44,6 +44,7 @@ from clerk_loop import (  # noqa: E402
     classify_action,
     density_threshold_exceeded,
     naming_divergence_check,
+    naming_divergence_check_aggregated,
     parse_gnu_diagnostics,
     run,
     same_category_repeat,
@@ -634,3 +635,317 @@ class TestArgparseSmoke:
         assert hasattr(LoopResult, "__dataclass_fields__")
         assert hasattr(Diagnostic, "__dataclass_fields__")
         assert hasattr(Attempt, "__dataclass_fields__")
+
+
+# ---------------------------------------------------------------------------
+# U1: skip_naming_divergence_check flag
+# ---------------------------------------------------------------------------
+
+@_requires_clerk
+@_requires_catala
+class TestSkipNamingDivergenceCheck:
+    """U1: An orchestrator (e.g. clerk-loop-multi) may bypass the
+    per-iteration naming-divergence check inside run() when it intends to
+    perform the divergence check itself across the whole work-list."""
+
+    def _fixture_with_extra_manifest_entry(self, tmp_path: Path) -> Path:
+        """Copy the PA3 fixture and inject an extra manifest entry the
+        single-module source cannot satisfy — this guarantees the in-loop
+        divergence check would fire when not bypassed."""
+        module = _copy_fixture_to(tmp_path)
+        manifest_path = tmp_path / "naming-manifest.yaml"
+        with manifest_path.open(encoding="utf-8") as f:
+            manifest = yaml.safe_load(f)
+        manifest.setdefault("computed", {})["sibling_only_field"] = {
+            "policy_phrase": "an identifier declared only in a sibling module",
+        }
+        with manifest_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(manifest, f)
+        return module
+
+    def test_skip_true_bypasses_in_loop_divergence_check(self, tmp_path):
+        module = self._fixture_with_extra_manifest_entry(tmp_path)
+        result = run(module, max_iterations=2, skip_naming_divergence_check=True)
+        assert result.status == "ok", (
+            f"expected status=ok with skip flag, got {result.status}; "
+            f"diagnostics: {[d.as_dict() for d in result.last_diagnostics]}"
+        )
+        assert not any(
+            d.category == "naming_divergence" for d in result.last_diagnostics
+        )
+
+    def test_skip_false_default_still_runs_divergence_check(self, tmp_path):
+        module = self._fixture_with_extra_manifest_entry(tmp_path)
+        result = run(module, max_iterations=2)
+        assert result.status == "unresolved"
+        assert any(
+            d.category == "naming_divergence" for d in result.last_diagnostics
+        )
+
+    def test_explicit_skip_false_matches_default(self, tmp_path):
+        module = self._fixture_with_extra_manifest_entry(tmp_path)
+        result = run(
+            module, max_iterations=2, skip_naming_divergence_check=False
+        )
+        assert result.status == "unresolved"
+        assert any(
+            d.category == "naming_divergence" for d in result.last_diagnostics
+        )
+
+    def test_skip_true_does_not_mask_typecheck_failures(self, tmp_path):
+        """Flag bypasses only the divergence check — unrelated diagnostics
+        (typecheck failures) still halt the loop normally."""
+        broken = textwrap.dedent("""\
+            > Module Broken
+
+            ```catala-metadata
+            declaration scope BrokenScope:
+              input x content integer
+              output y content integer
+            ```
+
+            ```catala
+            scope BrokenScope:
+              definition y equals x + true
+            ```
+            """)
+        module = tmp_path / "Broken.catala_en"
+        module.write_text(broken)
+        subprocess.run(["clerk", "start"], cwd=str(tmp_path),
+                       capture_output=True, text=True, check=False)
+        result = run(module, max_iterations=2, skip_naming_divergence_check=True)
+        assert result.status == "unresolved"
+        assert result.last_diagnostics
+        # No naming-divergence diagnostics (the manifest is absent here and
+        # the check was skipped anyway) — only typecheck-derived diagnostics.
+        assert not any(
+            d.category == "naming_divergence" for d in result.last_diagnostics
+        )
+
+
+# ---------------------------------------------------------------------------
+# U2: naming_divergence_check_aggregated()
+# ---------------------------------------------------------------------------
+
+def _write_simple_catala_module(
+    path: Path,
+    module_name: str,
+    scope_name: str,
+    declarations: list[str],
+    definitions: list[str],
+) -> None:
+    """Write a minimal Catala module file with the given declarations and
+    definitions inside a single scope. Used to construct multi-module
+    aggregation fixtures inline."""
+    decl_block = "\n  ".join(declarations)
+    def_block = "\n  ".join(definitions)
+    body = textwrap.dedent(f"""\
+        > Module {module_name}
+
+        ```catala-metadata
+        declaration scope {scope_name}:
+          {decl_block}
+        ```
+
+        ```catala
+        scope {scope_name}:
+          {def_block}
+        ```
+        """)
+    path.write_text(body)
+
+
+@_requires_catala
+class TestNamingDivergenceCheckAggregated:
+    """U2: orchestrator-facing aggregated check evaluates manifest ↔ source
+    against the UNION of identifiers across every module in the work-list,
+    not against one module at a time."""
+
+    def _setup_two_module_fixture(
+        self,
+        tmp_path: Path,
+        manifest_extras: dict | None = None,
+    ) -> tuple[Path, Path, Path]:
+        """Module A declares `field_a`, Module B declares `field_b`.
+        Shared manifest covers both."""
+        module_a = tmp_path / "ModuleA.catala_en"
+        module_b = tmp_path / "ModuleB.catala_en"
+        _write_simple_catala_module(
+            module_a,
+            module_name="ModuleA",
+            scope_name="ScopeA",
+            declarations=["output field_a content integer"],
+            definitions=["definition field_a equals 1"],
+        )
+        _write_simple_catala_module(
+            module_b,
+            module_name="ModuleB",
+            scope_name="ScopeB",
+            declarations=["output field_b content integer"],
+            definitions=["definition field_b equals 2"],
+        )
+        manifest: dict = {
+            "computed": {
+                "field_a": {"policy_phrase": "field a from module A"},
+                "field_b": {"policy_phrase": "field b from module B"},
+            },
+        }
+        if manifest_extras:
+            for section, items in manifest_extras.items():
+                manifest.setdefault(section, {}).update(items)
+        manifest_path = tmp_path / "naming-manifest.yaml"
+        with manifest_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(manifest, f)
+        subprocess.run(
+            ["clerk", "start"], cwd=str(tmp_path),
+            capture_output=True, text=True, check=False,
+        )
+        return manifest_path, module_a, module_b
+
+    def test_union_covers_manifest_no_diagnostics(self, tmp_path):
+        """Happy path: each manifest entry is declared in exactly one of
+        the two modules. The aggregated union covers all entries → no
+        divergence."""
+        manifest_path, module_a, module_b = self._setup_two_module_fixture(tmp_path)
+        # Single-module check on each module independently would flag the
+        # other module's entry as missing. The aggregated check must not.
+        diags_a_alone = naming_divergence_check(module_a, manifest_path)
+        diags_b_alone = naming_divergence_check(module_b, manifest_path)
+        assert any(
+            "field_b" in d.message for d in diags_a_alone
+        ), "module A alone should false-positive on field_b (reproduces the bug)"
+        assert any(
+            "field_a" in d.message for d in diags_b_alone
+        ), "module B alone should false-positive on field_a (reproduces the bug)"
+        # Aggregated check across the work-list eliminates both false positives.
+        aggregated = naming_divergence_check_aggregated(
+            manifest_path, [module_a, module_b]
+        )
+        divergence = [d for d in aggregated if d.category == "naming_divergence"]
+        assert divergence == [], (
+            "aggregated check must not surface naming-divergence diagnostics "
+            f"when the union covers the manifest; got: "
+            f"{[d.message for d in divergence]}"
+        )
+
+    def test_manifest_entry_no_module_declares_it_surfaces(self, tmp_path):
+        """Error path: manifest declares a `phantom` identifier that
+        appears in neither module."""
+        manifest_path, module_a, module_b = self._setup_two_module_fixture(
+            tmp_path,
+            manifest_extras={
+                "computed": {
+                    "phantom": {"policy_phrase": "missing everywhere"},
+                },
+            },
+        )
+        aggregated = naming_divergence_check_aggregated(
+            manifest_path, [module_a, module_b]
+        )
+        phantom_diags = [d for d in aggregated if "phantom" in d.message]
+        assert phantom_diags, "expected phantom entry to surface as divergence"
+        assert any(
+            "(a)" in d.message and "(b)" in d.message for d in phantom_diags
+        ), "diagnostic must carry both (a)/(b) resolution options"
+        # Manifest → source diagnostics anchor to the manifest path.
+        assert any(d.file == str(manifest_path) for d in phantom_diags)
+
+    def test_source_to_manifest_direction_surfaces(self, tmp_path):
+        """R3: an identifier declared in a module's source but absent from
+        the manifest must still flag, even under aggregation."""
+        manifest_path, module_a, module_b = self._setup_two_module_fixture(tmp_path)
+        # Append an extra scope-level identifier to module A that the
+        # manifest does NOT declare.
+        module_a.write_text(textwrap.dedent("""\
+            > Module ModuleA
+
+            ```catala-metadata
+            declaration scope ScopeA:
+              output field_a content integer
+              output rogue_field content integer
+            ```
+
+            ```catala
+            scope ScopeA:
+              definition field_a equals 1
+              definition rogue_field equals 99
+            ```
+            """))
+        aggregated = naming_divergence_check_aggregated(
+            manifest_path, [module_a, module_b]
+        )
+        rogue = [d for d in aggregated if "rogue_field" in d.message]
+        assert rogue, (
+            "expected source→manifest diagnostic for rogue_field; got: "
+            f"{[d.message for d in aggregated]}"
+        )
+        # Source → manifest diagnostic anchors to the declaring module's path.
+        assert any(d.file == str(module_a) for d in rogue), (
+            f"source→manifest diagnostic must anchor to declaring module; "
+            f"got files: {[d.file for d in rogue]}"
+        )
+
+    def test_single_module_equivalence_with_legacy_check(self, tmp_path):
+        """Edge case: single-element module_paths must produce the same
+        diagnostic set as the legacy single-module check on identical
+        inputs. Locks the invariant called out in U2's Verification."""
+        module = _copy_fixture_to(tmp_path)
+        manifest_path = tmp_path / "naming-manifest.yaml"
+        legacy = naming_divergence_check(module, manifest_path)
+        aggregated = naming_divergence_check_aggregated(manifest_path, [module])
+        # Compare the (file, message) tuples — sufficient identity since
+        # severity/category/raw are constant for naming_divergence.
+        legacy_keys = sorted((d.file, d.message) for d in legacy)
+        agg_keys = sorted((d.file, d.message) for d in aggregated)
+        assert legacy_keys == agg_keys
+
+    def test_missing_manifest_returns_empty(self, tmp_path):
+        """Edge case: manifest path doesn't exist → empty list (same
+        fallback as the single-module check)."""
+        module = tmp_path / "x.catala_en"
+        module.write_text("> Module X\n")
+        missing_manifest = tmp_path / "nope.yaml"
+        assert naming_divergence_check_aggregated(
+            missing_manifest, [module]
+        ) == []
+
+    def test_missing_module_file_skipped_with_warning(self, tmp_path):
+        """Edge case: a module path that doesn't exist is skipped and a
+        warning is appended to the warnings_out list (if provided). The
+        remaining modules' aggregation still runs."""
+        manifest_path, module_a, module_b = self._setup_two_module_fixture(tmp_path)
+        ghost = tmp_path / "Ghost.catala_en"  # never created
+        warnings: list[str] = []
+        aggregated = naming_divergence_check_aggregated(
+            manifest_path, [module_a, ghost, module_b],
+            warnings_out=warnings,
+        )
+        # Aggregation still functions across the two real modules.
+        divergence = [d for d in aggregated if d.category == "naming_divergence"]
+        assert divergence == [], (
+            f"aggregation should still cover manifest after skipping ghost; "
+            f"got: {[d.message for d in divergence]}"
+        )
+        assert any("Ghost.catala_en" in w for w in warnings), (
+            f"expected warning for missing module; got warnings: {warnings}"
+        )
+
+    def test_empty_module_paths_flags_every_manifest_entry(self, tmp_path):
+        """Edge case: no modules → every manifest entry surfaces as
+        missing-in-source (natural set-diff semantics)."""
+        manifest_path = tmp_path / "naming-manifest.yaml"
+        manifest = {
+            "computed": {
+                "alpha": {"policy_phrase": "a"},
+                "beta": {"policy_phrase": "b"},
+            },
+        }
+        with manifest_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(manifest, f)
+        aggregated = naming_divergence_check_aggregated(manifest_path, [])
+        names = sorted(
+            d.message.split("'")[1]
+            for d in aggregated
+            if d.category == "naming_divergence"
+        )
+        assert names == ["alpha", "beta"]

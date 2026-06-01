@@ -1,0 +1,18 @@
+> Module ModuleA
+
+# Synthetic Multi-Module Fixture — Module A
+
+This module declares `field_a` only. The shared `naming-manifest.yaml`
+also declares `field_b`, which lives in Module B. The per-file
+divergence check on this module alone would falsely flag `field_b` as
+missing; the aggregated check across the work-list does not.
+
+```catala-metadata
+declaration scope ScopeA:
+  output field_a content integer
+```
+
+```catala
+scope ScopeA:
+  definition field_a equals 1
+```

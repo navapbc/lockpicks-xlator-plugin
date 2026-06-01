@@ -382,35 +382,43 @@ For each `consumed_guidance:` entry, read the SHA from the `guidance_shas` map i
 
 ### Step 6: Verify Catala source with the clerk loop
 
-Run the U2 clerk-loop helper against each generated Catala source. The helper drives `clerk typecheck` + `clerk test`, parses GNU-format diagnostics, performs the shared naming-manifest divergence check, and returns a structured outcome. **The skill does not duplicate the divergence check** — Step 4 of `clerk_loop.run()` handles all manifest-side checks (set-diff against the source identifiers from `catala dependency-graph`).
+Run the multi-module clerk-loop orchestrator over every module in the work-list. The orchestrator drives `clerk typecheck` + `clerk test` per module (with the per-iteration in-loop naming-manifest check bypassed, since the per-file check cannot converge against a manifest shared across siblings), then runs a single **aggregated** naming-manifest divergence check across the union of identifiers from every module. Single-module and multi-file invocations both go through this script.
 
-**Multi-file:** Run the clerk loop once per `generate` entry in the work-list, in work-list order. If any entry returns `status="unresolved"`, stop and print:
-```
-Verification failed for: $DOMAINS_DIR/<domain>/specs/<name>.catala_en
-The following files were written and may be inconsistent: <list of previously written files>.
-```
-Do not proceed to the next file after a failure.
+**Invocation:**
 
-**Single-file:** Run the clerk loop once on the drafted file.
-
-Invocation (the skill calls the deterministic Python library, not via shell-out):
-
-```python
-from clerk_loop import run, LoopResult
-result = run(Path("$DOMAINS_DIR/<domain>/specs/<program>.catala_en"))
+```bash
+xlator clerk-loop-multi <domain> [<program>]
 ```
 
-Handle the result:
+The script emits a JSON header line on stdout followed by `--- CLERK-LOOP-MULTI-HEADER-END ---` and a human-readable summary. Parse the JSON header (first stdout line); verify the sentinel on the second line. Header shape:
 
-- **`status="ok"`** — `clerk typecheck` and `clerk test` both passed and the naming-manifest set-diff is empty. Surface a `:::important` summary including `result.iterations` so the analyst sees how many repair iterations were required, then continue to Step 7.
+```json
+{
+  "status": "ok" | "unresolved" | "error",
+  "mode": "full",
+  "modules_checked": <int>,
+  "modules_generated": <int>,
+  "iterations_per_module": [{"module": "<name>", "iterations": <int>}, ...],
+  "failed_module": null | "<name>",
+  "verified_modules": ["<name>", ...],
+  "diagnostic_count": <int>,
+  "warnings": ["<msg>", ...]
+}
+```
 
-- **`status="unresolved"`** — the loop hit the iteration cap (or halted on a naming divergence). Surface a `:::user_input` fence containing `result.summary`, the per-diagnostic file/line/category/message lines from `result.last_diagnostics`, and the repair-history summary from `result.repair_history`. Ask the analyst how to proceed:
-  - **Naming divergence** (`d.category == "naming_divergence"`): the loop halted because identifiers in the source and manifest don't align. Each diagnostic carries both resolution options in its message body — (a) add/rename in the source, or (b) update/remove in the manifest. Ask which to apply, then loop back to Step 4 (regenerate the relevant fenced block) or hand-edit and re-run Step 6.
-  - **Other diagnostics**: the AI did not converge within the iteration cap. Show the analyst the last diagnostics and the repair-history's `action_taken` recommendations (`patch` vs `regenerate`). Typical next steps: review the suggestion, hand-edit the Catala source to address the diagnostics, then re-run Step 6 — or restart Step 4 if the regenerate signal is dominant.
+Branch on `header.status`:
 
-  Do not proceed to Step 7 until the loop returns `status="ok"`.
+- **`status="ok"`** — every per-module clerk loop passed and the aggregated divergence check reported no mismatch. Surface a `:::important` summary that names the modules verified and the per-module iteration counts (from `iterations_per_module`), then continue to Step 7.
 
-Operational note: the helper calls `catala_runtime.reset_log()` between iterations by default (PR #45 prevention).
+- **`status="unresolved"`** — either a per-module loop halted (`header.failed_module` is set; surface the diagnostics listed under the sentinel) or the aggregated divergence check flagged one or more mismatches. Emit a `:::user_input` fence containing the human summary and the diagnostic block. Ask the analyst how to proceed:
+  - **Naming divergence**: each diagnostic carries both resolution options in its message body — (a) hand-edit the affected Catala source(s) to add or rename the identifier, or (b) edit `specs/naming-manifest.yaml` to update or remove the entry. Apply the chosen resolution, then re-run Step 6. (Per-fenced-block regeneration is no longer applicable — divergence is detected as a post-pass after every per-module loop has completed.)
+  - **Per-module clerk failure** (`header.failed_module` is set): the listed diagnostics come from the failing module's last `clerk typecheck` / `clerk test` iteration. Hand-edit the source, then re-run Step 6. `header.verified_modules` lists the modules whose per-module loops completed before the halt.
+
+  Do not proceed to Step 7 until the script returns `status="ok"`.
+
+- **`status="error"`** (exit 2) — pre-flight failure (missing domain, missing `specs/naming-manifest.yaml`, missing `clerk` on PATH, or a `load-extraction-context` failure). Surface the human summary in `:::error` and stop.
+
+Operational note: each per-module loop calls `catala_runtime.reset_log()` between iterations by default (PR #45 prevention); the orchestrator inherits this behavior unchanged.
 
 ### Step 7: Write Naming Manifest
 

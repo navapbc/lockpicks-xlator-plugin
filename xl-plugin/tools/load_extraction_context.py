@@ -450,21 +450,42 @@ def _preflight(domain_dir: Path) -> tuple[int, str] | None:
 
 
 # ---------------------------------------------------------------------------
-# Run
+# Library API + CLI wrapper
 # ---------------------------------------------------------------------------
 
-def run(
+class LoadContextError(Exception):
+    """Raised by `load_context()` when a payload cannot be produced.
+
+    Carries an `exit_code` attribute so the CLI wrapper can surface the
+    same exit semantics that pre-refactor `run()` emitted directly."""
+
+    def __init__(self, message: str, exit_code: int):
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+def load_context(
     domain_dir: Path,
     program_arg: str | None,
     mode: str,
-) -> int:
+) -> dict[str, Any]:
+    """Build the extraction-context payload as a dict.
+
+    Library API for in-process consumers (e.g., `clerk_loop_multi.py`).
+    The CLI surface is preserved by `run()`, which wraps this function,
+    prints the JSON payload, and emits warnings to stderr.
+
+    Raises `LoadContextError` on pre-flight failure (`exit_code=2`) or
+    on input-index drift / missing input source (`exit_code=1`).
+    Constants-and-tables drop warnings surface in the returned
+    payload's `warnings` list; library callers may inspect them
+    directly.
+    """
     pre = _preflight(domain_dir)
     if pre is not None:
         rc, msg = pre
-        print(msg, file=sys.stderr)
-        return rc
+        raise LoadContextError(msg, exit_code=rc)
 
-    # Load all guidance/manifest/index documents up-front.
     metadata = _load_yaml_or_empty_dict(domain_dir / _METADATA_REL)
     prompt_context = _load_yaml_or_empty_dict(domain_dir / _PROMPT_CONTEXT_REL)
     output_variables = _load_yaml_or_empty_dict(domain_dir / _OUTPUT_VARIABLES_REL)
@@ -478,54 +499,40 @@ def run(
     ruleset_modules_doc = _load_yaml_or_none(domain_dir / _RULESET_MODULES_REL)
     input_index_doc = _load_yaml_or_none(domain_dir / _INPUT_INDEX_REL)
 
-    # Build the five in-memory structures.
     confirmed_exprs = _build_confirmed_exprs(skeleton_doc)
     example_rules = _build_example_rules(sample_artifacts_doc)
     guidance_output_set = _build_guidance_output_set(include_doc)
     constants_tables_seed, ct_warnings = _build_constants_tables_seed(constants_doc)
     per_module_sample_rules = _build_per_module_sample_rules(ruleset_modules_doc)
 
-    # Working-tree drift check (input-index tier).
     input_index_shas, drifted, missing = _check_input_index_drift(
         domain_dir, input_index_doc
     )
     if missing:
-        # Missing sources are a separate failure mode from SHA drift; surface
-        # them as exit 1 with a specific message.
-        print(
-            "ERROR: source missing on disk: "
-            + ", ".join(missing),
-            file=sys.stderr,
+        raise LoadContextError(
+            "ERROR: source missing on disk: " + ", ".join(missing),
+            exit_code=1,
         )
-        return 1
     if drifted:
-        print(
+        raise LoadContextError(
             f"ERROR: Working-tree drift detected. Re-run "
             f"/index-inputs {domain_dir.name}. Drifted files: "
             + ", ".join(drifted),
-            file=sys.stderr,
+            exit_code=1,
         )
-        return 1
 
-    # Guidance SHA map (no drift check — fresh capture).
     guidance_shas = _build_guidance_shas(domain_dir)
 
-    # Resolve program + work-list.
     program, candidate_programs = _resolve_program(
         domain_dir, program_arg, ruleset_modules_doc
     )
     work_list = _build_work_list(domain_dir, program, ruleset_modules_doc)
 
-    # Optional: existing extraction-manifest.
     existing_extraction_manifest = _load_yaml_or_none(
         domain_dir / _EXTRACTION_MANIFEST_REL
     )
 
-    # Emit constants-and-tables warnings to stderr so the skill can relay.
-    for w in ct_warnings:
-        print(f"WARN: {w}", file=sys.stderr)
-
-    payload: dict[str, Any] = {
+    return {
         "domain": domain_dir.name,
         "program": program,
         "mode": mode,
@@ -546,6 +553,24 @@ def run(
         "candidate_programs": candidate_programs,
         "warnings": ct_warnings,
     }
+
+
+def run(
+    domain_dir: Path,
+    program_arg: str | None,
+    mode: str,
+) -> int:
+    """CLI wrapper around `load_context()` — prints the JSON payload to
+    stdout and emits warnings to stderr. Exit-code semantics are
+    preserved bit-for-bit from the pre-refactor run()."""
+    try:
+        payload = load_context(domain_dir, program_arg, mode)
+    except LoadContextError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
+
+    for w in payload.get("warnings", []):
+        print(f"WARN: {w}", file=sys.stderr)
 
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
