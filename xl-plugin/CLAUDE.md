@@ -83,18 +83,30 @@ After completion of an `xl` skill, suggest possible next steps based on these wo
 
 When a skill has more than 3 steps, show a checklist of the steps at the completion of each step to help the user track progress.
 
-## AskUserQuestion
+## Prompting the user for input
 
-Never present "Press Enter to ..." as an option. For boolean responses, show `[y/n]`. For multiple options:
+When a skill needs a response from the user, prefer the `AskUserQuestion` tool if it is available in the current environment. If the tool is unavailable (e.g., the web UI harness), fall back to rendering the prompt as plain text inside a `:::user_input` fence.
 
-```
-[a] Option one
-[b] Option two
-[c] Option three
-(or type in different response)
-```
+The rules below apply to the text-fence fallback. They do **not** apply when using `AskUserQuestion`, which has its own option UI.
 
-If the user responds with more than 1 character, use the user's response as the answer.
+Formatting rules (text fallback):
+
+- **Yes/no question:** end the prompt with `[y/n]`. Accept `y`, `yes`, `n`, `no` (case-insensitive) as the boolean answer.
+- **Multiple-choice question:** label each option with a single lowercase letter in square brackets, starting at `[a]`. End the list with a literal `(or type in a different response)` line so the user knows free-form input is allowed.
+
+  ```
+  [a] Option alpha
+  [b] Option beta
+  [c] Option gamma
+  (or type in a different response)
+  ```
+
+- **Never** offer "Press Enter to ..." as an option. Every choice must require the user to type at least one character.
+
+Interpreting the response (text fallback):
+
+- If the response is exactly one character and matches an option letter, treat it as that option.
+- If the response is longer than one character, treat the entire response as the user's answer verbatim (a custom answer — not an error, even if it doesn't match any listed option).
 
 ## Catala Conventions
 
