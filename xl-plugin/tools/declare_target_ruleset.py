@@ -62,7 +62,7 @@ _NAMING_MANIFEST_REL = "specs/naming-manifest.yaml"
 _METADATA_REL = "specs/guidance/metadata.yaml"
 _PROMPT_CONTEXT_REL = "specs/guidance/prompt-context.yaml"
 
-_MANIFEST_VERSION = "1.0"
+_MANIFEST_VERSION = "2.0"
 
 # Load-bearing: single source of truth for the constraints seed list.
 # Future edits to the seed update this constant. Tests assert verbatim equality.

@@ -17,12 +17,15 @@ provides the CSV-column derivation helpers consumed by:
 vocabulary — `money|bool|int|float|string|enum|list|date`), `optional`,
 `enum_values`, `item_type`, `description`, `is_decision`, `decision_name`.
 
-Type-name normalization (Catala name → internal leaf type):
+Type-name normalization (Catala-native name → internal leaf type) — only
+the 10-item Catala-native vocabulary is accepted (plan 2026-06-01-002):
   integer        → int
   decimal        → float
   boolean        → bool
   duration       → string
-  ...
+  structure      → string
+  money/date/enum/list/string → identity-mapped to their internal leaf
+Unknown values fall back to `_DEFAULT_LEAF_TYPE` ('string').
 """
 
 from __future__ import annotations
@@ -52,25 +55,24 @@ class FieldSpec:
     decision_name: Optional[str] = None
 
 
-# Map Catala primitive type names to the internal leaf type used by the rest
-# of the test-CSV machinery.
+# Map Catala-native type names to the internal leaf type used by the rest
+# of the test-CSV machinery. Only the 10-item Catala-native vocabulary is
+# accepted; legacy CIVIL names were retired by plan 2026-06-01-002.
+# `structure` maps to the internal `string` leaf — structure-typed entity
+# fields don't surface as CSV columns directly, but the alias prevents the
+# `_DEFAULT_LEAF_TYPE` warning path from firing on a valid Catala-native
+# value.
 _TYPE_ALIASES = {
-    # Catala-native
     "integer": "int",
     "decimal": "float",
     "boolean": "bool",
     "duration": "string",
-    # Legacy short names
     "money": "money",
-    "bool": "bool",
-    "int": "int",
-    "float": "float",
     "string": "string",
     "enum": "enum",
     "list": "list",
     "date": "date",
-    "set": "string",
-    "object": "string",
+    "structure": "string",
 }
 
 _DEFAULT_LEAF_TYPE = "string"
