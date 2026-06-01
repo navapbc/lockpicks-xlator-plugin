@@ -331,17 +331,17 @@ def cmd_catala_test(domain, module):
 
 
 def cmd_catala_pipeline(domain, module):
-    """copy-source-to-output → clerk typecheck → catala-test-transpile → clerk test.
+    """copy-source-to-output → clerk typecheck → clerk test.
 
-    The Catala source under `specs/` is the authored truth. The
-    copy-to-output step maintains the build-artifact consumer contract
-    (catala_depgraph, demos) without forcing consumers to learn the
-    source location.
+    The Catala source under `specs/` is the authored truth, including
+    `specs/tests/*.catala_en` test fixtures emitted by `/catala-emit-tests`
+    at authoring time. The copy step mirrors both the source modules and
+    the test fixtures into `output/` so clerk discovers them; no transpile
+    step runs at pipeline time.
     """
     _print_info(f"Catala pipeline: {domain}/{module}")
     cmd_copy_source_to_output(domain, module)
     cmd_catala_typecheck(domain, module)
-    cmd_catala_test_transpile(domain, module)
     cmd_catala_test(domain, module)
 
 
@@ -527,7 +527,7 @@ examples:
         ("catala-test",           "Run Catala tests via clerk test"),
         ("catala-demo",           "Start Catala-Python demo (foreground)"),
         ("graph",                 "Generate computation graph"),
-        ("catala-pipeline",       "clerk typecheck -> catala-test-transpile -> clerk test"),
+        ("catala-pipeline",       "copy-source-to-output -> clerk typecheck -> clerk test"),
     ]:
         p = sub.add_parser(action, help=help_text)
         p.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
