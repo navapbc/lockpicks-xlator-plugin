@@ -207,6 +207,8 @@ xlator catala-pipeline <domain> <module>
 
   `input-index.yaml` (files block: SHAs, md_quality scores) also lives in `policy_facets/`.
 
+- **v14.0.0 — replaced the deterministic test-fixture transpiler with the `/catala-emit-tests` AI sub-skill.** `.catala_en` test fixtures relocated from `output/tests/` (build-time output) to `specs/tests/` (authored, checked into git). The post-cutover pipeline is `copy-source-to-output → clerk typecheck → clerk test` (the `catala-test-transpile` step is gone). Existing `output/tests/*.catala_en` files are discarded on next pipeline run — no migration shim per the "Don't migrate old files" rule. **Rollback recipe:** `git revert <U8-squashed-commit>` restores the deterministic transpiler script and its CLI subcommand; re-publish at `v13.0.3` (PATCH over v13.0.2). A `pre-test-transpile-retirement` git tag at the pre-cutover HEAD serves as the durable rollback anchor.
+
 ---
 
 ## Key Files at a Glance
@@ -216,4 +218,5 @@ xlator catala-pipeline <domain> <module>
 | `xl-plugin/bin/xlator` | Entry point — always run this |
 | `xl-plugin/tools/clerk_loop.py` | clerk-loop library + CLI (authoring skills' post-emission verification) |
 | `xl-plugin/tools/catala_eval.py` | Deterministic Catala evaluator |
+| `xl-plugin/skills/catala-emit-tests/SKILL.md` | AI sub-skill that emits `.catala_en` test fixtures from YAML test cases (v14.0.0+) |
 | `xl-plugin/core/catala-authoring-quickref.md` | AI-targeted Catala authoring reference |
