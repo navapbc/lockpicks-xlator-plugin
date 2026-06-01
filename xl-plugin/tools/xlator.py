@@ -162,6 +162,11 @@ def cmd_copy_source_to_output(domain, module):
     when present — clerk's ninja build reads it from CWD to resolve
     module names; without it, `clerk test` errors with `ninja: error:
     '<Module>@src' missing and no known rule to make it`.
+
+    When `specs/tests/` contains `*.catala_en` files (emitted by
+    `/catala-emit-tests` as of v14.0.0), they are mirrored to
+    `output/tests/` so `clerk test` discovers them. YAML test files in
+    `specs/tests/` are the SME-facing source and stay in `specs/`.
     """
     paths = resolve_paths(domain, module)
     require_file(paths["catala_source"], "Catala source")
@@ -173,6 +178,12 @@ def cmd_copy_source_to_output(domain, module):
     clerk_toml = specs_dir / "clerk.toml"
     if clerk_toml.is_file():
         shutil.copy2(clerk_toml, out_dir / "clerk.toml")
+    specs_tests_dir = specs_dir / "tests"
+    if specs_tests_dir.is_dir():
+        tests_out_dir = out_dir / "tests"
+        tests_out_dir.mkdir(parents=True, exist_ok=True)
+        for src in specs_tests_dir.glob("*.catala_en"):
+            shutil.copy2(src, tests_out_dir / src.name)
 
 
 def cmd_catala_typecheck(domain, module):
