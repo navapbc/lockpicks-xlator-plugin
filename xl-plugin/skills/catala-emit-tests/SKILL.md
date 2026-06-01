@@ -101,7 +101,7 @@ Map YAML keys into the struct literal based on field-name match. A flat YAML tes
 - `date`: `|YYYY-MM-DD|`.
 - `enum`: bare variant name (PascalCase per the field's `enum_variants:` from the manifest).
 
-**Assertion translation.** Match `expected:` keys to output declarations. For `bool` output: `assertion (result.<field> = true)`. For enum: `assertion (result.<field> = <Variant>)`. For numeric: `assertion (result.<field> = <literal>)`. For list-of-reasons: `assertion (result.<reasons_field> = [<Variant1>; <Variant2>; ...])` ordered as in the YAML.
+**Assertion translation.** Match `expected:` keys to output declarations. For `boolean` output: `assertion (result.<field> = true)`. For enum: `assertion (result.<field> = <Variant>)`. For numeric: `assertion (result.<field> = <literal>)`. For list-of-reasons: `assertion (result.<reasons_field> = [<Variant1>; <Variant2>; ...])` ordered as in the YAML.
 
 ### Step 4: Self-check via the U2 clerk loop
 

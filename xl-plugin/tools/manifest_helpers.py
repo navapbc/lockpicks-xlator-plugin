@@ -176,7 +176,7 @@ def build_csv_field_specs(manifest_doc: dict) -> list[FieldSpec]:
             enum_values = _collect_enum_values(entry)
             if enum_values:
                 # Field has enum variants — treat as enum even if the type:
-                # name was 'string' (legacy short name) or absent.
+                # name was 'string' or absent.
                 leaf = "enum"
             if raw_type is None:
                 print(

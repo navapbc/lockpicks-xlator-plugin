@@ -88,10 +88,11 @@ def _entry_subset(entry: Any) -> dict[str, Any]:
     `entry` — and only when those keys are present.
 
     Seedable fields (kept):
-      - `type`: Catala primitive (`integer`, `decimal`, `money`, `boolean`,
-        `date`, `duration`, `string`) or a legacy short type name. Nullable —
-        analysts may declare a field's intended type when known and leave
-        it absent (or write `null`) when uncertain.
+      - `type`: Catala-native type name, exactly one of `integer`, `decimal`,
+        `money`, `boolean`, `date`, `duration`, `string`, `enum`, `list`,
+        `structure`. Nullable — analysts may declare a field's intended type
+        when known and leave it absent (or write `null`) when uncertain. The
+        merge tool rejects any other value at /extract-ruleset Step 7.
       - `description`: short prose description of the field.
       - `optional` (U7): boolean flag — `Optional<T>` wrapping in the Catala
         emission. Nullable initial value; analysts confirm in /extract-ruleset
