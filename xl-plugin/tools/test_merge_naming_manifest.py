@@ -183,6 +183,66 @@ def test_validate_type_invalid():
         mnm.validate_inventory(inv)
 
 
+# ---------------------------------------------------------------------------
+# Strict Catala-native vocabulary (plan 2026-06-01-002)
+# ---------------------------------------------------------------------------
+
+_CATALA_NATIVE_10 = (
+    "integer", "decimal", "money", "boolean", "date",
+    "duration", "string", "enum", "list", "structure",
+)
+_LEGACY_CIVIL_REJECTED = ("bool", "int", "float", "str", "set", "object")
+
+
+@pytest.mark.parametrize("t", _CATALA_NATIVE_10)
+def test_validate_catala_native_types_accepted(t):
+    """All 10 Catala-native names are accepted (R1)."""
+    inv = [_entry("x", "computed", type=t)]
+    mnm.validate_inventory(inv)  # no raise
+
+
+@pytest.mark.parametrize("t", _LEGACY_CIVIL_REJECTED)
+def test_validate_legacy_civil_types_rejected(t):
+    """Legacy CIVIL names are rejected — no deprecated-alias layer (R3)."""
+    inv = [_entry("x", "computed", type=t)]
+    with pytest.raises(mnm.InventoryError, match="must be one of"):
+        mnm.validate_inventory(inv)
+
+
+def test_validate_type_error_message_lists_catala_native_vocab():
+    """The rejection error names the 10 Catala-native types verbatim (R2)."""
+    inv = [_entry("x", "computed", type="weird")]
+    with pytest.raises(mnm.InventoryError) as excinfo:
+        mnm.validate_inventory(inv)
+    msg = str(excinfo.value)
+    for t in _CATALA_NATIVE_10:
+        assert repr(t) in msg, f"expected {t!r} in error message, got: {msg}"
+
+
+def test_validate_existing_v1_version_string_still_loads(tmp_path: Path):
+    """The validator does not gate on `version:` (R6). A '1.0' string on a
+    manifest with Catala-native `type:` values still loads cleanly."""
+    domain = tmp_path / "dom"
+    _write_yaml(
+        domain / "specs" / "naming-manifest.yaml",
+        {"version": "1.0", "inputs": {}, "computed": {}, "outputs": {}},
+    )
+    rc, _ = _run(
+        domain, [_entry("x", "computed", type="integer")],
+    )
+    assert rc == 0
+
+
+def test_validate_type_absent_or_null_accepted():
+    """`type:` is optional — absent or null entries pass (regression guard)."""
+    # Absent
+    inv = [_entry("x", "computed")]
+    mnm.validate_inventory(inv)
+    # Explicit null
+    inv = [_entry("x", "computed", type=None)]
+    mnm.validate_inventory(inv)
+
+
 def test_validate_observed_synonyms_each_needs_name():
     inv = [_entry("x", "computed",
                    observed_synonyms=[{"source_doc": "foo.md", "section": "§"}])]
@@ -191,15 +251,8 @@ def test_validate_observed_synonyms_each_needs_name():
 
 
 # ---------------------------------------------------------------------------
-# U7: Catala-native type metadata schema extension
+# `optional:` + `enum_variants:` schema fields
 # ---------------------------------------------------------------------------
-
-def test_validate_catala_native_types_accepted():
-    """U7 added integer/decimal/boolean/duration to the valid type set."""
-    for t in ("integer", "decimal", "boolean", "duration"):
-        inv = [_entry("x", "computed", type=t)]
-        mnm.validate_inventory(inv)  # no raise
-
 
 def test_validate_optional_must_be_bool():
     inv = [_entry("x", "computed", optional="yes")]
@@ -815,13 +868,14 @@ def test_version_numeric_coerces_with_warning(tmp_path: Path):
     rc, header = _run(domain, [_entry("a", "computed")])
     assert rc == 0
     m = _read_manifest(domain)
-    assert m["version"] == "1.0"
+    assert m["version"] == mnm._MANIFEST_VERSION
     assert isinstance(m["version"], str)
     assert any("version" in w for w in header["warnings"])
 
 
 def test_version_initialized_when_absent(tmp_path: Path):
-    """No existing manifest at all → tool initializes with version: '1.0'."""
+    """No existing manifest at all → tool initializes with the default
+    version constant (_MANIFEST_VERSION)."""
     domain = tmp_path / "dom"
     domain.mkdir()
     (domain / "specs").mkdir()
@@ -829,7 +883,7 @@ def test_version_initialized_when_absent(tmp_path: Path):
     rc, _ = _run(domain, [_entry("a", "computed")])
     assert rc == 0
     m = _read_manifest(domain)
-    assert m["version"] == "1.0"
+    assert m["version"] == mnm._MANIFEST_VERSION
 
 
 def test_role_hint_never_written(tmp_path: Path):
