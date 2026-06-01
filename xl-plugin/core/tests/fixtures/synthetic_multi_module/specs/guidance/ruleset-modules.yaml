@@ -1,0 +1,5 @@
+ruleset_modules:
+  - name: ModuleA
+    role: sub
+  - name: ModuleB
+    role: main

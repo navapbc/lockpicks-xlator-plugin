@@ -1,0 +1,17 @@
+> Module ModuleB
+
+# Synthetic Multi-Module Fixture — Module B
+
+This module declares `field_b` only. See `ModuleA.catala_en` for the
+sibling that declares `field_a`. Together their identifiers cover the
+shared `naming-manifest.yaml`.
+
+```catala-metadata
+declaration scope ScopeB:
+  output field_b content integer
+```
+
+```catala
+scope ScopeB:
+  definition field_b equals 2
+```

@@ -131,6 +131,9 @@ case "$1" in
     merge-naming-manifest)
         exec uv run "$TOOLS_DIR/merge_naming_manifest.py" "${@:2}"
         ;;
+    clerk-loop-multi)
+        exec uv run "$TOOLS_DIR/clerk_loop_multi.py" "${@:2}"
+        ;;
     review-buckets)
         exec uv run "$TOOLS_DIR/review_buckets.py" "${@:2}"
         ;;
