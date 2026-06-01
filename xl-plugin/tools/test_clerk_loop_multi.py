@@ -368,3 +368,108 @@ class TestSingleModuleEquivalence:
         header, _ = _parse_cli_output(captured.out)
         assert header["status"] == "ok"
         assert header["modules_checked"] == 1
+
+
+# ---------------------------------------------------------------------------
+# U6: --check-only flag (used by /update-ruleset Step 0)
+# ---------------------------------------------------------------------------
+
+@_requires_catala
+class TestCheckOnlyMode:
+    """--check-only skips every per-module clerk loop and runs only the
+    aggregated divergence check. Used as a pre-edit gate from
+    /update-ruleset Step 0."""
+
+    def test_check_only_passes_on_clean_fixture(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _copy_multi_fixture(tmp_path)
+        monkeypatch.setenv("DOMAINS_FULLPATH", str(tmp_path))
+
+        # Track whether clerk_loop.run() fires; --check-only must skip it.
+        called: list[Any] = []
+        real_run = clerk_loop.run
+
+        def spy_run(*a, **kw):
+            called.append((a, kw))
+            return real_run(*a, **kw)
+
+        monkeypatch.setattr(clerk_loop_multi.clerk_loop, "run", spy_run)
+
+        rc = clerk_loop_multi.main(["synthetic_multi_module", "--check-only"])
+        captured = capsys.readouterr()
+        assert rc == 0, captured.out + captured.err
+        header, _ = _parse_cli_output(captured.out)
+        assert header["status"] == "ok"
+        assert header["mode"] == "check_only"
+        assert header["modules_generated"] == 0
+        assert called == [], (
+            f"--check-only must skip per-module clerk_loop.run(); fired: "
+            f"{called}"
+        )
+
+    def test_check_only_surfaces_aggregated_divergence(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        domain_dir = _copy_multi_fixture(tmp_path)
+        manifest_path = domain_dir / "specs" / "naming-manifest.yaml"
+        with manifest_path.open(encoding="utf-8") as f:
+            manifest = yaml.safe_load(f)
+        manifest.setdefault("computed", {})["phantom_check_only"] = {
+            "policy_phrase": "no module declares this",
+        }
+        with manifest_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(manifest, f)
+
+        monkeypatch.setenv("DOMAINS_FULLPATH", str(tmp_path))
+        rc = clerk_loop_multi.main(["synthetic_multi_module", "--check-only"])
+        captured = capsys.readouterr()
+        assert rc == 1
+        header, body = _parse_cli_output(captured.out)
+        assert header["status"] == "unresolved"
+        assert header["mode"] == "check_only"
+        assert "phantom_check_only" in body
+
+    def test_check_only_surfaces_source_to_manifest_divergence(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        domain_dir = _copy_multi_fixture(tmp_path)
+        manifest_path = domain_dir / "specs" / "naming-manifest.yaml"
+        with manifest_path.open(encoding="utf-8") as f:
+            manifest = yaml.safe_load(f)
+        del manifest["computed"]["field_b"]
+        with manifest_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(manifest, f)
+
+        monkeypatch.setenv("DOMAINS_FULLPATH", str(tmp_path))
+        rc = clerk_loop_multi.main(["synthetic_multi_module", "--check-only"])
+        captured = capsys.readouterr()
+        assert rc == 1
+        header, body = _parse_cli_output(captured.out)
+        assert header["status"] == "unresolved"
+        assert header["mode"] == "check_only"
+        assert "field_b" in body
+
+    def test_check_only_missing_manifest_returns_exit_2(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        domain_dir = _copy_multi_fixture(tmp_path)
+        (domain_dir / "specs" / "naming-manifest.yaml").unlink()
+        monkeypatch.setenv("DOMAINS_FULLPATH", str(tmp_path))
+        rc = clerk_loop_multi.main(["synthetic_multi_module", "--check-only"])
+        captured = capsys.readouterr()
+        assert rc == 2
+        header, _ = _parse_cli_output(captured.out)
+        assert header["status"] == "error"
+
+    def test_check_only_with_max_iterations_emits_warning(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _copy_multi_fixture(tmp_path)
+        monkeypatch.setenv("DOMAINS_FULLPATH", str(tmp_path))
+        rc = clerk_loop_multi.main([
+            "synthetic_multi_module", "--check-only", "--max-iterations", "9",
+        ])
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert "WARN: --max-iterations is ignored with --check-only" in captured.err

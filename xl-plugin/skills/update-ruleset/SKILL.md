@@ -70,31 +70,36 @@ Run these checks before doing anything else:
 
 ### Step 0: Naming Manifest Divergence Check + Ruleset Module Resolution
 
-**Naming manifest divergence check.** Delegate to the U2 clerk loop's shared divergence helper — do not reimplement the set-diff inline. The helper loads `specs/naming-manifest.yaml`, extracts the declared identifiers from the Catala source via `catala dependency-graph --output-format=json`, performs the set-diff, and emits `naming_divergence` diagnostics on any mismatch.
+**Naming manifest divergence check.** Run the aggregated check across every module in the work-list (not per-file — the monolithic `specs/naming-manifest.yaml` covers identifiers across siblings, so a per-file set-diff structurally cannot converge on multi-module domains).
 
-For each entry in the resolved work-list whose `action` is `reference` (i.e., the Catala file already exists on disk and will be edited later), call the helper:
+**Invocation:**
 
-```python
-from clerk_loop import naming_divergence_check
-diagnostics = naming_divergence_check(Path("$DOMAINS_DIR/<domain>/specs/<name>.catala_en"))
+```bash
+xlator clerk-loop-multi <domain> --check-only
 ```
 
-Equivalent CLI for SME-facing invocation: `xlator clerk-loop <domain> <module>` (the divergence check is Step 4 of the loop). The library call is preferred; the CLI is the SME diagnostic surface.
+`--check-only` skips the per-module `clerk typecheck` + `clerk test` pass entirely; only the aggregated naming-manifest divergence check fires. The script emits a JSON header line on stdout followed by `--- CLERK-LOOP-MULTI-HEADER-END ---` and a human-readable summary. Parse the JSON header (first stdout line); verify the sentinel on the second line. The header carries `mode: "check_only"` so the relay can distinguish it from the full pass /update-ruleset Step 6 invokes.
 
-If any diagnostic has `category == "naming_divergence"`, **halt** before proceeding to Step 1. Each diagnostic's message body already carries both resolution options; surface them in a single `:::error` fence:
+Branch on `header.status`:
 
-:::error
-⚠️ Naming manifest divergence detected:
-<for each diagnostic: file:line — message>
+- **`status="ok"`** — the aggregated divergence check found no mismatch. Continue to the multi-file validation paragraph below, then Step 1.
 
-Resolve by either:
-a) Editing the Catala source so the identifier matches the manifest entry's `name:`, OR
-b) Editing `naming-manifest.yaml` to acknowledge the rename (the prior key is appended to that entry's `synonyms:` list per the v10.1.0 rename-anchor convention — see Step 10).
+- **`status="unresolved"`** — one or more diagnostics surfaced. Each diagnostic's message body already carries both resolution options; surface them in a single `:::error` fence:
 
-Then re-run `/update-ruleset <domain>`.
-:::
+  :::error
+  ⚠️ Naming manifest divergence detected:
+  <for each diagnostic emitted under the sentinel: file:line — message>
 
-Do not continue until the helper returns no `naming_divergence` diagnostics.
+  Resolve by either:
+  a) Editing the Catala source so the identifier matches the manifest entry's `name:`, OR
+  b) Editing `naming-manifest.yaml` to acknowledge the rename (the prior key is appended to that entry's `synonyms:` list per the v10.1.0 rename-anchor convention — see Step 10).
+
+  Then re-run `/update-ruleset <domain>`.
+  :::
+
+  Do not continue.
+
+- **`status="error"`** (exit 2) — pre-flight failure (missing domain, missing `specs/naming-manifest.yaml`, or a `load-extraction-context` failure). Surface the human summary in `:::error` and stop.
 
 **Multi-file validation (when `existing_extraction_manifest` is non-null and has multiple modules):**
 

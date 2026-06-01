@@ -18,7 +18,13 @@ CLI surface
 -----------
 
     xlator clerk-loop-multi <domain> [<program>] [--max-iterations N]
-                            [--no-reset-log]
+                            [--no-reset-log] [--check-only]
+
+`--check-only` skips the per-module clerk-loop pass entirely and runs
+only the aggregated naming-manifest divergence check across the
+work-list. Used by /update-ruleset Step 0 as a pre-edit gate; the full
+pass is the default and is what /extract-ruleset Step 6 and
+/update-ruleset Step 6 invoke.
 
 Emits a JSON header line, the sentinel
 `--- CLERK-LOOP-MULTI-HEADER-END ---`, then a human-readable summary.
@@ -98,10 +104,15 @@ def run(
     *,
     max_iterations: int = clerk_loop._DEFAULT_MAX_ITERATIONS,
     reset_log: bool = True,
+    check_only: bool = False,
 ) -> int:
     """Sequential per-module clerk loops + post-pass aggregated divergence
-    check. Returns the same exit codes documented in the module docstring."""
+    check. When `check_only=True`, skips the per-module pass and runs
+    only the aggregated divergence check (used by /update-ruleset Step 0
+    as a pre-edit gate). Returns the same exit codes documented in the
+    module docstring."""
     warnings: list[str] = []
+    mode = "check_only" if check_only else "full"
 
     # 1. Load the work-list via the library API exposed by
     # load_extraction_context's refactor.
@@ -130,48 +141,50 @@ def run(
         if isinstance(rel, str):
             module_paths.append(domain_dir / rel)
 
-    # 3. Per-module clerk loops (only `generate` entries).
+    # 3. Per-module clerk loops (only `generate` entries; skipped in
+    # check-only mode).
     verified_modules: list[str] = []
     iterations_per_module: list[dict[str, Any]] = []
     failed_module: str | None = None
     per_module_diagnostics: list[clerk_loop.Diagnostic] = []
     per_module_summary: str = ""
 
-    for entry in work_list:
-        if entry.get("action") != "generate":
-            continue
-        name = entry.get("name", "<unnamed>")
-        if not isinstance(name, str):
-            name = "<unnamed>"
-        module_path = domain_dir / entry["catala_file"]
-        try:
-            result = clerk_loop.run(
-                module_path,
-                max_iterations=max_iterations,
-                reset_log=reset_log,
-                skip_naming_divergence_check=True,
+    if not check_only:
+        for entry in work_list:
+            if entry.get("action") != "generate":
+                continue
+            name = entry.get("name", "<unnamed>")
+            if not isinstance(name, str):
+                name = "<unnamed>"
+            module_path = domain_dir / entry["catala_file"]
+            try:
+                result = clerk_loop.run(
+                    module_path,
+                    max_iterations=max_iterations,
+                    reset_log=reset_log,
+                    skip_naming_divergence_check=True,
+                )
+            except clerk_loop.ClerkLoopError as exc:
+                failed_module = name
+                per_module_summary = (
+                    f"per-module clerk loop on {name} raised "
+                    f"ClerkLoopError: {exc}"
+                )
+                break
+            iterations_per_module.append(
+                {"module": name, "iterations": result.iterations}
             )
-        except clerk_loop.ClerkLoopError as exc:
-            failed_module = name
-            per_module_summary = (
-                f"per-module clerk loop on {name} raised "
-                f"ClerkLoopError: {exc}"
-            )
-            break
-        iterations_per_module.append(
-            {"module": name, "iterations": result.iterations}
-        )
-        if result.status != "ok":
-            failed_module = name
-            per_module_diagnostics = list(result.last_diagnostics)
-            per_module_summary = result.summary
-            break
-        verified_modules.append(name)
+            if result.status != "ok":
+                failed_module = name
+                per_module_diagnostics = list(result.last_diagnostics)
+                per_module_summary = result.summary
+                break
+            verified_modules.append(name)
 
     if failed_module is not None:
         header = {
             "status": "unresolved",
-            "mode": "full",
+            "mode": mode,
             "modules_checked": len(module_paths),
             "modules_generated": len(verified_modules),
             "iterations_per_module": iterations_per_module,
@@ -200,24 +213,39 @@ def run(
     if aggregated_diagnostics:
         status = "unresolved"
         exit_code = 1
-        summary_lines = [
-            f"per-module clerk loops passed on "
-            f"{len(verified_modules)}/{len(module_paths)} module(s); "
-            f"aggregated naming-manifest divergence check surfaced "
-            f"{len(aggregated_diagnostics)} diagnostic(s). Resolve in the "
-            f"Catala source(s) or the manifest before retrying.",
-        ]
+        if check_only:
+            summary_lines = [
+                f"--check-only: aggregated naming-manifest divergence "
+                f"check surfaced {len(aggregated_diagnostics)} "
+                f"diagnostic(s) across {len(module_paths)} module(s). "
+                f"Resolve in the Catala source(s) or the manifest before "
+                f"continuing.",
+            ]
+        else:
+            summary_lines = [
+                f"per-module clerk loops passed on "
+                f"{len(verified_modules)}/{len(module_paths)} module(s); "
+                f"aggregated naming-manifest divergence check surfaced "
+                f"{len(aggregated_diagnostics)} diagnostic(s). Resolve in the "
+                f"Catala source(s) or the manifest before retrying.",
+            ]
     else:
         status = "ok"
         exit_code = 0
-        summary_lines = [
-            f"All {len(module_paths)} module(s) verified; "
-            f"aggregated naming-manifest check passed."
-        ]
+        if check_only:
+            summary_lines = [
+                f"--check-only: aggregated naming-manifest check passed "
+                f"across {len(module_paths)} module(s)."
+            ]
+        else:
+            summary_lines = [
+                f"All {len(module_paths)} module(s) verified; "
+                f"aggregated naming-manifest check passed."
+            ]
 
     header = {
         "status": status,
-        "mode": "full",
+        "mode": mode,
         "modules_checked": len(module_paths),
         "modules_generated": len(verified_modules),
         "iterations_per_module": iterations_per_module,
@@ -268,7 +296,19 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--no-reset-log", action="store_true",
         help="Skip the inter-iteration catala_runtime.reset_log() call.",
     )
+    parser.add_argument(
+        "--check-only", action="store_true",
+        help="Skip the per-module clerk-loop pass; run only the aggregated "
+             "naming-manifest divergence check across the work-list. Used "
+             "by /update-ruleset Step 0 as a pre-edit gate.",
+    )
     args = parser.parse_args(argv)
+    if args.check_only and args.max_iterations != clerk_loop._DEFAULT_MAX_ITERATIONS:
+        print(
+            "WARN: --max-iterations is ignored with --check-only (no per-module "
+            "loops fire).",
+            file=sys.stderr,
+        )
 
     domains_root = os.environ.get("DOMAINS_FULLPATH")
     if not domains_root:
@@ -291,6 +331,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         args.program,
         max_iterations=args.max_iterations,
         reset_log=not args.no_reset_log,
+        check_only=args.check_only,
     )
 
 
