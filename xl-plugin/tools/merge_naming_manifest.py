@@ -85,8 +85,8 @@ _VALID_TYPES = {
     "money", "bool", "int", "float", "string", "enum", "list",
     "date", "set", "object",
     # Catala primitive type names. U7 extended the manifest to carry
-    # Catala-native type metadata so `transpile_to_catala_tests.py` can
-    # emit correct test literals.
+    # Catala-native type metadata so test-emission consumers can render
+    # correct literals from the manifest's `type:` field.
     "integer", "decimal", "boolean", "duration",
 }
 
@@ -99,9 +99,9 @@ _INPUTS_SECTION_RE = re.compile(r"^inputs\.([A-Z][A-Za-z0-9]*)$")
 #
 # `type`, `optional`, and `enum_variants` carry Catala-native type metadata
 # added in U7. They are additive — pre-U7 manifests omit them and continue
-# to work; consumers (`transpile_to_catala_tests.py`, the test-creation
-# skills) fall back to `string` and surface a clear "needs type" warning
-# when a field declared in a Catala source has no `type:` in the manifest.
+# to work; consumers (`/catala-emit-tests`, the test-creation skills)
+# fall back to `string` and surface a clear "needs type" warning when a
+# field declared in a Catala source has no `type:` in the manifest.
 _OPTIONAL_FIELDS = (
     "description",
     "type",

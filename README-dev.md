@@ -27,11 +27,12 @@ xlator list                              # Show all domain-module pairs
 ### Pipeline (Catala)
 
 ```bash
-xlator catala-test-transpile  <domain> <module>   # YAML tests → Catala test file
 xlator catala-test            <domain> <module>   # Run Catala tests via clerk
-xlator catala-pipeline        <domain> <module>   # clerk typecheck → catala-test-transpile → clerk test
+xlator catala-pipeline        <domain> <module>   # copy-source-to-output → clerk typecheck → clerk test
 xlator clerk-loop             <domain> <module>   # Run the U2 clerk loop (typecheck + test + diagnostics)
 ```
+
+Test fixtures (`.catala_en` peers under `specs/tests/`) are authored by the `/catala-emit-tests` AI sub-skill — invoked automatically from `/create-tests` and `/expand-tests`, or standalone after manual YAML edits. Emission is AI work; there is no equivalent `xlator` CLI subcommand.
 
 ### Demos
 
@@ -98,7 +99,7 @@ Pro-tip: To provide a coding assistant with sample data, create a symlink for th
 |--------|--------|---------|
 | `clerk_loop.py` | `clerk-loop` | Runs `clerk typecheck` + `clerk test`, parses GNU-format diagnostics, performs naming-manifest divergence check, returns structured outcome (`status: "ok" \| "unresolved"`, `repair_history`). Library API used by authoring skills' post-emission step. |
 | `catala_eval.py` | `evaluate-catala` | Thin wrapper around `catala interpret --output-format=json`. Preserves the JSON contract consumed by `/expand-tests`, `/detect-stale-cases`, `/create-tests`. |
-| `transpile_to_catala_tests.py` | `catala-test-transpile` | YAML test cases → Catala `#[test]` scopes. Reads `specs/naming-manifest.yaml` for type metadata. |
+| `xl-plugin/skills/catala-emit-tests/SKILL.md` | *(slash-command `/catala-emit-tests`)* | YAML test cases → Catala `#[test]` scopes. AI sub-skill (v14.0.0+); reads the Catala source for scope-input shape and the naming-manifest for leaf-field type metadata. |
 | `catala_depgraph.py` | `graph` | Computation-graph generator (Catala-native). Produces `.graph.yaml` and `.mmd`. |
 | `catala_to_python.sh` | *(via /create-demo)* | Catala → Python transpiler (invokes `clerk` build). |
 | `merge_naming_manifest.py` | `merge-naming-manifest` | Merges per-emission manifest deltas with the analyst-authoritative source. |
@@ -199,7 +200,7 @@ xlator catala-pipeline <domain> <module>
 
 - **Catala is the authored source format** as of v13.0.0. `domains/<d>/specs/<module>.catala_en` is the human-+-AI-authored truth; `domains/<d>/output/<module>.catala_en` is a copy of the source maintained by the build step for consumer compatibility (`catala_depgraph.py`, the FastAPI demo, and other build-artifact consumers continue reading from `output/`).
 - **Two-phase authoring discipline.** Deterministic Python tools handle pre-flight context loading and post-emission verification; the AI emits Catala content. The clerk-loop (`xl-plugin/tools/clerk_loop.py`) runs `clerk typecheck` + `clerk test` after each AI emission and self-repairs before SME handoff.
-- **Naming-manifest authority chain (two-tier).** `specs/naming-manifest.yaml` (analyst-authoritative, includes per-field types as of U7) → `core/naming_guide.md` (static style rules). The manifest carries identifier names AND types so `transpile_to_catala_tests.py` can emit `#[test]` scopes without parsing Catala source.
+- **Naming-manifest authority chain (two-tier).** `specs/naming-manifest.yaml` (analyst-authoritative, includes per-field types as of U7) → `core/naming_guide.md` (static style rules). The manifest carries identifier names AND leaf-field types so test-emission consumers (`/catala-emit-tests`, the CSV import/export tools) can render correct literals; the Catala source — not the manifest — is the authority for scope-input layout.
 - **`policy_facets/` folder (per-domain).** Each domain has a `policy_facets/` folder for derived views of its policy docs:
   - **`policy_facets/compressed/`** — caveman-compressed mirror of `input/policy_docs/`, produced by `/index-inputs`. Downstream skills (`/extract-ruleset`, `/update-ruleset`) read these files for content.
   - **`policy_facets/computations/`** — per-source-file YAML lists of `{heading, summary, tags, computations?}` section blocks. Catala authoring uses these section blocks to mirror Markdown `## Heading` structure inside the literate `.catala_en` source.

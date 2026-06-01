@@ -1,5 +1,5 @@
 # Synthetic two-module naming manifest (U9 Step 1.5 fixture).
-# Carries the type-extended schema per U7 so transpile_to_catala_tests.py
+# Carries the type-extended schema per U7 so test-emission consumers
 # can derive scope-input types without re-parsing the Catala source.
 - name: gross_earned_income
   type: money

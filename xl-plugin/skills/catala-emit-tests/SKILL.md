@@ -7,7 +7,7 @@ description: Emit Catala #[test] fixtures from YAML test cases by reading the Ca
 
 Read each YAML test file under `specs/tests/<program>*_tests.yaml`, infer the target scope's input shape directly from the Catala source (`specs/<program>.catala_en` plus any modules reached via `> Using`), and emit a `.catala_en` peer per non-null-input YAML file containing one `#[test]` scope per case. After emission, drive `clerk typecheck` via the U2 clerk-loop helper to self-correct any emission errors before handing back to the caller.
 
-This sub-skill replaces the deterministic `transpile_to_catala_tests.py` retired in v14.0.0. The Catala source is the authority for scope-input layout; the naming-manifest is consulted only for leaf-field type / optional / enum-variant metadata, **never** to derive entity layout from `inputs.<Entity>` top-level keys.
+This sub-skill is the AI-driven test-fixture emitter introduced in v14.0.0, replacing the deterministic transpiler script that preceded it. The Catala source is the authority for scope-input layout; the naming-manifest is consulted only for leaf-field type / optional / enum-variant metadata, **never** to derive entity layout from `inputs.<Entity>` top-level keys.
 
 ## Input
 
@@ -152,9 +152,9 @@ Skipped M null-input file(s): <list>
 
 ## Common Mistakes to Avoid
 
-- **Don't derive scope-input layout from the manifest's `inputs.<Entity>` keys.** The Catala source's `declaration scope` line is authoritative. The manifest's flat entity list does not, in general, map 1:1 to the scope's input declarations — nested struct fields, list-of-struct nesting, and cross-module type qualifiers all break the assumption. This is the bug the retired script suffered; do not reintroduce it.
+- **Don't derive scope-input layout from the manifest's `inputs.<Entity>` keys.** The Catala source's `declaration scope` line is authoritative. The manifest's flat entity list does not, in general, map 1:1 to the scope's input declarations — nested struct fields, list-of-struct nesting, and cross-module type qualifiers all break the assumption. This is the bug class the pre-v14.0.0 deterministic transpiler suffered; do not reintroduce it.
 - **Don't use `<CurrentModule>.<Entity>` as the type qualifier when the scope's input is cross-module qualified.** If `declaration scope X: input household content Household_classification.Household`, the struct literal must say `Household_classification.Household { ... }`, not `<CurrentModule>.Household { ... }`. Follow the `> Using` directive in the source to confirm the qualifier.
-- **Don't emit two parallel scope-input definitions when the scope has one input with a nested struct.** A `Household` struct with `members content list of HouseholdMember` is one input (typed `Household_classification.Household`), not two parallel inputs. The `members` field is populated as a nested list literal inside the parent struct.
+- **Don't emit two parallel scope-input definitions when the scope has one input with a nested struct.** A `Household` struct with `members content list of HouseholdMember` is one input (typed `Household_classification.Household`), not two parallel inputs. The `members` field is populated as a nested list literal inside the parent struct. (This is the symptom of the previous bullet's pitfall.)
 - **Don't skip the clerk-loop check.** Step 4 is mandatory — emission without typecheck is unverified output. If a file repeatedly fails to converge, the right move is to surface the diagnostics to the analyst (Step 4's `unresolved` path), not to ship a broken `.catala_en`.
 - **Don't call `xlator record-tier-manifest` inside this sub-skill.** The caller (or the SME) owns that bookkeeping. Calling it here when invoked from `/create-tests` or `/expand-tests` creates a double-write that records a stale manifest mid-flight.
 - **Don't process `*_null_input_expanded_tests.yaml` files.** Null inputs are not Catala-encodable in v1; skip silently with a `:::detail` note.

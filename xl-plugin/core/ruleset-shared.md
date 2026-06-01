@@ -525,7 +525,7 @@ Do not advance to the post-emission clerk-loop until M5 passes.
 - `optional:` — boolean. When `true`, the field is `Optional<T>` in the Catala emission. Default when absent: `false`.
 - `enum_variants:` — list of variant constructor names for enum-typed fields (e.g. `["Eligible", "Denied", "ManualVerification"]`). Distinct from `values:` (the list of allowed string values); `enum_variants:` carries the Catala-side constructor names.
 
-Consumers that need type info (`transpile_to_catala_tests.py`, `/create-tests`, `/expand-tests`, `/create-sample-tests`, `/extract-test-cases`, the CSV import/export tools) read these fields from the manifest. **Default behavior when `type:` is absent on a referenced field:** consumers default to `string` and emit a `WARN` to stderr identifying the field — never abort. This keeps pre-U7 manifests usable while signaling the gap.
+Consumers that need type info (`/catala-emit-tests`, `/create-tests`, `/expand-tests`, `/create-sample-tests`, `/extract-test-cases`, the CSV import/export tools) read these fields from the manifest. **Default behavior when `type:` is absent on a referenced field:** consumers default to `string` and emit a `WARN` to stderr identifying the field — never abort. This keeps pre-U7 manifests usable while signaling the gap.
 
 **Rename lookup via `synonyms:`.** When a caller has the analyst's confirmed Field Name for an entry and wants to find the entry's prior key (e.g., to anchor a rename in Step 7's merge), scan every entry's `synonyms[].name` list — a match means the entry's current key is the canonical and the matching `synonyms[].name` is a prior name from an earlier rename. This replaces the v10.0.x `original_name:` lookup which carried the same information as a top-level field.
 

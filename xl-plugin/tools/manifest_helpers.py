@@ -17,8 +17,7 @@ provides the CSV-column derivation helpers consumed by:
 vocabulary — `money|bool|int|float|string|enum|list|date`), `optional`,
 `enum_values`, `item_type`, `description`, `is_decision`, `decision_name`.
 
-Type-name normalization mirrors `transpile_to_catala_tests.py`:
-  Catala name    → internal leaf type
+Type-name normalization (Catala name → internal leaf type):
   integer        → int
   decimal        → float
   boolean        → bool
@@ -54,8 +53,7 @@ class FieldSpec:
 
 
 # Map Catala primitive type names to the internal leaf type used by the rest
-# of the test-CSV machinery. Mirrors the table in
-# `transpile_to_catala_tests.py`.
+# of the test-CSV machinery.
 _TYPE_ALIASES = {
     # Catala-native
     "integer": "int",

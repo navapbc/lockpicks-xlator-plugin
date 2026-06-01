@@ -116,7 +116,6 @@ core/
   catala-quickref.md                 ← general Catala-feature reference
 tools/
   clerk_loop.py                      ← runs `clerk typecheck` + `clerk test`, parses diagnostics
-  transpile_to_catala_tests.py       ← YAML tests → Catala #[test] scopes
   catala_eval.py                     ← thin `catala interpret --output-format=json` wrapper
   catala_depgraph.py                 ← computation-graph generator (Catala-native)
   catala_to_python.sh                ← Catala → Python transpiler (via clerk)
@@ -259,7 +258,8 @@ subgraph output["output"]
     catala_copy --> clerk_test
 
     subgraph catala_testing["output/tests"]
-        test_cases --transpile_to_catala_tests.py--> catala_tests
+        test_cases --/catala-emit-tests--> tests_authored["specs/tests/*.catala_en"]
+        tests_authored --copy--> catala_tests
         catala_tests --> clerk_test[["Catala: clerk test"]]:::toolShape
     end
 
