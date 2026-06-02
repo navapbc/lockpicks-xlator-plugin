@@ -263,8 +263,11 @@ def test_variables_block_round_trips_with_policy_phrase():
         }
 
 
-def test_variables_block_round_trips_with_empty_entry():
-    """Variables observed in a section without a verbatim phrase emit as `<var>: {}`."""
+def test_variables_block_empty_entry_is_rejected():
+    """Variables must carry a non-empty `policy_phrase:` — empty per-variable
+    dicts (`<var>: {}`) are rejected. When no verbatim noun phrase exists in
+    the source body, the skill emits the deterministic-fallback string per
+    `xl-plugin/core/naming_guide.md` rather than an empty entry."""
     with tempfile.TemporaryDirectory() as tmp:
         dst = Path(tmp) / "out.md.yaml"
         payload = _payload_with_one_computation(dst)
@@ -272,23 +275,30 @@ def test_variables_block_round_trips_with_empty_entry():
             "gross_income": {"policy_phrase": "gross monthly income"},
             "deductions": {},
         }
-        emit_per_file_yaml.emit(payload)
-        loaded = yaml.safe_load(dst.read_text())
-        assert loaded["sections"][0]["variables"]["deductions"] == {}
-        assert "policy_phrase" not in loaded["sections"][0]["variables"]["deductions"]
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "deductions" in str(exc)
+            assert "policy_phrase" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for empty variables entry")
 
 
-def test_variables_block_strips_none_policy_phrase():
-    """None-valued policy_phrase round-trips as absent."""
+def test_variables_block_rejects_none_policy_phrase():
+    """None-valued policy_phrase is rejected — same as missing-or-empty."""
     with tempfile.TemporaryDirectory() as tmp:
         dst = Path(tmp) / "out.md.yaml"
         payload = _payload_with_one_computation(dst)
         payload["sections"][0]["variables"] = {
             "deductions": {"policy_phrase": None},
         }
-        emit_per_file_yaml.emit(payload)
-        loaded = yaml.safe_load(dst.read_text())
-        assert "policy_phrase" not in loaded["sections"][0]["variables"]["deductions"]
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "deductions" in str(exc)
+            assert "policy_phrase" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for None policy_phrase")
 
 
 def test_payload_without_variables_block_emits_unchanged():

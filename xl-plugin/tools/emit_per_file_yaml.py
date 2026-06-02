@@ -120,14 +120,16 @@ def _validate_computation(computation: dict, s_idx: int, c_idx: int) -> None:
 
 
 def _validate_variables(variables, s_idx: int) -> None:
-    """Validate the optional per-section `variables:` block.
+    """Validate the per-section `variables:` block.
 
     Shape: a dict keyed by snake_case variable name; each value is a dict
-    whose only supported key is the optional `policy_phrase:` (non-empty
-    string when present). Empty per-variable dicts (`<var>: {}`) are valid
-    and signal "variable observed in this section but no verbatim phrase
-    available" — phrase absence is a first-class state for downstream
-    consumers (/suggest-target-ruleset, /extract-ruleset)."""
+    whose only supported key is the **required** `policy_phrase:` (non-empty
+    string). When no verbatim noun phrase exists in the source body, the
+    skill emits the deterministic-fallback string per
+    `xl-plugin/core/naming_guide.md` (description noun phrase → section
+    heading → parent heading → first sentence). Empty per-variable dicts
+    (`<var>: {}`) are rejected — phrase absence at the section level is not
+    a supported state."""
     where = f"sections[{s_idx}].variables"
     if not isinstance(variables, dict):
         raise ValidationError(f"{where} must be a map when present")
@@ -141,17 +143,20 @@ def _validate_variables(variables, s_idx: int) -> None:
             raise ValidationError(
                 f"{where}[{var_name!r}] must be a map (got {type(entry).__name__})"
             )
-        if "policy_phrase" in entry and entry["policy_phrase"] is not None:
-            phrase = entry["policy_phrase"]
-            if not isinstance(phrase, str):
-                raise ValidationError(
-                    f"{where}[{var_name!r}].policy_phrase must be a string when present "
-                    f"(got {type(phrase).__name__})"
-                )
-            if not phrase:
-                raise ValidationError(
-                    f"{where}[{var_name!r}].policy_phrase must be non-empty when present"
-                )
+        if "policy_phrase" not in entry or entry["policy_phrase"] is None:
+            raise ValidationError(
+                f"{where}[{var_name!r}].policy_phrase is required and must be a non-empty string"
+            )
+        phrase = entry["policy_phrase"]
+        if not isinstance(phrase, str):
+            raise ValidationError(
+                f"{where}[{var_name!r}].policy_phrase must be a string "
+                f"(got {type(phrase).__name__})"
+            )
+        if not phrase:
+            raise ValidationError(
+                f"{where}[{var_name!r}].policy_phrase must be non-empty"
+            )
 
 
 def _strip_none(d: dict) -> dict:

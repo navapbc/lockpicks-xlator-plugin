@@ -48,17 +48,19 @@ list.
 - **Verifiable.** `grep -F "<policy_phrase>" <input/policy_docs/<rel>.md>`
   must match. If it doesn't, the value is wrong.
 - **Fallback when no verbatim noun phrase exists.** Use the most specific
-  deterministic anchor available: the section heading text, the parent
+  deterministic anchor available: a contiguous noun phrase from the variable's
+  own `computations[].description:` text, the section heading text, the parent
   heading, or — as a last resort — the first sentence of the section. The
   fallback string is also stable across re-runs (it is derived from source
-  structure, not from generation). Document the fallback choice nowhere else;
-  the source itself is the record. **Exception: the per-file YAML `variables:`
-  block written by `/extract-computations` does NOT apply this fallback.** When
-  no verbatim noun phrase exists for a variable in the source body, `policy_phrase`
-  is omitted from that variable's entry — phrase absence is a first-class state
-  that flows through to the observation triple (`source_doc + section` present,
-  `policy_phrase` absent) and to `/extract-ruleset`'s `<seeded>` rendering. The
-  fallback above remains valid in other `policy_phrase:` contexts.
+  structure or the description text the same skill itself emits, not from
+  generation). Document the fallback choice nowhere else; the source itself
+  is the record. **This fallback applies uniformly across every `policy_phrase:`
+  context, including the per-file YAML `variables:` block written by
+  `/extract-computations`.** Phrase-absent observations are still possible
+  (synthesized outputs with no source observation at all, recorded in the
+  manifest without an `observations:` list), but a variable that IS observed
+  in a section must always carry a non-empty `policy_phrase:` for that
+  observation — emit the fallback rather than omit the field.
 - **Never paraphrase.** Paraphrase drift across runs silently breaks alignment
   with confirmed `specs/naming-manifest.yaml` entries — the worker's matching
   fails on a different paraphrase, and the analyst's rename is silently
@@ -138,9 +140,11 @@ outcomes ("approve, deny, manual review"). Each list element is a string.
 
 - **Don't paraphrase `policy_phrase:`.** Verbatim from the source body of each
   observation's `source_doc`. If no noun phrase exists, fall back to a deterministic
-  anchor (heading text) — never invent. Exception: inside the per-file YAML
-  `variables:` block, omit `policy_phrase` entirely when no verbatim noun phrase
-  exists (no heading fallback there).
+  anchor (description noun phrase → section heading → parent heading → first
+  sentence) — never invent. The fallback applies uniformly across every
+  `policy_phrase:` context, including the per-file YAML `variables:` block;
+  emit the fallback string rather than omit the field when an observation
+  exists for the variable.
 - **Don't strip too aggressively.** `gross_income` is fine when the entity
   context is `Household`; over-stripping to `income` collides with adjacent
   income variables.
