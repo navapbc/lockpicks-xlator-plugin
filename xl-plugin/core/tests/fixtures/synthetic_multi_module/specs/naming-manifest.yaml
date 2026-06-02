@@ -1,5 +1,8 @@
+version: "3.0"
 computed:
   field_a:
-    policy_phrase: "field a — declared only in ModuleA.catala_en"
+    observations:
+      - policy_phrase: "field a — declared only in ModuleA.catala_en"
   field_b:
-    policy_phrase: "field b — declared only in ModuleB.catala_en"
+    observations:
+      - policy_phrase: "field b — declared only in ModuleB.catala_en"

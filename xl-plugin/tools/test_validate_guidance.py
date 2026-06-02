@@ -35,10 +35,13 @@ def test_clean_alignment_returns_ok():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {
                 "Household": {
-                    "gross_income": {"policy_phrase": "gross monthly income", "type": "money"},
+                    "gross_income": {
+                        "observations": [{"policy_phrase": "gross monthly income"}],
+                        "type": "money",
+                    },
                 },
             },
         })
@@ -55,10 +58,13 @@ def test_typo_in_name_ref_reported():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {
                 "Household": {
-                    "gross_income": {"policy_phrase": "gross income", "type": "money"},
+                    "gross_income": {
+                        "observations": [{"policy_phrase": "gross income"}],
+                        "type": "money",
+                    },
                 },
             },
         })
@@ -78,9 +84,12 @@ def test_orphan_in_manifest_warned_but_not_fatal():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "computed": {
-                "unused_var": {"policy_phrase": "unused", "type": "string"},
+                "unused_var": {
+                    "observations": [{"policy_phrase": "unused"}],
+                    "type": "string",
+                },
             },
         })
         # No guidance files referencing it.
@@ -103,8 +112,15 @@ def test_missing_guidance_files_not_errors():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
-            "inputs": {"Household": {"gross_income": {"policy_phrase": "", "type": "money"}}},
+            "version": "3.0",
+            "inputs": {
+                "Household": {
+                    "gross_income": {
+                        "observations": [],
+                        "type": "money",
+                    },
+                },
+            },
         })
         # No guidance files at all.
         summary = validate_guidance.cmd_validate(domain)
@@ -116,7 +132,7 @@ def test_empty_manifest_is_valid():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {},
             "computed": {},
             "outputs": {},
@@ -131,10 +147,16 @@ def test_include_with_output_flat_list():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "computed": {
-                "intermediate_a": {"policy_phrase": "a", "type": "money"},
-                "intermediate_b": {"policy_phrase": "b", "type": "money"},
+                "intermediate_a": {
+                    "observations": [{"policy_phrase": "a"}],
+                    "type": "money",
+                },
+                "intermediate_b": {
+                    "observations": [{"policy_phrase": "b"}],
+                    "type": "money",
+                },
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "include-with-output.yaml",
@@ -147,8 +169,13 @@ def test_include_with_output_typo_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
-            "computed": {"intermediate_a": {"policy_phrase": "a", "type": "money"}},
+            "version": "3.0",
+            "computed": {
+                "intermediate_a": {
+                    "observations": [{"policy_phrase": "a"}],
+                    "type": "money",
+                },
+            },
         })
         _write_yaml(domain / "specs" / "guidance" / "include-with-output.yaml",
                     ["intermediate_xyz"])  # typo
@@ -161,10 +188,13 @@ def test_input_variables_with_name_refs():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {
                 "Applicant": {
-                    "applicant_age": {"policy_phrase": "age", "type": "int"},
+                    "applicant_age": {
+                        "observations": [{"policy_phrase": "age"}],
+                        "type": "int",
+                    },
                 },
             },
         })
@@ -185,9 +215,12 @@ def test_type_agreement_ok_when_matching():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "outputs": {
-                "eligibility": {"policy_phrase": "eligible", "type": "bool"},
+                "eligibility": {
+                    "observations": [{"policy_phrase": "eligible"}],
+                    "type": "bool",
+                },
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
@@ -203,9 +236,12 @@ def test_type_mismatch_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "outputs": {
-                "eligibility": {"policy_phrase": "eligible", "type": "bool"},
+                "eligibility": {
+                    "observations": [{"policy_phrase": "eligible"}],
+                    "type": "bool",
+                },
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
@@ -226,9 +262,12 @@ def test_type_absent_on_guidance_is_not_mismatch():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "outputs": {
-                "eligibility": {"policy_phrase": "eligible", "type": "bool"},
+                "eligibility": {
+                    "observations": [{"policy_phrase": "eligible"}],
+                    "type": "bool",
+                },
             },
         })
         _write_yaml(domain / "specs" / "guidance" / "output-variables.yaml", {
@@ -244,10 +283,10 @@ def test_values_mismatch_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "outputs": {
                 "decision": {
-                    "policy_phrase": "decision",
+                    "observations": [{"policy_phrase": "decision"}],
                     "type": "enum",
                     "values": ["approve", "deny"],
                 },
@@ -272,11 +311,11 @@ def test_u7_optional_field_mismatch_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {
                 "Household": {
                     "is_veteran": {
-                        "policy_phrase": "veteran flag",
+                        "observations": [{"policy_phrase": "veteran flag"}],
                         "type": "boolean",
                         "optional": True,
                     },
@@ -303,10 +342,10 @@ def test_u7_enum_variants_mismatch_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "outputs": {
                 "status": {
-                    "policy_phrase": "status",
+                    "observations": [{"policy_phrase": "status"}],
                     "type": "string",
                     "enum_variants": ["Eligible", "Denied"],
                 },
@@ -329,7 +368,7 @@ def test_constants_and_tables_ok_when_provenance_present():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {},
             "computed": {},
             "outputs": {},
@@ -353,7 +392,7 @@ def test_constants_and_tables_missing_source_file_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {},
             "computed": {},
             "outputs": {},
@@ -380,7 +419,7 @@ def test_constants_and_tables_empty_string_treated_as_missing():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {},
             "computed": {},
             "outputs": {},
@@ -406,7 +445,7 @@ def test_constants_and_tables_missing_file_not_an_error():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {},
             "computed": {},
             "outputs": {},
@@ -421,10 +460,13 @@ def test_input_variables_type_mismatch_caught():
     with tempfile.TemporaryDirectory() as tmp:
         domain = _make_domain(Path(tmp))
         _write_yaml(domain / "specs" / "naming-manifest.yaml", {
-            "version": "1.0",
+            "version": "3.0",
             "inputs": {
                 "Applicant": {
-                    "applicant_age": {"policy_phrase": "age", "type": "int"},
+                    "applicant_age": {
+                        "observations": [{"policy_phrase": "age"}],
+                        "type": "int",
+                    },
                 },
             },
         })

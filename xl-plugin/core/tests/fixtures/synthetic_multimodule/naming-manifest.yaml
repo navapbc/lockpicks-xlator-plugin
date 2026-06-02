@@ -1,22 +1,26 @@
 # Synthetic two-module naming manifest (U9 Step 1.5 fixture).
 # Carries the type-extended schema per U7 so test-emission consumers
 # can derive scope-input types without re-parsing the Catala source.
-- name: gross_earned_income
-  type: money
-- name: household_size
-  type: integer
-- name: excluded_amount
-  type: money
-- name: remaining_earned_income
-  type: money
-- name: income_limit
-  type: money
-  computed: true
-- name: income_eligible
-  type: boolean
-  computed: true
-- name: is_eligible
-  type: boolean
-  computed: true
-  outputs:
-    section: decision
+# v3.0 schema: provenance lives in `observations:` lists (none of these
+# entries carry observations — synthetic fixtures without source attribution).
+version: "3.0"
+inputs:
+  Household:
+    gross_earned_income:
+      type: money
+    household_size:
+      type: integer
+    excluded_amount:
+      type: money
+    remaining_earned_income:
+      type: money
+
+computed:
+  income_limit:
+    type: money
+  income_eligible:
+    type: boolean
+
+outputs:
+  is_eligible:
+    type: boolean

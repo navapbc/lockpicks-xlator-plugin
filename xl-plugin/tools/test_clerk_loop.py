@@ -313,7 +313,9 @@ class TestNamingDivergence:
         with (tmp_path / "naming-manifest.yaml").open(encoding="utf-8") as f:
             manifest = yaml.safe_load(f)
         manifest.setdefault("computed", {})["nonexistent_field"] = {
-            "policy_phrase": "a field that does not exist",
+            "observations": [
+                {"policy_phrase": "a field that does not exist"},
+            ],
         }
         with (tmp_path / "naming-manifest.yaml").open("w", encoding="utf-8") as f:
             yaml.safe_dump(manifest, f)
@@ -657,7 +659,9 @@ class TestSkipNamingDivergenceCheck:
         with manifest_path.open(encoding="utf-8") as f:
             manifest = yaml.safe_load(f)
         manifest.setdefault("computed", {})["sibling_only_field"] = {
-            "policy_phrase": "an identifier declared only in a sibling module",
+            "observations": [
+                {"policy_phrase": "an identifier declared only in a sibling module"},
+            ],
         }
         with manifest_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(manifest, f)
@@ -786,8 +790,16 @@ class TestNamingDivergenceCheckAggregated:
         )
         manifest: dict = {
             "computed": {
-                "field_a": {"policy_phrase": "field a from module A"},
-                "field_b": {"policy_phrase": "field b from module B"},
+                "field_a": {
+                    "observations": [
+                        {"policy_phrase": "field a from module A"},
+                    ],
+                },
+                "field_b": {
+                    "observations": [
+                        {"policy_phrase": "field b from module B"},
+                    ],
+                },
             },
         }
         if manifest_extras:
@@ -835,7 +847,11 @@ class TestNamingDivergenceCheckAggregated:
             tmp_path,
             manifest_extras={
                 "computed": {
-                    "phantom": {"policy_phrase": "missing everywhere"},
+                    "phantom": {
+                        "observations": [
+                            {"policy_phrase": "missing everywhere"},
+                        ],
+                    },
                 },
             },
         )
@@ -936,8 +952,8 @@ class TestNamingDivergenceCheckAggregated:
         manifest_path = tmp_path / "naming-manifest.yaml"
         manifest = {
             "computed": {
-                "alpha": {"policy_phrase": "a"},
-                "beta": {"policy_phrase": "b"},
+                "alpha": {"observations": [{"policy_phrase": "a"}]},
+                "beta": {"observations": [{"policy_phrase": "b"}]},
             },
         }
         with manifest_path.open("w", encoding="utf-8") as f:
