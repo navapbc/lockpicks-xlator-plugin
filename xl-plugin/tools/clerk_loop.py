@@ -519,6 +519,26 @@ _RE_SCOPE_VAR = re.compile(
     r"^\s*(?:input|output|internal|context)\s+([a-z_][a-z0-9_]*)\s+content\b",
     re.MULTILINE,
 )
+# Sub-scope binding: `<name> scope <Module>.<Scope>` or
+# `output <name> scope <Module>.<Scope>` inside a scope declaration.
+# The binding name is Catala-local — not a manifest concept.
+_RE_SUB_SCOPE_BINDING = re.compile(
+    r"^\s*(?:output\s+)?([a-z_][a-z0-9_]*)\s+scope\s+[A-Za-z_]",
+    re.MULTILINE,
+)
+# Comprehension / quantifier-bound variable. Covers:
+#   exists <v> among ..., for all <v> among ..., list of <v> among ...,
+#   map each <v> among ..., combine all <v> among ..., content of <v> among ...,
+#   number of <v> among ...
+# These are local Catala iteration vars — never manifest concepts.
+_RE_COMPREHENSION_VAR = re.compile(
+    r"\b(?:exists|for\s+all|list\s+of|map\s+each|combine\s+all|content\s+of|number\s+of)\s+([a-z_][a-z0-9_]*)\s+among\b",
+)
+# Tuple comprehension: `map each (x, y) among (lst1, lst2) to expr`. Both
+# names are local Catala vars.
+_RE_COMPREHENSION_TUPLE = re.compile(
+    r"\b(?:map\s+each|combine\s+all)\s+\(\s*([a-z_][a-z0-9_]*)\s*,\s*([a-z_][a-z0-9_]*)\s*\)\s+among\b",
+)
 
 
 def _collect_source_text_identifiers(module_path: Path) -> set[str]:
@@ -539,6 +559,39 @@ def _collect_source_text_identifiers(module_path: Path) -> set[str]:
     ids: set[str] = set()
     ids.update(_RE_DATA_FIELD.findall(text))
     ids.update(_RE_SCOPE_VAR.findall(text))
+    return ids
+
+
+def _collect_catala_local_names(module_path: Path) -> set[str]:
+    """Parse the .catala_en source for names that are Catala-local —
+    bound by the language itself, NOT by policy / the naming manifest.
+
+    Collects:
+      - sub-scope bindings (`<name> scope Module.Scope`, optionally
+        prefixed with `output`),
+      - comprehension / quantifier vars (`exists <v> among ...`,
+        `for all <v> among ...`, `map each <v> among ...`,
+        `combine all <v> among ...`, `list of <v> among ...`,
+        `content of <v> among ...`, `number of <v> among ...`,
+        plus 2-tuple forms `map each (x, y) among ...`).
+
+    Names returned here are subtracted from the depgraph's bare node
+    labels in the divergence check so that Catala-local bindings do NOT
+    surface as "missing from manifest" false positives. Scope-variable
+    declarations (`input|output|internal|context <name> content ...`)
+    are deliberately EXCLUDED here — those names SHOULD appear in the
+    manifest, so they remain subject to the divergence check.
+    """
+    try:
+        text = module_path.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    ids: set[str] = set()
+    ids.update(_RE_SUB_SCOPE_BINDING.findall(text))
+    ids.update(_RE_COMPREHENSION_VAR.findall(text))
+    for a, b in _RE_COMPREHENSION_TUPLE.findall(text):
+        ids.add(a)
+        ids.add(b)
     return ids
 
 
@@ -638,6 +691,7 @@ def naming_divergence_check(
     else:
         bare_ids, dotted_tails = _collect_source_identifiers(graph)
     declared_in_source = _collect_source_text_identifiers(module_path)
+    catala_local_names = _collect_catala_local_names(module_path)
 
     # Manifest → source: a manifest entry is satisfied when its name
     # appears as a declared identifier in the source, OR as a depgraph
@@ -648,12 +702,14 @@ def naming_divergence_check(
         (input_fields | computed_outputs) - all_source_ids
     )
     # Source → manifest: bare graph-node ids that are not in the manifest
-    # AND not a known entity binding are reported. We do NOT report
-    # declared-in-source names that are missing from the manifest if they
-    # are also graph nodes, because that's covered by `bare_ids`; we
-    # only flag genuine graph-surface mismatches.
+    # AND not a known entity binding are reported. Catala-local names
+    # (sub-scope bindings like `hc scope X.Y`, comprehension vars like
+    # `exists m among ...`) are language-local — not manifest concepts —
+    # and must be filtered out before reporting.
     known_in_manifest = input_fields | computed_outputs | entities
-    missing_in_manifest = sorted(bare_ids - known_in_manifest)
+    missing_in_manifest = sorted(
+        bare_ids - known_in_manifest - catala_local_names
+    )
 
     for name in missing_in_source:
         msg = (
@@ -738,6 +794,7 @@ def naming_divergence_check_aggregated(
     aggregated_bare: set[str] = set()
     aggregated_dotted_tails: set[str] = set()
     aggregated_declared: set[str] = set()
+    aggregated_catala_local: set[str] = set()
     # Map: bare identifier → set of declaring module paths (used for the
     # source → manifest direction's `file=` anchor and message body).
     bare_attribution: dict[str, set[Path]] = {}
@@ -764,6 +821,7 @@ def naming_divergence_check_aggregated(
         aggregated_bare |= bare_ids
         aggregated_dotted_tails |= dotted_tails
         aggregated_declared |= declared_in_source
+        aggregated_catala_local |= _collect_catala_local_names(module_path)
         for name in bare_ids:
             bare_attribution.setdefault(name, set()).add(module_path)
 
@@ -776,7 +834,12 @@ def naming_divergence_check_aggregated(
     missing_in_source = sorted(
         (input_fields | computed_outputs) - all_source_ids
     )
-    missing_in_manifest = sorted(aggregated_bare - known_in_manifest)
+    # Subtract Catala-local names (sub-scope bindings, comprehension vars)
+    # aggregated across all modules so they don't surface as "missing
+    # from manifest" — language-local, not policy concepts.
+    missing_in_manifest = sorted(
+        aggregated_bare - known_in_manifest - aggregated_catala_local
+    )
 
     for name in missing_in_source:
         msg = (
