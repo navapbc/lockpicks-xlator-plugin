@@ -54,9 +54,9 @@ Run these checks before doing anything else:
 
 ### Step 1: Analyze per-file computations
 
-Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and parse each as a YAML map. Read `data["sections"]` as the list of `{heading, summary, tags, computations?}` section blocks. The source path of each section is encoded in the file's relative path under `policy_facets/computations/` — strip the trailing `.yaml` to recover `<rel>.md`, then prefix with `input/policy_docs/`. (A section in `policy_facets/computations/sub/foo.md.yaml` describes `input/policy_docs/sub/foo.md`.)
+Glob every `*.md.yaml` file under `$DOMAINS_DIR/<domain>/policy_facets/computations/` **sorted lexicographically by relative path** (e.g., Python `sorted(glob(...))`) — `glob` defaults to OS-dependent order on macOS/Linux/CI, so explicit sorting is required for deterministic observation ordering downstream. Parse each as a YAML map. Read `data["sections"]` as the list of `{heading, summary, tags, computations?, variables?}` section blocks. The source path of each section is encoded in the file's relative path under `policy_facets/computations/` — strip the trailing `.yaml` to recover `<rel>.md`, then prefix with `input/policy_docs/`. (A section in `policy_facets/computations/sub/foo.md.yaml` describes `input/policy_docs/sub/foo.md`.)
 
-Legacy on-disk files may carry a top-level `naming_manifest:` key and per-computation `variables:` lists from prior versions; both are silently ignored. This skill reads `data["sections"]` only and identifies variables from `expr_hint:` and `description:` per the rules below.
+Legacy on-disk files may carry a top-level `naming_manifest:` key from prior versions; this is silently ignored. The section-level `variables:` block (post-3.0) is the canonical source of per-variable verbatim phrases — read it alongside `computations:` per the aggregation rule below.
 
 Do NOT read files under `$DOMAINS_DIR/<domain>/input/` — `policy_facets/computations/` is the sole source of doc signals.
 
@@ -78,9 +78,23 @@ Cluster the index signals to identify 1–5 distinct policy scopes. For each sco
 - `description` — one sentence describing what the ruleset computes
 - `role` — AI persona for extraction (e.g., "You are a policy-to-rules analyst for eligibility determination.")
 - `scope` — extraction goal sentence (e.g., "Convert the provided policy text into explicit, testable eligibility rules that produce an eligibility decision.")
-- `inputs.<EntityName>.<field>` — entity-grouped input variables. See "Entity inference" below for the rule. Each `<field>` is keyed by snake_case variable name and carries optional `{type, description}`.
-- `computed.<field>` — flat block of computed (intermediate) variables. Variables identified as intermediate via the variable-chain analysis above (LHS-of-one, RHS-of-another) flow here. Each entry carries optional `{type, description}`.
-- `outputs.<field>` — flat block of output variables. Each entry carries optional `{type, description}`. **List the candidate's main decision first** (the primary output); secondary outputs (denial reasons, verification flags, etc.) follow in subsequent entries. Variables that appear on an LHS but never on a downstream RHS are terminal outputs. Declaration order is load-bearing — downstream `/create-skeleton` treats the first entry as primary.
+- `inputs.<EntityName>.<field>` — entity-grouped input variables. See "Entity inference" below for the rule. Each `<field>` is keyed by snake_case variable name and carries optional `{type, description, observations}`.
+- `computed.<field>` — flat block of computed (intermediate) variables. Variables identified as intermediate via the variable-chain analysis above (LHS-of-one, RHS-of-another) flow here. Each entry carries optional `{type, description, observations}`.
+- `outputs.<field>` — flat block of output variables. Each entry carries optional `{type, description, observations}`. **List the candidate's main decision first** (the primary output); secondary outputs (denial reasons, verification flags, etc.) follow in subsequent entries. Variables that appear on an LHS but never on a downstream RHS are terminal outputs. Declaration order is load-bearing — downstream `/create-skeleton` treats the first entry as primary.
+
+**Observation aggregation for `<field>.observations`.** For every variable that becomes an entry under `inputs.*.*`, `computed.*`, or `outputs.*`:
+
+1. Walk every `*.md.yaml` file under `policy_facets/computations/` in the sorted iteration order from this step's opening paragraph.
+2. For each section in that file, check whether the section's `variables:` block contains the variable's snake_case name as a key. (Sections that pre-date the post-3.0 `variables:` block — older files without that field — contribute no observations.)
+3. When the variable is present in the block, build an observation triple `{policy_phrase, source_doc, section}` where:
+   - `policy_phrase:` is the value of `variables[<name>].policy_phrase` when present; **omit** the key when the per-file entry has no `policy_phrase` (phrase-absent observation — see U1's no-fallback rule).
+   - `source_doc:` is the reconstituted source path (`input/policy_docs/<rel>.md`) per the path-encoding rule above.
+   - `section:` is the section's `heading:` field verbatim (including the `#` / `##` / `###` prefix).
+4. Append the triple to the variable's `observations:` list. Deduplicate on the `(policy_phrase, source_doc, section)` triple — distinct triples become distinct observations; identical triples are kept once.
+5. Preserve aggregate order: observations land in the order of the sorted file walk, then within a file in the order sections appear in the YAML `sections:` list.
+6. When the variable appears in no section's `variables:` block (synthesized / algorithm-derived output names, or variables the AI surfaced from `description:` prose but never persisted in `variables:`), **omit `observations:` from the entry entirely** — do not emit an empty list. Downstream consumers (`/declare-target-ruleset` → naming-manifest) treat the absent field as "no source observation recorded," and `/extract-ruleset` Step 3b renders such rows with the `<seeded>` placeholder.
+
+Multi-observation entries are normal and expected — a variable referenced across multiple policy doc sections naturally yields a multi-element list.
 
 **Entity inference for `inputs.<EntityName>.<field>`.** Inputs are the leaf variables — those that appear on the RHS of some `expr_hint:` or in `description:` prose but never on an LHS, plus variables in descriptive-only computations that the source treats as supplied rather than computed. For each input, determine its owning entity from policy doc context. Entities are CamelCase nouns representing the conceptual owner of their fields — common examples: `Applicant`, `Household`, `Income`, `Asset`, `Resource`. Use these signals in order:
 
@@ -153,16 +167,29 @@ inputs:
     <field_name>:               # snake_case variable name
       type: integer | decimal | money | boolean | date | duration | string | enum | list | structure  # optional; omit when no signal
       description: <string>     # optional
+      observations:             # optional; multi-source phrase-level provenance per Step 1's aggregation rule. Omit entirely when no source observation recorded.
+        - policy_phrase: <string>    # optional inside an observation — omit when the per-file variables: entry had no verbatim phrase
+          source_doc: input/policy_docs/<rel>.md
+          section: <verbatim heading including # / ## / ### prefix>
+        # repeat for additional observations across sections / files
     # repeat for each field under this entity
   # repeat for each entity
 computed:                       # flat — no entity grouping
   <field_name>:
     type: <type>                # optional
     description: <string>       # optional
+    observations:               # optional; same shape as inputs entries
+      - policy_phrase: <string>
+        source_doc: input/policy_docs/<rel>.md
+        section: <heading>
 outputs:                        # flat — list the primary output first; declaration order is load-bearing
   <field_name>:
     type: <type>                # optional
     description: <string>       # optional
+    observations:               # optional; omit on synthesized outputs that have no source observation
+      - policy_phrase: <string>
+        source_doc: input/policy_docs/<rel>.md
+        section: <heading>
   # repeat for each output
 ```
 
@@ -171,6 +198,8 @@ outputs:                        # flat — list the primary output first; declar
    - All `description:` and `display_name:` values as quoted strings
    - **List the candidate's main decision as the first entry under `outputs:`** — `/create-skeleton` treats the first output as primary; secondary outputs follow
    - Omit `type:` and `description:` when no signal exists rather than guessing
+   - **Omit `observations:` entirely** when the variable was never observed in any section's `variables:` block — do not emit `observations: []`. Empty list and missing key are semantically the same; the convention is to omit. Synthesized output names (e.g., a top-level `eligibility_status` not directly named in any source body) commonly land without `observations:` and surface downstream as `<seeded>` placeholders in the Name Inventory.
+   - Inside an `observations:` entry, `policy_phrase:` is independently optional — omit it when the upstream `variables:` block recorded the variable without a verbatim phrase. `source_doc:` and `section:` ship together (paired-or-absent) per the merge tool's per-observation invariant.
    - Use the fallback entity `Case` for input fields with no clear conceptual owner — do not invent one-off entities to avoid the fallback
    - `# Generated:` date as YYYY-MM-DD (today's date)
 
@@ -204,6 +233,9 @@ $DOMAINS_DIR/<domain>/specs/suggested_targets/<ruleset_name>.yaml    [CREATED]
 - **Do not suggest a single monolithic ruleset when the index shows multiple distinct policy scopes** — identify separate scopes as separate candidates (e.g., an income exclusion chain and an eligibility determination are two distinct scopes)
 - **Do not emit a `primary:` flag on `outputs.<field>` entries** — primary distinction is encoded by declaration order (first entry = primary); `/create-skeleton` reads that order when writing `guidance/output-variables.yaml`. Emitting `primary:` adds noise that downstream tooling strips.
 - **Do not guess `type:` when no signal exists** — omit the field instead. Same for `description:`.
+- **Do not fabricate `observations:` entries** — only emit observations for variables that appear in a per-file YAML's section-level `variables:` block. The block is the canonical source of phrase-level provenance; do not synthesize observations from headings, descriptions, or expr_hint tokens alone.
+- **Do not emit `observations: []`** — when a variable has no source observation (synthesized output, or never persisted in any `variables:` block), omit the `observations:` key entirely. Empty list and missing key are semantically equivalent; the convention is to omit.
+- **Do not glob without sorting** — `policy_facets/computations/**/*.md.yaml` iteration order must be lexicographic by relative path (use `sorted(glob(...))` in Python). OS-dependent file ordering produces non-deterministic observation order across macOS / Linux / CI, which propagates into the manifest and surfaces as spurious diffs across re-runs.
 - **Do not invent a one-off entity per variable to avoid the `Case` fallback** — `Case` is the correct entity for input fields with no clear conceptual owner. Splintering into `Misc1`, `Misc2`, etc. is worse than using `Case`.
 - **Do not collapse parallel data sources into a single entity** — when policy text says "apply X to both A and B", or compares A against B (reasonable compatibility, AVS-vs-client, employer-vs-self, etc.), emit two parallel entities (e.g., `ClientStatement` + `DOLRecord`), not one merged `Income` or `Data` entity. Merging hides the reuse signal that `/create-ruleset-modules`'s `reuse_across_entities` heuristic needs to detect a shared sub-module. This is Entity Inference Rule 0 — the highest-priority rule, applied before heading/policy-phrase/name signals.
 - **Do not group computed variables under entities** — `computed:` is flat. Computed values are functions of multiple entities' inputs; they don't conceptually belong to one entity.
