@@ -18,7 +18,7 @@ vocabulary — `money|bool|int|float|string|enum|list|date`), `optional`,
 `enum_values`, `item_type`, `description`, `is_decision`, `decision_name`.
 
 Type-name normalization (Catala-native name → internal leaf type) — only
-the 10-item Catala-native vocabulary is accepted (plan 2026-06-01-002):
+the 10-item Catala-native vocabulary is accepted:
   integer        → int
   decimal        → float
   boolean        → bool
@@ -56,12 +56,10 @@ class FieldSpec:
 
 
 # Map Catala-native type names to the internal leaf type used by the rest
-# of the test-CSV machinery. Only the 10-item Catala-native vocabulary is
-# accepted; legacy CIVIL names were retired by plan 2026-06-01-002.
-# `structure` maps to the internal `string` leaf — structure-typed entity
-# fields don't surface as CSV columns directly, but the alias prevents the
-# `_DEFAULT_LEAF_TYPE` warning path from firing on a valid Catala-native
-# value.
+# of the test-CSV machinery. `structure` maps to the internal `string` leaf —
+# structure-typed entity fields don't surface as CSV columns directly, but
+# the alias prevents the `_DEFAULT_LEAF_TYPE` warning path from firing on a
+# valid Catala-native value.
 _TYPE_ALIASES = {
     "integer": "int",
     "decimal": "float",

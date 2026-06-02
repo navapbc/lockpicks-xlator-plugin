@@ -12,9 +12,6 @@ six load-bearing merge rules of /extract-ruleset Step 7.
 The inventory + manifest schema carries Catala-native type metadata:
   * `type` accepts only Catala-native names: `integer`, `decimal`, `money`,
     `boolean`, `date`, `duration`, `string`, `enum`, `list`, `structure`.
-    Legacy CIVIL short names (`bool`, `int`, `float`, `str`, `set`, `object`)
-    are rejected — they were migrated out via the one-shot
-    migrate-naming-manifest-types.py script (see plan 2026-06-01-002).
   * `optional: bool` flags `Optional<T>` wrapping in the Catala emission.
   * `enum_variants: [str]` carries the list of constructor names for enum
     types (`["Eligible", "Denied"]`). Distinct from `values:`, the older
@@ -82,9 +79,7 @@ _HEADER_SENTINEL = "--- MERGE-NAMING-MANIFEST-HEADER-END ---"
 
 _MANIFEST_VERSION = "2.0"
 
-# Strict Catala-native vocabulary. Legacy CIVIL names (`bool`, `int`, `float`,
-# `str`, `set`, `object`) are rejected — they were migrated out via the one-
-# shot migrate-naming-manifest-types.py script (see plan 2026-06-01-002).
+# Strict Catala-native vocabulary.
 _VALID_TYPES = {
     "integer", "decimal", "money", "boolean", "date",
     "duration", "string", "enum", "list", "structure",

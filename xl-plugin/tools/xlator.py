@@ -266,9 +266,7 @@ _SCOPE_DECL_RE = re.compile(r"^\s*declaration\s+scope\s+([A-Za-z_][A-Za-z0-9_]*)
 
 def _derive_scope_name(catala_source_path: Path) -> str:
     """Return the name of the first `declaration scope <Name>:` in the
-    Catala source. Post-pivot the AI authors the scope name directly;
-    deriving `PascalCase(module) + 'Decision'` mechanically (the CIVIL-era
-    convention) breaks whenever the author picks anything else."""
+    Catala source."""
     text = catala_source_path.read_text(encoding="utf-8")
     m = _SCOPE_DECL_RE.search(text)
     if not m:

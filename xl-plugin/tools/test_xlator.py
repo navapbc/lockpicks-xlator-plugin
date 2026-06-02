@@ -178,9 +178,8 @@ class TestDeriveScopeName:
         assert xlator._derive_scope_name(src) == "IsEligible"
 
     def test_does_not_assume_decision_suffix(self, xlator_module, tmp_path):
-        # Regression: pre-pivot CIVIL convention was PascalCase(module) +
-        # 'Decision'; post-pivot the AI authors any scope name it wants.
-        # The helper must NOT silently append 'Decision'.
+        # The helper must NOT silently append 'Decision' — the AI authors
+        # any scope name it wants.
         xlator, _ = xlator_module
         src = tmp_path / "anything.catala_en"
         src.write_text("declaration scope AThingNamedDifferently:\n")
