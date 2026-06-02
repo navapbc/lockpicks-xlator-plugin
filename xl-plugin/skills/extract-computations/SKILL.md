@@ -84,16 +84,19 @@ Read `../../core/naming_guide.md` now — the static plugin-wide style guide con
 
 Then resolve `<domain_dir>` from the source path: walk ancestors of `<path_to_policy_file>` to find `input/policy_docs/`; the directory three levels up is `<domain>`; its parent is `$DOMAINS_DIR`. (The pre-flight already does this lookup; reuse the resolved `<domain_dir>`.)
 
-If `<domain_dir>/specs/naming-manifest.yaml` exists, build a `{normalize(policy_phrase) → {name, source_doc, section}}` lookup map by walking `inputs.*.*`, `computed.*`, and `outputs.*`:
+If `<domain_dir>/specs/naming-manifest.yaml` exists, build a `{normalize(policy_phrase) → {name, source_doc, section}}` lookup map by walking each entry's `observations:` list across `inputs.*.*`, `computed.*`, and `outputs.*` (post-3.0 schema):
 
-- Each entry is keyed by `normalize(policy_phrase)` with value `{name: <leaf_key>, source_doc, section}`.
-- On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both with phrase "gross monthly income"), prefer the entry whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name.
-- Entries with no `policy_phrase` (seeded but not yet confirmed) are skipped — they have no key to match observations against.
+- For each entry, iterate its `observations:` list (when present). For every observation with a `policy_phrase` field, add one map key. The map value is `{name: <leaf_key>, source_doc, section}` taken from the per-observation triple. One manifest entry may contribute multiple map keys when it carries multi-source observations.
+- Observations without a `policy_phrase` (phrase-absent observation — variable was seen in a section but no verbatim phrase was recorded) contribute no map key; they're not useful for phrase-based reconciliation.
+- Entries with no `observations:` list (synthesized outputs that never appeared in any source) contribute no map keys — same effect as today's "entries with no `policy_phrase` are skipped."
+- On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both contributing an observation with phrase "gross monthly income"), prefer the observation whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name. The collision rule operates at observation granularity, not entry granularity.
 - Malformed file → log a warning to stderr and treat as empty map. Never block extraction.
 
 The normalizer used here: lowercase, strip leading articles (`a`, `an`, `the`), strip ASCII punctuation, collapse whitespace.
 
 If the manifest does not exist (first run on a domain), the lookup map is empty — Step 3 derives fresh names from the static guide. This is normal and expected on the first `/index-inputs` run.
+
+**Schema-version tolerance.** This skill reads `observations:` lists only. Pre-3.0 manifests with scalar `policy_phrase` / `source_doc` / `section` fields are not supported — `/index-inputs` will hit `merge_naming_manifest.py`'s version-rejection gate (v3.0 required) before this skill runs. If a stale manifest somehow reaches this skill (e.g., a hand-edited domain), the absence of `observations:` produces an empty lookup map and Step 3 derives fresh names. No silent shape coercion.
 
 ## Step 3: Generate per-section data
 
