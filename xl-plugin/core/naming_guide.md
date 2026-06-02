@@ -95,9 +95,8 @@ The Catala-native vocabulary is exactly:
 | `duration`  | day/month/year intervals, age windows expressed as duration                          |
 | `structure` | compound nominal record (a Catala `structure`) — typically a sub-record reference   |
 
-The merge tool rejects any other value at /extract-ruleset Step 7 — including
-legacy CIVIL short names (`bool`, `int`, `float`, `str`, `set`, `object`). Use
-the Catala-native names above exclusively.
+The merge tool rejects any other value at /extract-ruleset Step 7. Use the
+Catala-native names above exclusively.
 
 Never infer `type:` from the variable name alone — `gross_income` does not
 become `money` just because the name contains "income"; the source body must

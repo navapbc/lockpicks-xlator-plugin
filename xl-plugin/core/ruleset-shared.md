@@ -521,7 +521,7 @@ Do not advance to the post-emission clerk-loop until M5 passes.
 
 **Type metadata.** The manifest is the authority for per-field Catala-native type, optionality, and enum-variant metadata as well as identifier names. Three optional fields per entry carry the metadata:
 
-- `type:` — Catala-native type name, exactly one of: `integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`, `enum`, `list`, `structure`. The merge tool rejects any other value, including the legacy CIVIL short names (`bool`, `int`, `float`, `str`, `set`, `object`) that older manifests carried before the 2026-06-01-002 refactor. Struct/enum type references (e.g. `Household`, `EligibilityResult`) are also permitted as bare names; nested struct schemas are NOT recursively encoded — only the leaf type.
+- `type:` — Catala-native type name, exactly one of: `integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`, `enum`, `list`, `structure`. The merge tool rejects any other value. Struct/enum type references (e.g. `Household`, `EligibilityResult`) are also permitted as bare names; nested struct schemas are NOT recursively encoded — only the leaf type.
 - `optional:` — boolean. When `true`, the field is `Optional<T>` in the Catala emission. Default when absent: `false`.
 - `enum_variants:` — list of variant constructor names for enum-typed fields (e.g. `["Eligible", "Denied", "ManualVerification"]`). Distinct from `values:` (the list of allowed string values); `enum_variants:` carries the Catala-side constructor names.
 
