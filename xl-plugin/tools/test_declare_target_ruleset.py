@@ -120,7 +120,7 @@ def test_happy_path_manifest_version():
         domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", _full_payload())
         dtr.run(domain_dir, "sample_ruleset")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert manifest["version"] == "2.0"
+        assert manifest["version"] == "3.0"
 
 
 def test_happy_path_inputs_round_trip():
@@ -154,38 +154,88 @@ def test_outputs_preserve_type_and_description():
 
 
 # ---------------------------------------------------------------------------
-# Provenance never appears on seeded entries
+# observations: list passthrough (v3.0 — replaces scalar-provenance tests)
 # ---------------------------------------------------------------------------
 
-def test_no_provenance_on_seeded_entries():
-    """policy_phrase, source_doc, section, synonyms must NEVER appear on
-    a seeded manifest entry — even if the suggestion file somehow carries them."""
+def test_observations_passed_through_when_suggested():
+    """When the suggestion file carries `observations:` lists, the tool
+    passes them through verbatim to the manifest. Replaces the pre-3.0
+    'provenance never appears on seeded entries' rule."""
     payload = _full_payload()
-    # Inject provenance noise — tool must drop it.
-    payload["inputs"]["Household"]["size"]["policy_phrase"] = "household size"
-    payload["inputs"]["Household"]["size"]["source_doc"] = "policy.md"
-    payload["inputs"]["Household"]["size"]["section"] = "1.2"
-    payload["inputs"]["Household"]["size"]["synonyms"] = ["hh size"]
-    payload["computed"]["net_income"]["policy_phrase"] = "net"
-    payload["outputs"]["eligible"]["policy_phrase"] = "eligible"
-
+    payload["inputs"]["Household"]["size"]["observations"] = [
+        {"policy_phrase": "household size", "source_doc": "input/policy_docs/a.md",
+         "section": "# Household"},
+    ]
+    payload["computed"]["net_income"]["observations"] = [
+        {"policy_phrase": "net monthly income", "source_doc": "input/policy_docs/a.md",
+         "section": "## Net"},
+    ]
+    payload["outputs"]["eligible"]["observations"] = [
+        {"policy_phrase": "is eligible", "source_doc": "input/policy_docs/a.md",
+         "section": "# Decision"},
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", payload)
         dtr.run(domain_dir, "sample_ruleset")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        for block_name in ("inputs", "computed", "outputs"):
-            block = manifest.get(block_name) or {}
-            entries: list[dict] = []
-            if block_name == "inputs":
-                for entity_fields in block.values():
-                    entries.extend(entity_fields.values())
-            else:
-                entries.extend(block.values())
-            for entry in entries:
-                assert "policy_phrase" not in entry
-                assert "source_doc" not in entry
-                assert "section" not in entry
-                assert "synonyms" not in entry
+        assert manifest["inputs"]["Household"]["size"]["observations"] == [
+            {"policy_phrase": "household size", "source_doc": "input/policy_docs/a.md",
+             "section": "# Household"},
+        ]
+        assert manifest["computed"]["net_income"]["observations"] == [
+            {"policy_phrase": "net monthly income", "source_doc": "input/policy_docs/a.md",
+             "section": "## Net"},
+        ]
+        assert manifest["outputs"]["eligible"]["observations"] == [
+            {"policy_phrase": "is eligible", "source_doc": "input/policy_docs/a.md",
+             "section": "# Decision"},
+        ]
+
+
+def test_seed_entries_passthrough_multi_observation():
+    """A suggestion entry with multi-observation list preserves order
+    and content verbatim."""
+    payload = _full_payload()
+    payload["inputs"]["Household"]["income"]["observations"] = [
+        {"policy_phrase": "household income", "source_doc": "input/policy_docs/a.md",
+         "section": "# Income"},
+        {"policy_phrase": "monthly household income", "source_doc": "input/policy_docs/b.md",
+         "section": "# Income Sources"},
+        {"policy_phrase": "gross income", "source_doc": "input/policy_docs/c.md",
+         "section": "## Gross"},
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", payload)
+        dtr.run(domain_dir, "sample_ruleset")
+        manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
+        obs = manifest["inputs"]["Household"]["income"]["observations"]
+        assert len(obs) == 3
+        assert obs[0]["policy_phrase"] == "household income"
+        assert obs[1]["policy_phrase"] == "monthly household income"
+        assert obs[2]["policy_phrase"] == "gross income"
+
+
+def test_seed_entries_drop_legacy_scalar_provenance():
+    """Stale scalar policy_phrase / source_doc / section keys from pre-3.0
+    suggestion files are silently dropped — matches the existing
+    'every other key is dropped' rule."""
+    payload = _full_payload()
+    payload["inputs"]["Household"]["size"]["policy_phrase"] = "household size"
+    payload["inputs"]["Household"]["size"]["source_doc"] = "policy.md"
+    payload["inputs"]["Household"]["size"]["section"] = "1.2"
+    payload["inputs"]["Household"]["size"]["synonyms"] = ["hh size"]
+    with tempfile.TemporaryDirectory() as tmp:
+        domain_dir = _build_suggestion(Path(tmp), "test_dom", "sample_ruleset", payload)
+        dtr.run(domain_dir, "sample_ruleset")
+        manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
+        entry = manifest["inputs"]["Household"]["size"]
+        assert "policy_phrase" not in entry
+        assert "source_doc" not in entry
+        assert "section" not in entry
+        assert "synonyms" not in entry
+        # type/description retained as expected
+        assert entry["type"] == "integer"
+        assert entry["description"] == "Household size."
 
 
 # ---------------------------------------------------------------------------
@@ -269,10 +319,10 @@ def test_u7_optional_and_enum_variants_seeded_when_suggested():
         assert status["enum_variants"] == ["Eligible", "Denied"]
 
 
-def test_u7_seed_entries_omit_provenance_unchanged():
-    """U7 type-metadata fields don't change the seed-time provenance rule:
-    `policy_phrase`, `source_doc`, `section` remain absent on seeded entries
-    regardless of whether type fields are present."""
+def test_seed_entries_omit_observations_when_suggestion_omits():
+    """When the suggestion supplies no `observations:` key, the manifest entry
+    has no `observations:` key either — matches the synthesized-output case
+    where a variable has no source observation to record."""
     payload = {
         "display_name": "x", "description": "x", "role": "x", "scope": "x",
         "inputs": {"E": {"f": {"type": "money", "optional": False}}},
@@ -283,6 +333,8 @@ def test_u7_seed_entries_omit_provenance_unchanged():
         dtr.run(domain_dir, "r")
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
         for entry in (manifest["inputs"]["E"]["f"], manifest["outputs"]["o"]):
+            assert "observations" not in entry
+            # Stale scalar provenance fields also absent
             for prov_field in ("policy_phrase", "source_doc", "section"):
                 assert prov_field not in entry
 
@@ -513,7 +565,7 @@ def test_overwrite_pre_existing_outputs():
         assert rc == 0
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
         # The new content is present; old content is replaced.
-        assert manifest["version"] == "2.0"
+        assert manifest["version"] == "3.0"
         assert "old" not in manifest
         md = _load_yaml(domain_dir / "specs" / "guidance" / "metadata.yaml")
         assert md["display_name"] == "Sample Ruleset"
@@ -546,7 +598,7 @@ def test_atomicity_partial_write_does_not_corrupt_prior_files():
         # First write (manifest) succeeded.
         assert (domain_dir / "specs" / "naming-manifest.yaml").exists()
         manifest = _load_yaml(domain_dir / "specs" / "naming-manifest.yaml")
-        assert manifest["version"] == "2.0"
+        assert manifest["version"] == "3.0"
         # Third write was never attempted — file should not exist.
         assert not (domain_dir / "specs" / "guidance" / "prompt-context.yaml").exists()
 

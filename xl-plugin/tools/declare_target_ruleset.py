@@ -15,12 +15,17 @@ Reads one specs/suggested_targets/<ruleset_name>.yaml and writes:
 
 Field-mapping rules:
 
-  - inputs/computed/outputs entries carry `type:` and `description:` only when
-    the suggestion supplies them; absent keys are omitted (not written as null).
-    Any other keys present on a suggestion entry are silently dropped.
-  - Provenance fields (policy_phrase, source_doc, section, synonyms) are NEVER
-    written on seeded entries; /extract-ruleset Step 7 fills them in once an
-    analyst confirms a seeded name against an observed phrase.
+  - inputs/computed/outputs entries carry `type:`, `description:`, `optional:`,
+    `enum_variants:`, and `observations:` only when the suggestion supplies
+    them; absent keys are omitted (not written as null). Any other keys
+    present on a suggestion entry are silently dropped — including stale
+    scalar `policy_phrase` / `source_doc` / `section` keys from pre-3.0
+    suggestion files.
+  - `observations:` is a list of {policy_phrase, source_doc, section} triples
+    aggregated upstream by /suggest-target-ruleset from the per-file YAMLs'
+    `variables:` blocks. The tool passes the list through verbatim; per-
+    observation invariants (paired source_doc/section, optional phrase) are
+    re-validated by /extract-ruleset Step 7's merge tool.
   - Output declaration order is preserved — /create-skeleton uses the first
     output as the primary decision when writing guidance/output-variables.yaml.
   - `constraints:` is a fixed 6-entry seed list, encoded in this file as
@@ -62,7 +67,7 @@ _NAMING_MANIFEST_REL = "specs/naming-manifest.yaml"
 _METADATA_REL = "specs/guidance/metadata.yaml"
 _PROMPT_CONTEXT_REL = "specs/guidance/prompt-context.yaml"
 
-_MANIFEST_VERSION = "2.0"
+_MANIFEST_VERSION = "3.0"
 
 # Load-bearing: single source of truth for the constraints seed list.
 # Future edits to the seed update this constant. Tests assert verbatim equality.
@@ -99,11 +104,19 @@ def _entry_subset(entry: Any) -> dict[str, Any]:
         Step 7.
       - `enum_variants` (U7): list of constructor names for enum types.
         Nullable initial value; analysts confirm in /extract-ruleset Step 7.
+      - `observations` (v3.0): list of {policy_phrase, source_doc, section}
+        triples aggregated by /suggest-target-ruleset from the per-file YAMLs'
+        `variables:` blocks. Passed through verbatim when supplied; per-
+        observation invariants (paired source_doc/section, optional phrase)
+        are re-validated by /extract-ruleset Step 7's merge tool. Absent or
+        empty list both mean "no observations recorded for this variable" —
+        downstream rendering surfaces `<seeded>` for those rows.
 
-    Every other key on the suggestion entry (e.g. `policy_phrase:`,
-    `source_doc:`, `section:`, `synonyms:`) is dropped — those are filled in
-    by /extract-ruleset Step 7 once the analyst confirms a seeded name
-    against an observed phrase. Returns `{}` when `entry` is not a dict."""
+    Every other key on the suggestion entry — including stale scalar
+    `policy_phrase:` / `source_doc:` / `section:` keys from pre-3.0
+    suggestion files — is silently dropped. Synonyms are no longer accepted
+    at seed time (they're populated by /extract-ruleset Step 7's analyst
+    confirmation). Returns `{}` when `entry` is not a dict."""
     if not isinstance(entry, dict):
         return {}
     out: dict[str, Any] = {}
@@ -115,6 +128,8 @@ def _entry_subset(entry: Any) -> dict[str, Any]:
         out["optional"] = entry["optional"]
     if "enum_variants" in entry:
         out["enum_variants"] = entry["enum_variants"]
+    if "observations" in entry:
+        out["observations"] = entry["observations"]
     return out
 
 
