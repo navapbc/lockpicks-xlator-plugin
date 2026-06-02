@@ -355,10 +355,46 @@ def _require_clerk() -> str:
     return path
 
 
+_CLERK_TOML_DEFAULT = """[project]
+target_dir = "_targets"
+include_dirs = ["."]
+"""
+
+
+def ensure_catala_bootstrap(work_dir: Path) -> None:
+    """Bootstrap the Catala stdlib for direct `catala` invocations in `work_dir`.
+
+    Project convention: all `clerk` and `catala` commands MUST be invoked
+    from the folder containing `clerk.toml` (typically `specs/` or
+    `output/`). This helper makes that location self-sufficient: it ensures
+    `clerk.toml` exists, then runs `clerk start` to materialize
+    `_build/libcatala` when absent.
+
+    Idempotent. Safe to call on every command — clerk start exits 0 quickly
+    once the stdlib is in place.
+    """
+    if shutil.which("clerk") is None:
+        return
+    clerk_toml = work_dir / "clerk.toml"
+    if not clerk_toml.is_file():
+        clerk_toml.write_text(_CLERK_TOML_DEFAULT)
+    libcatala = work_dir / "_build" / "libcatala"
+    if libcatala.is_dir() and any(libcatala.iterdir()):
+        return
+    subprocess.run(
+        ["clerk", "start"],
+        cwd=str(work_dir),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def _run_clerk_typecheck(module_path: Path, include_dirs: list[Path]) -> tuple[int, str, str]:
     """Invoke `clerk typecheck` with GNU message format forwarded via
     --catala-opts. Return (returncode, stdout, stderr)."""
     _require_clerk()
+    ensure_catala_bootstrap(module_path.parent)
     cmd: list[str] = ["clerk", "typecheck",
                       "--catala-opts=--message-format=gnu"]
     for inc in include_dirs:
@@ -382,6 +418,7 @@ def _run_clerk_test(module_path: Path, include_dirs: list[Path]) -> tuple[int, s
     `xlator.py:cmd_catala_test`).
     """
     _require_clerk()
+    ensure_catala_bootstrap(module_path.parent)
     cmd: list[str] = ["clerk", "test",
                       "--catala-opts=--message-format=gnu"]
     for inc in include_dirs:
@@ -426,6 +463,7 @@ def _catala_dependency_graph(module_path: Path) -> Optional[dict]:
     a noop with a warning when the graph can't be generated."""
     if shutil.which("catala") is None:
         return None
+    ensure_catala_bootstrap(module_path.parent)
     proc = subprocess.run(
         ["catala", "dependency-graph", module_path.name],
         cwd=str(module_path.parent),

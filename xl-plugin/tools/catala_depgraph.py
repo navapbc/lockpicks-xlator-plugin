@@ -183,6 +183,11 @@ def main() -> int:
 
     if input_path.name.endswith(".catala_en"):
         graph_json_path = input_path.parent / input_path.name.replace(".catala_en", ".graph.json")
+        try:
+            from clerk_loop import ensure_catala_bootstrap
+            ensure_catala_bootstrap(input_path.parent)
+        except ImportError:
+            pass
         print(f"running: catala dependency-graph {input_path}", file=sys.stderr)
         result = subprocess.run(
             ["catala", "dependency-graph", input_path.name],

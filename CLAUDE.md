@@ -2,6 +2,15 @@
 
 On macOS, do not use `grep -P` (PCRE). Use `grep -E` (extended regex) or `perl -ne` instead.
 
+## Clerk / Catala invocation directory
+
+All `clerk` and `catala` commands MUST run from the folder containing the `clerk.toml` file — by convention that is `domains/<domain>/specs/` (source authoring) or `domains/<domain>/output/` (legacy rego/civil-transpile pipeline). Reason: raw `catala` subcommands (`catala dependency-graph`, `catala interpret`) resolve the stdlib via `./_build/libcatala` relative to CWD and do not walk parent directories — running them from a higher directory fails with `Stdlib_en could not be found at "_build/libcatala"`. `clerk` itself is more forgiving but still benefits from the consistent CWD.
+
+When writing a script or skill step that invokes `clerk` or `catala`:
+1. `cd` (or `subprocess.run(..., cwd=...)`) into the `specs/` or `output/` folder before invoking.
+2. Call `clerk_loop.ensure_catala_bootstrap(<cwd>)` first — it writes a minimal `clerk.toml` (if missing) and runs `clerk start` (if `_build/libcatala` is absent) so the stdlib is in place. Idempotent.
+3. `xlator new-domain` scaffolds both `specs/clerk.toml` and `output/clerk.toml` at domain creation; downstream skills should not have to recreate them.
+
 ## Shell scripts
 
 When writing or modifying shell scripts, ensure commands are portable such that they work on MacOS and Linux.

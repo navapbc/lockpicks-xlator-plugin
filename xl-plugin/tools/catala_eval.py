@@ -259,6 +259,12 @@ def run(
         for inc in include_dirs:
             cmd.extend(["--include", str(inc)])
 
+    try:
+        from clerk_loop import ensure_catala_bootstrap
+        ensure_catala_bootstrap(catala_path.parent)
+    except ImportError:
+        pass
+
     start = time.perf_counter()
     proc = subprocess.run(
         cmd,
