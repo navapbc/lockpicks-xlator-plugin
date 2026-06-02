@@ -92,7 +92,7 @@ Branch on `header.status`:
 
   Resolve by either:
   a) Editing the Catala source so the identifier matches the manifest entry's `name:`, OR
-  b) Editing `naming-manifest.yaml` to acknowledge the rename (the prior key is appended to that entry's `synonyms:` list per the v10.1.0 rename-anchor convention — see Step 10).
+  b) Editing `naming-manifest.yaml` to acknowledge the rename (the prior key is appended to that entry's `synonyms:` list as a `{name}`-only entry — see Step 10).
 
   Then re-run `/update-ruleset <domain>`.
   :::
@@ -295,15 +295,19 @@ xlator merge-naming-manifest <domain> <program> --inventory <tmpfile> --preserve
 
 The `--preserve-unmentioned` flag is what differentiates this call from `/extract-ruleset` Step 7: `/update-ruleset` adds new fields without re-presenting the full inventory, so existing entries not referenced by this run's inventory must survive verbatim. (`/extract-ruleset` Step 7 presents the full inventory and the merge tool drops unmentioned entries by default.)
 
-Inventory entry shape (same as `/extract-ruleset` Step 7):
+Inventory entry shape (same as `/extract-ruleset` Step 7) — one entry per canonical variable, with all per-source observations in a single inline `observations:` list:
 
 ```json
 {
   "name": "<new snake_case identifier name>",
   "section": "inputs.<Entity>" | "computed" | "outputs",
-  "policy_phrase": "<verbatim noun phrase from policy doc>" | null,
-  "source_doc": "input/policy_docs/<rel>.md" | null,
-  "section_text": "<§ citation> — <heading>" | null,
+  "observations": [
+    {
+      "policy_phrase": "<verbatim noun phrase from policy doc>" | null,
+      "source_doc": "input/policy_docs/<rel>.md" | null,
+      "section": "<§ citation> — <heading>" | null
+    }
+  ],
   "prior_name": "<previous specs key>" | null,
   "description": "<AI-inferred>" | null,
   "type": "<integer|decimal|money|boolean|date|duration|string|enum|list|structure>" | null,
@@ -314,9 +318,10 @@ Inventory entry shape (same as `/extract-ruleset` Step 7):
 
 Rules:
 - **Add only new fields and acknowledged renames.** Other existing entries are preserved by the `--preserve-unmentioned` flag.
-- **`policy_phrase`** is the verbatim noun phrase from the source policy doc, scoped to the section where the new field was introduced. Read the caveman-compressed source at `policy_facets/compressed/<rel>.md`.
-- **`prior_name` — rename-anchor convention (v10.1.0).** Set `prior_name` to the previous Catala identifier when the analyst acknowledged a rename in Step 6's divergence resolution and chose to update the manifest (resolution option (b)). The merge tool drops the old key and appends `{name: <prior_name>}` to the new entry's `synonyms:` list with no `source_doc:` or `section:` (rename-anchor synonyms carry no observation provenance, by `README-dev.md` v10.1.0). The append is idempotent on re-runs: the carry-forward synonyms list survives every rename round, so the full rename chain accumulates and any historical name resolves to the current canonical via `synonyms[].name`. See `core/ruleset-shared.md` SP-LoadNamingManifest "Rename lookup via `synonyms:`" for the consumer-side contract.
+- **`observations[*].policy_phrase`** is the verbatim noun phrase from the source policy doc, scoped to the section where the new field was introduced. Read the caveman-compressed source at `policy_facets/compressed/<rel>.md`. Each observation pairs `source_doc` and `section` together when present; `policy_phrase` is independently optional. Emit one observation per `(source_doc, section)` pair the new field was observed in; multi-section variables produce multi-element lists. If the field was synthesized without a source observation, omit `observations:` from the entry entirely.
+- **`prior_name` — rename-anchor convention.** Set `prior_name` to the previous Catala identifier when the analyst acknowledged a rename in Step 6's divergence resolution and chose to update the manifest (resolution option (b)). The merge tool drops the old key and appends `{name: <prior_name>}` to the new entry's `synonyms:` list. All synonyms are `{name}`-only in the v3.0 manifest schema — phrase-level provenance for any prior name lives in the entry's `observations:` list, not on the synonym itself. The append is idempotent on re-runs: the carry-forward synonyms list survives every rename round, so the full rename chain accumulates and any historical name resolves to the current canonical via `synonyms[].name`. See `core/ruleset-shared.md` SP-LoadNamingManifest "Rename lookup via `synonyms:`" for the consumer-side contract.
 - **Optional fields** (`description`, `type`) are AI-inferred from policy text where the signal is unambiguous; otherwise omit.
+- **Stale scalar provenance keys** (`policy_phrase` / `source_doc` / `section_text` at the top level of an inventory entry) are silently dropped by the merge tool — these belong inside the `observations:` list in v3.0.
 
 If no new fields were added and no renames were acknowledged, skip the `merge-naming-manifest` call entirely — no inventory needed.
 

@@ -4,9 +4,10 @@ Plugin-wide style rules for variable names extracted from policy documents.
 Consulted on every run by `/extract-computations` (per-file workers).
 
 The **analyst-authoritative** source of canonical names is `specs/naming-manifest.yaml` —
-entries are confirmed against a doc OR seeded pre-extraction by `/declare-target-ruleset`;
-provenance fields are nullable on seeded entries and gap-fill from observations
-via `/extract-ruleset` Step 7. This guide supplies the style rules used to derive
+entries are confirmed against a doc OR seeded pre-extraction by `/declare-target-ruleset`.
+Per-entry provenance lives inside an `observations:` list of `{policy_phrase, source_doc, section}`
+triples (manifest schema v3.0); the list may be empty/absent on synthesized outputs and gap-fills
+from observations via `/extract-ruleset` Step 7. This guide supplies the style rules used to derive
 fresh names when no manifest entry covers a concept.
 
 ## Variable name style
@@ -33,7 +34,13 @@ fresh names when no manifest entry covers a concept.
 
 `policy_phrase:` is the join key that reconciles the same concept against the
 manifest across re-runs. It must be **stable across re-runs of the same
-source** so the join doesn't drift.
+source** so the join doesn't drift. In the v3.0 manifest schema, `policy_phrase:`
+appears as one field of an `observations:` triple `{policy_phrase, source_doc,
+section}` rather than as a top-level scalar on the entry; the verbatim rule below
+governs each observation's `policy_phrase` independently. `/extract-computations`
+emits the same field inside the per-file YAML's per-section `variables:` block,
+and `/suggest-target-ruleset` aggregates those into the entry-level `observations:`
+list.
 
 - **Copy a verbatim noun phrase from the source body.** Not paraphrased, not
   summarized, not re-cased. Whitespace and punctuation may be normalized at
@@ -45,7 +52,13 @@ source** so the join doesn't drift.
   heading, or — as a last resort — the first sentence of the section. The
   fallback string is also stable across re-runs (it is derived from source
   structure, not from generation). Document the fallback choice nowhere else;
-  the source itself is the record.
+  the source itself is the record. **Exception: the per-file YAML `variables:`
+  block written by `/extract-computations` does NOT apply this fallback.** When
+  no verbatim noun phrase exists for a variable in the source body, `policy_phrase`
+  is omitted from that variable's entry — phrase absence is a first-class state
+  that flows through to the observation triple (`source_doc + section` present,
+  `policy_phrase` absent) and to `/extract-ruleset`'s `<seeded>` rendering. The
+  fallback above remains valid in other `policy_phrase:` contexts.
 - **Never paraphrase.** Paraphrase drift across runs silently breaks alignment
   with confirmed `specs/naming-manifest.yaml` entries — the worker's matching
   fails on a different paraphrase, and the analyst's rename is silently
@@ -123,9 +136,11 @@ outcomes ("approve, deny, manual review"). Each list element is a string.
 
 ## Common mistakes
 
-- **Don't paraphrase `policy_phrase:`.** Verbatim from the source body. If no
-  noun phrase exists, fall back to a deterministic anchor (heading text);
-  never invent.
+- **Don't paraphrase `policy_phrase:`.** Verbatim from the source body of each
+  observation's `source_doc`. If no noun phrase exists, fall back to a deterministic
+  anchor (heading text) — never invent. Exception: inside the per-file YAML
+  `variables:` block, omit `policy_phrase` entirely when no verbatim noun phrase
+  exists (no heading fallback there).
 - **Don't strip too aggressively.** `gross_income` is fine when the entity
   context is `Household`; over-stripping to `income` collides with adjacent
   income variables.

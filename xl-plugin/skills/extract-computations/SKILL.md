@@ -84,16 +84,19 @@ Read `../../core/naming_guide.md` now — the static plugin-wide style guide con
 
 Then resolve `<domain_dir>` from the source path: walk ancestors of `<path_to_policy_file>` to find `input/policy_docs/`; the directory three levels up is `<domain>`; its parent is `$DOMAINS_DIR`. (The pre-flight already does this lookup; reuse the resolved `<domain_dir>`.)
 
-If `<domain_dir>/specs/naming-manifest.yaml` exists, build a `{normalize(policy_phrase) → {name, source_doc, section}}` lookup map by walking `inputs.*.*`, `computed.*`, and `outputs.*`:
+If `<domain_dir>/specs/naming-manifest.yaml` exists, build a `{normalize(policy_phrase) → {name, source_doc, section}}` lookup map by walking each entry's `observations:` list across `inputs.*.*`, `computed.*`, and `outputs.*` (post-3.0 schema):
 
-- Each entry is keyed by `normalize(policy_phrase)` with value `{name: <leaf_key>, source_doc, section}`.
-- On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both with phrase "gross monthly income"), prefer the entry whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name.
-- Entries with no `policy_phrase` (seeded but not yet confirmed) are skipped — they have no key to match observations against.
+- For each entry, iterate its `observations:` list (when present). For every observation with a `policy_phrase` field, add one map key. The map value is `{name: <leaf_key>, source_doc, section}` taken from the per-observation triple. One manifest entry may contribute multiple map keys when it carries multi-source observations.
+- Observations without a `policy_phrase` (phrase-absent observation — variable was seen in a section but no verbatim phrase was recorded) contribute no map key; they're not useful for phrase-based reconciliation.
+- Entries with no `observations:` list (synthesized outputs that never appeared in any source) contribute no map keys — same effect as today's "entries with no `policy_phrase` are skipped."
+- On collision (e.g., `inputs.Household.gross_income` and `inputs.Applicant.gross_income` both contributing an observation with phrase "gross monthly income"), prefer the observation whose `source_doc:` matches the file currently being processed; deterministic tiebreak: alphabetical by entity name. The collision rule operates at observation granularity, not entry granularity.
 - Malformed file → log a warning to stderr and treat as empty map. Never block extraction.
 
 The normalizer used here: lowercase, strip leading articles (`a`, `an`, `the`), strip ASCII punctuation, collapse whitespace.
 
 If the manifest does not exist (first run on a domain), the lookup map is empty — Step 3 derives fresh names from the static guide. This is normal and expected on the first `/index-inputs` run.
+
+**Schema-version tolerance.** This skill reads `observations:` lists only. Pre-3.0 manifests with scalar `policy_phrase` / `source_doc` / `section` fields are not supported — `/index-inputs` will hit `merge_naming_manifest.py`'s version-rejection gate (v3.0 required) before this skill runs. If a stale manifest somehow reaches this skill (e.g., a hand-edited domain), the absence of `observations:` produces an empty lookup map and Step 3 derives fresh names. No silent shape coercion.
 
 ## Step 3: Generate per-section data
 
@@ -142,6 +145,11 @@ For each surviving section produce:
 
   **Drop the section entirely** when no rule logic is present — do not emit it in `sections:`. Never emit `computations: []` and never emit a section without a `computations:` field.
 
+- **`variables:`** — *optional* map persisting each variable's verbatim source phrase, keyed by the snake_case variable name. Required on every section that has a `computations:` field; emit an entry for every variable referenced by any computation in the section (LHS of `expr_hint:`, RHS tokens of `expr_hint:`, or variable names surfaced from `description:` prose for descriptive-only computations). Each entry carries at most one optional field:
+  - `policy_phrase:` — *optional* verbatim text **copied byte-for-byte from the source `.md` body**. Same verbatim rule as `stage_source:` — `grep -F "<policy_phrase>" <input/policy_docs/<rel>.md>` must match. **No heading-fallback** for this block specifically: when no verbatim noun phrase for the variable exists in the source body, omit `policy_phrase:` from the entry rather than fall back to the section heading or first sentence. The variable entry itself still appears in the block — its presence signals the variable was observed in this section (providing section-level provenance via the enclosing `heading:` and the file's `source_doc`). This deliberately diverges from `core/naming_guide.md`'s general fallback rule for the `variables:` block only: downstream consumers (`/suggest-target-ruleset`, `/extract-ruleset`) treat `policy_phrase` absence as a first-class state that surfaces as `<seeded>` in the Name Inventory rather than as a fabricated heading citation.
+
+  Dedup is by variable name within a section: emit each variable at most once even if it appears in multiple computations. Order: alphabetical by variable name (deterministic across re-runs).
+
 ### Variable name decision (per concept)
 
 For each variable a section's `computations:` references (whether on the LHS or RHS of `expr_hint:`, or named in `description:` for descriptive-only computations):
@@ -151,6 +159,8 @@ For each variable a section's `computations:` references (whether on the LHS or 
 3. If the normalized phrase matches an entry in the manifest lookup map (Step 2), use that entry's name verbatim. Otherwise, derive a fresh name from the static guide's style rules (snake_case, noun phrase, prefer policy term over acronym, strip entity-name words, disambiguate when needed).
 
 Use the resolved snake_case name on both sides of `expr_hint:` (LHS for the computed output, RHS for inputs) and in any `description:` mentions.
+
+**Persist the phrase in the section's `variables:` block** when (and only when) the phrase came verbatim from the source body. When the phrase was derived via the naming-guide's heading or first-sentence fallback (no verbatim noun phrase available), record the variable in the `variables:` block with `policy_phrase:` omitted. The fallback string remains useful for the manifest lookup map in Step 2 but is not emitted as a phrase observation — phrase absence is a first-class state, see the `variables:` field spec in Step 3 above.
 
 ## Step 4: Emit the per-file YAML via `xlator emit-per-file-yaml`
 
@@ -177,7 +187,11 @@ JSON payload shape:
           "preconditions": [...],
           "expr_hint":     "output_var = var1 * 0.20"
         }
-      ]
+      ],
+      "variables": {
+        "output_var": {"policy_phrase": "output variable phrasing from source"},
+        "var1":       {"policy_phrase": "var1 phrasing from source"}
+      }
     }
   ]
 }
@@ -205,14 +219,21 @@ sections:
       - description: "..."
         expr_hint: "net_income = gross_income - deductions"
         # ...
+    variables:
+      net_income:
+        policy_phrase: "net monthly income"
+      gross_income:
+        policy_phrase: "gross monthly income"
+      deductions: {}              # phrase not verbatim in source body — omitted
 ```
 
 Conventions enforced by the emitter:
 - Top-level value is a YAML map with exactly one key: `sections`. Consumers read `data["sections"]` for section blocks.
-- Optional fields (`stage:`, `stage_source:`, `preconditions:`, `expr_hint:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
+- Optional fields (`stage:`, `stage_source:`, `preconditions:`, `expr_hint:`, per-variable `policy_phrase:`) are omitted entirely when absent from the JSON payload — never written as `null` or `[]`.
 - `computations:` is required on every emitted section. Sections lacking rule logic are filtered out upstream (see Step 3) — they never appear in the JSON payload at all.
 - **`expr_hint:` shape:** when present, must match `<snake_case_identifier> = <non-empty expression>`. The emitter rejects payloads with no `=`, empty LHS, empty RHS, or non-snake_case LHS.
 - **List order in `sections[*].computations:` reflects source order.** Downstream consumers (notably `/create-ruleset-modules`'s `sequential_chain` heuristic) rely on this — within a section, the first computation in the list is the first in document order, the second is next, and so on. Build the JSON `computations:` array in source order.
+- **`variables:` shape:** when present, must be a map keyed by snake_case variable name. Each value is a map; the only supported key is `policy_phrase:` (optional, non-empty string). The emitter rejects non-dict values and non-string / empty `policy_phrase:` values.
 
 Always rewrite the destination file in full; this skill is idempotent at the file level. Per-file caching is the manifest's job (handled by `xlator extract-computations --finalize`), not the skill's.
 
@@ -232,7 +253,9 @@ Do NOT emit `:::next_step` from this skill — it is per-file and is normally in
 - **Don't emit a section with no rule logic.** Sections without a `computations:` block are dropped from the output — narrative, definitions-only prose, intros, and TOC sections are excluded from `sections:`. Never emit `computations: []`, and never emit a section without a `computations:` field.
 - **Don't hand-format the YAML output.** Build a JSON payload and pipe to `xlator emit-per-file-yaml`. The tool handles quoting, optional-field omission, and the `expr_hint:` shape check.
 - **Don't emit `expr_hint:` as a bare expression** — it must be `output_name = <expression>`. The emitter rejects payloads with no `=`. For descriptive-only computations, omit `expr_hint:` entirely; downstream consumers fall back to `description:` prose.
-- **Don't paraphrase `policy_phrase:`** when consulting the specs lookup. Verbatim from the source body. If no noun phrase exists, fall back to a deterministic anchor (the section heading text). Paraphrase drift across re-runs silently breaks alignment with confirmed specs entries.
+- **Don't paraphrase `policy_phrase:`** when consulting the specs lookup. Verbatim from the source body. The naming-guide allows a deterministic heading-fallback for the manifest-lookup phrase (Step 2 join key only); the section-level `variables:` block does NOT use the fallback — when no verbatim noun phrase exists in the source body for a variable, omit `policy_phrase:` from that variable's `variables:` entry rather than emitting the heading. Paraphrase drift across re-runs silently breaks alignment with confirmed specs entries.
+- **Don't fabricate `variables[<var>].policy_phrase`** — only emit when the phrase is verbatim from the source body. `grep -F "<policy_phrase>" <input/policy_docs/<rel>.md>` must match. If you cannot find a verbatim quote, emit the variable's entry as `<var>: {}` so phrase absence surfaces downstream as `<seeded>` rather than as a fabricated heading citation.
+- **Don't omit a variable from the `variables:` block when it's referenced by any computation** — every variable named in any `expr_hint:` (LHS or RHS) or in `description:` prose must have an entry. Missing entries break `/suggest-target-ruleset`'s observation aggregation.
 - **Don't update the manifest from this skill** — the manifest is the single responsibility of `xlator extract-computations --finalize`. When invoked standalone (outside `/index-inputs`), the per-file file is written but the manifest is not updated; the next `--plan` will simply re-extract this file (matching destination + missing manifest entry → `to_extract`). This is acceptable best-effort behavior for the standalone path.
 - **Don't run this skill on a low-md_quality source** — the pre-flight gate refuses files whose `md_quality.score < 40`. If the gate fires, fix the source or remove it from `input/policy_docs/`.
 - **Don't invent a `stage:` value when the source has no explicit signal** — stages must be anchored to a heading, body sentence, or attributable ancestor heading. An absent `stage:` is the safe default; hallucinated stages flow through `/create-ruleset-groups` into `guidance/ruleset-groups.yaml` and ultimately produce `clerk typecheck` errors at the `/extract-ruleset` stage.

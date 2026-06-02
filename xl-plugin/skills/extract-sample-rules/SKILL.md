@@ -216,10 +216,10 @@ After processing all `computed-only` entries:
 :::
 Stop.
 
-**Write Pass 4a output:** Merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge variable entries into `naming-manifest.yaml` (Step 6 merge schema), with index-derived field values:
-- `path:` (from index entry) → `source_doc`
-- `heading:` (from index entry) → `section`
-- `computations[].description` → `policy_phrase` (if absent, omit the entry from naming-manifest for that variable and add to `missing_info`)
+**Write Pass 4a output:** Merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge variable entries into `naming-manifest.yaml` (Step 6 merge schema). Each manifest entry's `observations:` list receives one triple per index-derived source, with index-derived field values:
+- `path:` (from index entry) → observation `source_doc`
+- `heading:` (from index entry) → observation `section`
+- `computations[].description` → observation `policy_phrase` (if absent, emit the observation triple with `policy_phrase` omitted — `source_doc` + `section` still anchor the observation — and add to `missing_info`)
 
 Write both files now. **Do not begin Pass 4b until both files have been written to disk.**
 
@@ -263,7 +263,7 @@ Process all `needs-source` entries, then any `computed-only` entries added to th
 - Any inferential leap or assumption → add descriptive string to `assumptions`
 - Any low-priority entry from Step 3 for which rules were generated → add to `assumptions`: `"<heading> not in skeleton — rule may be auxiliary or out of scope; confirm before use"`
 
-After processing all Pass 4b entries: merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), overwriting any index-derived `policy_phrase` values with policy-text values where available. Write all files.
+After processing all Pass 4b entries: merge rules into `guidance/ruleset-modules.yaml` and `guidance/sample-artifacts.yaml` (Step 5 merge schema) and merge updated variable entries into `naming-manifest.yaml` (Step 6 merge schema), updating each `observations:` triple to carry the policy-text `policy_phrase` value (when available) for any observation whose `source_doc` + `section` match the entry being re-processed. Per-observation union semantics in the merge tool ensure index-derived triples are preserved unless replaced in place by a policy-text refinement on the same `(source_doc, section)` pair. Write all files.
 
 Print Full Summary (see [Summary](#summary)).
 
@@ -313,39 +313,43 @@ Read it. For each variable name used in the generated rules, route by whether th
 ```yaml
 computed:
   <variable_name>:
-    policy_phrase: "<noun phrase from source text>"
-    source_doc: "<filename.md>"
-    section: "<section heading>"
+    observations:
+      - policy_phrase: "<noun phrase from source text>"
+        source_doc: "<filename.md>"
+        section: "<section heading>"
 outputs:
   <variable_name>:
-    policy_phrase: "<noun phrase from source text>"
-    source_doc: "<filename.md>"
-    section: "<section heading>"
+    observations:
+      - policy_phrase: "<noun phrase from source text>"
+        source_doc: "<filename.md>"
+        section: "<section heading>"
 ```
-Do not modify or remove any existing entries.
+Do not modify or remove any existing entries. Per-observation triples are added to the entry's `observations:` list (dedup on the `(policy_phrase, source_doc, section)` triple); existing observations survive.
 
-**Rename anchor via `synonyms:` (best-effort).** This writer derives `policy_phrase` from `computations[].description` rather than from analyst confirmation. Rule:
+**Rename anchor via `synonyms:` (best-effort).** This writer derives observation `policy_phrase` from `computations[].description` rather than from analyst confirmation. Rule:
 
-- Append `{name: <prior-name>}` to the entry's `synonyms:` list **only** when this writer renames a name it just emitted with a known provenance (e.g., it derived a candidate name and chose to disambiguate it before writing). In every other case, do not touch `synonyms:`.
+- Append `{name: <prior-name>}` to the entry's `synonyms:` list **only** when this writer renames a name it just emitted (e.g., it derived a candidate name and chose to disambiguate it before writing). In every other case, do not touch `synonyms:`. Synonyms are `{name}`-only in the v3.0 schema — phrase-level provenance for any prior name lives in the entry's `observations:` list, not on the synonym itself.
 - Readers resolve historical names by scanning `synonyms[].name` across entries — when no rename happened, omission is harmless; the canonical key is the only name in play.
 
 **If `naming-manifest.yaml` does not exist:**
 Create it with all variable names used in the generated rules, routing each to `computed:` or `outputs:` using the same rule above:
 ```yaml
-version: "1.0"
+version: "3.0"
 inputs:
   <EntityName>:        # one entry per entity from bound_entities: (if available)
     # (fields populated by /extract-ruleset Step 7b)
 computed:
   <variable_name>:
-    policy_phrase: "<noun phrase from source text>"
-    source_doc: "<filename.md>"
-    section: "<section heading>"
+    observations:
+      - policy_phrase: "<noun phrase from source text>"
+        source_doc: "<filename.md>"
+        section: "<section heading>"
 outputs:
   <variable_name>:
-    policy_phrase: "<noun phrase from source text>"
-    source_doc: "<filename.md>"
-    section: "<section heading>"
+    observations:
+      - policy_phrase: "<noun phrase from source text>"
+        source_doc: "<filename.md>"
+        section: "<section heading>"
 ```
 
 Populate the `inputs:` block using deduplicated CamelCase entity names from `ruleset_modules[].bound_entities` in `guidance/ruleset-modules.yaml`. If `ruleset-modules.yaml` is absent, empty, or all entries have empty `bound_entities:` lists (e.g., only a `role: main` entry exists), omit the `inputs:` block and add a comment: `# inputs: will be populated by /extract-ruleset Step 7b`.
@@ -370,7 +374,7 @@ Index-pass rules written:
   net_earned_income     (computed)   → eligibility
 
 Missing info (index pass):
-  - blind_work_expenses: description absent in index — policy_phrase not written to naming-manifest
+  - blind_work_expenses: description absent in index — observation triple emitted with policy_phrase omitted (source_doc + section retained)
 
 Continuing with source reads...
 :::

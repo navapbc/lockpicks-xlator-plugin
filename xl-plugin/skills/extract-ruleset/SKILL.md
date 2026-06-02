@@ -174,43 +174,45 @@ Before drafting any Catala source, produce the canonical field name for every fa
 4. Convert to **`snake_case`**
 5. If the result would be **ambiguous** with another field in the same entity, append a disambiguating qualifier from the policy text
 
-Present the result as a Markdown table with a **Source** column distinguishing seeded / extracted / algorithm-derived entries:
+Present the result as a Markdown table with a **Source** column distinguishing seeded / extracted / algorithm-derived entries. **Row granularity is one row per observation** — multi-observation manifest entries produce multiple rows (one per `(source_doc, section)` pair), all sharing the same Field Name. This gives the analyst the full multi-source view at confirmation time.
 
 :::detail
 | Policy Phrase | Entity / Section | Field Name | Source Section | Source |
 |--------------|-----------------|-----------|----------------|--------|
-| gross monthly income | Household | `gross_monthly_income` | §1.2 | extracted |
-| number of people in the household | Household | `household_size` | §1.1 | extracted |
-| net monthly income after all deductions | computed | `net_income` | §2.4 | extracted |
-| eligibility status | outputs | `eligibility_status` |  | seeded |
+| gross monthly income | Household | `gross_monthly_income` | # Income Calculation | extracted |
+| gross household income | Household | `gross_monthly_income` | ## Income Sources | extracted |
+| number of people in the household | Household | `household_size` | # Composition | confirmed |
+| net monthly income after all deductions | computed | `net_income` | ## Net Income | confirmed |
+| `<seeded>` | outputs | `eligibility_status` |  | seeded |
 :::
 
-The **Source** column distinguishes three values:
-- **`seeded`**: from the JSON payload's `naming_manifest` with no `policy_phrase` (analyst declared via `/declare-target-ruleset`; provenance is null pre-extraction). Source Section column is blank. Policy Phrase column shows `<seeded>` placeholder.
-- **`confirmed`**: from the JSON payload's `naming_manifest` with a populated `policy_phrase` (was confirmed against a doc in a prior run). Source Section comes from the entry's `section`. The variable name on the row equals the existing specs key.
-- **`extracted`**: surfaced from per-file `*.md.yaml` files via the aggregation algorithm below — names from `expr_hint:` LHSes plus AI-scanned `description:` prose for descriptive-only computations. Source Section is the per-file section's `heading:` value; the per-file file's source_doc (reconstituted from its relative path) provides per-row provenance.
-- **`algorithm-derived`**: no prior entry and no per-file extraction surfaced the concept; derived directly from policy text via the algorithm above.
+The **Source** column distinguishes three values; row granularity is one-per-observation across all three:
+- **`seeded`**: from the JSON payload's `naming_manifest` (analyst declared via `/declare-target-ruleset`). Each row corresponds to one entry in the manifest entry's `observations:` list. When an observation has a `policy_phrase`, render it in the Policy Phrase column and the observation's `section` in the Source Section column. When the observation has no `policy_phrase` (variable observed in a section but no verbatim phrase recorded), render `<seeded>` in Policy Phrase and the `section` in Source Section. **When a manifest entry has no `observations:` list at all** (synthesized output that was never observed in source), render one row with `<seeded>` in Policy Phrase and a blank Source Section.
+- **`confirmed`**: same shape as `seeded` but the manifest entry's observations were confirmed against a doc in a prior `/extract-ruleset` round. The distinction between `seeded` and `confirmed` is informational (origin marker); both read from the same `observations:` list.
+- **`extracted`**: surfaced from per-file `*.md.yaml` files via the aggregation algorithm below — names from `expr_hint:` LHSes plus AI-scanned `description:` prose for descriptive-only computations, with per-observation provenance read from each section's `variables:` block. One row per `(source_doc, section)` pair.
+- **`algorithm-derived`**: no prior entry and no per-file extraction surfaced the concept; derived directly from policy text via the algorithm above. Always single-row.
 
-When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 by passing the prior specs key as `prior_name` in the inventory JSON (Step 7's merge tool appends it to the entry's `synonyms:` list).
+When the analyst-confirmed Field Name in Step 3b differs from a previously confirmed specs key (rename), the Source column shows `confirmed` and the analyst-edited cell carries the new name; the rename is recorded in Step 7 by passing the prior specs key as `prior_name` in the inventory JSON (Step 7's merge tool appends it to the entry's `synonyms:` list as a `{name: <prior>}`-only entry).
 
 **Pre-populate the table from three sources:**
 
-1. **Manifest entries:** Use the `naming_manifest` already loaded in the pre-flight JSON payload. For each entry:
-   - **Confirmed entries** (have `policy_phrase`): pre-populate Field Name from the variable name key, Policy Phrase from `policy_phrase`, Entity / Section from the entity key (e.g., `Household`) for `inputs:` entries or `computed`/`outputs` otherwise, Source Section from `section`, **Source = `confirmed`**.
-   - **Seeded entries** (no `policy_phrase`): pre-populate Field Name from the variable name key, Entity / Section from the entity key, **Source = `seeded`**. Source Section is blank (provenance not yet filled). Policy Phrase column shows `<seeded>` placeholder.
+1. **Manifest entries (`seeded` and `confirmed`):** Use the `naming_manifest` already loaded in the pre-flight JSON payload. For each entry:
+   - Iterate the entry's `observations:` list. For each observation, emit one row: Field Name = the variable name key, Entity / Section = the entity key (e.g., `Household`) for `inputs:` entries or `computed` / `outputs` otherwise, Source Section = the observation's `section` field, Source = `confirmed` (when the entry was confirmed in a prior round) or `seeded` (when the entry came from `/declare-target-ruleset` and has not yet been analyst-reviewed).
+   - When the observation has a `policy_phrase` field, render it in the Policy Phrase column.
+   - When the observation has no `policy_phrase` (phrase-absent observation), render `<seeded>` in the Policy Phrase column.
+   - When the manifest entry has no `observations:` list at all (synthesized output), emit one row with Field Name = the variable name key, Entity / Section = the entity key, Policy Phrase = `<seeded>`, Source Section = blank, Source = `seeded`.
 
 2. **Per-file aggregation (`extracted`):** For policy concepts not already covered by the manifest, walk every `*.md.yaml` under `$DOMAINS_DIR/<domain>/policy_facets/computations/` and extract candidate names per the aggregation algorithm:
    - For each `sections[*].computations[*]` entry: if `expr_hint:` is present and well-formed (`output_name = <expression>`), the LHS is the computation's output name and the RHS is tokenized for snake_case identifier inputs (skip numeric/string literals and built-in keywords). For descriptive-only computations (no `expr_hint:`), AI-scan the entry's `description:` prose for variable names that mirror the source's verbatim noun phrases.
-   - Each surfaced name is recorded with its provenance: the per-file file's `source_doc` (reconstituted as `input/policy_docs/<rel>.md` from the per-file file's relative path under `policy_facets/computations/`) and the enclosing section's `heading:` value (used as Source Section).
+   - Each surfaced name's provenance comes from the section's `variables:` block (post-3.0): `policy_phrase` (when present in `variables:[<name>].policy_phrase`), `source_doc` (reconstituted as `input/policy_docs/<rel>.md` from the per-file file's relative path), and `section` (the section's `heading:` field). When the variable doesn't appear in the section's `variables:` block, the row has no `policy_phrase` — render `<seeded>` in the Policy Phrase column.
    - **Determinism rules** (apply uniformly across the aggregation, so re-runs produce stable inventories):
-     - Dedup case-insensitively on the candidate Field Name.
-     - When the same name appears across multiple `source_doc` paths, surface **one row per `source_doc`** rather than collapsing — the analyst sees each file the name was observed in.
-     - Within each `source_doc`, order rows alphabetically by canonical Field Name.
+     - Dedup on the `(Field Name, source_doc, section)` triple — one row per observation triple. When the same variable appears in two sections of the same file, emit two rows.
+     - Order rows lexicographically: by `source_doc`, then by section order within file, then alphabetically by Field Name within a section.
    - For each surfaced name not already covered by a specs entry, populate the row with **Source = `extracted`**, Field Name = the snake_case name, Entity / Section = inferred from the per-file section's heading/summary plus the variable name itself (use the same heuristics as `/suggest-target-ruleset`'s entity-inference rule; fall back to `Case` when ambiguous).
 
-3. **Algorithm-derived (fallback):** For policy concepts not covered by the manifest and not surfaced by the per-file aggregation, derive the name from policy text using the algorithm above. **Source = `algorithm-derived`**.
+3. **Algorithm-derived (fallback):** For policy concepts not covered by the manifest and not surfaced by the per-file aggregation, derive the name from policy text using the algorithm above. **Source = `algorithm-derived`**. Always single-row.
 
-When the manifest and the per-file aggregation both surface the same concept (matched case-insensitively by name), the manifest wins — it is the analyst-confirmed authority. The per-file row is suppressed.
+When the manifest and the per-file aggregation both surface the same concept (matched case-insensitively by Field Name), the manifest wins — it is the analyst-confirmed authority. The per-file rows are suppressed for that Field Name (the manifest's own observation rows fully cover that variable).
 
 :::user_input
 Do the field names in this table match your intent? You may edit any name.
@@ -424,15 +426,19 @@ Operational note: each per-module loop calls `catala_runtime.reset_log()` betwee
 
 Build the analyst-approved Name Inventory from Step 3b as an inventory JSON file, then call `xlator merge-naming-manifest` to apply the deterministic merge rules (preserve-non-null, rename-via-synonyms-append, drop-on-rename, seeded-entry gap-fill, carry-forward synonyms, entity-grouped `inputs:`).
 
-**1. Build the inventory JSON.** For each row in the approved Name Inventory table(s), construct one inventory entry:
+**1. Build the inventory JSON.** Emit **one inventory entry per canonical variable name** — the entry carries the full `observations:` list inline (single-element for single-source variables, multi-element for multi-source). Multi-observation rows in the Name Inventory table from Step 3b collapse back into one inventory entry per Field Name at JSON-build time.
 
 ```json
 {
   "name": "<approved snake_case Field Name>",
   "section": "inputs.<Entity>" | "computed" | "outputs",
-  "policy_phrase": "<exact verbatim phrase from policy doc>" | null,
-  "source_doc": "input/policy_docs/<rel>.md" | null,
-  "section_text": "<§ citation> — <heading>" | null,
+  "observations": [
+    {
+      "policy_phrase": "<exact verbatim phrase from policy doc>",
+      "source_doc": "input/policy_docs/<rel>.md",
+      "section": "<verbatim heading including # / ## / ### prefix>"
+    }
+  ] | null,
   "prior_name": "<previous specs key>" | null,
   "description": "<analyst- or AI-supplied>" | null,
   "type": "<integer|decimal|money|boolean|date|duration|string|enum|list|structure>" | null,
@@ -440,9 +446,7 @@ Build the analyst-approved Name Inventory from Step 3b as an inventory JSON file
   "values": ["<a>", "<b>"] | null,
   "enum_variants": ["<Variant1>", "<Variant2>"] | null,
   "observed_synonyms": [
-    {"name": "<alt-name>",
-     "source_doc": "input/policy_docs/<rel>.md",
-     "section": "<§ citation> — <heading>"}
+    {"name": "<alt-snake_case-name>"}
   ] | null
 }
 ```
@@ -450,9 +454,12 @@ Build the analyst-approved Name Inventory from Step 3b as an inventory JSON file
 Rules for building each entry:
 - **`name`**: the analyst-approved Field Name from Step 3b (snake_case).
 - **`section`**: `inputs.<EntityName>` for input fields (3-level structure); `computed` or `outputs` (flat).
-- **`policy_phrase`**: the verbatim noun phrase from the source policy doc, scoped to the section the name was observed in. For `confirmed`/`seeded` rows where the analyst confirmed the name against an observation, fill from the observation. For `extracted`/`algorithm-derived` rows, derive per the verbatim rule in `core/naming_guide.md` lines 34–54 using the caveman-compressed source at `policy_facets/compressed/<rel>.md`. If no observation exists (seeded entry not confirmed this round), set to `null` — the merge tool preserves null provenance.
-- **`source_doc`**: `input/policy_docs/<rel>.md` for the file the policy_phrase was observed in. `null` when policy_phrase is null.
-- **`section_text`**: `"<§ citation> — <heading>"` from the section the policy_phrase was observed in. `null` when policy_phrase is null.
+- **`observations`**: list of observation triples gathered from all Name Inventory rows that share this Field Name. Each observation is:
+  - `policy_phrase:` — *optional* verbatim noun phrase from the source body for this observation. Omit when the row shows `<seeded>` in the Policy Phrase column (phrase-absent observation — variable was seen in a section but no verbatim phrase exists). The merge tool's per-observation invariant requires `source_doc` + `section` paired-or-absent and `policy_phrase` independently optional.
+  - `source_doc:` — `input/policy_docs/<rel>.md` for the file the observation came from.
+  - `section:` — the verbatim section heading (including `#` / `##` / `###` prefix).
+  - Set the whole list to `null` to defer to whatever observations the existing entry already has (preserve-non-null is union semantics at the list level — see Step 7's merge invariants below).
+  - Set to `[]` to commit "no observations this round" but propose nothing — the merge tool will preserve any existing observations.
 - **`prior_name`**: the prior specs key when the analyst renamed an entry in Step 3b (Source = `confirmed` with edited Field Name). `null` for non-renames and for new entries.
 - **`description`, `type`, `optional`, `values`, `enum_variants`**: optional analyst- or AI-supplied values. AI-infer them from policy-doc context plus the inferred Catala scope-declaration shape:
   - `type:` — Catala-native (`integer`, `decimal`, `money`, `boolean`, `date`, `duration`, `string`, `enum`, `list`, `structure`) from currency markers ("$", "dollars" → `money`), yes/no phrasing → `boolean`, enumerated lists → `enum`, calendar dates → `date`, repeated values → `list`, compound records → `structure`, and so on. The merge tool rejects any other value.
@@ -461,7 +468,7 @@ Rules for building each entry:
   - `enum_variants:` (U7, post-pivot) — list of Catala enum constructor names (PascalCase, e.g. `["Eligible", "Denied", "ManualVerification"]`) when the field is an enum type. Distinct from `values:`; analysts/AIs supply this field for any enum-typed entry in the post-pivot manifest.
   - `description:` — short prose definition from the source policy text.
   - Set any field to `null` to defer to whatever the existing entry has (preserve-non-null).
-- **`observed_synonyms`**: optional. For curated alternative phrasings observed in policy text. Each entry has `name` (required), `source_doc` and `section` (recommended for traceability). Omit or set `null` when there are no curated synonyms this round.
+- **`observed_synonyms`**: optional. For curated alternative *variable-name identifiers* observed in policy text (e.g., the source uses "wages" alongside "gross_income" for the same concept). Each entry is `{name: "<alt-snake_case-name>"}` only — per-synonym `source_doc` / `section` were retired in v3.0; phrase-level provenance lives in `observations:`. Omit or set `null` when there are no curated synonyms this round.
 
 **Type-metadata confirmation (U7).** Before constructing the inventory, the analyst confirms not only field names but also each field's Catala type, optionality, and enum variants (when applicable). The Name Inventory table from Step 3b is augmented with three additional columns — **Type**, **Optional**, **Variants** — populated as follows:
 
@@ -482,12 +489,15 @@ The tool reads the existing `specs/naming-manifest.yaml`, applies the merge rule
 
 On non-zero exit: relay the tool's stderr in `:::error` and stop. The tool exits 1 on inventory schema violation (`ERROR: inventory[<N>].<field>: <reason>`) or pathological conflict (both `name` and `prior_name` exist as separate entries); exit 2 on missing domain or missing inventory file.
 
-The tool enforces the load-bearing invariants from the prior prose version of Step 7:
-- **Preserve-non-null:** for every entry being written, existing non-null fields win; inventory fills null fields. Seeded-entry provenance gap-fill is the same rule applied to `policy_phrase`/`source_doc`/`section`.
-- **Rename via `synonyms:`-append:** when `prior_name` matches an existing key in the same section, the old entry is dropped and a `{name: <prior_name>}` rename-anchor synonym is appended (no `source_doc:`/`section:`). Idempotent on re-runs (skips append when the prior key is already in the carried synonyms list).
+The tool enforces the load-bearing invariants (post-3.0):
+- **Preserve-non-null (scalars):** for every entry being written, existing non-null fields win; inventory fills null fields. Applies to `description`, `type`, `optional`, `values`, `enum_variants`.
+- **Observations union semantics:** when both existing and inventory carry `observations:` lists, the merged list is the union deduplicated on the `(policy_phrase, source_doc, section)` triple, existing-first order. Adding a new policy doc section between rounds adds new observations without discarding the old — analysts gain observations across rounds rather than overwriting them.
+- **Per-observation invariant:** each observation requires `source_doc` and `section` together when present (or both absent); `policy_phrase` is independently optional. Relaxes the prior all-or-nothing rule to support phrase-absent observations.
+- **Rename via `synonyms:`-append:** when `prior_name` matches an existing key in the same section, the old entry is dropped and a `{name: <prior_name>}` synonym is appended. Idempotent on re-runs (skips append when the prior key is already in the carried synonyms list). In v3.0, all synonym entries are `{name}`-only; the rename-anchor / observed-phrasing-synonym distinction collapsed.
 - **Carry-forward synonyms:** the new entry inherits the existing entry's full `synonyms:` list before the rename-anchor is appended; rename chains accumulate across multiple rename rounds.
 - **`role_hint:` is never written** — section placement encodes role.
 - **`inputs.<Entity>` is 3-level; `computed:` and `outputs:` are flat.**
+- **Manifest version gate:** the tool rejects manifests whose `version:` is not exactly `"3.0"` (including missing) with exit code 1 and a clear regenerate-instructions message. See the merge tool's error path; analysts hit this when running against a v2.0 (or pre-version) manifest and must follow the Migration Path in the plan's Scope Boundaries.
 
 The merged manifest is user-editable. Do **not** add an "auto-generated" comment.
 

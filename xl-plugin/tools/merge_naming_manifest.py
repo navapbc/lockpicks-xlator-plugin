@@ -18,10 +18,20 @@ The inventory + manifest schema carries Catala-native type metadata:
     string-values list; `enum_variants:` carries the Catala-side names.
 
 The new fields follow the same `preserve-non-null + analyst-authoritative`
-semantics as `policy_phrase`/`source_doc`/`section`.
+semantics as other optional fields.
+
+Provenance lives in a single `observations: [{policy_phrase, source_doc,
+section}, ...]` list field (v3.0 schema). Stale scalar `policy_phrase`,
+`source_doc`, and `section_text` keys on inventory entries are silently
+dropped — phrase-level provenance flows only through `observations:`.
 
   * preserve-non-null:        every analyst-supplied non-null field on the
                               existing entry wins; inventory fills nulls.
+  * observations union:       when both existing and inventory carry
+                              `observations:` lists, the merged list is the
+                              union deduplicated on the
+                              (policy_phrase, source_doc, section) triple,
+                              with existing observations first.
   * rename-via-synonyms:      when prior_name is set and matches an existing
                               key, replace that entry under the new name,
                               carry its synonyms forward, and append a
@@ -77,7 +87,7 @@ import yaml
 _NAMING_MANIFEST_REL = "specs/naming-manifest.yaml"
 _HEADER_SENTINEL = "--- MERGE-NAMING-MANIFEST-HEADER-END ---"
 
-_MANIFEST_VERSION = "2.0"
+_MANIFEST_VERSION = "3.0"
 
 # Strict Catala-native vocabulary.
 _VALID_TYPES = {
@@ -89,8 +99,9 @@ _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 _CAMEL_CASE_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 _INPUTS_SECTION_RE = re.compile(r"^inputs\.([A-Z][A-Za-z0-9]*)$")
 
-# Optional fields on a manifest entry, in canonical write order (after the
-# four core provenance fields). preserve-non-null applies to each.
+# Optional fields on a manifest entry, in canonical write order.
+# preserve-non-null applies to each scalar field; `observations` uses union
+# semantics on the (policy_phrase, source_doc, section) triple.
 #
 # `type`, `optional`, and `enum_variants` carry Catala-native type metadata.
 # Consumers (`/catala-emit-tests`, the test-creation skills) fall back to
@@ -102,9 +113,7 @@ _OPTIONAL_FIELDS = (
     "optional",
     "values",
     "enum_variants",
-    "policy_phrase",
-    "source_doc",
-    "section",
+    "observations",
     "synonyms",
 )
 
@@ -133,6 +142,32 @@ def _is_non_empty_str(v: Any) -> bool:
     return isinstance(v, str) and len(v) > 0
 
 
+def _validate_observation(i: int, j: int, obs: Any) -> None:
+    """Validate a single observation dict inside an `observations:` list.
+
+    Each observation must be a dict. `source_doc` and `section` are paired:
+    both present or both absent. `policy_phrase` is independently optional.
+    String fields, when present, must be non-empty strings.
+    """
+    if not isinstance(obs, dict):
+        raise _err(i, f"observations[{j}]", "must be an object")
+    for key in ("policy_phrase", "source_doc", "section"):
+        if key in obs and obs[key] is not None and not _is_non_empty_str(obs[key]):
+            raise _err(
+                i, f"observations[{j}].{key}",
+                "must be non-empty string or null",
+            )
+    sd = obs.get("source_doc")
+    sec = obs.get("section")
+    sd_set = sd is not None
+    sec_set = sec is not None
+    if sd_set != sec_set:
+        raise _err(
+            i, f"observations[{j}]",
+            "source_doc and section must be set together (or both absent)",
+        )
+
+
 def _validate_entry(i: int, entry: Any) -> None:
     if not isinstance(entry, dict):
         raise InventoryError(f"inventory[{i}]: expected object")
@@ -159,25 +194,17 @@ def _validate_entry(i: int, entry: Any) -> None:
             f"got {section!r}",
         )
 
-    # policy_phrase / source_doc / section_text — required keys, nullable values
-    for field in ("policy_phrase", "source_doc", "section_text"):
-        if field not in entry:
-            raise _err(i, field, "required field missing (use null when unknown)")
-        v = entry[field]
-        if v is not None and not _is_non_empty_str(v):
-            raise _err(i, field, "must be non-empty string or null")
-
-    # Provenance must be all-or-nothing.
-    pp = entry.get("policy_phrase")
-    sd = entry.get("source_doc")
-    st = entry.get("section_text")
-    provenance_set = [v is not None for v in (pp, sd, st)]
-    if any(provenance_set) and not all(provenance_set):
-        raise _err(
-            i, "policy_phrase",
-            "provenance must be all-or-nothing — when policy_phrase is set, "
-            "source_doc and section_text must also be set (and vice versa)",
-        )
+    # observations — optional on inventory entries. When present, must be a
+    # list of dicts. Each observation requires source_doc + section together
+    # when either is present (or both absent); policy_phrase is independently
+    # optional. Stale scalar policy_phrase / source_doc / section_text keys
+    # at entry level are silently dropped (handled at merge time).
+    if "observations" in entry and entry["observations"] is not None:
+        obs_list = entry["observations"]
+        if not isinstance(obs_list, list):
+            raise _err(i, "observations", "must be a list or null")
+        for j, obs in enumerate(obs_list):
+            _validate_observation(i, j, obs)
 
     # prior_name (required key, nullable)
     if "prior_name" not in entry:
@@ -238,7 +265,9 @@ def _validate_entry(i: int, entry: Any) -> None:
             if not _is_non_empty_str(val):
                 raise _err(i, f"enum_variants[{j}]", "must be non-empty string")
 
-    # observed_synonyms (optional, nullable)
+    # observed_synonyms (optional, nullable). Post-3.0 schema: each synonym
+    # is just {name: "..."} — no per-synonym source_doc / section. Phrase
+    # provenance lives in the entry's `observations:` list, not on synonyms.
     obs = entry.get("observed_synonyms")
     if obs is not None:
         if not isinstance(obs, list):
@@ -254,12 +283,6 @@ def _validate_entry(i: int, entry: Any) -> None:
                     i, f"observed_synonyms[{j}].name",
                     "required field missing",
                 )
-            for opt in ("source_doc", "section"):
-                if opt in syn and syn[opt] is not None and not _is_non_empty_str(syn[opt]):
-                    raise _err(
-                        i, f"observed_synonyms[{j}].{opt}",
-                        "must be non-empty string or null",
-                    )
 
 
 def validate_inventory(inventory: Any) -> None:
@@ -343,12 +366,12 @@ def _find_name_anywhere(manifest: dict, name: str) -> tuple[str, str | None] | N
 # ---------------------------------------------------------------------------
 
 def _is_rename_anchor(syn: dict) -> bool:
-    """A synonym is a rename-anchor when it has no `source_doc` / `section`."""
-    return (
-        isinstance(syn, dict)
-        and "source_doc" not in syn
-        and "section" not in syn
-    )
+    """Post-3.0: every synonym has shape `{name: "..."}` only — the
+    rename-anchor distinction collapsed into the unified concept "this
+    canonical name has also been observed as this snake_case-able
+    alternative". Kept as a True-returning helper for any caller that still
+    asks the question."""
+    return isinstance(syn, dict) and isinstance(syn.get("name"), str)
 
 
 def _synonym_names(synonyms: Iterable[Any]) -> set[str]:
@@ -366,8 +389,12 @@ def _merge_synonyms(
 ) -> tuple[list[dict], int, int]:
     """Build the merged synonyms list and return (list, anchor_added, observed_added).
 
-    Order: existing (in original order), then new rename-anchor (if any), then
-    new observed-phrasing synonyms (in inventory order). Dedup by `name`."""
+    Post-3.0: every synonym has shape `{name: "..."}` only. Phrase-level
+    provenance moved to the entry's `observations:` list. Order: existing
+    (in original order), then new rename-anchor (if any), then new
+    observed-phrasing synonyms (in inventory order). Dedup purely on `name`.
+    Any per-synonym `source_doc` / `section` fields from older inputs are
+    silently dropped on the way through."""
     out: list[dict] = []
     seen: set[str] = set()
     if existing_synonyms:
@@ -379,7 +406,7 @@ def _merge_synonyms(
                 continue
             if n in seen:
                 continue
-            out.append(s)
+            out.append({"name": n})
             seen.add(n)
 
     anchor_added = 0
@@ -395,12 +422,7 @@ def _merge_synonyms(
         n = s.get("name")
         if not isinstance(n, str) or n in seen:
             continue
-        new_entry: dict = {"name": n}
-        if isinstance(s.get("source_doc"), str):
-            new_entry["source_doc"] = s["source_doc"]
-        if isinstance(s.get("section"), str):
-            new_entry["section"] = s["section"]
-        out.append(new_entry)
+        out.append({"name": n})
         seen.add(n)
         observed_added += 1
 
@@ -411,11 +433,62 @@ def _merge_synonyms(
 # Per-entry build
 # ---------------------------------------------------------------------------
 
-def _preserve_non_null(existing: dict | None, inventory_value: Any) -> Any:
+def _preserve_non_null(existing: Any, inventory_value: Any) -> Any:
     """preserve-non-null: existing wins when non-null; inventory fills null."""
     if existing is not None:
         return existing
     return inventory_value
+
+
+def _observation_key(obs: dict) -> tuple:
+    """Dedup key for an observation: the (policy_phrase, source_doc, section)
+    triple. Missing fields participate as None so two observations with the
+    same source but different phrase presence don't collapse."""
+    return (obs.get("policy_phrase"), obs.get("source_doc"), obs.get("section"))
+
+
+def _normalize_observation(obs: dict) -> dict:
+    """Return a clean observation dict with only the canonical keys present,
+    omitting any with None values. Preserves canonical key order."""
+    out: dict = {}
+    for k in ("policy_phrase", "source_doc", "section"):
+        v = obs.get(k)
+        if v is not None:
+            out[k] = v
+    return out
+
+
+def _merge_observations(
+    existing: list[dict] | None,
+    inventory: list[dict] | None,
+) -> list[dict]:
+    """Union semantics on the (policy_phrase, source_doc, section) triple.
+
+    Order: existing observations first (in their original order), then any
+    inventory observations whose triple is not already represented.
+    Non-dict / malformed entries are silently skipped.
+    """
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for obs in existing or []:
+        if not isinstance(obs, dict):
+            continue
+        clean = _normalize_observation(obs)
+        key = _observation_key(clean)
+        if key in seen:
+            continue
+        out.append(clean)
+        seen.add(key)
+    for obs in inventory or []:
+        if not isinstance(obs, dict):
+            continue
+        clean = _normalize_observation(obs)
+        key = _observation_key(clean)
+        if key in seen:
+            continue
+        out.append(clean)
+        seen.add(key)
+    return out
 
 
 def _build_entry(
@@ -432,13 +505,17 @@ def _build_entry(
     if existing is None:
         existing = {}
 
-    inv_pp = inventory_entry.get("policy_phrase")
-    inv_sd = inventory_entry.get("source_doc")
-    inv_st = inventory_entry.get("section_text")
-
-    pp = _preserve_non_null(existing.get("policy_phrase"), inv_pp)
-    sd = _preserve_non_null(existing.get("source_doc"), inv_sd)
-    sec = _preserve_non_null(existing.get("section"), inv_st)
+    # observations: union semantics on the (policy_phrase, source_doc, section)
+    # triple. Stale scalar policy_phrase / source_doc / section_text keys on
+    # the inventory entry are silently dropped (matches declare_target_ruleset's
+    # "every other key is dropped" rule).
+    existing_obs = existing.get("observations")
+    if not isinstance(existing_obs, list):
+        existing_obs = None
+    inv_obs = inventory_entry.get("observations")
+    if not isinstance(inv_obs, list):
+        inv_obs = None
+    observations = _merge_observations(existing_obs, inv_obs)
 
     description = _preserve_non_null(
         existing.get("description"), inventory_entry.get("description")
@@ -460,22 +537,18 @@ def _build_entry(
     if not isinstance(existing_synonyms, list):
         existing_synonyms = carried_synonyms or []
 
-    obs = inventory_entry.get("observed_synonyms")
-    if not isinstance(obs, list):
-        obs = []
+    obs_syn = inventory_entry.get("observed_synonyms")
+    if not isinstance(obs_syn, list):
+        obs_syn = []
 
     synonyms_list, anchor_added, observed_added = _merge_synonyms(
-        existing_synonyms, rename_anchor, obs
+        existing_synonyms, rename_anchor, obs_syn
     )
 
     # Write fields in canonical order (matches existing hand-authored manifests).
     entry: dict = {}
-    if pp is not None:
-        entry["policy_phrase"] = pp
-    if sd is not None:
-        entry["source_doc"] = sd
-    if sec is not None:
-        entry["section"] = sec
+    if observations:
+        entry["observations"] = observations
     if description is not None:
         entry["description"] = description
     if type_ is not None:
@@ -754,11 +827,39 @@ def _atomic_write(dest: Path, content: str) -> None:
 # Existing manifest load
 # ---------------------------------------------------------------------------
 
+class ManifestVersionError(Exception):
+    """Raised when the existing on-disk manifest's version is not _MANIFEST_VERSION."""
+
+
+def _manifest_version_error_message(path: Path, found: Any) -> str:
+    """Compose the regenerate-instructions error message for a manifest with
+    the wrong (or absent) version. Resolved per the plan's Open Questions."""
+    if found is None:
+        found_str = "no version field"
+    else:
+        found_str = repr(found)
+    return (
+        f"naming-manifest.yaml at {path} has version {found_str} but version "
+        f"{_MANIFEST_VERSION} is required. The manifest provenance schema "
+        f"changed (scalar policy_phrase / source_doc / section -> observations: "
+        f"list). To regenerate: (1) delete specs/naming-manifest.yaml and "
+        f"specs/suggested_targets/*.yaml, (2) re-run /index-inputs <domain>, "
+        f"(3) re-run /suggest-target-ruleset <domain>, (4) re-run "
+        f"/declare-target-ruleset <domain> <ruleset>. See the plan's Migration "
+        f"Path section for details."
+    )
+
+
 def _load_existing_manifest(path: Path) -> tuple[dict, list[str]]:
     """Return (manifest_dict, warnings).
 
-    When absent, treat as `{version: '1.0', inputs: {}, computed: {}, outputs: {}}`.
-    When `version:` is a number (not a string), coerce to string and warn."""
+    When absent, treat as a fresh manifest at `_MANIFEST_VERSION`.
+
+    When present, the manifest must declare `version: "3.0"` exactly. Any
+    other value (including a missing `version:` key) is rejected with a
+    `ManifestVersionError` carrying regenerate-path instructions. This is
+    the version-rejection gate per the U3 plan.
+    """
     warnings: list[str] = []
     default: dict = {
         "version": _MANIFEST_VERSION,
@@ -776,13 +877,10 @@ def _load_existing_manifest(path: Path) -> tuple[dict, list[str]]:
     if not isinstance(raw, dict):
         return default, warnings
 
-    version = raw.get("version", _MANIFEST_VERSION)
-    if not isinstance(version, str):
-        warnings.append(
-            f"existing manifest 'version' was {version!r} (not a string); "
-            f"coercing to '{_MANIFEST_VERSION}'"
-        )
-        version = _MANIFEST_VERSION
+    # Version gate — reject anything that isn't exactly _MANIFEST_VERSION.
+    version = raw.get("version")
+    if version != _MANIFEST_VERSION:
+        raise ManifestVersionError(_manifest_version_error_message(path, version))
 
     manifest: dict = {
         "version": version,
@@ -828,7 +926,11 @@ def run(
         return 1
 
     manifest_path = domain_dir / _NAMING_MANIFEST_REL
-    manifest, version_warnings = _load_existing_manifest(manifest_path)
+    try:
+        manifest, version_warnings = _load_existing_manifest(manifest_path)
+    except ManifestVersionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     counters = {
         "entries_added": 0,

@@ -145,7 +145,9 @@ class TestAggregatedDivergenceSurfaces:
         with manifest_path.open(encoding="utf-8") as f:
             manifest = yaml.safe_load(f)
         manifest.setdefault("computed", {})["phantom_field"] = {
-            "policy_phrase": "no module declares this",
+            "observations": [
+                {"policy_phrase": "no module declares this"},
+            ],
         }
         with manifest_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(manifest, f)
@@ -416,7 +418,9 @@ class TestCheckOnlyMode:
         with manifest_path.open(encoding="utf-8") as f:
             manifest = yaml.safe_load(f)
         manifest.setdefault("computed", {})["phantom_check_only"] = {
-            "policy_phrase": "no module declares this",
+            "observations": [
+                {"policy_phrase": "no module declares this"},
+            ],
         }
         with manifest_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(manifest, f)
