@@ -81,6 +81,8 @@ def _validate(payload: dict) -> None:
             if not isinstance(computation, dict):
                 continue
             _validate_computation(computation, s_idx, c_idx)
+        if "variables" in section:
+            _validate_variables(section["variables"], s_idx)
 
 
 def _validate_computation(computation: dict, s_idx: int, c_idx: int) -> None:
@@ -117,13 +119,49 @@ def _validate_computation(computation: dict, s_idx: int, c_idx: int) -> None:
         )
 
 
+def _validate_variables(variables, s_idx: int) -> None:
+    """Validate the optional per-section `variables:` block.
+
+    Shape: a dict keyed by snake_case variable name; each value is a dict
+    whose only supported key is the optional `policy_phrase:` (non-empty
+    string when present). Empty per-variable dicts (`<var>: {}`) are valid
+    and signal "variable observed in this section but no verbatim phrase
+    available" — phrase absence is a first-class state for downstream
+    consumers (/suggest-target-ruleset, /extract-ruleset)."""
+    where = f"sections[{s_idx}].variables"
+    if not isinstance(variables, dict):
+        raise ValidationError(f"{where} must be a map when present")
+    for var_name, entry in variables.items():
+        if not isinstance(var_name, str) or not _SNAKE_CASE_IDENTIFIER.match(var_name):
+            raise ValidationError(
+                f"{where} key {var_name!r} is not a snake_case identifier "
+                f"(lowercase letters, digits, underscores; first char a letter or underscore)"
+            )
+        if not isinstance(entry, dict):
+            raise ValidationError(
+                f"{where}[{var_name!r}] must be a map (got {type(entry).__name__})"
+            )
+        if "policy_phrase" in entry and entry["policy_phrase"] is not None:
+            phrase = entry["policy_phrase"]
+            if not isinstance(phrase, str):
+                raise ValidationError(
+                    f"{where}[{var_name!r}].policy_phrase must be a string when present "
+                    f"(got {type(phrase).__name__})"
+                )
+            if not phrase:
+                raise ValidationError(
+                    f"{where}[{var_name!r}].policy_phrase must be non-empty when present"
+                )
+
+
 def _strip_none(d: dict) -> dict:
     """Remove keys whose value is None so optional fields are omitted from YAML."""
     return {k: v for k, v in d.items() if v is not None}
 
 
 def _normalize_sections(sections: list) -> list:
-    """Strip None-valued optional fields from each section and computation."""
+    """Strip None-valued optional fields from each section, computation, and
+    per-variable entry in the optional `variables:` block."""
     cleaned: list = []
     for section in sections or []:
         if not isinstance(section, dict):
@@ -135,6 +173,11 @@ def _normalize_sections(sections: list) -> list:
                 _strip_none(c) if isinstance(c, dict) else c
                 for c in section_clean["computations"]
             ]
+        if "variables" in section_clean and isinstance(section_clean["variables"], dict):
+            section_clean["variables"] = {
+                var_name: _strip_none(entry) if isinstance(entry, dict) else entry
+                for var_name, entry in section_clean["variables"].items()
+            }
         cleaned.append(section_clean)
     return cleaned
 

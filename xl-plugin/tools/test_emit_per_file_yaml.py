@@ -243,6 +243,131 @@ def test_expr_hint_null_is_treated_as_absent():
 
 
 # ---------------------------------------------------------------------------
+# variables: block (post-observations-list schema)
+# ---------------------------------------------------------------------------
+
+
+def test_variables_block_round_trips_with_policy_phrase():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {
+            "gross_income": {"policy_phrase": "gross monthly income"},
+            "earned_income": {"policy_phrase": "earned income"},
+        }
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        assert loaded["sections"][0]["variables"] == {
+            "gross_income": {"policy_phrase": "gross monthly income"},
+            "earned_income": {"policy_phrase": "earned income"},
+        }
+
+
+def test_variables_block_round_trips_with_empty_entry():
+    """Variables observed in a section without a verbatim phrase emit as `<var>: {}`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {
+            "gross_income": {"policy_phrase": "gross monthly income"},
+            "deductions": {},
+        }
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        assert loaded["sections"][0]["variables"]["deductions"] == {}
+        assert "policy_phrase" not in loaded["sections"][0]["variables"]["deductions"]
+
+
+def test_variables_block_strips_none_policy_phrase():
+    """None-valued policy_phrase round-trips as absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {
+            "deductions": {"policy_phrase": None},
+        }
+        emit_per_file_yaml.emit(payload)
+        loaded = yaml.safe_load(dst.read_text())
+        assert "policy_phrase" not in loaded["sections"][0]["variables"]["deductions"]
+
+
+def test_payload_without_variables_block_emits_unchanged():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        emit_per_file_yaml.emit(_payload_with_one_computation(dst))
+        loaded = yaml.safe_load(dst.read_text())
+        assert "variables" not in loaded["sections"][0]
+
+
+def test_variables_not_a_dict_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = ["gross_income"]
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "variables" in str(exc)
+            assert "map" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for non-dict variables block")
+
+
+def test_variables_entry_not_a_dict_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {"gross_income": "not a dict"}
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "gross_income" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for non-dict variables entry")
+
+
+def test_variables_non_snake_case_key_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {"GrossIncome": {"policy_phrase": "x"}}
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "snake_case" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for non-snake_case variable key")
+
+
+def test_variables_policy_phrase_non_string_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {"gross_income": {"policy_phrase": 42}}
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "policy_phrase" in str(exc)
+            assert "string" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for non-string policy_phrase")
+
+
+def test_variables_policy_phrase_empty_string_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "out.md.yaml"
+        payload = _payload_with_one_computation(dst)
+        payload["sections"][0]["variables"] = {"gross_income": {"policy_phrase": ""}}
+        try:
+            emit_per_file_yaml.emit(payload)
+        except emit_per_file_yaml.ValidationError as exc:
+            assert "policy_phrase" in str(exc)
+            assert "non-empty" in str(exc)
+        else:
+            raise AssertionError("expected ValidationError for empty policy_phrase")
+
+
+# ---------------------------------------------------------------------------
 # Atomic write
 # ---------------------------------------------------------------------------
 
