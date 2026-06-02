@@ -532,4 +532,4 @@ Files created or modified by this command:
 | `$DOMAINS_DIR/<domain>/specs/guidance/*.yaml` | Read (via `xlator load-extraction-context`) |
 | `$DOMAINS_DIR/<domain>/policy_facets/input-index.yaml` | Read (via `xlator load-extraction-context`) |
 
-Graph artifacts (`.graph.yaml`, `.mmd`) and guidance updates are written by `/review-ruleset`. Tests are handled by `/create-tests`.
+Graph artifacts (`.graph.json`, `-depgraph.dot`, `-depgraph.mmd`) and guidance updates are written by `/review-ruleset`. Tests are handled by `/create-tests`.

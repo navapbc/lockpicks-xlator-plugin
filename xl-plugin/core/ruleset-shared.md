@@ -130,7 +130,7 @@ xlator graph <domain> <module>
 
 On success the tool prints both output file paths. On failure, print:
 ```
-Warning: computation graph could not be refreshed. The draft graph at $DOMAINS_DIR/<domain>/specs/<program>.graph.md may reflect pre-approval state.
+Warning: computation graph could not be refreshed. The draft graph artifacts at $DOMAINS_DIR/<domain>/specs/<program>.graph.json, <program>-depgraph.dot, and <program>-depgraph.mmd may reflect pre-approval state.
 ```
 Continue — the Catala module file and manifests are already written. Do NOT stop the extraction.
 

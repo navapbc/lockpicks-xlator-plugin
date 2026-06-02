@@ -231,6 +231,8 @@ def cmd_graph(domain, module):
             )
             sys.exit(1)
     run([sys.executable, str(SCRIPT_DIR_TOOLS / "catala_depgraph.py"), str(catala_source)])
+    graph_json = catala_source.with_suffix(".graph.json")
+    run([sys.executable, str(SCRIPT_DIR_TOOLS / "catala_depgraph.py"), str(graph_json), "--format", "mmd"])
 
 
 def cmd_evaluate_catala(domain, module, inputs_path, scope):

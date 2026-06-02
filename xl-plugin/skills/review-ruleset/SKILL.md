@@ -78,18 +78,23 @@ xlator graph <domain> <program>
 ```
 
 `xlator graph` routes to the canonical Catala graph generator (`tools/catala_depgraph.py`),
-which reads `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` and writes
-`<program>.graph.yaml` and `<program>.mmd` next to the source.
+which reads `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` and writes three artifacts
+next to the source:
+- `<program>.graph.json` — intermediate scope/edge data (IDs → field names, edges by ID)
+- `<program>-depgraph.dot` — Graphviz dot rendering
+- `<program>-depgraph.mmd` — Mermaid flowchart rendering
 
 Always run unconditionally — regenerates even if graph files already exist from a prior run.
 Capture stdout. Do not echo verbatim.
 
 **On success (exit 0):**
-Read `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml`. Extract all nodes where `kind == "computed"`.
-Then embed the generated diagram inline:
+Read `$DOMAINS_DIR/<domain>/specs/<program>.graph.json`. Each scope under `intra_scopes.<Scope>`
+has `nodes` (ID → field name) and `edges` (`{from, to}` by ID). Cross-reference the Catala
+source (`<program>.catala_en`) to identify which node IDs correspond to `definition`'d
+computed fields vs `input` / sub-scope variables. Then embed the generated Mermaid diagram inline:
 
 ````mermaid
-[contents of $DOMAINS_DIR/<domain>/specs/<program>.mmd]
+[contents of $DOMAINS_DIR/<domain>/specs/<program>-depgraph.mmd]
 ````
 
 **On failure (exit 1):**
@@ -113,7 +118,7 @@ After all per-file gates pass, continue to Step 3.
 **If Step 1 succeeded**, show the following block before the `Review summary:` header:
 
 :::detail
-✓ Mermaid computation graph: $DOMAINS_DIR/<domain>/specs/<program>.mmd
+✓ Mermaid computation graph: $DOMAINS_DIR/<domain>/specs/<program>-depgraph.mmd
 
 Computation graph (computed fields):
   <field_1>    ← <dep_1>, <dep_2>    → <used_by_1>
@@ -194,8 +199,9 @@ Files created or modified by this command:
 
 | File | Action |
 |------|--------|
-| `$DOMAINS_DIR/<domain>/specs/<program>.graph.yaml` | Generated (Step 1) / Refreshed (Step 3) |
-| `$DOMAINS_DIR/<domain>/specs/<program>.mmd` | Generated (Step 1) / Refreshed (Step 3) |
+| `$DOMAINS_DIR/<domain>/specs/<program>.graph.json` | Generated (Step 1) / Refreshed (Step 3) |
+| `$DOMAINS_DIR/<domain>/specs/<program>-depgraph.dot` | Generated (Step 1) / Refreshed (Step 3) |
+| `$DOMAINS_DIR/<domain>/specs/<program>-depgraph.mmd` | Generated (Step 1) / Refreshed (Step 3) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/metadata.yaml` | Read (required) |
 | `$DOMAINS_DIR/<domain>/specs/guidance/prompt-context.yaml` | Read (required) / Updated by SP-GuidanceCapture (Step 4) if guidance items accepted |
 | `$DOMAINS_DIR/<domain>/specs/guidance/output-variables.yaml` | Read (required) |
