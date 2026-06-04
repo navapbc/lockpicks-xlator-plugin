@@ -773,27 +773,36 @@ downstream typecheck.
 ### 3.4 — Catala 1.1.0 `#[error.message]` attribute
 
 Catala 1.1.0 introduced attribute annotations that surface in compiler
-diagnostics. Use `#[error.message]` to tag definitions, exceptions, or rules
-with AI-readable error labels.
+diagnostics. `#[error.message]` is accepted **only directly before an
+`assertion` or `impossible` block.** Attaching it to a `definition`,
+`exception`, or any other construct produces the compiler warning:
+
+```
+Attribute #[error.message] is not allowed in this context.
+It must be put before an assertion or impossible.
+```
+
+The misuse is reported as a warning rather than an error, but the tag itself
+is silently dropped — the named label never surfaces in any diagnostic. Do
+not author tags on `definition` / `exception` blocks under the assumption
+that they will appear later; they will not.
+
+Use the attribute to tag assertion failures with AI-readable labels:
 
 ```catala
 scope EligibilityDecision:
   #[error.message = "gross_income_check"]
-  exception base_eligible
-  definition is_eligible
-    under condition gross_income_exceeds_limit
-    consequence equals false
+  assertion gross_income <= gross_income_limit
 ```
 
-When this rule fires under contradictory definitions and Catala emits an error,
-the `gross_income_check` tag appears in the diagnostic. The U2 clerk loop
-parses these tags and maps them to repair-history categories for the AI to
-self-correct.
+When the assertion fails at runtime, `gross_income_check` appears in the
+diagnostic. The U2 clerk loop parses these tags and maps them to
+repair-history categories for the AI to self-correct.
 
-**Rule.** Add `#[error.message = "<tag>"]` to each labeled `exception` block
-and any `definition` whose failure would benefit from a categorical tag in
-diagnostics. Tag values are **snake_case** and **short** (verb_noun or
-noun_qualifier). They are not enforced as enums; use a stable set per module.
+**Rule.** Add `#[error.message = "<tag>"]` only to `assertion` and
+`impossible` blocks. Do not attach to `definition` or `exception`. Tag
+values are **snake_case** and **short** (verb_noun or noun_qualifier). They
+are not enforced as enums; use a stable set per module.
 
 ---
 
