@@ -8,8 +8,9 @@ All `clerk` and `catala` commands MUST run from the folder containing the `clerk
 
 When writing a script or skill step that invokes `clerk` or `catala`:
 1. `cd` (or `subprocess.run(..., cwd=...)`) into the `specs/` or `output/` folder before invoking.
-2. Call `clerk_loop.ensure_catala_bootstrap(<cwd>)` first — it writes a minimal `clerk.toml` (if missing) and runs `clerk start` (if `_build/libcatala` is absent) so the stdlib is in place. Idempotent.
-3. `xlator new-domain` scaffolds both `specs/clerk.toml` and `output/clerk.toml` at domain creation; downstream skills should not have to recreate them.
+2. Call `clerk_loop.ensure_catala_bootstrap(<cwd>)` first — it writes a tier-correct `clerk.toml` (if missing) and runs `clerk start` (if `_build/libcatala` is absent) so the stdlib is in place. Idempotent.
+3. `clerk.toml` is created **lazily and per-tier**, at the point a directory first needs one — not eagerly by `xlator new-domain` (which now scaffolds empty parent dirs only). `ensure_catala_bootstrap` infers the tier from the directory basename via `clerk_toml_defaults.clerk_toml_for`: a `tests/` dir gets `include_dirs = [".", ".."]` (so fixtures resolve their parent module); every other dir (`specs/`, `output/`) gets `include_dirs = ["."]`. The two default literals live only in `xl-plugin/tools/clerk_toml_defaults.py`.
+4. The ensure-step writes `clerk.toml` only when **absent** — it never rewrites an existing file. Existing domains are **not** auto-migrated: a domain whose git-ignored, per-developer `clerk.toml` predates this behavior and carries stale `include_dirs` (e.g. `[]`) must be hand-fixed once. The failing skill (`Required module not found: <X>`) is the signal.
 
 ## Shell scripts
 

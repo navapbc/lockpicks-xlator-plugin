@@ -965,3 +965,58 @@ class TestNamingDivergenceCheckAggregated:
             if d.category == "naming_divergence"
         )
         assert names == ["alpha", "beta"]
+
+
+# ---------------------------------------------------------------------------
+# Tier-aware ensure_catala_bootstrap (U2 of the lazy-create-clerk-toml plan)
+# ---------------------------------------------------------------------------
+
+class TestEnsureCatalaBootstrapTier:
+    """ensure_catala_bootstrap lazily writes a tier-correct clerk.toml.
+
+    clerk is mocked present and `clerk start` (subprocess.run) is mocked to a
+    noop so the write path runs without a real toolchain.
+    """
+
+    def _bootstrap(self, work_dir):
+        with mock.patch("clerk_loop.shutil.which", return_value="/usr/bin/clerk"), \
+                mock.patch("clerk_loop.subprocess.run"):
+            clerk_loop.ensure_catala_bootstrap(work_dir)
+
+    def test_spec_dir_writes_spec_tier(self, tmp_path):
+        # AE2: a specs/ dir with no clerk.toml gets include_dirs = ["."].
+        specs = tmp_path / "specs"
+        specs.mkdir()
+        self._bootstrap(specs)
+        text = (specs / "clerk.toml").read_text()
+        assert 'include_dirs = ["."]' in text
+
+    def test_tests_dir_writes_test_tier(self, tmp_path):
+        # AE3: a tests/ dir gets include_dirs = [".", ".."] so fixtures resolve
+        # the parent module.
+        tests = tmp_path / "specs" / "tests"
+        tests.mkdir(parents=True)
+        self._bootstrap(tests)
+        text = (tests / "clerk.toml").read_text()
+        assert 'include_dirs = [".", ".."]' in text
+
+    def test_existing_clerk_toml_left_unchanged(self, tmp_path):
+        # AE4: a stale/hand-edited clerk.toml is never rewritten (R4).
+        specs = tmp_path / "specs"
+        specs.mkdir()
+        stale = '[project]\ntarget_dir = "_targets"\ninclude_dirs = []\n'
+        (specs / "clerk.toml").write_text(stale)
+        self._bootstrap(specs)
+        assert (specs / "clerk.toml").read_text() == stale
+
+    def test_no_clerk_no_write(self, tmp_path):
+        # When clerk is absent the function returns early and writes nothing.
+        specs = tmp_path / "specs"
+        specs.mkdir()
+        with mock.patch("clerk_loop.shutil.which", return_value=None):
+            clerk_loop.ensure_catala_bootstrap(specs)
+        assert not (specs / "clerk.toml").exists()
+
+    def test_dead_default_constant_removed(self):
+        # R8: the literal lives only in clerk_toml_defaults now.
+        assert not hasattr(clerk_loop, "_CLERK_TOML_DEFAULT")
