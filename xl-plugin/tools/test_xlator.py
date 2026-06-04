@@ -18,6 +18,7 @@ import sys
 import tempfile
 import textwrap
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -160,6 +161,84 @@ class TestCopySourceToOutput:
 
         out = domains_root / "snap" / "output" / "is_eligible.catala_en"
         assert out.is_file()
+
+
+class TestNewDomain:
+    # U3 of docs/plans/2026-06-04-001-fix-lazy-create-clerk-toml-plan.md:
+    # cmd_new_domain scaffolds only the parent dirs and writes no clerk.toml.
+
+    def test_scaffolds_dirs_without_clerk_toml(self, xlator_module):
+        # AE1: fresh scaffold has the four parent dirs, no clerk.toml in
+        # specs/ or output/, and no specs/tests/.
+        xlator, domains_root = xlator_module
+        xlator.cmd_new_domain("foo")
+
+        base = domains_root / "foo"
+        assert (base / "input" / "policy_docs").is_dir()
+        assert (base / "policy_facets").is_dir()
+        assert (base / "specs").is_dir()
+        assert (base / "output").is_dir()
+
+        assert not (base / "specs" / "clerk.toml").exists()
+        assert not (base / "output" / "clerk.toml").exists()
+        assert not (base / "specs" / "tests").exists()
+
+    def test_idempotent_rerun(self, xlator_module):
+        # Re-running on an existing scaffold does not raise and still writes
+        # no clerk.toml.
+        xlator, domains_root = xlator_module
+        xlator.cmd_new_domain("foo")
+        xlator.cmd_new_domain("foo")
+
+        base = domains_root / "foo"
+        assert (base / "specs").is_dir()
+        assert not (base / "specs" / "clerk.toml").exists()
+        assert not (base / "output" / "clerk.toml").exists()
+
+
+class TestEnsureOutputBootstrap:
+    # U5 of docs/plans/2026-06-04-001-fix-lazy-create-clerk-toml-plan.md:
+    # the output/ clerk entry points lazily create a tier-correct clerk.toml.
+    # clerk_loop is on SCRIPT_DIR_TOOLS; mock clerk present + clerk-start noop.
+
+    def _bootstrap(self, xlator, out_dir):
+        with mock.patch("clerk_loop.shutil.which", return_value="/usr/bin/clerk"), \
+                mock.patch("clerk_loop.subprocess.run"):
+            xlator._ensure_output_bootstrap(out_dir)
+
+    def test_output_dir_gets_spec_tier(self, xlator_module):
+        xlator, domains_root = xlator_module
+        out = domains_root / "foo" / "output"
+        out.mkdir(parents=True)
+        (out / "is_eligible.catala_en").write_text("> Module Is_eligible\n")
+        self._bootstrap(xlator, out)
+        assert 'include_dirs = ["."]' in (out / "clerk.toml").read_text()
+
+    def test_output_tests_dir_gets_test_tier(self, xlator_module):
+        xlator, domains_root = xlator_module
+        out = domains_root / "foo" / "output"
+        out_tests = out / "tests"
+        out_tests.mkdir(parents=True)
+        self._bootstrap(xlator, out)
+        assert 'include_dirs = ["."]' in (out / "clerk.toml").read_text()
+        assert 'include_dirs = [".", ".."]' in (out_tests / "clerk.toml").read_text()
+
+    def test_existing_output_clerk_toml_unchanged(self, xlator_module):
+        xlator, domains_root = xlator_module
+        out = domains_root / "foo" / "output"
+        out.mkdir(parents=True)
+        existing = '[project]\ntarget_dir = "_targets"\ninclude_dirs = ["custom"]\n'
+        (out / "clerk.toml").write_text(existing)
+        self._bootstrap(xlator, out)
+        assert (out / "clerk.toml").read_text() == existing
+
+    def test_no_output_tests_dir_is_not_an_error(self, xlator_module):
+        xlator, domains_root = xlator_module
+        out = domains_root / "foo" / "output"
+        out.mkdir(parents=True)
+        self._bootstrap(xlator, out)
+        assert not (out / "tests").exists()
+        assert (out / "clerk.toml").is_file()
 
 
 class TestDeriveScopeName:

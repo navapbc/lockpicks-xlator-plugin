@@ -70,6 +70,8 @@ from typing import Any, Iterable, Literal, Optional
 
 import yaml
 
+from clerk_toml_defaults import clerk_toml_for
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -355,20 +357,27 @@ def _require_clerk() -> str:
     return path
 
 
-_CLERK_TOML_DEFAULT = """[project]
-target_dir = "_targets"
-include_dirs = ["."]
-"""
-
-
 def ensure_catala_bootstrap(work_dir: Path) -> None:
     """Bootstrap the Catala stdlib for direct `catala` invocations in `work_dir`.
 
     Project convention: all `clerk` and `catala` commands MUST be invoked
-    from the folder containing `clerk.toml` (typically `specs/` or
-    `output/`). This helper makes that location self-sufficient: it ensures
-    `clerk.toml` exists, then runs `clerk start` to materialize
-    `_build/libcatala` when absent.
+    from the folder containing `clerk.toml` (typically `specs/`, `specs/tests/`,
+    or `output/`). This helper makes that location self-sufficient: it ensures
+    a correctly-shaped, tier-appropriate `clerk.toml` exists, then runs
+    `clerk start` to materialize `_build/libcatala` when absent.
+
+    The `clerk.toml` is created lazily, at the point a directory first needs it,
+    and its `include_dirs` are chosen per tier from `clerk_toml_for` — spec-tier
+    (`["."]`) for ordinary dirs, test-tier (`[".", ".."]`) for a `tests/` dir so
+    fixtures can resolve their parent module. The file is written only when
+    **absent**: an existing `clerk.toml` is never rewritten, so developer edits
+    are preserved.
+
+    Existing-domain note: because the file is never rewritten, a domain whose
+    `clerk.toml` predates this behavior and carries stale `include_dirs`
+    (e.g. `[]`) is NOT auto-healed. The fix is a one-time manual edit of that
+    git-ignored, per-developer file — see the "Clerk / Catala invocation
+    directory" section in the repo CLAUDE.md.
 
     Idempotent. Safe to call on every command — clerk start exits 0 quickly
     once the stdlib is in place.
@@ -377,7 +386,7 @@ def ensure_catala_bootstrap(work_dir: Path) -> None:
         return
     clerk_toml = work_dir / "clerk.toml"
     if not clerk_toml.is_file():
-        clerk_toml.write_text(_CLERK_TOML_DEFAULT)
+        clerk_toml.write_text(clerk_toml_for(work_dir))
     libcatala = work_dir / "_build" / "libcatala"
     if libcatala.is_dir() and any(libcatala.iterdir()):
         return

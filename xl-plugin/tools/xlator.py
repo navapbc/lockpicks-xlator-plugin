@@ -185,6 +185,28 @@ def cmd_copy_source_to_output(domain, module):
             shutil.copy2(src, tests_out_dir / src.name)
 
 
+def _ensure_output_bootstrap(out_dir):
+    """Lazily create a tier-correct clerk.toml under output/ (and output/tests/)
+    before `clerk` runs there.
+
+    cmd_catala_typecheck / cmd_catala_test invoke clerk directly with cwd=output/
+    and do not go through the clerk-loop's ensure_catala_bootstrap. Once
+    cmd_new_domain stops writing clerk.toml eagerly (U3), the only other source
+    is the specs→output mirror, which copies clerk.toml only when specs/clerk.toml
+    already exists. This helper makes the output/ tier self-sufficient regardless
+    of whether a clerk-loop ran against specs/ first — closing the fresh-domain
+    pipeline regression and the output/tests/ gap (U5 of the
+    lazy-create-clerk-toml plan). Tier is inferred from each dir's basename:
+    output/ → ["."], output/tests/ → [".", ".."].
+    """
+    sys.path.insert(0, str(SCRIPT_DIR_TOOLS))
+    from clerk_loop import ensure_catala_bootstrap  # noqa: E402
+    ensure_catala_bootstrap(out_dir)
+    tests_dir = out_dir / "tests"
+    if tests_dir.is_dir():
+        ensure_catala_bootstrap(tests_dir)
+
+
 def cmd_catala_typecheck(domain, module):
     """Run `clerk typecheck` on the copied Catala source under output/.
 
@@ -196,6 +218,7 @@ def cmd_catala_typecheck(domain, module):
     if not paths["catala_output"].exists():
         cmd_copy_source_to_output(domain, module)
     out_dir = paths["catala_output"].parent
+    _ensure_output_bootstrap(out_dir)
     run(["clerk", "typecheck", paths["catala_output"].name], cwd=str(out_dir))
 
 
@@ -286,6 +309,7 @@ def cmd_catala_test(domain, module):
     if not out_dir.exists():
         _print_err(f"Output dir not found: {out_dir}")
         sys.exit(1)
+    _ensure_output_bootstrap(out_dir)
     # cwd= is forwarded to subprocess.run via run()'s **kwargs
     run(["clerk", "test"], cwd=str(out_dir))
 
@@ -314,21 +338,12 @@ def cmd_new_domain(domain):
         base / "output",
     ]:
         d.mkdir(parents=True, exist_ok=True)
-    clerk_toml_default = (
-        '[project]\n'
-        'target_dir = "_targets"\n'
-        'include_dirs = ["."]\n'
-    )
-    for clerk_dir in [base / "specs", base / "output"]:
-        clerk_toml = clerk_dir / "clerk.toml"
-        if not clerk_toml.exists():
-            clerk_toml.write_text(clerk_toml_default)
     _print_ok(f"{base}/")
     _print_info(f"  input/policy_docs/    ← add .md policy documents here")
     _print_info(f"  policy_facets/        ← derived views of the policy docs (compressed/, etc.)")
     _print_info(f"  specs/                ← ruleset specs and guidance (guidance/ created on demand)")
     _print_info(f"  output/               ← generated Catala files and demo folder(s)")
-    _print_info(f"  specs/clerk.toml, output/clerk.toml  ← clerk project markers (all clerk/catala commands cd here)")
+    _print_info(f"  clerk.toml is created lazily on first .catala_en emission (per-tier), not at scaffold time")
     _print_info(
         f"\nDomain '{domain}' created. "
         f"Next: add policy docs to {base}/input/policy_docs/, then run /index-inputs "
