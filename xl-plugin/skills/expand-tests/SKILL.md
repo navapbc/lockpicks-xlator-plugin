@@ -14,7 +14,26 @@ Generate additional test cases for an existing Catala module test suite without 
 /expand-tests [<domain> <program>]        # target a specific <program>.catala_en
 ```
 
-If `<domain>` is not provided, list all `$DOMAINS_DIR/*/specs/*.catala_en` files and prompt the user to choose.
+**Resolving `<domain>` and `<program>`** (when args are missing or ambiguous, render the prompt inside a `:::user_input` fence per `xl-plugin/CLAUDE.md` multi-choice convention):
+
+- **`<domain>` missing** — list every directory under `$DOMAINS_DIR/` that contains at least one `specs/*.catala_en`. Label each option `[a]`, `[b]`, `[c]`, ... in lowercase, one per line, in alphabetical order. End the list with `(or type in a different response)`.
+- **`<program>` missing or ambiguous** (domain resolved, more than one `specs/*.catala_en` under it) — list each `<program>.catala_en` stem. Label `[a]`, `[b]`, `[c]`, ... in lowercase, in alphabetical order. Append `[<next-letter>] all` as the final labelled option to run the skill against every program. End the list with `(or type in a different response)`.
+- **Single program found** — auto-detect and proceed without prompting.
+
+Example program-ambiguity prompt for a domain with three programs:
+
+```
+:::user_input
+Which program to expand tests for?
+[a] deductions
+[b] income_tests
+[c] passes_income
+[d] all
+(or type in a different response)
+:::
+```
+
+On `all`, run the skill end-to-end once per program in the order shown (alphabetical).
 
 Read `../../core/output-fencing.md` now.
 
