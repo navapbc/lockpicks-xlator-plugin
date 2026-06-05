@@ -32,8 +32,15 @@ PYTHON_DIR="${DEMO_DIR}/python"
 # appends a [[target]] block parsed from the specs/ > Module / > Using
 # directives when one isn't already present for this target name.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR=$(uv run python "${SCRIPT_DIR}/clerk_target_inject.py" \
-  "$OUTPUT_DIR" "$MODULE" "$MODULE" "$SPECS_DIR")
+if ! TARGET_DIR=$(uv run python "${SCRIPT_DIR}/clerk_target_inject.py" \
+    "$OUTPUT_DIR" "$MODULE" "$MODULE" "$SPECS_DIR"); then
+  echo "Error: clerk_target_inject.py failed (see stderr above)" >&2
+  exit 1
+fi
+if [[ -z "$TARGET_DIR" ]]; then
+  echo "Error: clerk_target_inject.py produced no output on stdout" >&2
+  exit 1
+fi
 
 # Catala module names are snake_case with the first letter uppercased
 # (e.g., `passes_income` → `Passes_income`). Substring + `tr` is portable

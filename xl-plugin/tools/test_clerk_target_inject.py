@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -31,7 +30,7 @@ def _write(p: Path, content: str) -> Path:
     return p
 
 
-def _layout(tmp: Path, files: dict[str, str]) -> tuple[Path, Path]:
+def _layout(tmp: Path, files: dict[str, str | None]) -> tuple[Path, Path]:
     """Build a domain layout: tmp/output/clerk.toml (per files map) and
     tmp/specs/<module>.catala_en per files map.
 
@@ -325,3 +324,76 @@ def test_main_missing_output_dir_returns_1(tmp_path, capsys):
     out, err = capsys.readouterr()
     assert rc == 1
     assert "output_dir not found" in err
+
+
+def test_main_missing_specs_dir_returns_1(tmp_path, capsys):
+    """Symmetric to output_dir-missing — guards the specs_dir CLI branch."""
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    rc = main([str(output_dir), "foo", "foo", str(tmp_path / "nope")])
+    out, err = capsys.readouterr()
+    assert rc == 1
+    assert "specs_dir not found" in err
+
+
+def test_main_idempotent_when_target_block_already_present(tmp_path, capsys):
+    """CLI-layer assertion: when [[target]] exists, main() emits only the
+    target_dir on stdout and nothing about injection on stderr."""
+    output_dir, specs_dir = _layout(
+        tmp_path,
+        {
+            "clerk.toml": (
+                '[project]\ninclude_dirs = ["."]\n\n'
+                '[[target]]\nname = "foo"\nmodules = ["Foo"]\nbackends = ["python"]\n'
+            ),
+            "foo.catala_en": "> Module Foo\n",
+        },
+    )
+    rc = main([str(output_dir), "foo", "foo", str(specs_dir)])
+    out, err = capsys.readouterr()
+    assert rc == 0
+    assert out.strip() == "_targets"
+    assert "Injected" not in err
+
+
+# ---------- Multi-file edge cases ----------
+
+def test_duplicate_module_name_across_files_raises(tmp_path):
+    """Two distinct .catala_en files both declaring > Module Foo → ValueError."""
+    output_dir, specs_dir = _layout(
+        tmp_path,
+        {
+            "clerk.toml": '[project]\n',
+            "foo_a.catala_en": "> Module Foo\n",
+            "foo_b.catala_en": "> Module Foo\n",
+        },
+    )
+    with pytest.raises(ValueError) as exc:
+        ensure_target_injected(output_dir, "foo", "foo", specs_dir)
+    assert "declared in both" in str(exc.value)
+
+
+def test_diamond_dag_deduplicates_shared_dependency(tmp_path):
+    """Diamond shape A→(B,C)→D — D appears once in topo-sorted modules list."""
+    output_dir, specs_dir = _layout(
+        tmp_path,
+        {
+            "clerk.toml": '[project]\n',
+            "a.catala_en": "> Module A\n\n> Using B\n\n> Using C\n",
+            "b.catala_en": "> Module B\n\n> Using D\n",
+            "c.catala_en": "> Module C\n\n> Using D\n",
+            "d.catala_en": "> Module D\n",
+        },
+    )
+    ensure_target_injected(output_dir, "a", "a", specs_dir)
+    text = (output_dir / "clerk.toml").read_text()
+    # D appears exactly once in the modules list, ahead of B/C, both ahead of A.
+    import re as _re
+    m = _re.search(r"modules = \[([^\]]+)\]", text)
+    assert m, f"no modules list emitted; got:\n{text}"
+    modules = [tok.strip().strip('"') for tok in m.group(1).split(",")]
+    assert modules.count("D") == 1
+    assert modules.index("D") < modules.index("B")
+    assert modules.index("D") < modules.index("C")
+    assert modules.index("B") < modules.index("A")
+    assert modules.index("C") < modules.index("A")

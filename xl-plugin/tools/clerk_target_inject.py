@@ -88,6 +88,9 @@ def _topo_order(graph: dict[str, list[str]], root: str) -> list[str]:
     """Post-order DFS from ``root``: leaves first, ``root`` last.
 
     Detects cycles and missing referenced modules and raises ``ValueError``.
+    Cycle messages include the full participant set so the user can find the
+    chain; missing-module messages include the parent ``> Using`` site so
+    the file to fix is unambiguous.
     """
     if root not in graph:
         raise ValueError(
@@ -98,19 +101,23 @@ def _topo_order(graph: dict[str, list[str]], root: str) -> list[str]:
     visited: set[str] = set()
     in_progress: set[str] = set()
 
-    def visit(mod: str) -> None:
+    def visit(mod: str, via: str | None = None) -> None:
         if mod in visited:
             return
         if mod in in_progress:
-            raise ValueError(f"Cyclic module dependency at {mod!r}")
+            raise ValueError(
+                f"Cyclic module dependency at {mod!r}; "
+                f"participants: {sorted(in_progress)}"
+            )
         if mod not in graph:
+            ctx = f" (referenced by {via!r})" if via else ""
             raise ValueError(
                 f"Module {mod!r} referenced via > Using but not declared "
-                f"in any specs/*.catala_en"
+                f"in any specs/*.catala_en{ctx}"
             )
         in_progress.add(mod)
         for dep in graph[mod]:
-            visit(dep)
+            visit(dep, via=mod)
         in_progress.discard(mod)
         visited.add(mod)
         order.append(mod)
@@ -119,19 +126,26 @@ def _topo_order(graph: dict[str, list[str]], root: str) -> list[str]:
     return order
 
 
-def _read_target_dir(clerk_toml_path: Path) -> str:
-    """Read ``[project] target_dir``; default to ``_targets`` when absent."""
+def _read_clerk_toml(clerk_toml_path: Path) -> dict:
+    """Parse ``clerk.toml`` once and surface a clean ``ValueError`` on failure.
+
+    Single source of truth for TOML parsing in this module — callers reuse
+    the returned dict instead of re-opening the file.
+    """
     try:
         with open(clerk_toml_path, "rb") as fh:
-            data = tomllib.load(fh)
+            return tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise ValueError(f"{clerk_toml_path} is not valid TOML: {e}") from None
+
+
+def _target_dir_from(data: dict) -> str:
+    """Return ``[project] target_dir``; default to ``_targets`` when absent."""
     return data.get("project", {}).get("target_dir", "_targets")
 
 
-def _has_target_block(clerk_toml_path: Path, target_name: str) -> bool:
-    with open(clerk_toml_path, "rb") as fh:
-        data = tomllib.load(fh)
+def _has_target_block(data: dict, target_name: str) -> bool:
+    """True iff ``data`` contains a ``[[target]]`` block with the given name."""
     for entry in data.get("target", []):
         if entry.get("name") == target_name:
             return True
@@ -172,9 +186,10 @@ def ensure_target_injected(
             file=sys.stderr,
         )
 
-    target_dir = _read_target_dir(clerk_toml)
+    data = _read_clerk_toml(clerk_toml)
+    target_dir = _target_dir_from(data)
 
-    if _has_target_block(clerk_toml, target_name):
+    if _has_target_block(data, target_name):
         return target_dir
 
     graph = _parse_module_graph(specs_dir)
