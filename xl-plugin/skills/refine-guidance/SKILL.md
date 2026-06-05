@@ -100,31 +100,21 @@ Run `/create-ruleset-groups <domain>`. Skip pre-flight — already verified abov
 
 ### Step 4: Ruleset modules
 
-Before invoking `/create-ruleset-modules`, ask the analyst whether to specify module names or just an approximate total.
+Run `/create-ruleset-modules <domain> 3`. Skip pre-flight — already verified above.
 
-1. Prompt:
+:::next_step
+Generated ~3 ruleset modules. To change this, re-run with a different count:
 
-   :::user_input
-   Do you want to specify the ruleset module names (besides the main module)? [y/n]
-   :::
+```
+/create-ruleset-modules <domain> <count>
+```
 
-2. On `y`, prompt for the names:
+or specify exact module names (quoted, comma-separated):
 
-   :::user_input
-   Enter the ruleset module names as a comma-separated list (e.g., `eligibility,income,assets`):
-   :::
-
-   Then invoke: `/create-ruleset-modules <domain> "<names>"`. Skip pre-flight — already verified above.
-
-3. On `n`, prompt for the count:
-
-   :::user_input
-   About how many ruleset modules total should be created? (integer; default 3):
-   :::
-
-   Then invoke: `/create-ruleset-modules <domain> <count>` (or `/create-ruleset-modules <domain>` if the analyst accepts the default). Skip pre-flight — already verified above.
-
-4. On a free-form decline or empty response at the first prompt, invoke `/create-ruleset-modules <domain>` with no extra args. Skip pre-flight — already verified above.
+```
+/create-ruleset-modules <domain> "eligibility,income,assets"
+```
+:::
 
 ### Step 5: Sample rules
 
