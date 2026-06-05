@@ -22,22 +22,23 @@ if [[ ! -d "$DOMAINS_FULLPATH/${DOMAIN}" ]]; then
 fi
 
 OUTPUT_DIR="$DOMAINS_FULLPATH/${DOMAIN}/output"
+SPECS_DIR="$DOMAINS_FULLPATH/${DOMAIN}/specs"
 DEMO_DIR="${OUTPUT_DIR}/demo-catala-${MODULE}"
 PYTHON_DIR="${DEMO_DIR}/python"
 
-# Derive the capitalized module name from clerk.toml
-CLERK_TOML="${OUTPUT_DIR}/clerk.toml"
-if [[ ! -f "$CLERK_TOML" ]]; then
-  echo "Error: ${CLERK_TOML} not found." >&2
-  exit 1
-fi
+# Ensure output/clerk.toml exists and has a [[target]] block for this module,
+# and capture the target_dir clerk will write artifacts into. The helper
+# creates clerk.toml from clerk_toml_defaults.SPEC_TIER when absent and
+# appends a [[target]] block parsed from the specs/ > Module / > Using
+# directives when one isn't already present for this target name.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET_DIR=$(uv run python "${SCRIPT_DIR}/clerk_target_inject.py" \
+  "$OUTPUT_DIR" "$MODULE" "$MODULE" "$SPECS_DIR")
 
-# Extract the first module name from modules = ["ModuleName", ...]
-MODULE_NAME=$(grep 'modules' "$CLERK_TOML" | sed 's/.*\["\([^"]*\)".*/\1/' | head -1)
-if [[ -z "$MODULE_NAME" ]]; then
-  echo "Error: Could not parse modules field from ${CLERK_TOML}." >&2
-  exit 1
-fi
+# Catala module names are snake_case with the first letter uppercased
+# (e.g., `passes_income` → `Passes_income`). Substring + `tr` is portable
+# across macOS system bash (3.2, no `${MODULE^}`) and Linux bash 4+.
+MODULE_NAME="$(printf '%s' "${MODULE:0:1}" | tr '[:lower:]' '[:upper:]')${MODULE:1}"
 
 COMPILED_PY="${PYTHON_DIR}/${MODULE_NAME}.py"
 
@@ -55,7 +56,7 @@ else
   (cd "$OUTPUT_DIR" && clerk build)
 
   # 3. Move compiled Python package into demo folder
-  SRC_PYTHON="${OUTPUT_DIR}/targets/${MODULE}/python"
+  SRC_PYTHON="${OUTPUT_DIR}/${TARGET_DIR}/${MODULE}/python"
   if [[ ! -d "$SRC_PYTHON" ]]; then
     echo "Error: clerk build did not produce ${SRC_PYTHON}" >&2
     exit 1
