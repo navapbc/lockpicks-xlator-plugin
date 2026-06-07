@@ -118,7 +118,7 @@ Model on `../../core/demo/demo-catala-eligibility/main.py`.
 | `integer` / `int` | `int` | `integer_of_int(int(value))` |
 | `decimal` / `float` | `float` | `decimal_of_string(str(value))` (or the runtime equivalent your generated module imports) |
 | `bool` | `bool` | Direct assignment (no conversion) |
-| `date` | `str` (`YYYY-MM-DD`) | `date_of_numbers(year, month, day)` |
+| `date` | `str` (`YYYY-MM-DD`) | `Date((year, month, day))` — `Date` is a class, **not** a function. There is no `date_of_numbers`. Construct via 3-tuple: `Date((int(y), int(m), int(d)))`. Reverse via `str(d.value)`. |
 | `<EnumName>` | `str` | `<EnumClass>(<EnumClass_Code>[value], Unit())` |
 
 ```python
@@ -129,6 +129,10 @@ from python.<ModuleName> import <InputClass>, <entry_function>
 # Import enum classes only if the manifest declares any enum-typed fields:
 # from python.<ModuleName> import <EnumClass>, <EnumClass_Code>
 from catala_runtime import money_of_units_int, integer_of_int, Unit
+# Import `Date` only if any scope input has Catala type `date`:
+# from catala_runtime import Date
+# Convert in the handler: Date((int(y), int(m), int(d))) from a "YYYY-MM-DD" string;
+# reverse with str(catala_date.value) for the response JSON.
 ```
 
 **`InputFacts` Pydantic model** — one field per scope input (manifest entry, or source-text fallback) — driven by the manifest `type` and `optional` fields:
@@ -350,6 +354,7 @@ After confirming overwrite, execute CREATE mode in full. Overwrite all 4 files.
 
 **Catala-Python mode — additional mistakes to avoid:**
 - **Do NOT use `money_of_cents_int`** — it does not exist. Use `money_of_units_int(int(round(value)))` for dollar amounts.
+- **Do NOT use `date_of_numbers(y, m, d)`** — it does not exist in `catala_runtime`. `Date` is a class; construct via `Date((y, m, d))` (3-tuple of ints). Import it as `from catala_runtime import Date` and reverse via `str(d.value)` (the wrapped `dates.Date`). Verify by `grep '^def date_\|^class Date' python/catala_runtime.py` before authoring — never assume a `date_of_*` factory by analogy with `money_of_units_int` / `integer_of_int`.
 - **Do NOT use `ComputedBreakdown(**result["computed"])`** — that is the Rego/OPA pattern. For Catala, populate each `ComputedBreakdown` field individually from the `*Decision` object attributes using `money_to_float()` for Money fields.
 - **Do NOT forget `money_to_float()` for every `Money`-typed field** in `ComputedBreakdown` — omitting it leaves a raw `Money` object in the JSON response, which Pydantic cannot serialize.
 - **Do NOT set PYTHONPATH to only `demo-catala-<module>/python/`** — Catala-generated files use relative imports (`from . import Stdlib_en`) which require a package context. Set PYTHONPATH to BOTH the demo folder itself `demo-catala-<module>/` (enables `from python.<ModuleName> import ...`) AND `demo-catala-<module>/python/` (enables `from catala_runtime import *` inside generated files). Also ensure `demo-catala-<module>/python/__init__.py` exists (pre-flight step 3a creates it).
