@@ -163,7 +163,7 @@ The `Unscored` bucket surfaces entries whose `review:` block is absent. Legacy d
 
 Ask:
 :::user_input
-Does this translation correctly capture the policy intent? Any rules missing or incorrect?
+Does this translation correctly capture the policy intent? If not, please specify any rules missing or incorrect.
 :::
 
 **On rejection:** Read the relevant policy document section for the disputed rule or computed field. Re-draft only that item from the policy text, applying the naming and scoring conventions from the extraction rubric. Re-run the clerk-loop (`xlator clerk-loop <domain> <module>`) to verify the re-drafted item typechecks and tests pass. Recompute the `review:` scores for the re-drafted item. Re-invoke `xlator review-buckets` and re-present the full review gate. Do not proceed until the user confirms.
