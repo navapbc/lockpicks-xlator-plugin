@@ -226,7 +226,10 @@ setup_misc() {
     # as well as ~/.local/bin for the user shell (and VS Code terminal if it's launched from the user shell)
     ensure_xlator_symlink "$HOME/.local/bin"
 
-    # Provides easy access to the plugin folder for reference
+    # Provides easy access to the plugin folder for reference.
+    # mkdir -p so the symlink's parent dir exists on a fresh checkout (the
+    # observe hook that otherwise creates .shared/ hasn't run yet on first setup).
+    mkdir -p "$DOMAINS_FULLPATH/.shared"
     [ -e "$DOMAINS_FULLPATH/.shared/.plugin" ] || ln -vsnf "$CLAUDE_PLUGIN_ROOT" "$DOMAINS_FULLPATH/.shared/.plugin"
 }
 
