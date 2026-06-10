@@ -152,9 +152,9 @@ def main() -> None:
     fact_specs = [s for s in specs if not s.is_decision]
     decision_specs = [s for s in specs if s.is_decision]
 
-    header = ["case_id", "description"] + [s.column_name for s in specs] + ["tags", "notes"]
+    header = ["case_id", "short_description", "description"] + [s.column_name for s in specs] + ["tags", "notes"]
 
-    desc_row = ["#desc", "[Description]"]
+    desc_row = ["#desc", "[Short description]", "[Description]"]
     for spec in specs:
         desc_row.append(field_description_hint(spec))
     desc_row.append("Optional. Comma-separated tags")
@@ -167,11 +167,12 @@ def main() -> None:
         if not isinstance(tc, dict):
             continue
         case_id = str(tc.get("case_id", ""))
+        short_description = str(tc.get("short_description", ""))
         description = str(tc.get("description", ""))
         inputs: dict = tc.get("inputs", {}) or {}
         expected: dict = tc.get("expected", {}) or {}
 
-        row = [case_id, description]
+        row = [case_id, short_description, description]
 
         for spec in fact_specs:
             row.append(_get_fact_value(inputs, spec))

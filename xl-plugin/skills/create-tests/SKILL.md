@@ -117,7 +117,7 @@ Read `$DOMAINS_DIR/<domain>/specs/<program>.catala_en` AND `$DOMAINS_DIR/<domain
 **If `$DOMAINS_DIR/<domain>/specs/guidance/sample-tests.yaml` exists and has a non-empty `sample_tests:` key**, load those cases and include them after any extracted tests:
 
 1. For each entry in `sample_tests:`, validate every key in `inputs` against the input fields declared in the naming manifest. Collect unrecognised keys.
-2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against naming-manifest input field names"`. All other fields (`case_id`, `description`, `tags`) are preserved.
+2. Copy the entry into the test suite. If unrecognised input keys exist, append a `notes:` field to the entry: `"Unrecognised inputs: <keys> — verify against naming-manifest input field names"`. All other fields (`case_id`, `short_description`, `description`, `tags`) are preserved; if the sample entry has no `short_description`, synthesize a unique one from its intent.
 3. Accumulate the `tags` from all sample test entries and include them in the 6-tag coverage tally.
 
 :::important
@@ -136,6 +136,8 @@ Draft additional synthetic cases from Catala-source reasoning (rules + denial co
 | `allow` + boundary | Value exactly at a threshold (≤ limit = pass) |
 | `deny` + edge | Extreme values: maximum count, all-zero numeric inputs, or other extreme |
 
+**Every test case requires a `short_description`** — a concise, human-readable gist of the longer `description` that can stand in for the `case_id` (e.g. `Deny — gross income test failed`, `Approve — income eligible`, `Elderly / disabled exemption`). It must be **unique within the program's test set** (this baseline plus any expanded files). For extracted (`ext_*`) and sample cases copied in from `extracted-tests.yaml` / `guidance/sample-tests.yaml`, preserve an existing `short_description` if the source has one; otherwise synthesize one at copy-in time from the case's intent.
+
 **Test format** (inputs always flat key-value, never nested by entity name):
 
 ```yaml
@@ -147,6 +149,7 @@ test_suite:
 tests:
   # Extracted cases (if any) come first, preserving ext_* IDs and source: fields
   - case_id: "ext_001"
+    short_description: "Approve — within 10% compatibility band"
     description: "..."
     source:
       file: "$DOMAINS_DIR/<domain>/policy_facets/compressed/..."
@@ -161,6 +164,7 @@ tests:
 
   # Sample tests from guidance/sample-tests.yaml (if any) come next, preserving their case_ids
   - case_id: "allow_001"
+    short_description: "Approve — income eligible"
     description: "..."
     inputs:
       household_size: 2
@@ -171,6 +175,7 @@ tests:
 
   # Synthetic cases follow
   - case_id: "deny_gross_001"
+    short_description: "Deny — gross income test failed"
     description: "..."
     inputs:
       household_size: 3
@@ -184,6 +189,7 @@ tests:
 
   # For modules with money/int/string expr:-driven decision fields:
   - case_id: "calc_001"
+    short_description: "Compute — adjusted income after exclusions"
     description: "..."
     inputs:
       # ... flat key-value
@@ -199,7 +205,15 @@ Then emit the Catala test fixture peer for the YAML:
 
 > **Run `/catala-emit-tests <domain> <program>`.** Skip pre-flight — already verified above. The sub-skill reads the Catala source's scope-input declarations directly to infer the struct-literal shape, then emits `specs/tests/<program>_tests.catala_en` and self-checks via `clerk typecheck`. If the sub-skill returns `:::user_input` (unresolved clerk-loop), relay the user's response back to the sub-skill before continuing.
 
-After the sub-skill returns successfully, record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and this skill's outputs (the manifest now captures both the YAML and its `.catala_en` peer in a single write):
+After the sub-skill returns successfully, validate the written test cases deterministically:
+
+```bash
+xlator validate-tests <domain> <program>
+```
+
+This enforces that every case has a `case_id`, `short_description`, and `description`, and that `short_description` is unique across the program's test set. If it exits non-zero, emit `:::error` with the captured output — when the failure is a cross-file duplicate, the message names both offending file/case_id pairs (the colliding label may live in an expanded file this run did not write) — fix the duplicate or missing field and re-run, and **do not** proceed to `record-tier-manifest`.
+
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and this skill's outputs (the manifest now captures both the YAML and its `.catala_en` peer in a single write):
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -224,7 +238,7 @@ Check for `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml`:
 
 For each stale case:
 - Update threshold values in `inputs` and `expected` to match the current Catala source's tables and constants
-- Preserve all other fields unchanged (`case_id`, `description`, `tags`)
+- Preserve all other fields unchanged (`case_id`, `short_description`, `description`, `tags`)
 
 If no stale cases were identified:
 :::important
@@ -283,6 +297,16 @@ Run `/catala-emit-tests <domain> <program>`. Skip pre-flight — already verifie
 
 Delete `$DOMAINS_DIR/<domain>/specs/.stale-cases.yaml` if it exists (prevents stale hints on the next standalone run).
 
+### Step 7b: Validate Test Cases
+
+Validate the updated suite deterministically before recording the manifest:
+
+```bash
+xlator validate-tests <domain> <program>
+```
+
+This enforces required `case_id` / `short_description` / `description` and program-wide `short_description` uniqueness. If it exits non-zero, emit `:::error` with the captured output (cross-file duplicates name both offending file/case_id pairs — the collision may live in an expanded file this run did not edit), fix it, and re-run before proceeding. Do **not** continue to Step 8 while validation fails.
+
 ### Step 8: Record Tests-Tier Manifest
 
 Record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the updated test suite:
@@ -302,3 +326,5 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 - **Don't delete cases that aren't stale** — only update or add; removal is a human decision
 - **Omit optional input fields** that aren't relevant to a test case — only include inputs the test actually depends on
 - **Don't skip the `/catala-emit-tests` step** — the YAML and Catala companion must stay in sync, and the post-v14.0.0 pipeline expects the `.catala_en` peer to exist under `specs/tests/`
+- **Don't reuse a `short_description` across cases** — it must be unique within the program's test set; `xlator validate-tests` will hard-fail on duplicates
+- **Don't omit `short_description`** — it is required on every case, including extracted and sample cases (synthesize one if the source lacks it)

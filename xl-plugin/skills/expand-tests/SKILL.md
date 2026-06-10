@@ -130,6 +130,7 @@ test_suite:
 
 tests:
   - case_id: "<prefix>_001"
+    short_description: "..."   # required; concise + unique across the program's test set
     description: "..."
     inputs:
       <field>: <value>    # flat key-value only, never nested
@@ -137,6 +138,13 @@ tests:
       <decision_field>: <value>
     tags: ["<tag1>", "<tag2>"]
 ```
+
+**Every generated case requires a `short_description`** — a concise, human-readable label that must be **unique across the whole program's test set** (baseline plus every expanded file). Because expanded cases are generated formulaically, disambiguate the label by appending the distinguishing value so labels never collide:
+
+- **`bnd_*` (boundary):** include the threshold value and side — e.g. `Boundary — gross limit at $1,830`, `Boundary — gross limit just below $1,830`, `Boundary — gross limit just above $1,830`. For table-keyed thresholds, include the key too (e.g. `Boundary — size 3 limit at $1,830`).
+- **`nil_*` (null/malformed):** include the field and scenario — e.g. `Null input — gross_monthly_income omitted`, `Null input — gross_monthly_income set null`, `Malformed — gross_monthly_income wrong type`, `Malformed — gross_monthly_income negative`.
+- **`edg_*` (edge):** name the scenario — e.g. `Edge — all-zero numeric inputs`, `Edge — maximum household size`.
+- **`drv_*` (derived):** derive from the source narrative/example — e.g. `Derived — 523B compatible-income example`.
 
 ---
 
@@ -244,7 +252,15 @@ Then emit the Catala test fixture peers for each non-null-input YAML written abo
 
 > **Run `/catala-emit-tests <domain> <program>`.** Skip pre-flight — already verified above. The sub-skill enumerates every `<program>*_tests.yaml` under `specs/tests/`, emits a typechecking `.catala_en` peer for each non-null-input file, and self-checks via `clerk typecheck`. `*_null_input_expanded_tests.yaml` is skipped (null inputs aren't Catala-encodable). If the sub-skill returns `:::user_input` (unresolved clerk-loop), relay the user's response back to the sub-skill before continuing.
 
-After the sub-skill returns successfully, record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the expanded test files (the manifest captures both YAML and `.catala_en` peers in a single write):
+After the sub-skill returns successfully, validate the expanded suite deterministically:
+
+```bash
+xlator validate-tests <domain> <program>
+```
+
+This enforces required `case_id` / `short_description` / `description` and program-wide `short_description` uniqueness across the baseline plus all expanded files. If it exits non-zero, emit `:::error` with the captured output — on a cross-file duplicate the message names both offending file/case_id pairs (the collision may sit in a file this run did not write) — fix the offending label and re-run before proceeding. Do **not** continue while validation fails.
+
+Then record the tests-tier manifest so `/check-freshness` can later detect drift between `specs/*.catala_en` and the expanded test files (the manifest captures both YAML and `.catala_en` peers in a single write):
 
 ```bash
 xlator record-tier-manifest <domain> --tier tests
@@ -274,3 +290,5 @@ Run `xlator catala-pipeline <domain> <program>` to verify the emitted Catala tes
 - **Don't treat derived tests as exhaustive** — the `drv_*` file is best-effort; include the caveat comment in the file header
 - **Don't generate null tests for optional fields** — only required input fields (those without `optional: true` in the naming manifest) get null/missing-input tests
 - **Don't hard-code domain-specific field names** — read `inputs:` and `outputs:` from the naming manifest; do not assume fields like `eligible` or `reasons` exist in every domain
+- **Don't emit colliding `short_description` labels** — formulaic cases (`bnd_*`, `nil_*`, `edg_*`) must disambiguate by appending the threshold value, field, or scenario so each label is unique program-wide; `xlator validate-tests` hard-fails on duplicates
+- **Don't omit `short_description`** — it is required on every generated case in all four output files

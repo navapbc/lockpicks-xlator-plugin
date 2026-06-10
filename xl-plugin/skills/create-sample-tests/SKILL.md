@@ -131,6 +131,7 @@ Float tolerance ±0.005 applies automatically to numeric `expected` fields.
 **Test case format:**
 ```yaml
 - case_id: "allow_001"
+  short_description: "<concise unique gist, e.g. 'Approve — income eligible'>"
   description: "<one sentence: what this case tests>"
   inputs:
     <field_name>: <value>
@@ -140,6 +141,8 @@ Float tolerance ±0.005 applies automatically to numeric `expected` fields.
     # include fields from include_with_output when relevant
   tags: ["allow"]
 ```
+
+`short_description` is a concise, unique gist of `description` that can stand in for the `case_id`. Populate it here; if omitted, `/create-tests` synthesizes one when it copies the sample case into the test suite.
 
 For `deny` cases, include a `reasons:` field in `expected` if `denial_reason` or equivalent is in `output_variables.secondary_decisions`:
 ```yaml

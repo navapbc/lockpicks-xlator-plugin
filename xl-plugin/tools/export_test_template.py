@@ -148,24 +148,28 @@ def main() -> None:
     specs = build_csv_field_specs(manifest_doc)
 
     # Build column headers
-    header = ["case_id", "description"] + [s.column_name for s in specs] + ["tags", "notes"]
+    header = ["case_id", "short_description", "description"] + [s.column_name for s in specs] + ["tags", "notes"]
 
     # Build descriptions row
-    desc_row = ["#desc", "[Description — required; human-readable summary of this test case]"]
+    desc_row = [
+        "#desc",
+        "[Short description — required; concise unique label, e.g. 'Deny — gross income test failed']",
+        "[Description — required; human-readable summary of this test case]",
+    ]
     for spec in specs:
         desc_row.append(field_description_hint(spec))
     desc_row.append("Optional. Comma-separated tags (e.g. allow,boundary,size_3)")
     desc_row.append("Optional. Free-text notes about this test case")
 
     # Build allow example row
-    allow_row = ["allow_001", "Basic approval example"]
+    allow_row = ["allow_001", "Approve — basic eligibility", "Basic approval example"]
     for i, spec in enumerate(specs):
         allow_row.append(_placeholder_allow(spec, i))
     allow_row.append("allow")
     allow_row.append("")
 
     # Build deny example row
-    deny_row = ["deny_001", "Basic denial example"]
+    deny_row = ["deny_001", "Deny — basic ineligibility", "Basic denial example"]
     for i, spec in enumerate(specs):
         deny_row.append(_placeholder_deny(spec, i))
     deny_row.append("deny")

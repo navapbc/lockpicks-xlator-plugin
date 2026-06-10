@@ -116,6 +116,7 @@ If the command exits non-zero, emit `:::error` with the captured stderr and stop
 # re-run /extract-test-cases and choose "re-extract" to refresh.
 extracted_tests:
   - case_id: "ext_001"
+    short_description: "Approve — earned income within limit"
     description: "Example 1 from §441.2: household of 3, earned income $2,100/mo"
     source:
       file: "$DOMAINS_DIR/<domain>/input/policy_docs/apa_manual/441/441.2-earned-income.md"  # repo-root-relative
@@ -135,6 +136,7 @@ extracted_tests:
 
 Rules:
 - `case_id` values are `ext_001`, `ext_002`, … — assigned sequentially across all input files
+- `short_description` is a concise, unique gist of `description` (e.g. `Approve — earned income within limit`). Populate it here when the example's intent is clear; if omitted, `/create-tests` synthesizes one at copy-in time. Providing it upstream keeps the label tied to the source example.
 - `source.file` is always relative to repo root
 - `notes:` is optional — include only when unmappable values need recording
 - Inputs are always flat key-value, never nested

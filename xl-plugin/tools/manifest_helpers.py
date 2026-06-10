@@ -38,7 +38,7 @@ from typing import Any, Optional
 import yaml
 
 
-RESERVED_COLUMNS = frozenset({"case_id", "description", "tags", "notes"})
+RESERVED_COLUMNS = frozenset({"case_id", "short_description", "description", "tags", "notes"})
 
 
 @dataclass
