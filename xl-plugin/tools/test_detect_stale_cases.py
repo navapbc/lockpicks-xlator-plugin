@@ -17,11 +17,13 @@ domain + real Catala source + real `catala interpret`), not here.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -137,6 +139,52 @@ class TestCmdDetect:
         assert "eligible" in entry["diff"]
         assert entry["diff"]["eligible"]["current"] is True
         assert entry["diff"]["eligible"]["recomputed"] is False
+
+    def test_stale_entry_carries_short_description(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            domain = _make_domain(Path(tmp), tests_doc={
+                "tests": [
+                    {"case_id": "c1", "short_description": "Deny — gross income test failed",
+                     "inputs": {"x": 80}, "expected": {"eligible": True}},
+                ]
+            })
+            with mock.patch.object(catala_eval, "run",
+                                   return_value=_result({"eligible": False})):
+                summary = detect_stale_cases.cmd_detect(domain, "elig")
+        assert summary["stale_cases"][0]["short_description"] == "Deny — gross income test failed"
+
+    def test_print_body_renders_short_description_label(self):
+        summary = {
+            "scanned_count": 1, "stale_count": 1, "error_count": 0,
+            "stale_cases": [{
+                "case_id": "c1", "short_description": "Deny — gross income test failed",
+                "file": "specs/tests/elig_tests.yaml",
+                "diff": {"eligible": {"current": True, "recomputed": False}},
+            }],
+            "errors": [],
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            detect_stale_cases._print_body(summary)
+        out = buf.getvalue()
+        assert "[Deny — gross income test failed]" in out
+        assert "c1" in out
+
+    def test_print_body_without_short_description_falls_back_to_case_id(self):
+        summary = {
+            "scanned_count": 1, "stale_count": 1, "error_count": 0,
+            "stale_cases": [{
+                "case_id": "c1", "file": "f.yaml",
+                "diff": {"eligible": {"current": True, "recomputed": False}},
+            }],
+            "errors": [],
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            detect_stale_cases._print_body(summary)
+        out = buf.getvalue()
+        assert "c1" in out
+        assert "[" not in out.split("Stale:")[1]
 
     def test_evaluator_error_is_recorded_not_fatal(self):
         with tempfile.TemporaryDirectory() as tmp:

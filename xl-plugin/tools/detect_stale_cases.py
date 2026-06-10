@@ -20,6 +20,7 @@ Output:
         "stale_cases":   [
           {
             "case_id":             <str>,
+            "short_description":    <str|null>,
             "file":                <relative path>,
             "current_expected":    {...},
             "recomputed_expected": {...},
@@ -202,11 +203,13 @@ def cmd_detect(domain_dir: Path, program: str) -> dict:
                 continue
             summary["scanned_count"] += 1
             case_id = case.get("case_id", "<unknown>")
+            short_description = case.get("short_description")
             try:
                 diff = _detect_stale(catala_path, scope, case)
             except catala_eval.EvaluationError as exc:
                 summary["errors"].append({
                     "case_id": case_id,
+                    "short_description": short_description,
                     "file": rel,
                     "error": str(exc),
                 })
@@ -217,6 +220,7 @@ def cmd_detect(domain_dir: Path, program: str) -> dict:
             summary["stale_count"] += 1
             summary["stale_cases"].append({
                 "case_id": case_id,
+                "short_description": short_description,
                 "file": rel,
                 "current_expected": diff.current_expected,
                 "recomputed_expected": diff.recomputed_expected,
@@ -239,13 +243,15 @@ def _print_body(summary: dict) -> None:
                 f"{k}: {_short(v['current'])}→{_short(v['recomputed'])}"
                 for k, v in entry["diff"].items()
             )
-            print(f"  {entry['case_id']} ({entry['file']}) — {fields}")
+            label = f" [{entry['short_description']}]" if entry.get("short_description") else ""
+            print(f"  {entry['case_id']}{label} ({entry['file']}) — {fields}")
     if summary["errors"]:
         print()
         print("Errors:")
         for entry in summary["errors"]:
             cid = entry["case_id"] or "?"
-            print(f"  {cid} ({entry['file']}): {entry['error']}")
+            label = f" [{entry['short_description']}]" if entry.get("short_description") else ""
+            print(f"  {cid}{label} ({entry['file']}): {entry['error']}")
 
 
 def _short(value: Any, max_len: int = 40) -> str:
