@@ -227,6 +227,7 @@ def _parse_csv_rows(csv_content: str, specs: list[FieldSpec], errors: list[dict]
 
     rows: list[dict[str, Any]] = []
     seen_case_ids: dict[str, int] = {}
+    seen_short_descriptions: dict[str, int] = {}
 
     for row_num, raw_row in enumerate(reader, start=2):  # row 1 = header
         # Skip description row (#desc)
@@ -234,13 +235,16 @@ def _parse_csv_rows(csv_content: str, specs: list[FieldSpec], errors: list[dict]
         if case_id_raw == "#desc":
             continue
 
-        # Skip blank rows (all non-case_id/description columns blank)
+        # Skip blank rows (a row carrying only identity/label columns —
+        # case_id / short_description / description — is a blank stub, not a
+        # case; require at least one fact/decision column to be filled)
         data_cols = {k: v for k, v in raw_row.items()
-                     if k not in ("case_id", "description")}
+                     if k not in ("case_id", "short_description", "description")}
         if all(not v or not v.strip() for v in data_cols.values()):
             continue
 
         case_id = case_id_raw
+        short_description = (raw_row.get("short_description") or "").strip()
         description = (raw_row.get("description") or "").strip()
 
         # Validate case_id
@@ -261,6 +265,31 @@ def _parse_csv_rows(csv_content: str, specs: list[FieldSpec], errors: list[dict]
                 )
             seen_case_ids[case_id] = row_num
 
+        # Validate short_description (required + unique — uniqueness is the
+        # whole point of the field, so a duplicate is a hard error, unlike the
+        # last-row-wins WARN for case_id above)
+        if not short_description:
+            errors.append({
+                "row": row_num, "case_id": case_id,
+                "field": "short_description",
+                "message": "short_description is required",
+                "code": "MISSING_REQUIRED",
+            })
+        elif short_description in seen_short_descriptions:
+            errors.append({
+                "row": row_num, "case_id": case_id,
+                "field": "short_description",
+                "value": short_description,
+                "message": (
+                    f"duplicate short_description '{short_description}' "
+                    f"(also at row {seen_short_descriptions[short_description]}) "
+                    f"— short_description must be unique"
+                ),
+                "code": "DUPLICATE_SHORT_DESCRIPTION",
+            })
+        else:
+            seen_short_descriptions[short_description] = row_num
+
         # Validate description
         if not description:
             errors.append({
@@ -272,6 +301,7 @@ def _parse_csv_rows(csv_content: str, specs: list[FieldSpec], errors: list[dict]
 
         parsed_row: dict[str, Any] = {
             "case_id": case_id,
+            "short_description": short_description,
             "description": description,
             "_row_num": row_num,
             "inputs": {},
@@ -364,6 +394,7 @@ def _parse_yaml_rows(yaml_content: str, errors: list[dict]) -> list[dict[str, An
         test_list = doc
 
     rows: list[dict[str, Any]] = []
+    seen_short_descriptions: dict[str, int] = {}
     for i, tc in enumerate(test_list, start=1):
         if not isinstance(tc, dict):
             continue
@@ -371,12 +402,26 @@ def _parse_yaml_rows(yaml_content: str, errors: list[dict]) -> list[dict[str, An
         if not case_id:
             errors.append({"row": i, "case_id": "", "field": "case_id",
                            "message": "case_id is required", "code": "MISSING_REQUIRED"})
+        short_description = str(tc.get("short_description", ""))
+        if not short_description:
+            errors.append({"row": i, "case_id": case_id, "field": "short_description",
+                           "message": "short_description is required", "code": "MISSING_REQUIRED"})
+        elif short_description in seen_short_descriptions:
+            errors.append({"row": i, "case_id": case_id, "field": "short_description",
+                           "value": short_description,
+                           "message": (f"duplicate short_description '{short_description}' "
+                                       f"(also at case {seen_short_descriptions[short_description]}) "
+                                       f"— short_description must be unique"),
+                           "code": "DUPLICATE_SHORT_DESCRIPTION"})
+        else:
+            seen_short_descriptions[short_description] = i
         description = str(tc.get("description", ""))
         if not description:
             errors.append({"row": i, "case_id": case_id, "field": "description",
                            "message": "description is required", "code": "MISSING_REQUIRED"})
         rows.append({
             "case_id": case_id,
+            "short_description": short_description,
             "description": description,
             "_row_num": i,
             "inputs": tc.get("inputs", {}) or {},
@@ -397,6 +442,7 @@ def _build_test_case(parsed: dict[str, Any], existing_expected: dict,
     """Build a YAML test case dict from a parsed row."""
     tc: dict[str, Any] = {
         "case_id": parsed["case_id"],
+        "short_description": parsed["short_description"],
         "description": parsed["description"],
     }
 
