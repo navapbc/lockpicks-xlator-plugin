@@ -33,6 +33,7 @@ tests:
   # 10% of 1707.50 = 170.75; |1824.17 - 1707.50| = 116.67 ≤ 170.75 → compatible
   # ---------------------------------------------------------------------------
   - case_id: "ext_001"
+    short_description: "Approve — Action 4 compatible (extracted 523B example)"
     description: "523B example: client $1,707.50 below A1E 2025 standard ($1,795); DOL $1,824.17 above but within 10% band — approve"
     source:
       file: "domains/ak_doh/input/policy_docs/adltc_manual/523 MEDICAID EXCEPTIONS TO APA INCOME POLICY.md"
@@ -57,6 +58,7 @@ tests:
   # DOL chain:    (2000 - 20 - 65) × 0.5 = 957.50  < 1845
   # ---------------------------------------------------------------------------
   - case_id: "allow_001"
+    short_description: "Approve — Action 1 both below standard"
     description: "Action 1: both client ($957.50) and DOL ($957.50) adjusted income well below A1E 2026 standard ($1,845) — approve"
     inputs:
       ClientData.gross_earned_income: 2000
@@ -79,6 +81,7 @@ tests:
   # AK-ELIG-DENY-001 fires → INCOME_EXCEEDS_STANDARD_BOTH
   # ---------------------------------------------------------------------------
   - case_id: "deny_both_001"
+    short_description: "Deny — Action 2 both client and DOL over standard"
     description: "Action 2: both client ($1,957.50) and DOL ($1,957.50) adjusted income above A1E 2026 standard ($1,845) — deny"
     inputs:
       ClientData.gross_earned_income: 4000
@@ -102,6 +105,7 @@ tests:
   # AK-ELIG-DENY-002 fires → INCOME_EXCEEDS_STANDARD_CLIENT_ONLY
   # ---------------------------------------------------------------------------
   - case_id: "deny_client_001"
+    short_description: "Deny — Action 3 client over, DOL under standard"
     description: "Action 3: client adjusted $2,457.50 above standard; DOL $457.50 below — deny on client statement regardless of DOL"
     inputs:
       ClientData.gross_earned_income: 5000
@@ -125,6 +129,7 @@ tests:
   # |1900 - 1800| = 100 ≤ 1800 × 0.10 = 180 → compatible → approve
   # ---------------------------------------------------------------------------
   - case_id: "allow_compatible_001"
+    short_description: "Approve — Action 4 client under, DOL within 10% band"
     description: "Action 4 compatible: client adjusted $1,800 below standard; DOL $1,900 above but within 10% band — approve"
     inputs:
       ClientData.gross_earned_income: 3685
@@ -147,6 +152,7 @@ tests:
   # |2057.50 - 1800| = 257.50 > 1800 × 0.10 = 180 → NOT compatible → manual_verification
   # ---------------------------------------------------------------------------
   - case_id: "manual_incompatible_001"
+    short_description: "Manual review — Action 4 DOL outside 10% band"
     description: "Action 4 incompatible: client adjusted $1,800 below standard; DOL $2,057.50 above and outside 10% band — manual verification required"
     inputs:
       ClientData.gross_earned_income: 3685
@@ -169,6 +175,7 @@ tests:
   # No deny rules fire (all require dol_earned_income_available = true)
   # ---------------------------------------------------------------------------
   - case_id: "manual_no_dol_001"
+    short_description: "Manual review — Action 5 no DOL electronic data"
     description: "Action 5: no DOL electronic data — manual verification required regardless of client income ($457.50 below standard)"
     inputs:
       ClientData.gross_earned_income: 1000
@@ -188,6 +195,7 @@ tests:
   # DOL identical → both exactly at limit (≤) → approve
   # ---------------------------------------------------------------------------
   - case_id: "allow_boundary_001"
+    short_description: "Approve — client adjusted exactly at income limit"
     description: "Boundary: client adjusted income exactly $1,845 = A1E 2026 income limit — approve (≤ limit passes)"
     inputs:
       ClientData.gross_earned_income: 3775
@@ -210,6 +218,7 @@ tests:
   # DOL income identical (same IRWE applied)
   # ---------------------------------------------------------------------------
   - case_id: "allow_irwe_001"
+    short_description: "Approve — IRWE exclusion drops income below standard"
     description: "IRWE ($300) applied at step 7: income drops from $1,957.50 to $1,807.50, below A1E 2026 standard — approve"
     inputs:
       ClientData.gross_earned_income: 4000
@@ -235,6 +244,7 @@ tests:
   # AK-ELIG-DENY-001 fires → INCOME_EXCEEDS_STANDARD_BOTH
   # ---------------------------------------------------------------------------
   - case_id: "deny_couple_001"
+    short_description: "Deny — A2S couple both over couple standard"
     description: "A2S couple: both client ($3,457.50) and DOL ($3,457.50) above higher couple standard ($2,732) — deny"
     inputs:
       ClientData.gross_earned_income: 7000
