@@ -402,7 +402,11 @@ def _parse_yaml_rows(yaml_content: str, errors: list[dict]) -> list[dict[str, An
         if not case_id:
             errors.append({"row": i, "case_id": "", "field": "case_id",
                            "message": "case_id is required", "code": "MISSING_REQUIRED"})
-        short_description = str(tc.get("short_description", ""))
+        # Guard against an explicit YAML null: str(None) would be the truthy
+        # literal "None" and slip past the required check (and write a garbage
+        # label). Mirror validate_test_cases.py's isinstance(str) gate.
+        raw_short_desc = tc.get("short_description")
+        short_description = raw_short_desc.strip() if isinstance(raw_short_desc, str) else ""
         if not short_description:
             errors.append({"row": i, "case_id": case_id, "field": "short_description",
                            "message": "short_description is required", "code": "MISSING_REQUIRED"})

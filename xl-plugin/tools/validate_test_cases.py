@@ -51,11 +51,26 @@ import yaml
 
 _REQUIRED_FIELDS = ("case_id", "short_description", "description")
 
+# The exact test-file family for a program: the /create-tests baseline plus
+# every file /expand-tests writes. Matched by exact suffix (not an open-ended
+# `<program>*_tests.yaml` glob) so a sibling program whose name extends this one
+# — e.g. `income_extra` when validating `income` — is NOT swept into the
+# uniqueness set, which would otherwise raise false cross-program duplicates.
+# Keep in sync with the four output files /expand-tests emits.
+_TEST_FILE_SUFFIXES = (
+    "_tests.yaml",
+    "_derived_from_extracted_tests.yaml",
+    "_boundary_expanded_tests.yaml",
+    "_null_input_expanded_tests.yaml",
+    "_edge_case_expanded_tests.yaml",
+)
+
 
 def _find_test_files(tests_dir: Path, program: str) -> list[Path]:
     if not tests_dir.is_dir():
         return []
-    return sorted(p for p in tests_dir.glob(f"{program}*_tests.yaml") if p.is_file())
+    names = {f"{program}{suffix}" for suffix in _TEST_FILE_SUFFIXES}
+    return sorted(p for p in tests_dir.iterdir() if p.is_file() and p.name in names)
 
 
 def _load_yaml(path: Path) -> Any:
@@ -84,6 +99,10 @@ def validate(domain_dir: Path, program: str) -> list[str]:
             errors.append(f"{rel}: YAML parse error: {exc}")
             continue
         if not isinstance(doc, dict):
+            errors.append(
+                f"{rel}: expected a YAML mapping with a 'tests:' key, "
+                f"got {type(doc).__name__}"
+            )
             continue
         cases = doc.get("tests") or []
         if not isinstance(cases, list):
@@ -133,6 +152,16 @@ def main() -> None:
     if not domain_dir.is_dir():
         print(f"Error: domain directory not found: {domain_dir}", file=sys.stderr)
         sys.exit(2)
+
+    # Distinguish "valid suite" from "no files matched" (e.g. a mistyped program
+    # name): both exit 0, but the latter warrants a notice so a caller isn't
+    # misled into thinking a wrong/empty target validated cleanly.
+    if not _find_test_files(domain_dir / "specs" / "tests", args.program):
+        print(
+            f"WARNING: no test files found matching "
+            f"specs/tests/{args.program}_tests.yaml (or its expanded peers).",
+            file=sys.stderr,
+        )
 
     errors = validate(domain_dir, args.program)
 

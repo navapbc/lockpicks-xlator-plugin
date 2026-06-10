@@ -94,3 +94,23 @@ def test_sibling_prefix_program_not_swept_by_baseline(tmp_path):
     _write(tests, "income_extra_tests.yaml", _suite(_case("a", "Approve — income")))
     # Validating "income_extra" must not see "income_tests.yaml" cases.
     assert v.validate(tmp_path, "income_extra") == []
+
+
+def test_shorter_prefix_program_does_not_sweep_longer_sibling(tmp_path):
+    """Validating 'income' must NOT pull in 'income_extra_tests.yaml' — the two
+    are distinct programs that may legitimately reuse a label. (Regression guard
+    for the exact-suffix file matching that replaced the open-ended glob.)"""
+    tests = tmp_path / "specs" / "tests"
+    _write(tests, "income_tests.yaml", _suite(_case("a", "Approve — shared")))
+    _write(tests, "income_extra_tests.yaml", _suite(_case("b", "Approve — shared")))
+    # No false cross-program duplicate: income_extra_tests.yaml is out of scope.
+    assert v.validate(tmp_path, "income") == []
+
+
+def test_non_mapping_yaml_doc_is_reported(tmp_path):
+    """A test file that parses to a bare list (not a mapping with `tests:`) is
+    flagged, not silently treated as valid."""
+    tests = tmp_path / "specs" / "tests"
+    _write(tests, "elig_tests.yaml", "- case_id: a\n- case_id: b\n")
+    errors = v.validate(tmp_path, "elig")
+    assert any("expected a YAML mapping" in e for e in errors)

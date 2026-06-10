@@ -170,6 +170,22 @@ class TestCmdDetect:
         assert "[Deny — gross income test failed]" in out
         assert "c1" in out
 
+    def test_print_body_error_entry_renders_short_description_label(self):
+        summary = {
+            "scanned_count": 1, "stale_count": 0, "error_count": 1,
+            "stale_cases": [],
+            "errors": [{
+                "case_id": "c1", "short_description": "Deny — gross income test failed",
+                "file": "specs/tests/elig_tests.yaml", "error": "missing required input",
+            }],
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            detect_stale_cases._print_body(summary)
+        out = buf.getvalue()
+        assert "[Deny — gross income test failed]" in out
+        assert "missing required input" in out
+
     def test_print_body_without_short_description_falls_back_to_case_id(self):
         summary = {
             "scanned_count": 1, "stale_count": 1, "error_count": 0,

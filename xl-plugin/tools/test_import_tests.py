@@ -89,6 +89,19 @@ def test_yaml_missing_short_description_is_required_error():
     assert any(e["field"] == "short_description" for e in errors)
 
 
+def test_yaml_explicit_null_short_description_is_required_error():
+    """An explicit YAML null must be rejected as MISSING_REQUIRED, not coerced
+    to the literal string 'None' and written out as a garbage label."""
+    yaml_doc = (
+        "tests:\n"
+        "  - case_id: a1\n    short_description: null\n    description: d\n"
+    )
+    errors: list[dict] = []
+    it._parse_yaml_rows(yaml_doc, errors)
+    assert "MISSING_REQUIRED" in _codes(errors)
+    assert any(e["field"] == "short_description" for e in errors)
+
+
 def test_yaml_duplicate_short_description_is_hard_error():
     yaml_doc = (
         "tests:\n"
