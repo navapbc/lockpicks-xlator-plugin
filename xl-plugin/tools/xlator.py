@@ -35,6 +35,7 @@ CSV test-case authoring:
   export-test-template  <domain> <module>   Generate CSV template from naming-manifest
   export-test-cases     <domain> <module>   Export existing _tests.yaml to CSV
   import-tests          <domain> <module> <file>  Import CSV/YAML test cases into _tests.yaml
+  validate-tests        <domain> <module>   Validate test YAML (required fields + unique short_description)
 
 """
 
@@ -625,6 +626,11 @@ examples:
     p_it.add_argument("--output-format", choices=["text", "json"], default="text",
                       help="Error/result output format (default: text; use json for machine-parseable output)")
 
+    p_vt = sub.add_parser("validate-tests",
+                          help="Validate test YAML: required fields + unique short_description")
+    p_vt.add_argument("domain", help="Domain name (e.g. snap, ak_doh)")
+    p_vt.add_argument("module", help="Module/program name (e.g. eligibility); used as the test-file glob prefix")
+
     args = parser.parse_args()
 
     match args.action:
@@ -709,6 +715,9 @@ examples:
                  str(manifest_path),
                  "--module", args.module,
                  args.input, tf, *extra])
+        case "validate-tests":
+            run([sys.executable, str(SCRIPT_DIR_TOOLS / "validate_test_cases.py"),
+                 args.domain, args.module])
 
 
 if __name__ == "__main__":
