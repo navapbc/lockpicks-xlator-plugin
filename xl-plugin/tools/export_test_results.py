@@ -52,6 +52,46 @@ def find_tests(filepath: Path) -> list[tuple[str, str, str]]:
     return tests
 
 
+# Labeled metadata comments emitted by /catala-emit-tests inside each test's
+# `catala` fence, directly above #[test]: `# case_id:`, `# short_description:`,
+# `# tags:`. `description` is NOT here — it rides the `## Test:` heading parsed
+# by find_tests above.
+_METADATA_LABELS = ('case_id', 'short_description', 'tags')
+
+
+def find_metadata(filepath: Path) -> dict[str, dict[str, str]]:
+    """Return {scope_name: {case_id, short_description, tags}} for each #[test].
+
+    Each block's labels are scanned ONLY in the span between the previous
+    #[test] and this one (bounded per-block) — never a global file scan — so a
+    field a block omits is not back-filled from a neighbouring block.
+    """
+    content = filepath.read_text()
+    test_pattern = re.compile(r'#\[test\]\s*\ndeclaration scope (\w+):', re.MULTILINE)
+    matches = list(test_pattern.finditer(content))
+
+    label_patterns = {
+        label: re.compile(rf'^#\s*{label}:\s*(.+?)\s*$', re.MULTILINE)
+        for label in _METADATA_LABELS
+    }
+
+    result: dict[str, dict[str, str]] = {}
+    for i, m in enumerate(matches):
+        scope_name = m.group(1)
+        span_start = matches[i - 1].end() if i > 0 else 0
+        span = content[span_start:m.start()]
+        meta: dict[str, str] = {}
+        for label, pat in label_patterns.items():
+            lm = pat.search(span)
+            value = lm.group(1).strip() if lm else ''
+            if label == 'tags' and value:
+                value = ', '.join(t.strip() for t in value.split(',') if t.strip())
+            meta[label] = value
+        result[scope_name] = meta
+
+    return result
+
+
 def find_assertions(filepath: Path) -> dict[str, dict[str, str]]:
     """Return {scope_name: {field: expected_value}} parsed from assertion statements."""
     content = filepath.read_text()
@@ -258,6 +298,7 @@ def process_file(test_file: Path) -> None:
     if not tests:
         return
     assertions_by_scope = find_assertions(test_file)
+    metadata_by_scope = find_metadata(test_file)
 
     rows: list[dict[str, str]] = []
     all_input_keys: list[str] = []
@@ -281,9 +322,13 @@ def process_file(test_file: Path) -> None:
             if k not in all_output_keys:
                 all_output_keys.append(k)
 
+        meta = metadata_by_scope.get(scope_name, {})
         row: dict[str, str] = {
             'test_name': scope_name,
+            'case_id': meta.get('case_id', ''),
+            'short_description': meta.get('short_description', ''),
             'description': description,
+            'tags': meta.get('tags', ''),
             'status': status,
         }
         row.update(input_data)
@@ -299,8 +344,11 @@ def process_file(test_file: Path) -> None:
     out_dir = Path('test-results')
     out_dir.mkdir(exist_ok=True)
 
-    # Input CSV: test_name + description + all input fields
-    input_fieldnames = ['test_name', 'description'] + all_input_keys
+    # Input CSV: test_name + case metadata + all input fields
+    input_fieldnames = (
+        ['test_name', 'case_id', 'short_description', 'description', 'tags']
+        + all_input_keys
+    )
     input_csv_path = out_dir / (test_file.stem + '_inputs.csv')
     with open(input_csv_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=input_fieldnames, extrasaction='ignore')
