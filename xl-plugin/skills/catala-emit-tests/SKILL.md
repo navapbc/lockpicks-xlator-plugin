@@ -70,7 +70,19 @@ Glob `$DOMAINS_DIR/<domain>/specs/tests/<program>*_tests.yaml`. For each match, 
 For each non-skipped YAML test file `<stem>.yaml`, write `$DOMAINS_DIR/<domain>/specs/tests/<stem>.catala_en` containing:
 
 1. The `> Using <ModuleName>` directive matching the source module's `> Module` line.
-2. One `#[test] declaration scope Test<CaseId>:` block per YAML test case, with `result scope <Module>.<TargetScope>`. Immediately above each `#[test]` line, emit the case's `short_description` as a **single-line** Catala comment: `# <short_description>` (e.g. `# Deny — gross income test failed`). This carries the human-readable label into the fixture for reviewers; the scope identifier itself stays `Test<CaseId>` (a Catala identifier cannot hold the label text). Use a single `#` only — never `##` and never a multi-line comment, so `export_test_results.py`'s `^## Test:` heading regex is undisturbed.
+2. One `#[test] declaration scope Test<CaseId>:` block per YAML test case, with `result scope <Module>.<TargetScope>`. Carry the case's YAML metadata into the fixture so `xlator export-test-results` can round-trip it:
+   - **`description`** → a `## Test: <description>` markdown section heading on its own line, placed **outside/above** the ```catala fence that holds the `#[test]` block. This is the heading `export_test_results.py` already parses into its `description` column.
+   - **`case_id`, `short_description`, `tags`** → three single-line Catala comments **inside** the fence, as the lines **directly above** `#[test]`, each in uniform `# <label>: <value>` form:
+     ```
+     # case_id: <case_id>
+     # short_description: <short_description>
+     # tags: <tag1>, <tag2>
+     #[test]
+     declaration scope Test<CaseId>:
+     ```
+   - The scope identifier stays `Test<CaseId>` (a Catala identifier cannot hold the label text); `case_id` is emitted explicitly because PascalCase→snake_case is not reversible.
+   - **Adjacency invariant:** the three comments sit immediately above `#[test]`, and **nothing may be placed between `#[test]` and its `declaration scope` line** — `export_test_results.py` requires them adjacent, so an interposed line silently drops the test row.
+   - **`##` rule:** `## Test:` (outside the fence) is the only sanctioned `##`; keep label-comment values single-line `#` with no `##` inside them.
 3. Per-case `definition result.<input_var> equals <struct literal>` lines populated from the YAML's `inputs:` dict.
 4. Per-case `assertion (result.<output_field> = <expected>)` lines for every entry in the YAML's `expected:` block, with values translated per the output's declared Catala type.
 
@@ -158,4 +170,4 @@ Skipped M null-input file(s): <list>
 - **Don't skip the clerk-loop check.** Step 4 is mandatory — emission without typecheck is unverified output. If a file repeatedly fails to converge, the right move is to surface the diagnostics to the analyst (Step 4's `unresolved` path), not to ship a broken `.catala_en`.
 - **Don't call `xlator record-tier-manifest` inside this sub-skill.** The caller (or the SME) owns that bookkeeping. Calling it here when invoked from `/create-tests` or `/expand-tests` creates a double-write that records a stale manifest mid-flight.
 - **Don't process `*_null_input_expanded_tests.yaml` files.** Null inputs are not Catala-encodable in v1; skip silently with a `:::detail` note.
-- **Don't put `short_description` in the scope name, and never emit it as a `##` heading or multi-line comment.** It is a single-line `# <short_description>` Catala comment directly above the `#[test]` line; the scope identifier stays `Test<CaseId>`. A `##`-prefixed or multi-line label would collide with `export_test_results.py`'s `^## Test:` heading parsing.
+- **Don't put metadata in the scope name, and don't interpose lines between `#[test]` and `declaration scope`.** `case_id`/`short_description`/`tags` are single-line `# <label>: <value>` comments directly above `#[test]` (inside the fence); `description` is a `## Test:` heading outside the fence; the scope identifier stays `Test<CaseId>`. Putting `##` inside a label value, making a label multi-line, or inserting anything between `#[test]` and `declaration scope` would break `export_test_results.py`'s parsing.
