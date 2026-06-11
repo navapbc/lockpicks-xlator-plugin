@@ -52,6 +52,65 @@ def find_tests(filepath: Path) -> list[tuple[str, str, str]]:
     return tests
 
 
+# Labeled metadata comments emitted by /catala-emit-tests inside each test's
+# `catala` fence, directly above #[test]: `# case_id:`, `# short_description:`,
+# `# tags:`. `description` is NOT here — it rides the `## Test:` heading parsed
+# by find_tests above.
+# CONTRACT: keep this list in sync with the emit format documented in Step 3 of
+# xl-plugin/skills/catala-emit-tests/SKILL.md. Adding a label here without
+# updating the skill (or vice versa) yields silently-blank columns, not an error.
+_METADATA_LABELS = ('case_id', 'short_description', 'tags')
+
+# Leading columns of <stem>_inputs.csv: test_name stays first for back-compat,
+# then the round-tripped case metadata, then the input fact fields.
+_INPUT_METADATA_COLUMNS = ('test_name', 'case_id', 'short_description', 'description', 'tags')
+
+
+def input_fieldnames(all_input_keys: list[str]) -> list[str]:
+    """Column order for <stem>_inputs.csv: metadata columns first, then inputs."""
+    return list(_INPUT_METADATA_COLUMNS) + all_input_keys
+
+
+def find_metadata(filepath: Path) -> dict[str, dict[str, str]]:
+    """Return {scope_name: {case_id, short_description, tags}} for each #[test].
+
+    Each block's labels are read ONLY from the contiguous run of comment/blank
+    lines directly above its #[test] line. The run stops at the first
+    non-comment line (the ```catala fence opener), so a previous block's body
+    cannot leak its lines into this block, and a field a block omits is left
+    blank rather than back-filled from a neighbour.
+    """
+    content = filepath.read_text()
+    test_pattern = re.compile(r'#\[test\]\s*\ndeclaration scope (\w+):', re.MULTILINE)
+    label_patterns = {
+        label: re.compile(rf'^#\s*{label}:\s*(.+)$', re.MULTILINE)
+        for label in _METADATA_LABELS
+    }
+
+    result: dict[str, dict[str, str]] = {}
+    for m in test_pattern.finditer(content):
+        scope_name = m.group(1)
+        # Walk backward over the contiguous comment/blank lines above #[test].
+        label_lines: list[str] = []
+        for line in reversed(content[:m.start()].splitlines()):
+            stripped = line.strip()
+            if stripped == '' or stripped.startswith('#'):
+                label_lines.append(line)
+            else:
+                break
+        span = '\n'.join(reversed(label_lines))
+        meta: dict[str, str] = {}
+        for label, pat in label_patterns.items():
+            lm = pat.search(span)
+            value = lm.group(1).strip() if lm else ''
+            if label == 'tags' and value:
+                value = ', '.join(t.strip() for t in value.split(',') if t.strip())
+            meta[label] = value
+        result[scope_name] = meta
+
+    return result
+
+
 def find_assertions(filepath: Path) -> dict[str, dict[str, str]]:
     """Return {scope_name: {field: expected_value}} parsed from assertion statements."""
     content = filepath.read_text()
@@ -258,6 +317,7 @@ def process_file(test_file: Path) -> None:
     if not tests:
         return
     assertions_by_scope = find_assertions(test_file)
+    metadata_by_scope = find_metadata(test_file)
 
     rows: list[dict[str, str]] = []
     all_input_keys: list[str] = []
@@ -281,9 +341,13 @@ def process_file(test_file: Path) -> None:
             if k not in all_output_keys:
                 all_output_keys.append(k)
 
+        meta = metadata_by_scope.get(scope_name, {})
         row: dict[str, str] = {
             'test_name': scope_name,
+            'case_id': meta.get('case_id', ''),
+            'short_description': meta.get('short_description', ''),
             'description': description,
+            'tags': meta.get('tags', ''),
             'status': status,
         }
         row.update(input_data)
@@ -299,14 +363,14 @@ def process_file(test_file: Path) -> None:
     out_dir = Path('test-results')
     out_dir.mkdir(exist_ok=True)
 
-    # Input CSV: test_name + description + all input fields
-    input_fieldnames = ['test_name', 'description'] + all_input_keys
+    # Input CSV: test_name + case metadata + all input fields
+    in_fields = input_fieldnames(all_input_keys)
     input_csv_path = out_dir / (test_file.stem + '_inputs.csv')
     with open(input_csv_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=input_fieldnames, extrasaction='ignore')
+        writer = csv.DictWriter(f, fieldnames=in_fields, extrasaction='ignore')
         writer.writeheader()
         for row in rows:
-            writer.writerow({k: row.get(k, '') for k in input_fieldnames})
+            writer.writerow({k: row.get(k, '') for k in in_fields})
 
     # Output CSV: test_name + status + all output fields (out. prefix stripped)
     output_fieldnames = ['test_name', 'status'] + all_output_keys
@@ -349,7 +413,7 @@ def process_file(test_file: Path) -> None:
             act_row.update({k: row.get(f'out.{k}', '') for k in all_expected_keys})
             writer.writerow({k: act_row.get(k, '') for k in expected_fieldnames})
 
-    print(f'  → {input_csv_path} ({len(rows)} rows, {len(input_fieldnames)} columns)')
+    print(f'  → {input_csv_path} ({len(rows)} rows, {len(in_fields)} columns)')
     print(f'  → {output_csv_path} ({len(rows)} rows, {len(output_fieldnames)} columns)')
     print(f'  → {expected_csv_path} ({len(rows)} rows, {len(expected_fieldnames)} columns)')
     print(f'  → {actual_csv_path} ({len(rows)} rows, {len(expected_fieldnames)} columns)')
