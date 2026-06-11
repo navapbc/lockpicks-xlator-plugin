@@ -87,6 +87,63 @@ def test_label_value_with_colon_preserved(tmp_path):
     assert meta["TestDenyGross001"]["short_description"] == "Deny: gross income — limit exceeded"
 
 
+def test_decoy_comment_in_prior_block_body_does_not_leak(tmp_path):
+    """A `# case_id:`-looking comment inside block 1's scope body must NOT be
+    picked up as block 2's metadata — the scan stops at block 2's fence opener."""
+    text = """\
+## Test: First
+
+```catala
+# case_id: real_001
+#[test]
+declaration scope TestOne:
+  result scope Elig.EligibilityDecision
+
+scope TestOne:
+  # case_id: decoy_should_not_leak
+  assertion (result.eligible = true)
+```
+
+## Test: Second
+
+```catala
+#[test]
+declaration scope TestTwo:
+  result scope Elig.EligibilityDecision
+
+scope TestTwo:
+  assertion (result.eligible = false)
+```
+"""
+    meta = etr.find_metadata(_fixture(tmp_path, text))
+    assert meta["TestOne"]["case_id"] == "real_001"
+    # block 2 has no label of its own; the decoy in block 1's body must not leak.
+    assert meta["TestTwo"]["case_id"] == ""
+
+
+def test_single_tag_normalizes(tmp_path):
+    text = _FIXTURE.replace("# tags: deny, gross_test", "# tags: deny")
+    meta = etr.find_metadata(_fixture(tmp_path, text))
+    assert meta["TestDenyGross001"]["tags"] == "deny"
+
+
+def test_case_id_value_with_colon_preserved(tmp_path):
+    text = _FIXTURE.replace("# case_id: deny_gross_001", "# case_id: ns:deny:001")
+    meta = etr.find_metadata(_fixture(tmp_path, text))
+    assert meta["TestDenyGross001"]["case_id"] == "ns:deny:001"
+
+
+def test_no_test_blocks_returns_empty(tmp_path):
+    meta = etr.find_metadata(_fixture(tmp_path, "> Using Elig\n\nNo tests here.\n"))
+    assert meta == {}
+
+
+def test_input_fieldnames_metadata_columns_first():
+    fields = etr.input_fieldnames(["household_size", "gross_monthly_income"])
+    assert fields[:5] == ["test_name", "case_id", "short_description", "description", "tags"]
+    assert fields[5:] == ["household_size", "gross_monthly_income"]
+
+
 def test_missing_metadata_is_blank_not_error(tmp_path):
     text = """\
 ## Test: A heading but no labels
